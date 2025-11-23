@@ -1,10 +1,9 @@
-import React, { useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import RapportinoSheet from './components/RapportinoSheet'
 import CablePanel from './components/CablePanel'
 import ArchivioModal from './components/ArchivioModal'
-
-const STORAGE_ARCHIVIO_KEY = 'rapportino-v3-archivio'
-const STORAGE_MODELS_KEY = 'rapportino-v3-modelli'
+import AuthScreen from './components/AuthScreen'
+import { supabase } from './lib/supabaseClient'
 
 const ROLE_OPTIONS = [
   { key: 'ELETTRICISTA', label: 'Elettricista' },
@@ -19,65 +18,6 @@ const STATUS_LABELS = {
   RETURNED: 'Rimandato',
 }
 
-/* ===================== ARCHIVIO BLINDATO ===================== */
-/**
- * Clé unique d’un rapport: date + capo + role
- * => un capo peut être approuvé sur Elettricista mais pas sur Carpenteria, etc.
- */
-function makeArchivioKey(date, capo, role) {
-  const d = date || ''
-  const c = (capo || '').trim().toUpperCase() || 'CAPO'
-  const r = role || 'ELETTRICISTA'
-  return `${d}__${c}__${r}`
-}
-
-// Migration douce si anciens items étaient stockés seulement par date.
-function migrateOldArchivio(rawObj) {
-  if (!rawObj || typeof rawObj !== 'object') return {}
-  const migrated = {}
-  for (const [k, v] of Object.entries(rawObj)) {
-    if (k.includes('__')) {
-      migrated[k] = v
-    } else {
-      const capo = v?.capo || v?.rapportino?.capoSquadra || 'CAPO'
-      const role = v?.role || 'ELETTRICISTA'
-      const newKey = makeArchivioKey(k, capo, role)
-      migrated[newKey] = { ...v, data: k, capo, role }
-    }
-  }
-  return migrated
-}
-
-function loadArchivio() {
-  try {
-    const raw = localStorage.getItem(STORAGE_ARCHIVIO_KEY)
-    if (!raw) return {}
-    const parsed = JSON.parse(raw)
-    return migrateOldArchivio(parsed)
-  } catch {
-    return {}
-  }
-}
-
-function saveArchivio(archivio) {
-  localStorage.setItem(STORAGE_ARCHIVIO_KEY, JSON.stringify(archivio))
-}
-
-function loadModels() {
-  try {
-    const raw = localStorage.getItem(STORAGE_MODELS_KEY)
-    if (!raw) return {}
-    return JSON.parse(raw)
-  } catch {
-    return {}
-  }
-}
-
-function saveModels(models) {
-  localStorage.setItem(STORAGE_MODELS_KEY, JSON.stringify(models))
-}
-
-/** Modèles par rôle */
 function templateElettricista() {
   return [
     { categoria: 'STESURA', descrizione: 'STESURA CAVI', previsto: '150,0' },
@@ -86,7 +26,6 @@ function templateElettricista() {
     { categoria: 'STESURA', descrizione: 'VARI STESURA CAVI', previsto: '0,2' },
   ]
 }
-
 function templateCarpenteria() {
   return [
     { categoria: 'CARPENTERIA', descrizione: 'PREPARAZIONE STAFFE / STAFFE CAVI', previsto: '8,0' },
@@ -98,7 +37,6 @@ function templateCarpenteria() {
     { categoria: 'CARPENTERIA', descrizione: 'VARIE CARPENTERIE', previsto: '0,2' },
   ]
 }
-
 function templateMontaggio() {
   return [
     { categoria: 'IMBARCHI', descrizione: 'VARI IMBARCHI (LOGISTICA E TRASPORTO)', previsto: '0,2' },
@@ -108,19 +46,14 @@ function templateMontaggio() {
     { categoria: 'MONTAGGIO', descrizione: 'MONTAGGIO APPARECCHIATURA DA 401 KG A 1400 KG', previsto: '0,1' },
   ]
 }
-
 function defaultTemplateForRole(role) {
   switch (role) {
-    case 'CARPENTERIA':
-      return templateCarpenteria()
-    case 'MONTAGGIO':
-      return templateMontaggio()
+    case 'CARPENTERIA': return templateCarpenteria()
+    case 'MONTAGGIO': return templateMontaggio()
     case 'ELETTRICISTA':
-    default:
-      return templateElettricista()
+    default: return templateElettricista()
   }
 }
-
 function createRapportinoFromTemplate(template, capoName) {
   return {
     cost: '',
@@ -130,8 +63,7 @@ function createRapportinoFromTemplate(template, capoName) {
       id: idx + 1,
       categoria: r.categoria || '',
       descrizione: r.descrizione || '',
-      operatori: '',
-      tempo: '',
+      operai: [{ nome: '', tempo: '' }],
       previsto: r.previsto || '',
       prodotto: '',
       note: '',
@@ -141,8 +73,9 @@ function createRapportinoFromTemplate(template, capoName) {
 }
 
 export default function App() {
-  const [archivio, setArchivio] = useState(loadArchivio)
-  const [models, setModels] = useState(loadModels)
+  const [session, setSession] = useState(null)
+  const [profile, setProfile] = useState(null)
+  const [booting, setBooting] = useState(true)
 
   const [data, setData] = useState(() => new Date().toISOString().slice(0, 10))
   const [capo, setCapo] = useState('')
@@ -154,41 +87,279 @@ export default function App() {
   )
   const [cavi, setCavi] = useState([])
   const [printCavi, setPrintCavi] = useState(true)
-
   const [showArchivio, setShowArchivio] = useState(false)
 
   const [ufficioUser, setUfficioUser] = useState('')
-  const [selectedReportKey, setSelectedReportKey] = useState(null)
+  const [selectedReportId, setSelectedReportId] = useState(null)
   const [ufficioStatusFilter, setUfficioStatusFilter] = useState('VALIDATED_CAPO')
+  const [ufficioList, setUfficioList] = useState([])
+  const [ufficioLoading, setUfficioLoading] = useState(false)
 
-  const capoList = Object.keys(models).sort()
+  const capoName = capo.trim() || rapportino.capoSquadra || profile?.full_name || 'CAPO'
 
-  const handleCaviChange = (newCavi, totaleMetri) => {
-    const totale = Math.round((totaleMetri + Number.EPSILON) * 100) / 100
-    setCavi(newCavi)
-    setRapportino(prev => ({
-      ...prev,
-      totaleProdotto: totale,
+  /* ===================== BOOT SESSION ===================== */
+  useEffect(() => {
+    const init = async () => {
+      const { data: sess } = await supabase.auth.getSession()
+      setSession(sess.session || null)
+      if (sess.session) {
+        const { data: prof } = await supabase.from('profiles').select('*').single()
+        setProfile(prof || null)
+      }
+      setBooting(false)
+    }
+    init()
+
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_e, s) => {
+      setSession(s)
+      if (s) {
+        const { data: prof } = await supabase.from('profiles').select('*').single()
+        setProfile(prof || null)
+      } else {
+        setProfile(null)
+      }
+    })
+    return () => sub.subscription.unsubscribe()
+  }, [])
+
+  if (booting) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-100 text-sm text-slate-500">
+        Avvio Rapportino...
+      </div>
+    )
+  }
+
+  if (!session) return <AuthScreen />
+
+  const isUfficio = profile?.app_role === 'UFFICIO' || profile?.app_role === 'ADMIN'
+
+  /* ===================== HELPERS CLOUD ===================== */
+  const fetchModelForRole = async roleKey => {
+    const { data: model, error } = await supabase
+      .from('models')
+      .select('*')
+      .eq('role', roleKey)
+      .maybeSingle()
+    if (error) throw error
+
+    if (model?.righe && model.righe.length > 0) return model.righe
+
+    const template = defaultTemplateForRole(roleKey)
+    const { error: upErr } = await supabase
+      .from('models')
+      .upsert({ role: roleKey, righe: template }, { onConflict: 'capo_id,role' })
+    if (upErr) throw upErr
+    return template
+  }
+
+  const upsertRapportinoCloud = async (statusToSet = null) => {
+    // 1) Upsert main rapportino
+    const basePayload = {
+      data,
+      capo_name: capoName,
+      role,
+      status: statusToSet || 'DRAFT',
+      cost: rapportino.cost || null,
+      commessa: rapportino.commessa || null,
+      totale_prodotto: Number(rapportino.totaleProdotto || 0),
+      validated_by_capo_at: statusToSet === 'VALIDATED_CAPO' ? new Date().toISOString() : null,
+    }
+
+    const { data: saved, error } = await supabase
+      .from('rapportini')
+      .upsert(basePayload, { onConflict: 'data,capo_id,role' })
+      .select()
+      .single()
+    if (error) throw error
+    const rapportinoId = saved.id
+
+    // 2) Replace righe
+    await supabase.from('rapportino_righe').delete().eq('rapportino_id', rapportinoId)
+    const righePayload = (rapportino.righe || []).map((r, i) => ({
+      rapportino_id: rapportinoId,
+      idx: i,
+      categoria: r.categoria || null,
+      descrizione: r.descrizione || null,
+      previsto: r.previsto || null,
+      prodotto: r.prodotto || null,
+      note: r.note || null,
+      operai: Array.isArray(r.operai) ? r.operai : [],
     }))
+    if (righePayload.length) {
+      const { error: e2 } = await supabase.from('rapportino_righe').insert(righePayload)
+      if (e2) throw e2
+    }
+
+    // 3) Replace cavi
+    await supabase.from('rapportino_cavi').delete().eq('rapportino_id', rapportinoId)
+    const caviPayload = (cavi || []).map(c => ({
+      rapportino_id: rapportinoId,
+      codice: c.codice,
+      descrizione: c.descrizione || null,
+      metri_totali: Number(c.metriTotali || 0),
+      percentuale: Number(c.percentuale || 0),
+      metri_posati: Number(c.metriPosati || 0),
+    }))
+    if (caviPayload.length) {
+      const { error: e3 } = await supabase.from('rapportino_cavi').insert(caviPayload)
+      if (e3) throw e3
+    }
+
+    return saved
   }
 
-  const handleRapportinoChange = nuovo => {
-    setRapportino(nuovo)
+  const loadRapportinoById = async id => {
+    const { data: main, error } = await supabase
+      .from('rapportini')
+      .select('*')
+      .eq('id', id)
+      .single()
+    if (error) throw error
+
+    const { data: righeDb } = await supabase
+      .from('rapportino_righe')
+      .select('*')
+      .eq('rapportino_id', id)
+      .order('idx', { ascending: true })
+
+    const { data: caviDb } = await supabase
+      .from('rapportino_cavi')
+      .select('*')
+      .eq('rapportino_id', id)
+      .order('id', { ascending: true })
+
+    setData(main.data)
+    setCapo(main.capo_name)
+    setRole(main.role)
+
+    setRapportino({
+      cost: main.cost || '',
+      commessa: main.commessa || '',
+      capoSquadra: main.capo_name || '',
+      righe: (righeDb || []).map((r, i) => ({
+        id: i + 1,
+        categoria: r.categoria || '',
+        descrizione: r.descrizione || '',
+        operai: r.operai || [{ nome: '', tempo: '' }],
+        previsto: r.previsto || '',
+        prodotto: r.prodotto || '',
+        note: r.note || '',
+      })),
+      totaleProdotto: Number(main.totale_prodotto || 0),
+    })
+
+    setCavi((caviDb || []).map((c, i) => ({
+      id: i + 1,
+      codice: c.codice,
+      descrizione: c.descrizione || '',
+      metriTotali: Number(c.metri_totali || 0),
+      percentuale: Number(c.percentuale || 0),
+      metriPosati: Number(c.metri_posati || 0),
+    }))
+
+    setView('rapportino')
   }
 
-  // clé courante (blindage)
-  const currentCapoName = capo.trim() || rapportino.capoSquadra || 'CAPO'
-  const currentKey = makeArchivioKey(data, currentCapoName, role)
-  const currentEntry = archivio[currentKey]
-  const currentStatus = currentEntry?.status || 'DRAFT'
+  const refreshUfficioList = async () => {
+    setUfficioLoading(true)
+    const query = supabase
+      .from('rapportini')
+      .select('id,data,capo_name,role,commessa,status,totale_prodotto')
+      .order('data', { ascending: false })
+      .limit(500)
 
-  /* ================= HOME ================= */
+    if (ufficioStatusFilter !== 'ALL') {
+      query.eq('status', ufficioStatusFilter)
+    }
 
+    const { data, error } = await query
+    setUfficioLoading(false)
+    if (error) return alert(error.message)
+    setUfficioList(data || [])
+  }
+
+  /* ===================== UI HANDLERS ===================== */
+  const handleCaviChange = (newCavi, totaleMetri) => {
+    const totale = round2(totaleMetri)
+    setCavi(newCavi)
+    setRapportino(prev => ({ ...prev, totaleProdotto: totale }))
+  }
+
+  const handleRapportinoChange = nuovo => setRapportino(nuovo)
+
+  const handleNewGiornata = async () => {
+    const template = await fetchModelForRole(role)
+    setRapportino(createRapportinoFromTemplate(template, capoName))
+    setCavi([])
+    setData(new Date().toISOString().slice(0, 10))
+  }
+
+  const handleSaveGiornata = async () => {
+    try {
+      await upsertRapportinoCloud()
+      alert('Giornata salvata in cloud')
+    } catch (e) {
+      alert(e.message)
+    }
+  }
+
+  const handleValidateGiornata = async () => {
+    try {
+      await upsertRapportinoCloud('VALIDATED_CAPO')
+      alert('Rapportino validato dal Capo.')
+    } catch (e) {
+      alert(e.message)
+    }
+  }
+
+  const handlePrint = () => {
+    const safeCost = rapportino.cost || 'COST'
+    const safeCommessa = rapportino.commessa || 'COMMESSA'
+    document.title = `Rapportino_${safeCost}_${safeCommessa}_${data}.pdf`
+    window.print()
+  }
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+  }
+
+  /* ===================== CLOUD STATUS (pour locking) ===================== */
+  const [cloudStatus, setCloudStatus] = useState('DRAFT')
+  const [cloudUfficioNote, setCloudUfficioNote] = useState(null)
+
+  useEffect(() => {
+    const run = async () => {
+      const { data: main } = await supabase
+        .from('rapportini')
+        .select('status, ufficio_note')
+        .eq('data', data)
+        .eq('role', role)
+        .maybeSingle()
+
+      setCloudStatus(main?.status || 'DRAFT')
+      setCloudUfficioNote(main?.status === 'RETURNED' ? main?.ufficio_note : null)
+    }
+    run()
+  }, [data, role])
+
+  const isLockedForCapo = cloudStatus === 'VALIDATED_CAPO' || cloudStatus === 'APPROVED_UFFICIO'
+
+  const statusBadgeClass =
+    cloudStatus === 'APPROVED_UFFICIO'
+      ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+      : cloudStatus === 'VALIDATED_CAPO'
+      ? 'bg-sky-50 border-sky-300 text-sky-700'
+      : cloudStatus === 'RETURNED'
+      ? 'bg-amber-50 border-amber-300 text-amber-700'
+      : 'bg-slate-50 border-slate-300 text-slate-600'
+
+  /* ===================== HOME ===================== */
   if (view === 'home') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-100">
         <div className="max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Carte Capo */}
+          {/* Capo */}
           <div className="bg-white shadow-lg rounded-2xl p-8 space-y-6">
             <div className="text-center space-y-1">
               <h1 className="text-2xl font-bold tracking-tight">PERCORSO</h1>
@@ -202,28 +373,19 @@ export default function App() {
                 Capo Squadra
               </label>
               <input
-                list="capo-list"
                 className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 placeholder="Es. MAIGA, LO GIUDICE..."
                 value={capo}
                 onChange={e => setCapo(e.target.value.toUpperCase())}
               />
-              <datalist id="capo-list">
-                {capoList.map(nome => (
-                  <option key={nome} value={nome} />
-                ))}
-              </datalist>
               <p className="text-xs text-slate-500">
-                Scrivi il tuo nome (o scegli dalla lista) per usare i tuoi modelli personali.
+                Il tuo nome sarà associato ai rapportini cloud.
               </p>
             </div>
 
             <button
               onClick={() => {
-                if (!capo.trim()) {
-                  alert('Inserisci il nome del Capo Squadra')
-                  return
-                }
+                if (!capo.trim()) return alert('Inserisci il nome del Capo Squadra')
                 setView('role')
               }}
               className="w-full inline-flex items-center justify-center rounded-lg bg-emerald-600 text-white text-sm font-medium px-4 py-2.5 hover:bg-emerald-700"
@@ -238,7 +400,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Carte Ufficio */}
+          {/* Ufficio */}
           <div className="bg-white shadow-lg rounded-2xl p-8 space-y-6">
             <div className="space-y-2">
               <h2 className="text-lg font-semibold">Ufficio tecnico</h2>
@@ -257,22 +419,30 @@ export default function App() {
                 value={ufficioUser}
                 onChange={e => setUfficioUser(e.target.value.toUpperCase())}
               />
-              <p className="text-xs text-slate-500">
-                Nome usato per registrare chi approva o rimanda i rapportini.
-              </p>
+              {!isUfficio && (
+                <p className="text-[11px] text-amber-700">
+                  Il tuo account non è Ufficio: chiedi admin per il ruolo.
+                </p>
+              )}
             </div>
 
             <button
-              onClick={() => {
-                if (!ufficioUser.trim()) {
-                  alert("Inserisci il nome dell'operatore Ufficio")
-                  return
-                }
+              onClick={async () => {
+                if (!isUfficio) return alert('Account non autorizzato Ufficio.')
+                if (!ufficioUser.trim()) return alert("Inserisci il nome dell'operatore Ufficio")
+                await refreshUfficioList()
                 setView('ufficio-list')
               }}
               className="w-full inline-flex items-center justify-center rounded-lg bg-slate-800 text-white text-sm font-medium px-4 py-2.5 hover:bg-slate-900"
             >
               Entra come Ufficio tecnico
+            </button>
+
+            <button
+              onClick={handleLogout}
+              className="w-full text-xs px-3 py-2 rounded border border-slate-300 hover:bg-slate-50"
+            >
+              Logout
             </button>
           </div>
         </div>
@@ -280,28 +450,25 @@ export default function App() {
     )
   }
 
-  /* ============ CHOIX RÔLE (CAPO) ============ */
-
+  /* ===================== ROLE CHOICE ===================== */
   if (view === 'role') {
-    const capoName = capo.trim()
-
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-100">
         <div className="max-w-2xl w-full bg-white shadow-lg rounded-2xl p-8 space-y-6">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-xl font-bold tracking-tight mb-1">
-                Ciao {capoName || 'Capo'} 👋
+                Ciao {capoName} 👋
               </h2>
               <p className="text-sm text-slate-500">
-                Scegli il tipo di squadra per il tuo rapportino di oggi.
+                Scegli il tipo di squadra per il rapportino.
               </p>
             </div>
             <button
               onClick={() => setView('home')}
               className="text-xs text-slate-400 hover:text-slate-700"
             >
-              Cambia Capo
+              Indietro
             </button>
           </div>
 
@@ -309,41 +476,23 @@ export default function App() {
             {ROLE_OPTIONS.map(opt => (
               <button
                 key={opt.key}
-                onClick={() => {
-                  const rKey = opt.key
-                  const name = capoName || 'CAPO'
-
-                  const capoModels = models[name] || {}
-                  const existing =
-                    capoModels[rKey]?.righe && capoModels[rKey].righe.length > 0
-                      ? capoModels[rKey].righe
-                      : null
-
-                  const template = existing || defaultTemplateForRole(rKey)
-
-                  if (!existing) {
-                    const updatedModels = {
-                      ...models,
-                      [name]: {
-                        ...(models[name] || {}),
-                        [rKey]: { righe: template },
-                      },
-                    }
-                    setModels(updatedModels)
-                    saveModels(updatedModels)
+                onClick={async () => {
+                  try {
+                    const template = await fetchModelForRole(opt.key)
+                    setRole(opt.key)
+                    setRapportino(createRapportinoFromTemplate(template, capoName))
+                    setData(new Date().toISOString().slice(0, 10))
+                    setCavi([])
+                    setView('rapportino')
+                  } catch (e) {
+                    alert(e.message)
                   }
-
-                  setRole(rKey)
-                  setRapportino(createRapportinoFromTemplate(template, name))
-                  setData(new Date().toISOString().slice(0, 10))
-                  setCavi([])
-                  setView('rapportino')
                 }}
                 className="border border-slate-200 rounded-xl px-4 py-6 text-left hover:border-emerald-500 hover:shadow-sm flex flex-col justify-between"
               >
                 <span className="font-semibold text-sm">{opt.label}</span>
                 <span className="mt-2 text-[11px] text-slate-500">
-                  Modello preconfigurato per {opt.label.toLowerCase()}, modificabile secondo le tue esigenze.
+                  Modello preconfigurato, personalizzabile.
                 </span>
               </button>
             ))}
@@ -353,14 +502,9 @@ export default function App() {
     )
   }
 
-  /* ============ VUE UFFICIO – LISTE ============ */
-
+  /* ===================== UFFICIO LIST ===================== */
   if (view === 'ufficio-list') {
-    const entries = Object.entries(archivio)
-      .map(([key, item]) => ({ key, ...item }))
-      .sort((a, b) => (a.data < b.data ? 1 : -1))
-
-    const filtered = entries.filter(e =>
+    const filtered = ufficioList.filter(e =>
       ufficioStatusFilter === 'ALL' ? true : e.status === ufficioStatusFilter
     )
 
@@ -390,7 +534,10 @@ export default function App() {
               <select
                 className="border border-slate-300 rounded px-2 py-1 text-xs"
                 value={ufficioStatusFilter}
-                onChange={e => setUfficioStatusFilter(e.target.value)}
+                onChange={async e => {
+                  setUfficioStatusFilter(e.target.value)
+                  await refreshUfficioList()
+                }}
               >
                 <option value="VALIDATED_CAPO">In attesa di verifica</option>
                 <option value="APPROVED_UFFICIO">Approvati</option>
@@ -405,9 +552,13 @@ export default function App() {
           </div>
 
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-            {filtered.length === 0 ? (
+            {ufficioLoading ? (
               <div className="px-4 py-6 text-center text-xs text-slate-500">
-                Nessun rapportino trovato per lo stato selezionato.
+                Caricamento...
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="px-4 py-6 text-center text-xs text-slate-500">
+                Nessun rapportino trovato.
               </div>
             ) : (
               <table className="w-full text-xs">
@@ -424,24 +575,24 @@ export default function App() {
                 <tbody>
                   {filtered.map(item => (
                     <tr
-                      key={item.key}
+                      key={item.id}
                       className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer"
                       onClick={() => {
-                        setSelectedReportKey(item.key)
+                        setSelectedReportId(item.id)
                         setView('ufficio-detail')
                       }}
                     >
-                      <td className="px-3 py-1.5 whitespace-nowrap">{item.data}</td>
-                      <td className="px-3 py-1.5">{item.capo}</td>
+                      <td className="px-3 py-1.5">{item.data}</td>
+                      <td className="px-3 py-1.5">{item.capo_name}</td>
                       <td className="px-3 py-1.5">
                         {ROLE_OPTIONS.find(r => r.key === item.role)?.label || item.role}
                       </td>
-                      <td className="px-3 py-1.5">{item.rapportino?.commessa || ''}</td>
+                      <td className="px-3 py-1.5">{item.commessa || ''}</td>
                       <td className="px-3 py-1.5">
                         {STATUS_LABELS[item.status] || item.status}
                       </td>
                       <td className="px-3 py-1.5 text-right">
-                        {item.rapportino?.totaleProdotto || 0}
+                        {Number(item.totale_prodotto || 0).toFixed(2)}
                       </td>
                     </tr>
                   ))}
@@ -454,52 +605,66 @@ export default function App() {
     )
   }
 
-  /* ============ VUE UFFICIO – DETAIL ============ */
+  /* ===================== UFFICIO DETAIL ===================== */
+  if (view === 'ufficio-detail' && selectedReportId) {
+    const [detail, setDetail] = useState(null)
+    const [detailLoading, setDetailLoading] = useState(true)
 
-  if (view === 'ufficio-detail' && selectedReportKey) {
-    const item = archivio[selectedReportKey]
-    if (!item) {
-      setView('ufficio-list')
-      return null
+    useEffect(() => {
+      const run = async () => {
+        setDetailLoading(true)
+        const { data, error } = await supabase
+          .from('rapportini')
+          .select('*')
+          .eq('id', selectedReportId)
+          .single()
+        setDetailLoading(false)
+        if (error) return alert(error.message)
+        setDetail(data)
+      }
+      run()
+    }, [selectedReportId])
+
+    if (detailLoading || !detail) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-100 text-sm text-slate-500">
+          Caricamento dettaglio...
+        </div>
+      )
     }
 
-    const handleApprove = () => {
-      const updated = {
-        ...archivio,
-        [selectedReportKey]: {
-          ...item,
+    const handleApprove = async () => {
+      const { error } = await supabase
+        .from('rapportini')
+        .update({
           status: 'APPROVED_UFFICIO',
-          approvedByUfficioAt: new Date().toISOString(),
-          approvedByUfficio: ufficioUser,
-        },
-      }
-      setArchivio(updated)
-      saveArchivio(updated)
+          approved_by_ufficio_at: new Date().toISOString(),
+          approved_by_ufficio: session.user.id,
+        })
+        .eq('id', selectedReportId)
+      if (error) return alert(error.message)
       alert('Rapportino approvato.')
+      await refreshUfficioList()
       setView('ufficio-list')
     }
 
-    const handleReturn = () => {
-      const motivo = window.prompt('Motivo del rimando (sarà visibile al Capo):')
+    const handleReturn = async () => {
+      const motivo = window.prompt('Motivo del rimando (visibile al Capo):')
       if (!motivo) return
-      const updated = {
-        ...archivio,
-        [selectedReportKey]: {
-          ...item,
+      const { error } = await supabase
+        .from('rapportini')
+        .update({
           status: 'RETURNED',
-          ufficioNote: motivo,
-          returnedByUfficioAt: new Date().toISOString(),
-          returnedByUfficio: ufficioUser,
-        },
-      }
-      setArchivio(updated)
-      saveArchivio(updated)
+          ufficio_note: motivo,
+          returned_by_ufficio_at: new Date().toISOString(),
+          returned_by_ufficio: session.user.id,
+        })
+        .eq('id', selectedReportId)
+      if (error) return alert(error.message)
       alert('Rapportino rimandato al Capo.')
+      await refreshUfficioList()
       setView('ufficio-list')
     }
-
-    const ruoloLabel =
-      ROLE_OPTIONS.find(r => r.key === item.role)?.label || item.role
 
     return (
       <div className="min-h-screen bg-slate-100 flex flex-col">
@@ -513,69 +678,24 @@ export default function App() {
                 ← Elenco
               </button>
               <h1 className="text-lg font-semibold">
-                Verifica rapportino – {item.data}
+                Verifica rapportino – {detail.data}
               </h1>
             </div>
-            <div className="flex items-center gap-3 text-xs">
-              <span>Capo: <span className="font-semibold">{item.capo}</span></span>
-              <span>Ruolo: <span className="font-semibold">{ruoloLabel}</span></span>
-              <span
-                className={`px-2 py-0.5 rounded-full border ${
-                  item.status === 'APPROVED_UFFICIO'
-                    ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
-                    : item.status === 'RETURNED'
-                    ? 'bg-amber-50 border-amber-300 text-amber-700'
-                    : 'bg-slate-50 border-slate-300 text-slate-600'
-                }`}
-              >
-                {STATUS_LABELS[item.status] || item.status}
-              </span>
+            <div className="text-xs text-slate-500">
+              Capo: <span className="font-semibold">{detail.capo_name}</span>
             </div>
           </div>
         </header>
 
         <main className="flex-1 max-w-6xl mx-auto px-4 py-4 flex flex-col gap-4">
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-            <RapportinoSheet
-              data={item.data}
-              rapportino={item.rapportino}
-              role={item.role}
-              readOnly
-              onChange={() => {}}
-            />
+            <button
+              className="text-xs mb-2 px-2 py-1 border rounded hover:bg-slate-50"
+              onClick={() => loadRapportinoById(selectedReportId)}
+            >
+              Apri in lettura
+            </button>
           </div>
-
-          {item.role === 'ELETTRICISTA' && item.cavi && item.cavi.length > 0 && (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-              <h2 className="text-sm font-semibold mb-2">
-                Lista cavi del giorno ({item.cavi.length})
-              </h2>
-              <div className="max-h-64 overflow-auto border border-slate-200 rounded">
-                <table className="w-full text-[11px]">
-                  <thead className="bg-slate-50 border-b border-slate-200">
-                    <tr>
-                      <th className="px-2 py-1 text-left">Codice</th>
-                      <th className="px-2 py-1 text-left">Descrizione</th>
-                      <th className="px-2 py-1 text-right">Metri totali</th>
-                      <th className="px-2 py-1 text-right">% posa</th>
-                      <th className="px-2 py-1 text-right">Metri posati</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {item.cavi.map(c => (
-                      <tr key={c.id} className="border-b border-slate-100">
-                        <td className="px-2 py-1">{c.codice}</td>
-                        <td className="px-2 py-1">{c.descrizione}</td>
-                        <td className="px-2 py-1 text-right">{c.metriTotali}</td>
-                        <td className="px-2 py-1 text-right">{c.percentuale}%</td>
-                        <td className="px-2 py-1 text-right">{c.metriPosati}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
 
           <div className="flex items-center justify-between">
             <div className="text-[11px] text-slate-500">
@@ -601,174 +721,30 @@ export default function App() {
     )
   }
 
-  /* ============ VUE RAPPORTINO (CAPO) ============ */
-
-  const handleNewGiornata = () => {
-    const name = capo.trim() || rapportino.capoSquadra || 'CAPO'
-    const roleKey = role || 'ELETTRICISTA'
-    const capoModels = models[name] || {}
-
-    const existing =
-      capoModels[roleKey]?.righe && capoModels[roleKey].righe.length > 0
-        ? capoModels[roleKey].righe
-        : null
-
-    const template = existing || defaultTemplateForRole(roleKey)
-
-    setRapportino(createRapportinoFromTemplate(template, name))
-    setCavi([])
-    setData(new Date().toISOString().slice(0, 10))
-  }
-
-  const handleSaveGiornata = () => {
-    const name = capo.trim() || rapportino.capoSquadra || 'CAPO'
-    const roleKey = role || 'ELETTRICISTA'
-    const key = makeArchivioKey(data, name, roleKey)
-
-    const existing = archivio[key]
-    const statusToKeep = existing?.status || 'DRAFT'
-
-    const nuovo = {
-      data,
-      capo: name,
-      role: roleKey,
-      status: statusToKeep,
-      rapportino,
-      cavi,
-      validatedByCapoAt: existing?.validatedByCapoAt || null,
-      approvedByUfficioAt: existing?.approvedByUfficioAt || null,
-      approvedByUfficio: existing?.approvedByUfficio || null,
-      ufficioNote: existing?.ufficioNote || null,
-      returnedByUfficioAt: existing?.returnedByUfficioAt || null,
-      returnedByUfficio: existing?.returnedByUfficio || null,
-    }
-
-    const nuovoArchivio = { ...archivio, [key]: nuovo }
-    setArchivio(nuovoArchivio)
-    saveArchivio(nuovoArchivio)
-
-    // Mise à jour du modèle propre au capo + rôle
-    const strutturaRighe = rapportino.righe.map(r => ({
-      categoria: r.categoria,
-      descrizione: r.descrizione,
-      previsto: r.previsto,
-    }))
-
-    const updatedModels = {
-      ...models,
-      [name]: {
-        ...(models[name] || {}),
-        [roleKey]: { righe: strutturaRighe },
-      },
-    }
-    setModels(updatedModels)
-    saveModels(updatedModels)
-
-    alert('Giornata salvata')
-  }
-
-  const handleValidateGiornata = () => {
-    const name = capo.trim() || rapportino.capoSquadra || 'CAPO'
-    const roleKey = role || 'ELETTRICISTA'
-    const key = makeArchivioKey(data, name, roleKey)
-
-    const existing = archivio[key]
-
-    const nuovo = {
-      data,
-      capo: name,
-      role: roleKey,
-      status: 'VALIDATED_CAPO',
-      rapportino,
-      cavi,
-      validatedByCapoAt: new Date().toISOString(),
-      approvedByUfficioAt: existing?.approvedByUfficioAt || null,
-      approvedByUfficio: existing?.approvedByUfficio || null,
-      ufficioNote: existing?.ufficioNote || null,
-      returnedByUfficioAt: existing?.returnedByUfficioAt || null,
-      returnedByUfficio: existing?.returnedByUfficio || null,
-    }
-
-    const nuovoArchivio = { ...archivio, [key]: nuovo }
-    setArchivio(nuovoArchivio)
-    saveArchivio(nuovoArchivio)
-    alert('Rapportino validato digitalmente dal Capo.')
-  }
-
-  const handleLoadGiornata = (keyOrDate) => {
-    // ArchivioModal te passera la clé complète
-    const item = archivio[keyOrDate]
-    if (!item) return
-
-    setData(item.data)
-    setRapportino(item.rapportino)
-    setCavi(item.cavi || [])
-    if (item.capo) setCapo(item.capo)
-    if (item.role) setRole(item.role)
-    setView('rapportino')
-    setShowArchivio(false)
-  }
-
-  const handlePrint = () => {
-    const safeCost = rapportino.cost || 'COST'
-    const safeCommessa = rapportino.commessa || 'COMMESSA'
-    const name = `Rapportino_${safeCost}_${safeCommessa}_${data}.pdf`
-    document.title = name
-    window.print()
-  }
-
+  /* ===================== RAPPORTINO VIEW ===================== */
   const currentRoleLabel =
     ROLE_OPTIONS.find(r => r.key === role)?.label || 'Elettricista'
 
-  const statusBadgeClass =
-    currentStatus === 'APPROVED_UFFICIO'
-      ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
-      : currentStatus === 'VALIDATED_CAPO'
-      ? 'bg-sky-50 border-sky-300 text-sky-700'
-      : currentStatus === 'RETURNED'
-      ? 'bg-amber-50 border-amber-300 text-amber-700'
-      : 'bg-slate-50 border-slate-300 text-slate-600'
-
-  const ufficioNote =
-    currentEntry?.ufficioNote && currentStatus === 'RETURNED'
-      ? currentEntry.ufficioNote
-      : null
-
-  // verrouillage blindé uniquement pour CE capo + CE rôle + CE jour
-  const isLockedForCapo =
-    currentStatus === 'VALIDATED_CAPO' || currentStatus === 'APPROVED_UFFICIO'
-
   return (
     <div className="min-h-screen flex flex-col bg-slate-100">
-      {/* Barre d’actions – écran seulement */}
       <header className="border-b bg-white shadow-sm no-print">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => setView('role')}
-              className="text-xs text-slate-500 hover:text-slate-800"
-            >
+            <button onClick={() => setView('role')} className="text-xs text-slate-500 hover:text-slate-800">
               ← Indietro
             </button>
-            <span className="font-semibold text-lg tracking-tight">
-              Rapportino V3
-            </span>
+            <span className="font-semibold text-lg tracking-tight">Rapportino Cloud</span>
             <input
               type="date"
               className="border rounded px-2 py-1 text-sm"
               value={data}
               onChange={e => setData(e.target.value)}
             />
-            {capo && (
-              <span className="text-xs text-slate-500">
-                Capo: <span className="font-semibold">{capo}</span>
-              </span>
-            )}
             <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
               {currentRoleLabel}
             </span>
             <span className={`text-[11px] px-2 py-0.5 rounded-full border ${statusBadgeClass}`}>
-              {STATUS_LABELS[currentStatus] || currentStatus}
+              {STATUS_LABELS[cloudStatus] || cloudStatus}
             </span>
           </div>
 
@@ -795,7 +771,7 @@ export default function App() {
             <button
               onClick={handleValidateGiornata}
               className="text-xs px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
-              disabled={currentStatus === 'APPROVED_UFFICIO'}
+              disabled={cloudStatus === 'APPROVED_UFFICIO'}
             >
               Valida giornata
             </button>
@@ -805,10 +781,15 @@ export default function App() {
             >
               Stampa
             </button>
+            <button
+              onClick={handleLogout}
+              className="text-xs px-3 py-1 rounded border border-slate-300 hover:bg-slate-50"
+            >
+              Logout
+            </button>
           </div>
         </div>
 
-        {/* Option impression cavi + note ufficio */}
         <div className="max-w-6xl mx-auto px-4 pb-3 flex items-center justify-between gap-4 no-print">
           <label className="flex items-center gap-2 text-xs text-slate-600">
             <input
@@ -819,10 +800,10 @@ export default function App() {
             <span>Includi lista cavi nella stampa (pagine successive)</span>
           </label>
 
-          {ufficioNote && (
+          {cloudUfficioNote && (
             <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
               <span className="font-semibold">Nota Ufficio:&nbsp;</span>
-              {ufficioNote}
+              {cloudUfficioNote}
             </div>
           )}
         </div>
@@ -830,9 +811,7 @@ export default function App() {
 
       <main className="flex-1">
         <div className="max-w-6xl mx-auto px-4 py-4 flex flex-col gap-4 print:max-w-none print:px-0 print:py-0">
-          {/* Bloc Rapportino */}
           <div className="bg-white shadow-sm rounded-xl p-6 print:shadow-none print:rounded-none print:p-2">
-            {/* Header impression (logos) */}
             <div className="print-only mb-2">
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
@@ -840,14 +819,10 @@ export default function App() {
                   <span className="font-semibold text-lg">CONIT</span>
                 </div>
                 <div className="text-center">
-                  <h1 className="text-xl font-bold uppercase">
-                    Rapportino Giornaliero
-                  </h1>
+                  <h1 className="text-xl font-bold uppercase">Rapportino Giornaliero</h1>
                 </div>
                 <div className="text-right">
-                  <span className="font-semibold text-sm">
-                    Shakur – Ingegneria Digitale
-                  </span>
+                  <span className="font-semibold text-sm">Shakur – Ingegneria Digitale</span>
                 </div>
               </div>
             </div>
@@ -861,18 +836,13 @@ export default function App() {
             />
           </div>
 
-          {/* Lista cavi en bas (écran seulement) */}
           {role === 'ELETTRICISTA' && (
             <div className="bg-white shadow-sm rounded-xl p-4 no-print">
-              <CablePanel
-                cavi={cavi}
-                onCaviChange={handleCaviChange}
-              />
+              <CablePanel cavi={cavi} onCaviChange={handleCaviChange} />
             </div>
           )}
         </div>
 
-        {/* Liste cavi imprimable pages suivantes (sans %0) */}
         {role === 'ELETTRICISTA' && cavi.length > 0 && printCavi && (
           <div className="print-only page-break-before px-4">
             <h2 className="text-sm font-semibold mb-2">
@@ -913,20 +883,28 @@ export default function App() {
         )}
       </main>
 
-      {/* Footer Shakur – impression seulement */}
       <footer className="print-only text-right text-[10px] text-slate-500 mt-1 pr-2">
         Rapportino – Shakur Studio ©
       </footer>
 
       {showArchivio && (
         <ArchivioModal
-          archivio={archivio}
-          currentCapo={capo}
           currentRole={role}
           onClose={() => setShowArchivio(false)}
-          onSelect={handleLoadGiornata}
+          onSelect={async id => {
+            try {
+              await loadRapportinoById(id)
+              setShowArchivio(false)
+            } catch (e) {
+              alert(e.message)
+            }
+          }}
         />
       )}
     </div>
   )
+}
+
+function round2(n) {
+  return Math.round((Number(n) + Number.EPSILON) * 100) / 100
 }
