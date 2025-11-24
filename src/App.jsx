@@ -6,31 +6,17 @@ import ArchivioModal from './components/ArchivioModal'
 const STORAGE_ARCHIVIO_KEY = 'rapportino-v3-archivio'
 const STORAGE_MODELS_KEY = 'rapportino-v3-modelli'
 
-const ROLE_OPTIONS = [
+export const ROLE_OPTIONS = [
   { key: 'ELETTRICISTA', label: 'Elettricista' },
   { key: 'CARPENTERIA', label: 'Carpenteria' },
   { key: 'MONTAGGIO', label: 'Montaggio' },
 ]
 
-const STATUS_LABELS = {
+export const STATUS_LABELS = {
   DRAFT: 'Bozza',
   VALIDATED_CAPO: 'Validato Capo',
   APPROVED_UFFICIO: 'Approvato Ufficio',
   RETURNED: 'Rimandato',
-}
-
-/* ===================== STORAGE HELPERS ===================== */
-
-function makeArchivioKey(date, capo, role) {
-  const d = (date || '').trim()
-  const c = (capo || 'CAPO').trim().toUpperCase()
-  const r = (role || 'ELETTRICISTA').trim().toUpperCase()
-  return `${d}__${c}__${r}`
-}
-
-function parseArchivioKey(key) {
-  const [data, capo, role] = String(key).split('__')
-  return { data, capo, role }
 }
 
 function loadArchivio() {
@@ -42,7 +28,6 @@ function loadArchivio() {
     return {}
   }
 }
-
 function saveArchivio(archivio) {
   localStorage.setItem(STORAGE_ARCHIVIO_KEY, JSON.stringify(archivio))
 }
@@ -56,13 +41,11 @@ function loadModels() {
     return {}
   }
 }
-
 function saveModels(models) {
   localStorage.setItem(STORAGE_MODELS_KEY, JSON.stringify(models))
 }
 
-/* ===================== TEMPLATES ===================== */
-
+/** Modèles de base */
 function templateElettricista() {
   return [
     { categoria: 'STESURA', descrizione: 'STESURA CAVI', previsto: '150,0' },
@@ -71,7 +54,6 @@ function templateElettricista() {
     { categoria: 'STESURA', descrizione: 'VARI STESURA CAVI', previsto: '0,2' },
   ]
 }
-
 function templateCarpenteria() {
   return [
     { categoria: 'CARPENTERIA', descrizione: 'PREPARAZIONE STAFFE / STAFFE CAVI', previsto: '8,0' },
@@ -83,7 +65,6 @@ function templateCarpenteria() {
     { categoria: 'CARPENTERIA', descrizione: 'VARIE CARPENTERIE', previsto: '0,2' },
   ]
 }
-
 function templateMontaggio() {
   return [
     { categoria: 'IMBARCHI', descrizione: 'VARI IMBARCHI (LOGISTICA E TRASPORTO)', previsto: '0,2' },
@@ -96,13 +77,10 @@ function templateMontaggio() {
 
 function defaultTemplateForRole(role) {
   switch (role) {
-    case 'CARPENTERIA':
-      return templateCarpenteria()
-    case 'MONTAGGIO':
-      return templateMontaggio()
+    case 'CARPENTERIA': return templateCarpenteria()
+    case 'MONTAGGIO': return templateMontaggio()
     case 'ELETTRICISTA':
-    default:
-      return templateElettricista()
+    default: return templateElettricista()
   }
 }
 
@@ -125,7 +103,11 @@ function createRapportinoFromTemplate(template, capoName) {
   }
 }
 
-/* ===================== APP ===================== */
+function makeReportKey(date, capo, role) {
+  const safeCapo = (capo || 'CAPO').trim().toUpperCase()
+  const safeRole = (role || 'ELETTRICISTA').trim().toUpperCase()
+  return `${date}__${safeCapo}__${safeRole}`
+}
 
 export default function App() {
   const [archivio, setArchivio] = useState(loadArchivio)
@@ -134,53 +116,49 @@ export default function App() {
   const [data, setData] = useState(() => new Date().toISOString().slice(0, 10))
   const [capo, setCapo] = useState('')
   const [role, setRole] = useState('ELETTRICISTA')
-  const [view, setView] = useState('home') // home | role | rapportino | ufficio-list | ufficio-detail
-
   const [rapportino, setRapportino] = useState(() =>
     createRapportinoFromTemplate(templateElettricista(), '')
   )
+
   const [cavi, setCavi] = useState([])
   const [printCavi, setPrintCavi] = useState(true)
-  const [showArchivio, setShowArchivio] = useState(false)
 
+  const [showArchivio, setShowArchivio] = useState(false)
+  const [view, setView] = useState('home') // home | role | rapportino | ufficio-list | ufficio-detail
   const [ufficioUser, setUfficioUser] = useState('')
   const [selectedReportKey, setSelectedReportKey] = useState(null)
 
-  // filtre Ufficio (hooks OK car top-level)
   const [statusFilter, setStatusFilter] = useState('VALIDATED_CAPO')
 
   const capoList = useMemo(() => Object.keys(models).sort(), [models])
 
-  const currentKey = makeArchivioKey(data, capo || rapportino.capoSquadra, role)
-  const existingEntry = archivio[currentKey]
-  const currentStatus = existingEntry?.status || 'DRAFT'
+  const reportKey = makeReportKey(data, capo || rapportino.capoSquadra, role)
+  const currentEntry = archivio[reportKey]
+  const currentStatus = currentEntry?.status || 'DRAFT'
 
   const isLockedForCapo =
-    currentStatus === 'VALIDATED_CAPO' || currentStatus === 'APPROVED_UFFICIO'
+    currentStatus === 'VALIDATED_CAPO' ||
+    currentStatus === 'APPROVED_UFFICIO'
 
   const ufficioNote =
-    existingEntry?.ufficioNote && currentStatus === 'RETURNED'
-      ? existingEntry.ufficioNote
+    currentEntry?.ufficioNote && currentStatus === 'RETURNED'
+      ? currentEntry.ufficioNote
       : null
 
   const handleCaviChange = (newCavi, totaleMetri) => {
     const totale = Math.round((totaleMetri + Number.EPSILON) * 100) / 100
     setCavi(newCavi)
-    setRapportino(prev => ({
-      ...prev,
-      totaleProdotto: totale,
-    }))
+    setRapportino(prev => ({ ...prev, totaleProdotto: totale }))
   }
 
   const handleRapportinoChange = nuovo => setRapportino(nuovo)
 
   /* ================= HOME ================= */
-
   if (view === 'home') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-100">
         <div className="max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Carte Capo */}
+          {/* Capo */}
           <div className="bg-white shadow-lg rounded-2xl p-8 space-y-6">
             <div className="text-center space-y-1">
               <h1 className="text-2xl font-bold tracking-tight">PERCORSO</h1>
@@ -212,10 +190,7 @@ export default function App() {
 
             <button
               onClick={() => {
-                if (!capo.trim()) {
-                  alert('Inserisci il nome del Capo Squadra')
-                  return
-                }
+                if (!capo.trim()) return alert('Inserisci il nome del Capo Squadra')
                 setView('role')
               }}
               className="w-full inline-flex items-center justify-center rounded-lg bg-emerald-600 text-white text-sm font-medium px-4 py-2.5 hover:bg-emerald-700"
@@ -230,7 +205,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Carte Ufficio */}
+          {/* Ufficio */}
           <div className="bg-white shadow-lg rounded-2xl p-8 space-y-6">
             <div className="space-y-2">
               <h2 className="text-lg font-semibold">Ufficio tecnico</h2>
@@ -249,17 +224,11 @@ export default function App() {
                 value={ufficioUser}
                 onChange={e => setUfficioUser(e.target.value.toUpperCase())}
               />
-              <p className="text-xs text-slate-500">
-                Nome usato per registrare chi approva o rimanda i rapportini.
-              </p>
             </div>
 
             <button
               onClick={() => {
-                if (!ufficioUser.trim()) {
-                  alert("Inserisci il nome dell'operatore Ufficio")
-                  return
-                }
+                if (!ufficioUser.trim()) return alert("Inserisci il nome dell'operatore Ufficio")
                 setView('ufficio-list')
               }}
               className="w-full inline-flex items-center justify-center rounded-lg bg-slate-800 text-white text-sm font-medium px-4 py-2.5 hover:bg-slate-900"
@@ -273,7 +242,6 @@ export default function App() {
   }
 
   /* ============ CHOIX RÔLE (CAPO) ============ */
-
   if (view === 'role') {
     const capoName = capo.trim()
 
@@ -345,11 +313,10 @@ export default function App() {
     )
   }
 
-  /* ============ VUE UFFICIO – LISTE ============ */
-
+  /* ============ UFFICIO – LISTE ============ */
   if (view === 'ufficio-list') {
     const entries = Object.entries(archivio)
-      .map(([key, item]) => ({ key, ...item, ...parseArchivioKey(key) }))
+      .map(([key, item]) => ({ key, ...item }))
       .sort((a, b) => (a.data < b.data ? 1 : -1))
 
     const filtered = entries.filter(e =>
@@ -430,9 +397,7 @@ export default function App() {
                       </td>
                       <td className="px-3 py-1.5">{item.rapportino?.commessa || ''}</td>
                       <td className="px-3 py-1.5">{STATUS_LABELS[item.status] || item.status}</td>
-                      <td className="px-3 py-1.5 text-right">
-                        {item.rapportino?.totaleProdotto || 0}
-                      </td>
+                      <td className="px-3 py-1.5 text-right">{item.rapportino?.totaleProdotto || 0}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -444,8 +409,7 @@ export default function App() {
     )
   }
 
-  /* ============ VUE UFFICIO – DETAIL ============ */
-
+  /* ============ UFFICIO – DETAIL ============ */
   if (view === 'ufficio-detail' && selectedReportKey) {
     const item = archivio[selectedReportKey]
     if (!item) {
@@ -509,15 +473,7 @@ export default function App() {
             <div className="flex items-center gap-3 text-xs">
               <span>Capo: <span className="font-semibold">{item.capo}</span></span>
               <span>Ruolo: <span className="font-semibold">{ruoloLabel}</span></span>
-              <span
-                className={`px-2 py-0.5 rounded-full border ${
-                  item.status === 'APPROVED_UFFICIO'
-                    ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
-                    : item.status === 'RETURNED'
-                    ? 'bg-amber-50 border-amber-300 text-amber-700'
-                    : 'bg-slate-50 border-slate-300 text-slate-600'
-                }`}
-              >
+              <span className="px-2 py-0.5 rounded-full border bg-slate-50 border-slate-300 text-slate-600">
                 {STATUS_LABELS[item.status] || item.status}
               </span>
             </div>
@@ -591,12 +547,18 @@ export default function App() {
     )
   }
 
-  /* ============ VUE RAPPORTINO (CAPO) ============ */
+  /* ============ RAPPORTINO (CAPO) ============ */
+
+  const persistArchivio = payload => {
+    const nuovoArchivio = { ...archivio, [reportKey]: payload }
+    setArchivio(nuovoArchivio)
+    saveArchivio(nuovoArchivio)
+  }
 
   const handleNewGiornata = () => {
     const name = capo.trim() || rapportino.capoSquadra || 'CAPO'
-    const roleKey = role || 'ELETTRICISTA'
     const capoModels = models[name] || {}
+    const roleKey = role || 'ELETTRICISTA'
 
     const existing =
       capoModels[roleKey]?.righe && capoModels[roleKey].righe.length > 0
@@ -613,12 +575,11 @@ export default function App() {
   const handleSaveGiornata = () => {
     const name = capo.trim() || rapportino.capoSquadra || 'CAPO'
     const roleKey = role || 'ELETTRICISTA'
-    const key = makeArchivioKey(data, name, roleKey)
 
-    const existing = archivio[key]
+    const existing = archivio[reportKey]
     const status = existing?.status || 'DRAFT'
 
-    const nuovo = {
+    const payload = {
       data,
       capo: name,
       role: roleKey,
@@ -633,11 +594,9 @@ export default function App() {
       returnedByUfficio: existing?.returnedByUfficio || null,
     }
 
-    const nuovoArchivio = { ...archivio, [key]: nuovo }
-    setArchivio(nuovoArchivio)
-    saveArchivio(nuovoArchivio)
+    persistArchivio(payload)
 
-    // Mise à jour modèle perso capo/role
+    // Mise à jour modèle perso
     const strutturaRighe = rapportino.righe.map(r => ({
       categoria: r.categoria,
       descrizione: r.descrizione,
@@ -658,13 +617,11 @@ export default function App() {
   }
 
   const handleValidateGiornata = () => {
+    const existing = archivio[reportKey]
     const name = capo.trim() || rapportino.capoSquadra || 'CAPO'
     const roleKey = role || 'ELETTRICISTA'
-    const key = makeArchivioKey(data, name, roleKey)
 
-    const existing = archivio[key]
-
-    const nuovo = {
+    const payload = {
       data,
       capo: name,
       role: roleKey,
@@ -679,10 +636,7 @@ export default function App() {
       returnedByUfficio: existing?.returnedByUfficio || null,
     }
 
-    const nuovoArchivio = { ...archivio, [key]: nuovo }
-    setArchivio(nuovoArchivio)
-    saveArchivio(nuovoArchivio)
-
+    persistArchivio(payload)
     alert('Rapportino validato digitalmente dal Capo.')
   }
 
@@ -707,7 +661,7 @@ export default function App() {
   }
 
   const currentRoleLabel =
-    ROLE_OPTIONS.find(r => r.key === role)?.label || 'Elettricista'
+    ROLE_OPTIONS.find(r => r.key === role)?.label || role
 
   const statusBadgeClass =
     currentStatus === 'APPROVED_UFFICIO'
@@ -720,7 +674,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-100">
-      {/* Barre d’actions – écran seulement */}
+      {/* Barre actions (écran) */}
       <header className="border-b bg-white shadow-sm no-print">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -730,31 +684,22 @@ export default function App() {
             >
               ← Indietro
             </button>
-            <span className="font-semibold text-lg tracking-tight">
-              Rapportino V3
-            </span>
-
+            <span className="font-semibold text-lg tracking-tight">Rapportino V3</span>
             <input
               type="date"
               className="border rounded px-2 py-1 text-sm"
               value={data}
               onChange={e => setData(e.target.value)}
-              disabled={isLockedForCapo}
             />
-
             {capo && (
               <span className="text-xs text-slate-500">
                 Capo: <span className="font-semibold">{capo}</span>
               </span>
             )}
-
             <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
               {currentRoleLabel}
             </span>
-
-            <span
-              className={`text-[11px] px-2 py-0.5 rounded-full border ${statusBadgeClass}`}
-            >
+            <span className={`text-[11px] px-2 py-0.5 rounded-full border ${statusBadgeClass}`}>
               {STATUS_LABELS[currentStatus] || currentStatus}
             </span>
           </div>
@@ -796,7 +741,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Option impression + note ufficio */}
         <div className="max-w-6xl mx-auto px-4 pb-3 flex items-center justify-between gap-4 no-print">
           {role === 'ELETTRICISTA' && (
             <label className="flex items-center gap-2 text-xs text-slate-600">
@@ -820,9 +764,9 @@ export default function App() {
 
       <main className="flex-1">
         <div className="max-w-6xl mx-auto px-4 py-4 flex flex-col gap-4 print:max-w-none print:px-0 print:py-0">
-          {/* Bloc Rapportino */}
+          {/* Rapportino */}
           <div className="bg-white shadow-sm rounded-xl p-6 print:shadow-none print:rounded-none print:p-2">
-            {/* Header impression (logos) */}
+            {/* header print */}
             <div className="print-only mb-2">
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
@@ -830,14 +774,10 @@ export default function App() {
                   <span className="font-semibold text-lg">CONIT</span>
                 </div>
                 <div className="text-center">
-                  <h1 className="text-xl font-bold uppercase">
-                    Rapportino Giornaliero
-                  </h1>
+                  <h1 className="text-xl font-bold uppercase">Rapportino Giornaliero</h1>
                 </div>
                 <div className="text-right">
-                  <span className="font-semibold text-sm">
-                    Shakur – Ingegneria Digitale
-                  </span>
+                  <span className="font-semibold text-sm">Shakur – Ingegneria Digitale</span>
                 </div>
               </div>
             </div>
@@ -851,7 +791,7 @@ export default function App() {
             />
           </div>
 
-          {/* Lista cavi EN BAS (écran seulement) */}
+          {/* Lista cavi EN BAS */}
           {role === 'ELETTRICISTA' && (
             <div className="bg-white shadow-sm rounded-xl p-4 no-print">
               <CablePanel cavi={cavi} onCaviChange={handleCaviChange} />
@@ -859,13 +799,13 @@ export default function App() {
           )}
         </div>
 
-        {/* Liste cavi imprimable sur pages suivantes */}
+        {/* Print cavi pages */}
         {role === 'ELETTRICISTA' && cavi.length > 0 && printCavi && (
           <div className="print-only page-break-before px-4">
             <h2 className="text-sm font-semibold mb-2">
               Lista cavi del giorno – {data}
             </h2>
-            <table className="w-full text-[11px] rapportino-table border border-slate-600 border-collapse">
+            <table className="w-full text-[11px] border border-slate-600 border-collapse">
               <thead className="bg-slate-100">
                 <tr>
                   <th className="border border-slate-600 px-1 py-1 text-left">Codice</th>
@@ -877,7 +817,7 @@ export default function App() {
               </thead>
               <tbody>
                 {cavi.map(c => (
-                  <tr key={c.id} className="border-t border-slate-300">
+                  <tr key={c.id}>
                     <td className="border border-slate-300 px-1 py-1">{c.codice}</td>
                     <td className="border border-slate-300 px-1 py-1">{c.descrizione}</td>
                     <td className="border border-slate-300 px-1 py-1 text-right">{c.metriTotali}</td>
@@ -900,6 +840,8 @@ export default function App() {
           archivio={archivio}
           currentCapo={capo}
           currentRole={role}
+          ROLE_OPTIONS={ROLE_OPTIONS}
+          STATUS_LABELS={STATUS_LABELS}
           onClose={() => setShowArchivio(false)}
           onSelect={handleLoadGiornata}
         />
