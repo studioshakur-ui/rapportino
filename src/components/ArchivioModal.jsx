@@ -1,110 +1,147 @@
-import React, { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabaseClient'
-
-const ROLE_OPTIONS = [
-  { key: 'ELETTRICISTA', label: 'Elettricista' },
-  { key: 'CARPENTERIA', label: 'Carpenteria' },
-  { key: 'MONTAGGIO', label: 'Montaggio' },
-]
-
-const STATUS_LABELS = {
-  DRAFT: 'Bozza',
-  VALIDATED_CAPO: 'Validato Capo',
-  APPROVED_UFFICIO: 'Approvato Ufficio',
-  RETURNED: 'Rimandato',
-}
+import React, { useMemo, useState } from 'react'
+import { ROLE_OPTIONS, STATUS_LABELS } from '../App'
 
 export default function ArchivioModal({
+  archivio,
+  currentCapo,
+  currentRole,
   onClose,
   onSelect,
-  currentRole,
 }) {
-  const [loading, setLoading] = useState(true)
-  const [entries, setEntries] = useState([])
+  const [filterCapo, setFilterCapo] = useState('ALL')
+  const [filterRole, setFilterRole] = useState('ALL')
+  const [filterStatus, setFilterStatus] = useState('ALL')
+  const [term, setTerm] = useState('')
 
-  useEffect(() => {
-    const run = async () => {
-      setLoading(true)
-      const { data, error } = await supabase
-        .from('rapportini')
-        .select('id,data,role,status,commessa,totale_prodotto,capo_name')
-        .order('data', { ascending: false })
-        .limit(200)
+  const entries = useMemo(() => {
+    return Object.entries(archivio)
+      .map(([key, item]) => ({ key, ...item }))
+      .sort((a, b) => (a.data < b.data ? 1 : -1))
+  }, [archivio])
 
-      setLoading(false)
-      if (error) return alert(error.message)
-      setEntries(data || [])
+  const capi = useMemo(() => {
+    const s = new Set(entries.map(e => e.capo))
+    return ['ALL', ...Array.from(s).sort()]
+  }, [entries])
+
+  const filtered = entries.filter(e => {
+    if (filterCapo !== 'ALL' && e.capo !== filterCapo) return false
+    if (filterRole !== 'ALL' && e.role !== filterRole) return false
+    if (filterStatus !== 'ALL' && e.status !== filterStatus) return false
+
+    const t = term.trim().toLowerCase()
+    if (t) {
+      const match =
+        (e.capo || '').toLowerCase().includes(t) ||
+        (e.role || '').toLowerCase().includes(t) ||
+        (e.rapportino?.commessa || '').toLowerCase().includes(t) ||
+        (e.data || '').toLowerCase().includes(t)
+      if (!match) return false
     }
-    run()
-  }, [])
 
-  const filtered = entries.filter(e =>
-    currentRole ? e.role === currentRole : true
-  )
+    return true
+  })
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 no-print">
-      <div className="w-full max-w-3xl bg-white rounded-2xl shadow-xl overflow-hidden">
-        <div className="px-4 py-3 border-b flex items-center justify-between">
-          <div>
-            <div className="text-sm font-semibold">Archivio Rapportini</div>
-            <div className="text-[11px] text-slate-500">
-              Ultimi {filtered.length} rapportini
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-xs px-2 py-1 border rounded hover:bg-slate-50"
-          >
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 no-print">
+      <div className="bg-white rounded-2xl shadow-xl w-[900px] max-w-[95vw] p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold">Archivio Rapportini</h2>
+          <button onClick={onClose} className="text-xs text-slate-500 hover:text-slate-800">
             Chiudi
           </button>
         </div>
 
-        <div className="max-h-[70vh] overflow-auto">
-          {loading ? (
-            <div className="p-6 text-center text-xs text-slate-500">
-              Caricamento archivio...
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="p-6 text-center text-xs text-slate-500">
-              Nessun rapportino trovato.
-            </div>
-          ) : (
-            <table className="w-full text-xs">
-              <thead className="bg-slate-50 border-b">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-3 text-xs">
+          <input
+            className="border rounded px-2 py-1"
+            placeholder="Cerca..."
+            value={term}
+            onChange={e => setTerm(e.target.value)}
+          />
+
+          <select
+            className="border rounded px-2 py-1"
+            value={filterCapo}
+            onChange={e => setFilterCapo(e.target.value)}
+          >
+            {capi.map(c => (
+              <option key={c} value={c}>
+                {c === 'ALL' ? 'Tutti i capi' : c}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="border rounded px-2 py-1"
+            value={filterRole}
+            onChange={e => setFilterRole(e.target.value)}
+          >
+            <option value="ALL">Tutti i ruoli</option>
+            {ROLE_OPTIONS.map(r => (
+              <option key={r.key} value={r.key}>{r.label}</option>
+            ))}
+          </select>
+
+          <select
+            className="border rounded px-2 py-1"
+            value={filterStatus}
+            onChange={e => setFilterStatus(e.target.value)}
+          >
+            <option value="ALL">Tutti gli stati</option>
+            {Object.keys(STATUS_LABELS).map(s => (
+              <option key={s} value={s}>{STATUS_LABELS[s]}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="border border-slate-200 rounded overflow-auto max-h-[65vh]">
+          <table className="w-full text-xs">
+            <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
+              <tr>
+                <th className="px-2 py-2 text-left">Data</th>
+                <th className="px-2 py-2 text-left">Capo</th>
+                <th className="px-2 py-2 text-left">Ruolo</th>
+                <th className="px-2 py-2 text-left">Commessa</th>
+                <th className="px-2 py-2 text-left">Stato</th>
+                <th className="px-2 py-2 text-right">Prodotto</th>
+                <th className="px-2 py-2 text-right">Cavi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
                 <tr>
-                  <th className="px-3 py-2 text-left">Data</th>
-                  <th className="px-3 py-2 text-left">Capo</th>
-                  <th className="px-3 py-2 text-left">Ruolo</th>
-                  <th className="px-3 py-2 text-left">Commessa</th>
-                  <th className="px-3 py-2 text-left">Stato</th>
-                  <th className="px-3 py-2 text-right">Prodotto</th>
+                  <td colSpan={7} className="px-2 py-6 text-center text-slate-500">
+                    Nessun rapportino trovato.
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {filtered.map(it => (
+              ) : (
+                filtered.map(e => (
                   <tr
-                    key={it.id}
-                    className="border-b hover:bg-slate-50 cursor-pointer"
-                    onClick={() => onSelect(it.id)}
+                    key={e.key}
+                    className={`border-t border-slate-100 hover:bg-slate-50 cursor-pointer ${
+                      e.capo === currentCapo && e.role === currentRole ? 'bg-emerald-50/40' : ''
+                    }`}
+                    onClick={() => onSelect(e.key)}
                   >
-                    <td className="px-3 py-1.5">{it.data}</td>
-                    <td className="px-3 py-1.5">{it.capo_name}</td>
-                    <td className="px-3 py-1.5">
-                      {ROLE_OPTIONS.find(r => r.key === it.role)?.label || it.role}
+                    <td className="px-2 py-1.5">{e.data}</td>
+                    <td className="px-2 py-1.5">{e.capo}</td>
+                    <td className="px-2 py-1.5">
+                      {ROLE_OPTIONS.find(r => r.key === e.role)?.label || e.role}
                     </td>
-                    <td className="px-3 py-1.5">{it.commessa || ''}</td>
-                    <td className="px-3 py-1.5">
-                      {STATUS_LABELS[it.status] || it.status}
-                    </td>
-                    <td className="px-3 py-1.5 text-right">
-                      {Number(it.totale_prodotto || 0).toFixed(2)}
-                    </td>
+                    <td className="px-2 py-1.5">{e.rapportino?.commessa || ''}</td>
+                    <td className="px-2 py-1.5">{STATUS_LABELS[e.status] || e.status}</td>
+                    <td className="px-2 py-1.5 text-right">{e.rapportino?.totaleProdotto || 0}</td>
+                    <td className="px-2 py-1.5 text-right">{e.cavi?.length || 0}</td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-2 text-[11px] text-slate-500">
+          Chiave industriale: <span className="font-semibold">data + capo + ruolo</span>
         </div>
       </div>
     </div>
