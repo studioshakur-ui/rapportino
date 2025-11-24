@@ -1,37 +1,19 @@
-import React, { useEffect, useMemo } from 'react'
-
-/**
- * RapportinoSheet v4c
- * - Operatore = textarea multi-lignes (1 opérateur par ligne)
- * - Tempo = textarea multi-lignes (1 temps par ligne)
- * - Alignement automatique des lignes entre les deux colonnes
- * - Colonnes s'agrandissent en hauteur quand on va à la ligne
- * - Backward compatible: r.operatori et r.tempo restent des strings
- */
+import React, { useEffect, useMemo, useState } from 'react'
 
 function splitLines(str) {
   return (str ?? '').toString().split('\n')
 }
-
 function joinLines(lines) {
   return lines.join('\n')
 }
-
 function normalizePair(opStr, timeStr) {
   const ops = splitLines(opStr)
   const times = splitLines(timeStr)
-
   const maxLen = Math.max(ops.length, times.length, 1)
-
   const opsNorm = Array.from({ length: maxLen }, (_, i) => ops[i] ?? '')
   const timesNorm = Array.from({ length: maxLen }, (_, i) => times[i] ?? '')
-
-  return {
-    operatori: joinLines(opsNorm),
-    tempo: joinLines(timesNorm),
-  }
+  return { operatori: joinLines(opsNorm), tempo: joinLines(timesNorm) }
 }
-
 function autoResize(el) {
   if (!el) return
   el.style.height = 'auto'
@@ -43,9 +25,16 @@ export default function RapportinoSheet({
   rapportino,
   role,
   readOnly = false,
+  operatorPool = [],
+  allocations = {},
   onChange,
+  showCompletedOps,
+  onToggleShowCompleted,
 }) {
   const righe = rapportino?.righe || []
+  const [addingRowId, setAddingRowId] = useState(null)
+  const [selectedOp, setSelectedOp] = useState('')
+  const [selectedHours, setSelectedHours] = useState('')
 
   const totaleProdotto = useMemo(() => {
     return righe.reduce((s, r) => s + (Number(r.prodotto) || 0), 0)
@@ -65,6 +54,7 @@ export default function RapportinoSheet({
         id: nextId,
         categoria: '',
         descrizione: '',
+        assegnazioni: [],
         operatori: '',
         tempo: '',
         previsto: '',
@@ -80,10 +70,64 @@ export default function RapportinoSheet({
     onChange({ ...rapportino, righe: newRighe })
   }
 
+  // autosize
   useEffect(() => {
     const els = document.querySelectorAll('[data-autosize="1"]')
     els.forEach(el => autoResize(el))
   }, [righe, readOnly])
+
+  const openAddOperator = rowId => {
+    setAddingRowId(rowId)
+    setSelectedOp('')
+    setSelectedHours('')
+  }
+
+  const confirmAddOperator = () => {
+    if (!addingRowId || !selectedOp) return
+    const row = righe.find(r => r.id === addingRowId)
+    if (!row) return
+
+    const remains = operatorPool.find(o => o.name === selectedOp)?.remainingHours ?? 0
+    const hours = Math.min(Number(selectedHours || remains || 0), remains)
+
+    const newAss = [...(row.assegnazioni || []), { name: selectedOp, hours }]
+    const opLines = newAss.map(a => a.name)
+    const timeLines = newAss.map(a => (a.hours === '' ? '' : String(a.hours)))
+
+    updateRiga(addingRowId, {
+      assegnazioni: newAss,
+      operatori: opLines.join('\n'),
+      tempo: timeLines.join('\n'),
+    })
+
+    setAddingRowId(null)
+  }
+
+  const removeAssFromRow = (rowId, name) => {
+    const row = righe.find(r => r.id === rowId)
+    if (!row) return
+    const newAss = (row.assegnazioni || []).filter(a => a.name !== name)
+    updateRiga(rowId, {
+      assegnazioni: newAss,
+      operatori: newAss.map(a => a.name).join('\n'),
+      tempo: newAss.map(a => String(a.hours ?? '')).join('\n'),
+    })
+  }
+
+  const handleEditOperatoriTempo = (rowId, nextOps, nextTempo) => {
+    // papier style multi-lignes (alignés)
+    const synced = normalizePair(nextOps, nextTempo)
+    updateRiga(rowId, synced)
+
+    // reparse into assegnazioni (best effort)
+    const opsArr = splitLines(synced.operatori).map(x => x.trim()).filter(Boolean)
+    const timesArr = splitLines(synced.tempo).map(x => x.trim())
+    const assegnazioni = opsArr.map((n, i) => ({
+      name: n.toUpperCase(),
+      hours: Number((timesArr[i] || '0').replace(',', '.')) || 0,
+    }))
+    updateRiga(rowId, { assegnazioni })
+  }
 
   return (
     <div className="w-full">
@@ -142,7 +186,7 @@ export default function RapportinoSheet({
               <th className="w-[90px] px-2 py-2 text-center">Previsto</th>
               <th className="w-[90px] px-2 py-2 text-center">Prodotto</th>
               <th className="w-[210px] px-2 py-2 text-left">Note</th>
-              {!readOnly && <th className="w-[40px] px-2 py-2 text-center">–</th>}
+              {!readOnly && <th className="w-[50px] px-2 py-2 text-center">+</th>}
             </tr>
           </thead>
 
@@ -194,17 +238,35 @@ export default function RapportinoSheet({
                         className="w-full border border-slate-200 rounded px-2 py-1 resize-none leading-5"
                         placeholder="1 operatore per riga"
                         value={norm.operatori}
-                        onChange={e => {
-                          const nextOps = e.target.value.toUpperCase()
-                          const synced = normalizePair(nextOps, norm.tempo)
-                          updateRiga(r.id, synced)
-                        }}
+                        onChange={e =>
+                          handleEditOperatoriTempo(r.id, e.target.value.toUpperCase(), norm.tempo)
+                        }
                         onInput={e => autoResize(e.currentTarget)}
                       />
                     )}
+
+                    {!readOnly && (r.assegnazioni || []).length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1 text-[10px]">
+                        {r.assegnazioni.map(a => (
+                          <span
+                            key={a.name}
+                            className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200"
+                          >
+                            {a.name} ({a.hours}h)
+                            <button
+                              onClick={() => removeAssFromRow(r.id, a.name)}
+                              className="ml-1 text-rose-600"
+                              title="Rimuovi operatore"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </td>
 
-                  {/* Tempo multiline aligné */}
+                  {/* Tempo multiline */}
                   <td className="px-2 py-1">
                     {readOnly ? (
                       <div className="py-1 whitespace-pre-wrap text-center">{norm.tempo}</div>
@@ -215,11 +277,9 @@ export default function RapportinoSheet({
                         className="w-full border border-slate-200 rounded px-2 py-1 resize-none leading-5 text-center"
                         placeholder="1 tempo per riga"
                         value={norm.tempo}
-                        onChange={e => {
-                          const nextTempo = e.target.value
-                          const synced = normalizePair(norm.operatori, nextTempo)
-                          updateRiga(r.id, synced)
-                        }}
+                        onChange={e =>
+                          handleEditOperatoriTempo(r.id, norm.operatori, e.target.value)
+                        }
                         onInput={e => autoResize(e.currentTarget)}
                       />
                     )}
@@ -271,11 +331,19 @@ export default function RapportinoSheet({
                   {!readOnly && (
                     <td className="px-2 py-1 text-center">
                       <button
+                        onClick={() => openAddOperator(r.id)}
+                        className="text-xs px-2 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
+                        title="Aggiungi operatore"
+                      >
+                        +
+                      </button>
+
+                      <button
                         onClick={() => removeRiga(r.id)}
-                        className="text-slate-400 hover:text-rose-600"
+                        className="mt-1 text-xs text-slate-400 hover:text-rose-600"
                         title="Rimuovi riga"
                       >
-                        ×
+                        × riga
                       </button>
                     </td>
                   )}
@@ -295,11 +363,61 @@ export default function RapportinoSheet({
             + Aggiungi riga
           </button>
 
+          <label className="text-[11px] text-slate-600 flex items-center gap-2">
+            <input type="checkbox" checked={showCompletedOps} onChange={onToggleShowCompleted} />
+            Mostra anche operatori completi (0h)
+          </label>
+
           <div className="text-[11px] text-slate-600">
-            Totale prodotto (da lista cavi):{' '}
-            <span className="font-semibold">
+            Totale prodotto: <span className="font-semibold">
               {Number(rapportino.totaleProdotto || totaleProdotto).toFixed(2)}
             </span>
+          </div>
+        </div>
+      )}
+
+      {/* modal add operator */}
+      {!readOnly && addingRowId && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 no-print">
+          <div className="bg-white rounded-xl p-4 w-[360px] shadow-xl space-y-3">
+            <h3 className="text-sm font-semibold">Aggiungi operatore</h3>
+
+            <select
+              className="w-full border rounded px-2 py-1 text-sm"
+              value={selectedOp}
+              onChange={e => setSelectedOp(e.target.value)}
+            >
+              <option value="">— scegli operatore —</option>
+              {operatorPool.map(op => (
+                <option key={op.name} value={op.name}>
+                  {op.name} (rimaste {op.remainingHours?.toFixed(2)}h)
+                </option>
+              ))}
+            </select>
+
+            <input
+              type="number"
+              step="0.5"
+              className="w-full border rounded px-2 py-1 text-sm"
+              placeholder="Ore per questa attività"
+              value={selectedHours}
+              onChange={e => setSelectedHours(e.target.value)}
+            />
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setAddingRowId(null)}
+                className="text-xs px-3 py-1 rounded border"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={confirmAddOperator}
+                className="text-xs px-3 py-1 rounded bg-emerald-600 text-white"
+              >
+                Aggiungi
+              </button>
+            </div>
           </div>
         </div>
       )}
