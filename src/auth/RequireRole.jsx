@@ -17,7 +17,7 @@ export default function RequireRole({ allow = [], children }) {
     return <Navigate to="/login" replace />
   }
 
-  // 🔥 Le rôle réel : role (enum) ou app_role (fallback)
+  // 🔥 Rôle effectif : on prend d'abord role (enum), sinon app_role (text)
   const effectiveRole = profile?.role || profile?.app_role || null
 
   if (allow.length > 0 && !allow.includes(effectiveRole)) {
