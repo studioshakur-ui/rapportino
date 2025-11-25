@@ -5,22 +5,13 @@ import { useAuth } from './AuthProvider'
 export default function RequireRole({ allow = [], children }) {
   const { user, profile, loading } = useAuth()
 
-  // Toujours en chargement global
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-sm text-slate-600">
-        Caricamento...
-      </div>
-    )
-  }
-
-  // Pas connecté → login
+  // 🔹 1. Si pas d'utilisateur => login direct (peu importe loading)
   if (!user) {
     return <Navigate to="/login" replace />
   }
 
-  // User sans profil → on considère encore en chargement
-  if (!profile) {
+  // 🔹 2. Pendant que le profil charge encore
+  if (loading || !profile) {
     return (
       <div className="min-h-screen flex items-center justify-center text-sm text-slate-600">
         Caricamento...
@@ -28,7 +19,7 @@ export default function RequireRole({ allow = [], children }) {
     )
   }
 
-  // Normalisation rôle
+  // 🔹 3. Rôle effectif
   const effectiveRole = profile.role || profile.app_role || null
 
   if (!effectiveRole) {
@@ -39,7 +30,7 @@ export default function RequireRole({ allow = [], children }) {
     )
   }
 
-  // Contrôle d'accès
+  // 🔹 4. Contrôle d'accès
   if (allow.length > 0 && !allow.includes(effectiveRole)) {
     return (
       <div className="min-h-screen flex items-center justify-center text-sm text-rose-700">
