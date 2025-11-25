@@ -5,7 +5,7 @@ import { useAuth } from './AuthProvider'
 export default function RequireRole({ allow = [], children }) {
   const { user, profile, loading } = useAuth()
 
-  // 1) Encore en chargement global
+  // 1. Still loading?
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center text-sm text-slate-600">
@@ -14,13 +14,12 @@ export default function RequireRole({ allow = [], children }) {
     )
   }
 
-  // 2) Pas d'utilisateur → go login
+  // 2. Not logged in
   if (!user) {
     return <Navigate to="/login" replace />
   }
 
-  // 3) Si l'utilisateur est là mais le profil pas encore chargé,
-  //    on considère que c'est toujours du "Caricamento..."
+  // 3. Profile not yet fetched
   if (!profile) {
     return (
       <div className="min-h-screen flex items-center justify-center text-sm text-slate-600">
@@ -29,10 +28,9 @@ export default function RequireRole({ allow = [], children }) {
     )
   }
 
-  // 4) Rôle effectif : enum "role" puis fallback sur "app_role"
+  // 4. Normalise
   const effectiveRole = profile.role || profile.app_role || null
 
-  // Si on n'a toujours pas de rôle → encore chargement (ou profil incomplet)
   if (!effectiveRole) {
     return (
       <div className="min-h-screen flex items-center justify-center text-sm text-slate-600">
@@ -41,15 +39,14 @@ export default function RequireRole({ allow = [], children }) {
     )
   }
 
-  // 5) Check des rôles autorisés
+  // 5. Role refused
   if (allow.length > 0 && !allow.includes(effectiveRole)) {
     return (
       <div className="min-h-screen flex items-center justify-center text-sm text-rose-700">
-        Accesso negato per il tuo ruolo ({String(effectiveRole)}).
+        Accesso negato per il tuo ruolo. ({String(effectiveRole)})
       </div>
     )
   }
 
-  // 6) Tout est ok → on affiche la page
   return children
 }
