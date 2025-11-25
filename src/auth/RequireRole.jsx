@@ -5,7 +5,7 @@ import { useAuth } from './AuthProvider'
 export default function RequireRole({ allow = [], children }) {
   const { user, profile, loading } = useAuth()
 
-  // 1. Still loading?
+  // Toujours en chargement global
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center text-sm text-slate-600">
@@ -14,12 +14,12 @@ export default function RequireRole({ allow = [], children }) {
     )
   }
 
-  // 2. Not logged in
+  // Pas connecté → login
   if (!user) {
     return <Navigate to="/login" replace />
   }
 
-  // 3. Profile not yet fetched
+  // User sans profil → on considère encore en chargement
   if (!profile) {
     return (
       <div className="min-h-screen flex items-center justify-center text-sm text-slate-600">
@@ -28,7 +28,7 @@ export default function RequireRole({ allow = [], children }) {
     )
   }
 
-  // 4. Normalise
+  // Normalisation rôle
   const effectiveRole = profile.role || profile.app_role || null
 
   if (!effectiveRole) {
@@ -39,7 +39,7 @@ export default function RequireRole({ allow = [], children }) {
     )
   }
 
-  // 5. Role refused
+  // Contrôle d'accès
   if (allow.length > 0 && !allow.includes(effectiveRole)) {
     return (
       <div className="min-h-screen flex items-center justify-center text-sm text-rose-700">
