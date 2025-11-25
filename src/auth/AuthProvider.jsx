@@ -16,52 +16,64 @@ export function AuthProvider({ children }) {
       .single()
 
     if (error) {
-      console.error('fetchProfile error', error)
+      console.warn('Profile fetch error:', error)
       return null
     }
+
     return data
   }
 
-  useEffect(() => {
-    let mounted = true
+  async function hydrateSession() {
+    setLoading(true)
+    const { data } = await supabase.auth.getSession()
 
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (!mounted) return
-      setSession(data.session || null)
-      if (data.session?.user) {
-        const p = await fetchProfile(data.session.user.id)
-        setProfile(p)
+    const currentSession = data?.session || null
+    setSession(currentSession)
+
+    if (!currentSession?.user) {
+      setProfile(null)
+      setLoading(false)
+      return
+    }
+
+    const p = await fetchProfile(currentSession.user.id)
+    setProfile(p)
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    hydrateSession()
+
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+      if (!newSession) {
+        setSession(null)
+        setProfile(null)
+        return
       }
+
+      setSession(newSession)
+      setLoading(true)
+      const p = await fetchProfile(newSession.user.id)
+      setProfile(p)
       setLoading(false)
     })
 
-    const { data: sub } = supabase.auth.onAuthStateChange(
-      async (_event, newSession) => {
-        setSession(newSession)
-        if (newSession?.user) {
-          const p = await fetchProfile(newSession.user.id)
-          setProfile(p)
-        } else {
-          setProfile(null)
-        }
-      }
-    )
-
     return () => {
-      mounted = false
       sub.subscription.unsubscribe()
     }
   }, [])
 
-  const value = {
-    session,
-    user: session?.user || null,
-    profile,
-    loading,
-    signOut: () => supabase.auth.signOut(),
-  }
-
-  return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>
+  return (
+    <AuthCtx.Provider value={{
+      session,
+      user: session?.user || null,
+      profile,
+      loading,
+      signOut: () => supabase.auth.signOut()
+    }}>
+      {children}
+    </AuthCtx.Provider>
+  )
 }
 
 export function useAuth() {
