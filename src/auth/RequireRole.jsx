@@ -13,9 +13,14 @@ export default function RequireRole({ allow = [], children }) {
     )
   }
 
-  if (!user) return <Navigate to="/login" replace />
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
 
-  if (allow.length > 0 && !allow.includes(profile?.role)) {
+  // 🔥 Le rôle réel : role (enum) ou app_role (fallback)
+  const effectiveRole = profile?.role || profile?.app_role || null
+
+  if (allow.length > 0 && !allow.includes(effectiveRole)) {
     return (
       <div className="min-h-screen flex items-center justify-center text-sm text-rose-700">
         Accesso negato per il tuo ruolo.
