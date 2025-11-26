@@ -37,14 +37,12 @@ export default function RapportinoSheet({ crewRole }) {
   const [loadError, setLoadError] = useState(null);
   const [saveMessage, setSaveMessage] = useState(null);
 
-  // resync capoName si profil arrive plus tard
   useEffect(() => {
     if (!capoName && profile) {
       setCapoName(profile.display_name || profile.email || '');
     }
   }, [profile, capoName]);
 
-  // Charger rapportino + lignes
   useEffect(() => {
     if (!user || !crewRole || !date) return;
     let cancelled = false;
@@ -177,6 +175,7 @@ export default function RapportinoSheet({ crewRole }) {
         user_id: user.id,
         crew_role: crewRole,
         report_date: date,
+        data: date,                // ✅ on remplit aussi l’ancienne colonne
         capo_name: capoName || null,
         status: status || 'DRAFT',
         prodotto_tot: prodottoTot
