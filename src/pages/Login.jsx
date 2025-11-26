@@ -57,4 +57,31 @@ export default function Login({ globalError }) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              autoCom
+              autoComplete="email"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm mb-1">Mot de passe</label>
+            <input
+              type="password"
+              className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              autoComplete="current-password"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full flex justify-center items-center px-3 py-2 rounded bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60"
+          >
+            {loading ? 'Connexion…' : 'Se connecter'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
