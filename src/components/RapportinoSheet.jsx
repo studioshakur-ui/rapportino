@@ -1,82 +1,323 @@
 import { useEffect, useState } from 'react';
+import { supabase } from '../lib/supabaseClient';
+import { useAuth } from '../auth/AuthProvider';
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function makeEmptyRow(index = 0) {
+  return {
+    id: null,
+    row_index: index,
+    categoria: '',
+    descrizione: '',
+    operatori: '',
+    tempo: '',
+    previsto: '',
+    prodotto: '',
+    note: ''
+  };
+}
+
 export default function RapportinoSheet({ crewRole }) {
+  const { user, profile } = useAuth();
+
   const [date, setDate] = useState(todayISO);
-  const [shift, setShift] = useState('MATTINO');
-  const [activity, setActivity] = useState('');
-  const [hours, setHours] = useState('');
-  const [notes, setNotes] = useState('');
+  const [capoName, setCapoName] = useState(profile?.display_name || profile?.email || '');
+  const [status, setStatus] = useState('DRAFT');
+  const [rapportinoId, setRapportinoId] = useState(null);
 
-  // Charge depuis localStorage quand date ou crewRole changent
+  const [rows, setRows] = useState([makeEmptyRow(0)]);
+
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState(null);
+  const [saveMessage, setSaveMessage] = useState(null);
+
+  // Re-synchroniser capoName quand le profil change
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (!capoName && profile) {
+      setCapoName(profile.display_name || profile.email || '');
+    }
+  }, [profile, capoName]);
 
-    const key = `rapportino:${crewRole}:${date}`;
-    const raw = window.localStorage.getItem(key);
+  // Charger rapportino + lignes quand user / crewRole / date changent
+  useEffect(() => {
+    if (!user || !crewRole || !date) return;
 
-    if (raw) {
+    let cancelled = false;
+
+    async function load() {
+      setLoading(true);
+      setLoadError(null);
+      setSaveMessage(null);
+
       try {
-        const saved = JSON.parse(raw);
-        setShift(saved.shift || 'MATTINO');
-        setActivity(saved.activity || '');
-        setHours(saved.hours || '');
-        setNotes(saved.notes || '');
-      } catch (e) {
-        console.error('Erreur lecture rapportino localStorage:', e);
-        setShift('MATTINO');
-        setActivity('');
-        setHours('');
-        setNotes('');
+        // Charger l'en-tête
+        const { data: header, error: headerError } = await supabase
+          .from('rapportini')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('crew_role', crewRole)
+          .eq('report_date', date)
+          .maybeSingle();
+
+        if (headerError) {
+          throw headerError;
+        }
+
+        if (cancelled) return;
+
+        if (header) {
+          setRapportinoId(header.id);
+          setCapoName(header.capo_name || profile?.display_name || profile?.email || '');
+          setStatus(header.status || 'DRAFT');
+
+          // Charger les lignes
+          const { data: rowData, error: rowsError } = await supabase
+            .from('rapportino_rows')
+            .select('*')
+            .eq('rapportino_id', header.id)
+            .order('row_index', { ascending: true });
+
+          if (rowsError) {
+            throw rowsError;
+          }
+
+          if (cancelled) return;
+
+          if (rowData && rowData.length > 0) {
+            const mapped = rowData.map((r, idx) => ({
+              id: r.id,
+              row_index: r.row_index ?? idx,
+              categoria: r.categoria || '',
+              descrizione: r.descrizione || '',
+              operatori: r.operatori || '',
+              tempo: r.tempo || '',
+              previsto: r.previsto ?? '',
+              prodotto: r.prodotto ?? '',
+              note: r.note || ''
+            }));
+            setRows(mapped);
+          } else {
+            setRows([makeEmptyRow(0)]);
+          }
+        } else {
+          // Aucun rapportino encore pour ce jour/squadra
+          setRapportinoId(null);
+          setStatus('DRAFT');
+          setCapoName(profile?.display_name || profile?.email || '');
+          setRows([makeEmptyRow(0)]);
+        }
+      } catch (err) {
+        console.error('Erreur chargement rapportino:', err);
+        if (!cancelled) {
+          setLoadError('Impossible de charger le rapportino pour ce jour.');
+          setRapportinoId(null);
+          setRows([makeEmptyRow(0)]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-    } else {
-      setShift('MATTINO');
-      setActivity('');
-      setHours('');
-      setNotes('');
     }
-  }, [crewRole, date]);
 
-  // Sauvegarde automatique dans localStorage
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
+    load();
 
-    const key = `rapportino:${crewRole}:${date}`;
-    const payload = {
-      date,
-      shift,
-      activity,
-      hours,
-      notes
+    return () => {
+      cancelled = true;
     };
-    try {
-      window.localStorage.setItem(key, JSON.stringify(payload));
-    } catch (e) {
-      console.error('Erreur sauvegarde rapportino localStorage:', e);
-    }
-  }, [crewRole, date, shift, activity, hours, notes]);
+  }, [user, crewRole, date, profile]);
 
-  function handleClear() {
-    if (typeof window !== 'undefined') {
-      const key = `rapportino:${crewRole}:${date}`;
-      window.localStorage.removeItem(key);
+  function handleRowChange(index, field, value) {
+    setRows((prev) =>
+      prev.map((row, i) =>
+        i === index
+          ? {
+              ...row,
+              [field]: value
+            }
+          : row
+      )
+    );
+  }
+
+  function handleAddRow() {
+    setRows((prev) => {
+      const nextIndex = prev.length;
+      return [...prev, makeEmptyRow(nextIndex)];
+    });
+  }
+
+  function handleRemoveRow(index) {
+    setRows((prev) => {
+      const filtered = prev.filter((_, i) => i !== index);
+      if (filtered.length === 0) return [makeEmptyRow(0)];
+      return filtered.map((row, i) => ({ ...row, row_index: i }));
+    });
+  }
+
+  function computeProdottoTot(rowsToUse) {
+    return rowsToUse.reduce((sum, row) => {
+      const value = row.prodotto === '' || row.prodotto == null ? 0 : Number(row.prodotto);
+      if (Number.isNaN(value)) return sum;
+      return sum + value;
+    }, 0);
+  }
+
+  async function handleSave() {
+    if (!user || !crewRole || !date) return;
+
+    setSaving(true);
+    setSaveMessage(null);
+
+    try {
+      const cleanedRows = rows.map((row, index) => ({
+        ...row,
+        row_index: index
+      }));
+
+      const prodottoTot = computeProdottoTot(cleanedRows);
+
+      // Enregistrer l'en-tête (upsert)
+      const headerPayload = {
+        user_id: user.id,
+        crew_role: crewRole,
+        report_date: date,
+        capo_name: capoName || null,
+        status: status || 'DRAFT',
+        prodotto_tot: prodottoTot
+      };
+
+      const { data: headerData, error: headerError } = await supabase
+        .from('rapportini')
+        .upsert(headerPayload, {
+          onConflict: 'user_id,crew_role,report_date'
+        })
+        .select('*')
+        .single();
+
+      if (headerError) {
+        throw headerError;
+      }
+
+      const newRapportinoId = headerData.id;
+      setRapportinoId(newRapportinoId);
+      setStatus(headerData.status || 'DRAFT');
+
+      // Supprimer les lignes existantes pour ce rapportino
+      const { error: deleteError } = await supabase
+        .from('rapportino_rows')
+        .delete()
+        .eq('rapportino_id', newRapportinoId);
+
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      // Préparer les nouvelles lignes (on ignore celles complètement vides)
+      const rowsToInsert = cleanedRows
+        .filter((row) => {
+          const hasText =
+            row.categoria ||
+            row.descrizione ||
+            row.operatori ||
+            row.tempo ||
+            row.note;
+          const hasNumbers =
+            (row.previsto !== '' && row.previsto != null) ||
+            (row.prodotto !== '' && row.prodotto != null);
+          return hasText || hasNumbers;
+        })
+        .map((row) => ({
+          rapportino_id: newRapportinoId,
+          row_index: row.row_index,
+          categoria: row.categoria || null,
+          descrizione: row.descrizione || null,
+          operatori: row.operatori || null,
+          tempo: row.tempo || null,
+          previsto:
+            row.previsto === '' || row.previsto == null
+              ? null
+              : Number(row.previsto),
+          prodotto:
+            row.prodotto === '' || row.prodotto == null
+              ? null
+              : Number(row.prodotto),
+          note: row.note || null
+        }));
+
+      if (rowsToInsert.length > 0) {
+        const { error: insertError } = await supabase
+          .from('rapportino_rows')
+          .insert(rowsToInsert);
+
+        if (insertError) {
+          throw insertError;
+        }
+      }
+
+      setSaveMessage('Rapportino enregistré dans CORE ✅');
+
+      // Effacer le message après quelques secondes
+      setTimeout(() => setSaveMessage(null), 4000);
+    } catch (err) {
+      console.error('Erreur sauvegarde rapportino:', err);
+      setSaveMessage("Erreur pendant l'enregistrement du rapportino.");
+      setTimeout(() => setSaveMessage(null), 5000);
+    } finally {
+      setSaving(false);
     }
-    setShift('MATTINO');
-    setActivity('');
-    setHours('');
-    setNotes('');
+  }
+
+  function handleNewDay() {
+    // Réinitialiser les lignes mais garder crewRole + capoName
+    setDate(todayISO());
+    setRapportinoId(null);
+    setStatus('DRAFT');
+    setRows([makeEmptyRow(0)]);
+    setSaveMessage(null);
+    setLoadError(null);
   }
 
   return (
     <div className="bg-white rounded-xl shadow p-4 space-y-4">
+      {/* En-tête */}
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">Rapportino</h2>
+          <h2 className="text-lg font-semibold">Rapportino – {crewRole}</h2>
           <p className="text-sm text-slate-600">
-            Squadra : <span className="font-medium">{crewRole}</span>
+            Capo:{' '}
+            <input
+              type="text"
+              value={capoName || ''}
+              onChange={(e) => setCapoName(e.target.value)}
+              className="inline-block border border-slate-300 rounded px-2 py-0.5 text-sm ml-1"
+            />
+          </p>
+          <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
+            <span>Statut :</span>
+            <span
+              className={`inline-flex items-center px-2 py-0.5 rounded-full border text-xs ${
+                status === 'DRAFT'
+                  ? 'bg-yellow-50 border-yellow-300 text-yellow-800'
+                  : status === 'VALIDATED_CAPO'
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                  : status === 'APPROVED_UFFICIO'
+                  ? 'bg-blue-50 border-blue-300 text-blue-800'
+                  : status === 'RETURNED'
+                  ? 'bg-red-50 border-red-300 text-red-800'
+                  : 'bg-slate-100 border-slate-300 text-slate-700'
+              }`}
+            >
+              {status}
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 mt-1">
+            Les données sont enregistrées dans Supabase, 1 rapportino par jour et
+            par squadra.
           </p>
         </div>
 
@@ -91,80 +332,189 @@ export default function RapportinoSheet({ crewRole }) {
             />
           </div>
 
-          <div>
-            <label className="block text-xs text-slate-600 mb-1">Turno</label>
-            <select
-              value={shift}
-              onChange={(e) => setShift(e.target.value)}
-              className="border border-slate-300 rounded px-2 py-1 text-sm"
-            >
-              <option value="MATTINO">Mattino</option>
-              <option value="POMERIGGIO">Pomeriggio</option>
-              <option value="NOTTE">Notte</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <label className="block text-xs text-slate-600">
-            Lavorazioni / attività svolte
-          </label>
-          <textarea
-            value={activity}
-            onChange={(e) => setActivity(e.target.value)}
-            rows={6}
-            className="w-full border border-slate-300 rounded px-2 py-1 text-sm"
-            placeholder="Décris ici ce que la squadra a fait..."
-          />
-        </div>
-
-        <div className="space-y-2">
-          <div>
-            <label className="block text-xs text-slate-600">
-              Ore totali squadra
-            </label>
-            <input
-              type="number"
-              min="0"
-              step="0.5"
-              value={hours}
-              onChange={(e) => setHours(e.target.value)}
-              className="w-full border border-slate-300 rounded px-2 py-1 text-sm"
-              placeholder="Ex: 8"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs text-slate-600">
-              Note / anomalie / materiale
-            </label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={4}
-              className="w-full border border-slate-300 rounded px-2 py-1 text-sm"
-              placeholder="Note libres..."
-            />
-          </div>
-
-          <div className="flex justify-end">
+          <div className="flex gap-2 mt-2 md:mt-6 justify-end">
             <button
               type="button"
-              onClick={handleClear}
-              className="px-3 py-1.5 text-xs rounded border border-slate-400 text-slate-700 hover:bg-slate-100"
+              onClick={handleNewDay}
+              className="px-3 py-1.5 text-xs rounded border border-slate-400 text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+              disabled={loading || saving}
             >
-              Effacer rapportino (jour + squadra)
+              Nuova giornata
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              className="px-3 py-1.5 text-xs rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
+              disabled={loading || saving}
+            >
+              {saving ? 'Enregistrement…' : 'Enregistrer le rapportino'}
             </button>
           </div>
         </div>
       </div>
 
-      <p className="text-xs text-slate-500">
-        ⚠️ Pour l’instant les rapportini sont uniquement enregistrés dans le navigateur
-        (localStorage). Aucun enregistrement en base.
-      </p>
+      {loadError && (
+        <div className="text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded">
+          {loadError}
+        </div>
+      )}
+
+      {/* Tableau des lignes */}
+      <div className="overflow-x-auto">
+        <table className="min-w-full border border-slate-200 text-xs">
+          <thead className="bg-slate-50">
+            <tr>
+              <th className="border border-slate-200 px-2 py-1 text-left w-24">
+                Categoria
+              </th>
+              <th className="border border-slate-200 px-2 py-1 text-left w-48">
+                Descrizione attività
+              </th>
+              <th className="border border-slate-200 px-2 py-1 text-left w-40">
+                Operatori
+              </th>
+              <th className="border border-slate-200 px-2 py-1 text-left w-40">
+                Tempo
+              </th>
+              <th className="border border-slate-200 px-2 py-1 text-right w-20">
+                Previsto
+              </th>
+              <th className="border border-slate-200 px-2 py-1 text-right w-20">
+                Prodotto
+              </th>
+              <th className="border border-slate-200 px-2 py-1 text-left w-40">
+                Note
+              </th>
+              <th className="border border-slate-200 px-2 py-1 text-center w-12">
+                -
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => (
+              <tr key={index}>
+                <td className="border border-slate-200 px-1 py-1 align-top">
+                  <input
+                    type="text"
+                    value={row.categoria}
+                    onChange={(e) =>
+                      handleRowChange(index, 'categoria', e.target.value)
+                    }
+                    className="w-full border border-slate-200 rounded px-1 py-0.5"
+                    disabled={loading}
+                  />
+                </td>
+                <td className="border border-slate-200 px-1 py-1 align-top">
+                  <textarea
+                    value={row.descrizione}
+                    onChange={(e) =>
+                      handleRowChange(index, 'descrizione', e.target.value)
+                    }
+                    rows={3}
+                    className="w-full border border-slate-200 rounded px-1 py-0.5"
+                    disabled={loading}
+                  />
+                </td>
+                <td className="border border-slate-200 px-1 py-1 align-top">
+                  <textarea
+                    value={row.operatori}
+                    onChange={(e) =>
+                      handleRowChange(index, 'operatori', e.target.value)
+                    }
+                    rows={3}
+                    className="w-full border border-slate-200 rounded px-1 py-0.5"
+                    placeholder={'Une ligne par opérateur'}
+                    disabled={loading}
+                  />
+                </td>
+                <td className="border border-slate-200 px-1 py-1 align-top">
+                  <textarea
+                    value={row.tempo}
+                    onChange={(e) =>
+                      handleRowChange(index, 'tempo', e.target.value)
+                    }
+                    rows={3}
+                    className="w-full border border-slate-200 rounded px-1 py-0.5"
+                    placeholder={'Même nombre de lignes\nque Operatori'}
+                    disabled={loading}
+                  />
+                </td>
+                <td className="border border-slate-200 px-1 py-1 align-top">
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={row.previsto}
+                    onChange={(e) =>
+                      handleRowChange(index, 'previsto', e.target.value)
+                    }
+                    className="w-full border border-slate-200 rounded px-1 py-0.5 text-right"
+                    disabled={loading}
+                  />
+                </td>
+                <td className="border border-slate-200 px-1 py-1 align-top">
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={row.prodotto}
+                    onChange={(e) =>
+                      handleRowChange(index, 'prodotto', e.target.value)
+                    }
+                    className="w-full border border-slate-200 rounded px-1 py-0.5 text-right"
+                    disabled={loading}
+                  />
+                </td>
+                <td className="border border-slate-200 px-1 py-1 align-top">
+                  <textarea
+                    value={row.note}
+                    onChange={(e) =>
+                      handleRowChange(index, 'note', e.target.value)
+                    }
+                    rows={3}
+                    className="w-full border border-slate-200 rounded px-1 py-0.5"
+                    disabled={loading}
+                  />
+                </td>
+                <td className="border border-slate-200 px-1 py-1 align-top text-center">
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveRow(index)}
+                    className="text-xs text-red-600 hover:text-red-800 disabled:opacity-40"
+                    disabled={loading || rows.length === 1}
+                  >
+                    ✕
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <div className="mt-2 flex justify-between items-center">
+          <button
+            type="button"
+            onClick={handleAddRow}
+            className="px-3 py-1.5 text-xs rounded border border-slate-400 text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+            disabled={loading}
+          >
+            + Ajouter une ligne
+          </button>
+
+          <div className="text-xs text-slate-600">
+            Prodotto total :{' '}
+            <span className="font-semibold">
+              {computeProdottoTot(rows).toString()}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {loading && (
+        <p className="text-xs text-slate-500">Chargement du rapportino…</p>
+      )}
+
+      {saveMessage && (
+        <p className="text-xs text-slate-600 mt-1">{saveMessage}</p>
+      )}
     </div>
   );
 }
