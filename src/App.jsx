@@ -5,7 +5,24 @@ import Login from './pages/Login';
 import RoleSelect from './components/RoleSelect';
 import RapportinoPage from './components/RapportinoPage';
 
+// Crew roles pour Rapportino (tipo squadra)
 const CREW_VALUES = ['ELETTRICISTA', 'CARPENTERIA', 'MONTAGGIO'];
+
+/**
+ * EXPORTS pour compatibilité avec ArchivioModal.jsx
+ * (même si on n'utilise pas encore l'archivio dans le flux principal).
+ */
+export const ROLE_OPTIONS = [
+  { value: 'CAPO', label: 'Capo' },
+  { value: 'UFFICIO', label: 'Ufficio' },
+  { value: 'DIREZIONE', label: 'Direzione' }
+];
+
+export const STATUS_LABELS = {
+  DRAFT: 'Bozza',
+  SENT: 'Inviato',
+  ARCHIVED: 'Archiviato'
+};
 
 function CoreApp() {
   const { session, profile, loading, error, signOut } = useAuth();
