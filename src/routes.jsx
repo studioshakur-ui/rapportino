@@ -14,7 +14,7 @@ export default function AppRoutes() {
       {/* Public */}
       <Route path="/login" element={<Login />} />
 
-      {/* CAPO */}
+      {/* CAPO (mais pour l'instant, ouvert à tous les users connectés) */}
       <Route
         path="/*"
         element={
