@@ -15,18 +15,23 @@ export default function Login({ globalError }) {
     setLoading(true);
 
     try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      console.log('🔐 Tentative login avec', email);
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password
       });
 
+      console.log('🔐 Résultat signIn:', { data, signInError });
+
       if (signInError) {
-        setLocalError(signInError.message);
+        setLocalError(signInError.message || 'Erreur de connexion.');
+        return;
       }
-      // Si OK, AuthProvider détecte la nouvelle session
+
+      // Si OK, AuthProvider détectera la nouvelle session
     } catch (err) {
-      console.error('Erreur signIn:', err);
-      setLocalError('Erreur de connexion. Réessaye.');
+      console.error('Erreur signIn (catch):', err);
+      setLocalError('Erreur de connexion (réseau ou config). Vérifie la console.');
     } finally {
       setLoading(false);
     }
@@ -52,31 +57,4 @@ export default function Login({ globalError }) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              autoComplete="email"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm mb-1">Mot de passe</label>
-            <input
-              type="password"
-              className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full flex justify-center items-center px-3 py-2 rounded bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60"
-          >
-            {loading ? 'Connexion…' : 'Se connecter'}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
+              autoCom
