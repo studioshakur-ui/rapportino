@@ -1,96 +1,147 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
-import { supabase } from '../lib/supabaseClient'
+import { createContext, useContext, useEffect, useState } from 'react';
+import { supabase } from '../lib/supabaseClient';
 
-const AuthCtx = createContext(null)
+const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [session, setSession] = useState(null)
-  const [profile, setProfile] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [session, setSession] = useState(null);
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  async function fetchProfile(userId) {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single()
-
-    if (error) {
-      console.warn('fetchProfile error', error)
-      return null
-    }
-
-    return data
-  }
-
+  // Init auth + profile
   useEffect(() => {
-    let mounted = true
+    let mounted = true;
 
     async function init() {
-      setLoading(true)
-      const { data, error } = await supabase.auth.getSession()
+      try {
+        setLoading(true);
+        setError(null);
 
-      if (!mounted) return
+        const { data, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) throw sessionError;
 
-      if (error) {
-        console.error('getSession error', error)
-        setSession(null)
-        setProfile(null)
-        setLoading(false)
-        return
+        const currentSession = data.session;
+        setSession(currentSession || null);
+        setUser(currentSession?.user ?? null);
+
+        if (currentSession?.user) {
+          await fetchProfile(currentSession.user.id, mounted);
+        } else {
+          setProfile(null);
+        }
+      } catch (err) {
+        console.error('Erreur init auth:', err);
+        setError('Erreur de connexion. Merci de vous reconnecter.');
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+      } finally {
+        if (mounted) setLoading(false);
       }
-
-      const currentSession = data?.session || null
-      setSession(currentSession)
-
-      if (currentSession?.user) {
-        const p = await fetchProfile(currentSession.user.id)
-        if (!mounted) return
-        setProfile(p)
-      } else {
-        setProfile(null)
-      }
-
-      setLoading(false)
     }
 
-    init()
+    init();
 
-    const { data: sub } = supabase.auth.onAuthStateChange(
+    const { data: authListener } = supabase.auth.onAuthStateChange(
       async (_event, newSession) => {
-        if (!newSession?.user) {
-          setSession(null)
-          setProfile(null)
-          setLoading(false)
-          return
+        setSession(newSession);
+        setUser(newSession?.user ?? null);
+
+        if (newSession?.user) {
+          await fetchProfile(newSession.user.id, true);
+        } else {
+          setProfile(null);
         }
-
-        setSession(newSession)
-        setLoading(true)
-
-        const p = await fetchProfile(newSession.user.id)
-        setProfile(p)
-        setLoading(false)
       }
-    )
+    );
 
     return () => {
-      mounted = false
-      sub.subscription.unsubscribe()
+      mounted = false;
+      authListener?.subscription?.unsubscribe();
+    };
+  }, []);
+
+  async function fetchProfile(userId, mounted = true) {
+    try {
+      const { data, error, status } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (error && status !== 406) throw error;
+
+      if (!data) {
+        // Créer un profil de base si inexistant
+        const { data: userData, error: getUserError } = await supabase.auth.getUser();
+        if (getUserError) throw getUserError;
+
+        const authUser = userData.user;
+        const email = authUser?.email ?? '';
+        const displayName =
+          authUser?.user_metadata?.full_name ||
+          authUser?.user_metadata?.name ||
+          email;
+
+        const { data: inserted, error: insertError } = await supabase
+          .from('profiles')
+          .insert({
+            id: userId,
+            email,
+            display_name: displayName,
+            app_role: 'CAPO'
+          })
+          .select('*')
+          .single();
+
+        if (insertError) throw insertError;
+        if (mounted) setProfile(inserted);
+      } else {
+        if (mounted) setProfile(data);
+      }
+    } catch (err) {
+      console.error('Erreur chargement profil:', err);
+      if (mounted) setError('Impossible de charger votre profil. Merci de vous reconnecter.');
+
+      // On force la déconnexion pour éviter les blocages
+      try {
+        await supabase.auth.signOut();
+      } catch (signOutErr) {
+        console.error('Erreur pendant signOut:', signOutErr);
+      }
+
+      if (mounted) {
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+      }
     }
-  }, [])
+  }
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    setSession(null);
+    setUser(null);
+    setProfile(null);
+  };
 
   const value = {
     session,
-    user: session?.user || null,
+    user,
     profile,
     loading,
-    signOut: () => supabase.auth.signOut(),
-  }
+    error,
+    signOut,
+    refreshProfile: () => user && fetchProfile(user.id)
+  };
 
-  return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
-  return useContext(AuthCtx)
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth doit être utilisé dans un AuthProvider');
+  return ctx;
 }
