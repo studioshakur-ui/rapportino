@@ -1,6 +1,7 @@
 // src/components/RapportinoSheet.jsx
 import React, { useEffect, useState, useMemo } from "react";
-import { supabase } from "../supabaseClient";
+import { supabase } from "../lib/supabaseClient";
+
 
 // Templates di righe per ogni tipo squadra (stessa struttura colonne)
 const TEMPLATE_RIGHE = {
