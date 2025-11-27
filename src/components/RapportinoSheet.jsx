@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../auth/AuthProvider';
+import { getDefaultRowsForCrewRole } from '../config/rapportinoTemplates';
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -31,18 +32,30 @@ export default function RapportinoSheet({ crewRole }) {
   const [status, setStatus] = useState('DRAFT');
   const [rapportinoId, setRapportinoId] = useState(null);
 
-  // Nouveau : Costr. (bateau) et Commessa
   const [costr, setCostr] = useState('');
   const [commessa, setCommessa] = useState('SDC');
 
-  const [rows, setRows] = useState([makeEmptyRow(0)]);
+  // 👉 initialisation des lignes à partir du modèle papier
+  const [rows, setRows] = useState(() => {
+    const tmpl = getDefaultRowsForCrewRole(crewRole);
+    return tmpl.length ? tmpl : [makeEmptyRow(0)];
+  });
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState(null);
   const [saveMessage, setSaveMessage] = useState(null);
 
-  // Met à jour le nom de capo dès que le profil arrive
+  // si le crewRole change et qu'on n'a pas encore de rapportino en DB,
+  // on recharge le modèle correspondant
+  useEffect(() => {
+    if (!rapportinoId) {
+      const tmpl = getDefaultRowsForCrewRole(crewRole);
+      setRows(tmpl.length ? tmpl : [makeEmptyRow(0)]);
+    }
+  }, [crewRole, rapportinoId]);
+
+  // Met à jour le nom du capo quand le profil arrive
   useEffect(() => {
     if (!capoName && profile) {
       setCapoName(profile.display_name || profile.email || '');
@@ -63,9 +76,7 @@ export default function RapportinoSheet({ crewRole }) {
         const { data: header, error: headerError } = await supabase
           .from('rapportini')
           .select('*')
-          // on reste sur user_id pour coller à ton schéma actuel
           .eq('user_id', user.id)
-          // on utilise report_date si tu l'as, sinon data (on garde report_date pour compatibilité)
           .eq('report_date', date)
           .maybeSingle();
 
@@ -73,6 +84,7 @@ export default function RapportinoSheet({ crewRole }) {
         if (cancelled) return;
 
         if (header) {
+          // 👉 rapportino déjà existant pour ce jour
           setRapportinoId(header.id);
           setCapoName(
             header.capo_name ||
@@ -108,16 +120,19 @@ export default function RapportinoSheet({ crewRole }) {
               }))
             );
           } else {
-            setRows([makeEmptyRow(0)]);
+            // pas de lignes → on retombe sur le modèle
+            const tmpl = getDefaultRowsForCrewRole(crewRole);
+            setRows(tmpl.length ? tmpl : [makeEmptyRow(0)]);
           }
         } else {
-          // aucun rapportino pour ce jour → nouvelle feuille
+          // 👉 aucun rapportino pour ce jour → nouvelle feuille
           setRapportinoId(null);
           setStatus('DRAFT');
           setCapoName(profile?.display_name || profile?.email || '');
           setCostr('');
           setCommessa('SDC');
-          setRows([makeEmptyRow(0)]);
+          const tmpl = getDefaultRowsForCrewRole(crewRole);
+          setRows(tmpl.length ? tmpl : [makeEmptyRow(0)]);
         }
       } catch (err) {
         console.error('Errore caricamento rapportino:', err);
@@ -126,8 +141,9 @@ export default function RapportinoSheet({ crewRole }) {
             'Impossibile caricare il rapportino: ' +
               (err?.message || err?.details || '')
           );
+          const tmpl = getDefaultRowsForCrewRole(crewRole);
+          setRows(tmpl.length ? tmpl : [makeEmptyRow(0)]);
           setRapportinoId(null);
-          setRows([makeEmptyRow(0)]);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -138,7 +154,7 @@ export default function RapportinoSheet({ crewRole }) {
     return () => {
       cancelled = true;
     };
-  }, [user, date, profile]);
+  }, [user, date, profile, crewRole]);
 
   function handleRowChange(index, field, value) {
     setRows((prev) =>
@@ -188,10 +204,9 @@ export default function RapportinoSheet({ crewRole }) {
       const prodottoTot = computeProdottoTot(cleanedRows);
 
       const headerPayload = {
-        user_id: user.id, // ton schéma actuel
-        capo_id: null, // sera copié depuis user_id par le trigger DB
+        user_id: user.id,
+        capo_id: null, // trigger DB copiera depuis user_id si besoin
         crew_role: crewRole || null,
-        // pour compatibilité avec ton schéma existant :
         report_date: date,
         data: date,
         capo_name: capoName || null,
@@ -292,10 +307,12 @@ export default function RapportinoSheet({ crewRole }) {
     setDate(todayISO());
     setRapportinoId(null);
     setStatus('DRAFT');
-    setRows([makeEmptyRow(0)]);
     setSaveMessage(null);
     setLoadError(null);
-    // On ne change pas costr/commessa → le capo garde son bateau/commessa
+
+    const tmpl = getDefaultRowsForCrewRole(crewRole);
+    setRows(tmpl.length ? tmpl : [makeEmptyRow(0)]);
+    // costr et commessa restent → le capo garde son bateau
   }
 
   return (
