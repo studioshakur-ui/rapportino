@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+/* -------------------------------
+   Base globale
+---------------------------------- */
+
 :root {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
@@ -11,24 +15,157 @@ body {
   @apply bg-slate-100 text-slate-900;
 }
 
-/* Tableau du rapportino : look "document" */
-.rapportino-table {
+/* -------------------------------
+   Rapportino – look "feuille papier"
+---------------------------------- */
+
+/* Conteneur principal de la feuille (div autour du rapport) */
+.rapportino-page {
+  max-width: 1120px;              /* ≈ A4 paysage en px */
+  margin: 24px auto;
+  padding: 24px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
+  border: 1px solid rgba(148, 163, 184, 0.6);
+}
+
+/* Titre "Rapportino Giornaliero – ELETTRICISTA" */
+.rapportino-title {
   font-family: "Times New Roman", Times, serif;
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: 0.03em;
+  margin-bottom: 8px;
 }
 
-.rapportino-header-border {
-  border-width: 0.8px;
+/* Ligne "Costr / Commessa / Capo / Data / Stato" */
+.rapportino-meta {
+  font-family: "Times New Roman", Times, serif;
+  font-size: 11pt;
+  margin-bottom: 8px;
 }
 
-.rapportino-border {
-  border-width: 0.5px;
+.rapportino-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  justify-content: space-between;
 }
 
-/* Utilitaires écran / impression */
+.rapportino-meta-label {
+  font-weight: 600;
+}
+
+/* -------------------------------
+   Tableau principal
+---------------------------------- */
+
+.rapportino-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: "Times New Roman", Times, serif;
+  font-size: 11pt;
+}
+
+/* Bordures fines façon imprimé */
+.rapportino-table th,
+.rapportino-table td {
+  border: 0.6pt solid #000000;
+  padding: 4px 6px;
+  vertical-align: top;
+}
+
+/* En-têtes colonnes */
+.rapportino-table th {
+  font-weight: 700;
+  text-align: left;
+  background: #f3f3f3;
+}
+
+/* Largeurs de colonnes proches du papier */
+.rapportino-table .col-categoria {
+  width: 12%;
+}
+
+.rapportino-table .col-descrizione {
+  width: 28%;
+}
+
+.rapportino-table .col-operatori {
+  width: 20%;
+}
+
+.rapportino-table .col-tempo {
+  width: 10%;
+}
+
+.rapportino-table .col-previsto {
+  width: 10%;
+}
+
+.rapportino-table .col-prodotto {
+  width: 10%;
+}
+
+.rapportino-table .col-note {
+  width: 10%;
+}
+
+/* Textareas "papier" (sans gros contour) */
+.rapportino-table textarea {
+  width: 100%;
+  min-height: 40px;
+  border: none;
+  resize: vertical;
+  outline: none;
+  font-family: "Times New Roman", Times, serif;
+  font-size: 11pt;
+  padding: 0;
+  background: transparent;
+}
+
+/* Inputs numériques / texte dans les colonnes PREVISTO / PRODOTTO */
+.rapportino-table input[type="text"],
+.rapportino-table input[type="number"],
+.rapportino-table input[type="date"] {
+  width: 100%;
+  border: none;
+  outline: none;
+  font-family: "Times New Roman", Times, serif;
+  font-size: 11pt;
+  padding: 0;
+  background: transparent;
+}
+
+/* Petite mention "Produit total" en bas à droite */
+.rapportino-footer {
+  font-family: "Times New Roman", Times, serif;
+  font-size: 11pt;
+  margin-top: 8px;
+  text-align: right;
+}
+
+/* Boutons au-dessus de la feuille (Nuova giornata / Enregistrer / Stampa) */
+.rapportino-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+/* -------------------------------
+   Utilitaires écran / impression
+---------------------------------- */
+
+/* Élément visible à l'écran mais caché lors de l'impression */
 .no-print {
-  /* visible à l'écran, caché à l'impression */
+  /* rien ici : géré dans @media print */
 }
 
+/* Élément uniquement visible sur la version imprimée */
 .print-only {
   display: none;
 }
@@ -37,7 +174,10 @@ body {
   page-break-before: always;
 }
 
-/* Impression A4 horizontale */
+/* -------------------------------
+   Impression A4 paysage
+---------------------------------- */
+
 @media print {
   @page {
     size: A4 landscape;
@@ -46,14 +186,30 @@ body {
 
   body,
   #root {
-    @apply bg-white;
+    background: #ffffff !important;
   }
 
+  /* On masque header, nav, boutons, etc. */
   .no-print {
     display: none !important;
   }
 
   .print-only {
     display: block !important;
+  }
+
+  /* La feuille devient complètement "plate" pour le PDF */
+  .rapportino-page {
+    max-width: none;
+    margin: 0;
+    padding: 6mm;
+    border-radius: 0;
+    box-shadow: none;
+    border: 0.6pt solid #000000;
+  }
+
+  /* On garde les mêmes polices dans le tableau */
+  .rapportino-table {
+    font-size: 10.5pt;
   }
 }
