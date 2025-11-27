@@ -1,103 +1,64 @@
-import { useEffect, useState } from "react";
-import { AuthProvider, useAuth } from "./auth/AuthProvider";
-import LoadingScreen from "./components/LoadingScreen";
-import Login from "./pages/Login";
-import RoleSelect from "./components/RoleSelect";
-import RapportinoPage from "./components/RapportinoPage";
+import { useAuth } from "../auth/AuthProvider";
+import RapportinoSheet from "./RapportinoSheet";
 
-// Crew roles per Rapportino (tipo squadra)
-const CREW_VALUES = ["ELETTRICISTA", "CARPENTERIA", "MONTAGGIO"];
-
-/**
- * EXPORT per compatibilità con ArchivioModal.jsx
- * (anche se non usiamo ancora l’archivio nel flusso principale).
- */
-export const ROLE_OPTIONS = [
-  { value: "CAPO", label: "Capo" },
-  { value: "UFFICIO", label: "Ufficio" },
-  { value: "DIREZIONE", label: "Direzione" },
-];
-
-export const STATUS_LABELS = {
-  DRAFT: "Bozza",
-  SENT: "Inviato",
-  ARCHIVED: "Archiviato",
+const CREW_LABELS = {
+  ELETTRICISTA: "Elettricista",
+  CARPENTERIA: "Carpenteria",
+  MONTAGGIO: "Montaggio",
 };
 
-function CoreApp() {
-  const { session, profile, loading, error, signOut } = useAuth();
-  const [crewRole, setCrewRole] = useState(null);
+export default function RapportinoPage({
+  crewRole,
+  onChangeCrewRole,
+  onLogout,
+}) {
+  const { profile } = useAuth();
 
-  // Legge la squadra da localStorage all’avvio
-  useEffect(() => {
-    if (typeof window === "undefined") return;
+  const displayName =
+    (profile?.display_name || profile?.full_name || profile?.email || "Utente").toUpperCase();
 
-    try {
-      const stored = window.localStorage.getItem("core_crew_role");
-      if (CREW_VALUES.includes(stored)) {
-        setCrewRole(stored);
-      }
-    } catch (e) {
-      console.error("Errore lettura core_crew_role:", e);
-    }
-  }, []);
-
-  const handleSelectCrewRole = (role) => {
-    setCrewRole(role);
-    if (typeof window !== "undefined") {
-      try {
-        window.localStorage.setItem("core_crew_role", role);
-      } catch (e) {
-        console.error("Errore scrittura core_crew_role:", e);
-      }
-    }
-  };
-
-  const handleChangeCrewRole = () => {
-    setCrewRole(null);
-    if (typeof window !== "undefined") {
-      try {
-        window.localStorage.removeItem("core_crew_role");
-      } catch (e) {
-        console.error("Errore rimozione core_crew_role:", e);
-      }
-    }
-  };
-
-  const handleLogout = async () => {
-    await signOut();
-    handleChangeCrewRole();
-  };
-
-  if (loading) {
-    return <LoadingScreen />;
-  }
-
-  if (!session) {
-    return <Login globalError={error} />;
-  }
-
-  if (!profile) {
-    return <LoadingScreen message="Caricamento del profilo..." />;
-  }
-
-  if (!crewRole) {
-    return <RoleSelect onSelect={handleSelectCrewRole} />;
-  }
+  const appRoleLabel = profile?.app_role || "CAPO";
+  const crewLabel = CREW_LABELS[crewRole] || crewRole;
 
   return (
-    <RapportinoPage
-      crewRole={crewRole}
-      onChangeCrewRole={handleChangeCrewRole}
-      onLogout={handleLogout}
-    />
-  );
-}
+    <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col">
+      {/* NAVBAR — non stampata grazie alla classe no-print */}
+      <header className="no-print bg-slate-900 text-slate-100 px-4 py-3 flex items-center justify-between">
+        <div>
+          <div className="font-semibold text-sm">{displayName}</div>
+          <div className="text-xs text-slate-300">
+            Ruolo applicativo:{" "}
+            <span className="font-medium">{appRoleLabel}</span>
+          </div>
+          <div className="text-xs text-slate-300">
+            Tipo squadra: <span className="font-medium">{crewLabel}</span>
+          </div>
+        </div>
 
-export default function App() {
-  return (
-    <AuthProvider>
-      <CoreApp />
-    </AuthProvider>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onChangeCrewRole}
+            className="px-3 py-1.5 text-xs rounded border border-slate-500 hover:bg-slate-800"
+          >
+            Cambia squadra
+          </button>
+          <button
+            type="button"
+            onClick={onLogout}
+            className="px-3 py-1.5 text-xs rounded bg-red-600 hover:bg-red-700"
+          >
+            Logout
+          </button>
+        </div>
+      </header>
+
+      {/* CONTENUTO — questa parte viene stampata */}
+      <main className="flex-1 p-4 flex justify-center items-start">
+        <div className="w-full max-w-5xl">
+          <RapportinoSheet crewRole={crewRole} />
+        </div>
+      </main>
+    </div>
   );
 }
