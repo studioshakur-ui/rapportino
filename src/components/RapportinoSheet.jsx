@@ -1,585 +1,660 @@
-// src/components/RapportinoSheet.jsx
-import React, { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabaseClient';
-import { useAuth } from '../auth/AuthProvider';
-import { getDefaultRowsForCrewRole } from '../config/rapportinoTemplates';
+import React, { useEffect, useMemo, useState } from "react";
+import { supabase } from "../lib/supabaseClient";
 
-function todayISO() {
-  return new Date().toISOString().slice(0, 10);
-}
+// Etichette per il crew_role
+const CREW_ROLE_LABELS = {
+  ELETTRICISTA: "ELETTRICISTA",
+  CARPENTERIA: "CARPENTERIA",
+  MONTAGGIO: "MONTAGGIO",
+};
 
-function makeEmptyRow(index = 0) {
-  return {
-    id: null,
-    row_index: index,
-    categoria: '',
-    descrizione: '',
-    operatori: '',
-    tempo: '',
-    previsto: '',
-    prodotto: '',
-    note: '',
+// Template delle righe per tipo squadra, basato sui tuoi rapportini cartacei
+function getTemplateRowsForCrew(crewRole) {
+  const commonEmpty = {
+    operatori: "",
+    tempo: "",
+    previsto: "",
+    prodotto: "",
+    note: "",
   };
+
+  switch (crewRole) {
+    case "ELETTRICISTA":
+      return [
+        {
+          categoria: "STESURA",
+          descrizione: "STESURA",
+          ...commonEmpty,
+        },
+        {
+          categoria: "STESURA",
+          descrizione: "FASCETTATURA CAVI",
+          ...commonEmpty,
+        },
+        {
+          categoria: "STESURA",
+          descrizione: "RIPRESA CAVI",
+          ...commonEmpty,
+        },
+        {
+          categoria: "STESURA",
+          descrizione: "VARI STESURA CAVI",
+          ...commonEmpty,
+        },
+      ];
+    case "CARPENTERIA":
+      return [
+        {
+          categoria: "CARPENTERIA",
+          descrizione: "SALDATURA STAFFE STRADE CAVI MAGAZZINO",
+          ...commonEmpty,
+        },
+        {
+          categoria: "CARPENTERIA",
+          descrizione: "SALDATURA STAFFE STRADE CAVI",
+          ...commonEmpty,
+        },
+        {
+          categoria: "CARPENTERIA",
+          descrizione: "MONTAGGIO STRADE CAVI",
+          ...commonEmpty,
+        },
+        {
+          categoria: "CARPENTERIA",
+          descrizione: "SALDATURA TONDINI",
+          ...commonEmpty,
+        },
+        {
+          categoria: "CARPENTERIA",
+          descrizione: "SALDATURA BASAMENTI (APPARECCHIATURE)",
+          ...commonEmpty,
+        },
+        {
+          categoria: "CARPENTERIA",
+          descrizione: "TRACCIATURA KIEPE/COLLARI",
+          ...commonEmpty,
+        },
+        {
+          categoria: "CARPENTERIA",
+          descrizione: "SALDATURA KIEPE/COLLARI",
+          ...commonEmpty,
+        },
+        {
+          categoria: "CARPENTERIA",
+          descrizione: "MOLATURA KIEPE",
+          ...commonEmpty,
+        },
+        {
+          categoria: "CARPENTERIA",
+          descrizione: "MOLATURA STAFFE, TONDINI, BASAMENTI",
+          ...commonEmpty,
+        },
+        {
+          categoria: "CARPENTERIA",
+          descrizione: "VARIE CARPENTERIE",
+          ...commonEmpty,
+        },
+      ];
+    case "MONTAGGIO":
+      return [
+        {
+          categoria: "IMBARCHI",
+          descrizione: "VARI IMBARCHI (LOGISTICA E TRASPORTO)",
+          ...commonEmpty,
+        },
+        {
+          categoria: "MONTAGGIO",
+          descrizione: "MONTAGGIO APPARECCHIATURA MINORE DI 50 KG",
+          ...commonEmpty,
+        },
+        {
+          categoria: "MONTAGGIO",
+          descrizione: "MONTAGGIO APPARECCHIATURA DA 51 KG A 150 KG",
+          ...commonEmpty,
+        },
+        {
+          categoria: "MONTAGGIO",
+          descrizione: "MONTAGGIO APPARECCHIATURA DA 151 KG A 400 KG",
+          ...commonEmpty,
+        },
+        {
+          categoria: "MONTAGGIO",
+          descrizione: "MONTAGGIO APPARECCHIATURA DA 401 KG A 1400 KG",
+          ...commonEmpty,
+        },
+      ];
+    default:
+      return [
+        {
+          categoria: "",
+          descrizione: "",
+          ...commonEmpty,
+        },
+      ];
+  }
 }
 
-export default function RapportinoSheet({ crewRole }) {
-  const { user, profile } = useAuth();
+// Format YYYY-MM-DD -> DD/MM/YYYY
+function formatDateHuman(value) {
+  if (!value) return "";
+  const [y, m, d] = value.split("-");
+  if (!y || !m || !d) return value;
+  return `${d}/${m}/${y}`;
+}
 
-  const [date, setDate] = useState(todayISO());
-  const [capoName, setCapoName] = useState(
-    profile?.display_name || profile?.email || ''
-  );
-  const [status, setStatus] = useState('DRAFT');
+// Oggi in formato YYYY-MM-DD
+function getTodayIso() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+/**
+ * RapportinoSheet
+ *
+ * Props previste:
+ * - profile : profilo Supabase (full_name, display_name, ecc.)
+ * - crewRole : "ELETTRICISTA" | "CARPENTERIA" | "MONTAGGIO"
+ */
+export default function RapportinoSheet({ profile, crewRole }) {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
   const [rapportinoId, setRapportinoId] = useState(null);
 
-  const [costr, setCostr] = useState('');
-  const [commessa, setCommessa] = useState('SDC');
+  const [date, setDate] = useState(getTodayIso());
+  const [status, setStatus] = useState("DRAFT");
+  const [costr, setCostr] = useState("");
+  const [commessa, setCommessa] = useState("SDC");
+  const [capoName, setCapoName] = useState(
+    profile?.display_name || profile?.full_name || profile?.email || ""
+  );
 
-  // 👉 initialisation des lignes à partir du modèle papier
-  const [rows, setRows] = useState(() => {
-    const tmpl = getDefaultRowsForCrewRole(crewRole);
-    return tmpl.length ? tmpl : [makeEmptyRow(0)];
-  });
+  const [rows, setRows] = useState([]);
 
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [loadError, setLoadError] = useState(null);
-  const [saveMessage, setSaveMessage] = useState(null);
+  const crewRoleLabel = CREW_ROLE_LABELS[crewRole] || crewRole || "";
 
-  // si le crewRole change et qu'on n'a pas encore de rapportino en DB,
-  // on recharge le modèle correspondant
+  // Totale prodotto
+  const totalProdotto = useMemo(
+    () =>
+      rows.reduce((sum, r) => {
+        const v = Number(
+          typeof r.prodotto === "string" ? r.prodotto.replace(",", ".") : r.prodotto
+        );
+        if (Number.isNaN(v)) return sum;
+        return sum + v;
+      }, 0),
+    [rows]
+  );
+
+  // CARICAMENTO del rapportino del giorno (o creazione se non esiste)
   useEffect(() => {
-    if (!rapportinoId) {
-      const tmpl = getDefaultRowsForCrewRole(crewRole);
-      setRows(tmpl.length ? tmpl : [makeEmptyRow(0)]);
-    }
-  }, [crewRole, rapportinoId]);
+    let isMounted = true;
 
-  // Met à jour le nom du capo quand le profil arrive
-  useEffect(() => {
-    if (!capoName && profile) {
-      setCapoName(profile.display_name || profile.email || '');
-    }
-  }, [profile, capoName]);
-
-  // Chargement du rapportino du jour (si existe)
-  useEffect(() => {
-    if (!user || !date) return;
-    let cancelled = false;
-
-    async function load() {
+    async function loadRapportino() {
       setLoading(true);
-      setLoadError(null);
-      setSaveMessage(null);
+      setErrorMessage("");
 
-      try {
-        const { data: header, error: headerError } = await supabase
-          .from('rapportini')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('report_date', date)
-          .maybeSingle();
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-        if (headerError) throw headerError;
-        if (cancelled) return;
-
-        if (header) {
-          // 👉 rapportino déjà existant pour ce jour
-          setRapportinoId(header.id);
-          setCapoName(
-            header.capo_name ||
-              profile?.display_name ||
-              profile?.email ||
-              ''
-          );
-          setStatus(header.status || 'DRAFT');
-          setCostr(header.costr || '');
-          setCommessa(header.commessa || 'SDC');
-
-          const { data: rowData, error: rowsError } = await supabase
-            .from('rapportino_rows')
-            .select('*')
-            .eq('rapportino_id', header.id)
-            .order('row_index', { ascending: true });
-
-          if (rowsError) throw rowsError;
-          if (cancelled) return;
-
-          if (rowData && rowData.length > 0) {
-            setRows(
-              rowData.map((r, idx) => ({
-                id: r.id,
-                row_index: r.row_index ?? idx,
-                categoria: r.categoria || '',
-                descrizione: r.descrizione || '',
-                operatori: r.operatori || '',
-                tempo: r.tempo || '',
-                previsto: r.previsto ?? '',
-                prodotto: r.prodotto ?? '',
-                note: r.note || '',
-              }))
-            );
-          } else {
-            // pas de lignes → on retombe sur le modèle
-            const tmpl = getDefaultRowsForCrewRole(crewRole);
-            setRows(tmpl.length ? tmpl : [makeEmptyRow(0)]);
-          }
-        } else {
-          // 👉 aucun rapportino pour ce jour → nouvelle feuille
-          setRapportinoId(null);
-          setStatus('DRAFT');
-          setCapoName(profile?.display_name || profile?.email || '');
-          setCostr('');
-          setCommessa('SDC');
-          const tmpl = getDefaultRowsForCrewRole(crewRole);
-          setRows(tmpl.length ? tmpl : [makeEmptyRow(0)]);
-        }
-      } catch (err) {
-        console.error('Errore caricamento rapportino:', err);
-        if (!cancelled) {
-          setLoadError(
-            'Impossibile caricare il rapportino: ' +
-              (err?.message || err?.details || '')
-          );
-          const tmpl = getDefaultRowsForCrewRole(crewRole);
-          setRows(tmpl.length ? tmpl : [makeEmptyRow(0)]);
-          setRapportinoId(null);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
+      if (userError || !user) {
+        if (!isMounted) return;
+        setErrorMessage("Sessione non valida. Effettua di nuovo il login.");
+        setLoading(false);
+        return;
       }
+
+      // 1) Cerco un rapportino esistente per (user_id, data, role)
+      const { data: header, error: headerError } = await supabase
+        .from("rapportini")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("data", date)
+        .eq("role", crewRole)
+        .maybeSingle();
+
+      if (!isMounted) return;
+
+      if (headerError && headerError.code !== "PGRST116") {
+        console.error("Errore caricamento rapportino:", headerError);
+        setErrorMessage(
+          "Errore durante il caricamento del rapportino. I dati locali rimangono utilizzabili."
+        );
+        setLoading(false);
+        return;
+      }
+
+      let currentId = header?.id ?? null;
+
+      // 2) Se non c'è header: ne creo uno base
+      if (!currentId) {
+        const insertPayload = {
+          user_id: user.id,
+          data: date,
+          role: crewRole,
+          capo_nome: capoName || null,
+          costr: costr || null,
+          commessa: commessa || null,
+          status: status || "DRAFT",
+        };
+
+        const { data: inserted, error: insertError } = await supabase
+          .from("rapportini")
+          .insert(insertPayload)
+          .select()
+          .single();
+
+        if (!isMounted) return;
+
+        if (insertError) {
+          console.error("Errore creazione rapportino:", insertError);
+          setErrorMessage(
+            "Errore durante la creazione del rapportino. Puoi comunque scrivere, ma il salvataggio potrebbe fallire."
+          );
+          setLoading(false);
+          return;
+        }
+
+        currentId = inserted.id;
+        setRapportinoId(inserted.id);
+        setStatus(inserted.status || "DRAFT");
+        setCostr(inserted.costr || "");
+        setCommessa(inserted.commessa || "SDC");
+        setCapoName(inserted.capo_nome || capoName);
+      } else {
+        // Header trovato -> sincronizzo stato locale
+        setRapportinoId(currentId);
+        setStatus(header.status || "DRAFT");
+        setCostr(header.costr || "");
+        setCommessa(header.commessa || "SDC");
+        setCapoName(header.capo_nome || capoName);
+      }
+
+      // 3) Carico le righe
+      const { data: dbRows, error: rowsError } = await supabase
+        .from("rapportino_rows")
+        .select("*")
+        .eq("rapportino_id", currentId)
+        .order("row_index", { ascending: true });
+
+      if (!isMounted) return;
+
+      if (rowsError) {
+        console.error("Errore caricamento righe:", rowsError);
+        setErrorMessage(
+          "Errore durante il caricamento delle righe. È stato caricato un modello vuoto."
+        );
+        setRows(getTemplateRowsForCrew(crewRole));
+        setLoading(false);
+        return;
+      }
+
+      if (!dbRows || dbRows.length === 0) {
+        // Nessun record -> carico il template standard
+        setRows(getTemplateRowsForCrew(crewRole));
+      } else {
+        setRows(
+          dbRows.map((r) => ({
+            id: r.id,
+            categoria: r.categoria || "",
+            descrizione: r.descrizione || "",
+            operatori: r.operatori || "",
+            tempo: r.tempo || "",
+            previsto: r.previsto ?? "",
+            prodotto: r.prodotto ?? "",
+            note: r.note || "",
+          }))
+        );
+      }
+
+      setLoading(false);
     }
 
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [user, date, profile, crewRole]);
+    loadRapportino();
 
+    return () => {
+      isMounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crewRole, date]);
+
+  // Modifica celle
   function handleRowChange(index, field, value) {
     setRows((prev) =>
-      prev.map((row, i) =>
-        i === index
-          ? {
-              ...row,
-              [field]: value,
-            }
-          : row
-      )
+      prev.map((row, i) => (i === index ? { ...row, [field]: value } : row))
     );
   }
 
   function handleAddRow() {
-    setRows((prev) => [...prev, makeEmptyRow(prev.length)]);
+    setRows((prev) => [
+      ...prev,
+      {
+        categoria: "",
+        descrizione: "",
+        operatori: "",
+        tempo: "",
+        previsto: "",
+        prodotto: "",
+        note: "",
+      },
+    ]);
   }
 
-  function handleRemoveRow(index) {
-    setRows((prev) => {
-      const filtered = prev.filter((_, i) => i !== index);
-      if (filtered.length === 0) return [makeEmptyRow(0)];
-      return filtered.map((row, i) => ({ ...row, row_index: i }));
-    });
+  function handleDeleteRow(index) {
+    setRows((prev) => prev.filter((_, i) => i !== index));
   }
 
-  function computeProdottoTot(rowsToUse) {
-    return rowsToUse.reduce((sum, row) => {
-      const v =
-        row.prodotto === '' || row.prodotto == null ? 0 : Number(row.prodotto);
-      if (Number.isNaN(v)) return sum;
-      return sum + v;
-    }, 0);
-  }
-
+  // Salvataggio
   async function handleSave() {
-    if (!user || !date) return;
+    if (!rapportinoId) {
+      setErrorMessage(
+        "Rapportino non inizializzato correttamente. Ricarica la pagina e riprova."
+      );
+      return;
+    }
 
     setSaving(true);
-    setSaveMessage(null);
+    setErrorMessage("");
 
-    try {
-      const cleanedRows = rows.map((row, index) => ({
-        ...row,
-        row_index: index,
-      }));
-      const prodottoTot = computeProdottoTot(cleanedRows);
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
-      const headerPayload = {
-        user_id: user.id,
-        capo_id: null, // trigger DB copiera depuis user_id si besoin
-        crew_role: crewRole || null,
-        report_date: date,
-        data: date,
-        capo_name: capoName || null,
-        costr: costr || null,
-        commessa: commessa || 'SDC',
-        status: status || 'DRAFT',
-        prodotto_tot: prodottoTot,
-      };
-
-      let headerData;
-
-      if (rapportinoId) {
-        const { data, error } = await supabase
-          .from('rapportini')
-          .update(headerPayload)
-          .eq('id', rapportinoId)
-          .select('*')
-          .single();
-        if (error) throw error;
-        headerData = data;
-      } else {
-        const { data, error } = await supabase
-          .from('rapportini')
-          .insert(headerPayload)
-          .select('*')
-          .single();
-        if (error) throw error;
-        headerData = data;
-      }
-
-      const newRapportinoId = headerData.id;
-      setRapportinoId(newRapportinoId);
-      setStatus(headerData.status || 'DRAFT');
-      setCostr(headerData.costr || costr);
-      setCommessa(headerData.commessa || commessa);
-
-      const { error: delError } = await supabase
-        .from('rapportino_rows')
-        .delete()
-        .eq('rapportino_id', newRapportinoId);
-      if (delError) throw delError;
-
-      const rowsToInsert = cleanedRows
-        .filter((row) => {
-          const hasText =
-            row.categoria ||
-            row.descrizione ||
-            row.operatori ||
-            row.tempo ||
-            row.note;
-          const hasNumbers =
-            (row.previsto !== '' && row.previsto != null) ||
-            (row.prodotto !== '' && row.prodotto != null);
-          return hasText || hasNumbers;
-        })
-        .map((row) => ({
-          rapportino_id: newRapportinoId,
-          row_index: row.row_index,
-          categoria: row.categoria || null,
-          descrizione: row.descrizione || null,
-          operatori: row.operatori || null,
-          tempo: row.tempo || null,
-          previsto:
-            row.previsto === '' || row.previsto == null
-              ? null
-              : Number(row.previsto),
-          prodotto:
-            row.prodotto === '' || row.prodotto == null
-              ? null
-              : Number(row.prodotto),
-          note: row.note || null,
-        }));
-
-      if (rowsToInsert.length > 0) {
-        const { error: insError } = await supabase
-          .from('rapportino_rows')
-          .insert(rowsToInsert);
-        if (insError) throw insError;
-      }
-
-      setSaveMessage('Rapportino salvato in CORE ✅');
-      setTimeout(() => setSaveMessage(null), 4000);
-    } catch (err) {
-      console.error('Errore salvataggio rapportino:', err);
-      const msg =
-        err?.message ||
-        err?.details ||
-        err?.hint ||
-        'Errore durante il salvataggio del rapportino.';
-      setSaveMessage('Errore: ' + msg);
-      setTimeout(() => setSaveMessage(null), 8000);
-    } finally {
+    if (userError || !user) {
+      setErrorMessage("Sessione scaduta. Effettua di nuovo il login.");
       setSaving(false);
+      return;
     }
+
+    // 1) Aggiorno l'header
+    const { error: updateHeaderError } = await supabase
+      .from("rapportini")
+      .update({
+        data: date,
+        costr: costr || null,
+        commessa: commessa || null,
+        status: status || "DRAFT",
+        capo_nome: capoName || null,
+      })
+      .eq("id", rapportinoId)
+      .eq("user_id", user.id);
+
+    if (updateHeaderError) {
+      console.error("Errore update header:", updateHeaderError);
+      setErrorMessage("Errore durante il salvataggio del rapportino.");
+      setSaving(false);
+      return;
+    }
+
+    // 2) Sostituisco completamente le righe (delete + insert)
+    const { error: deleteError } = await supabase
+      .from("rapportino_rows")
+      .delete()
+      .eq("rapportino_id", rapportinoId);
+
+    if (deleteError) {
+      console.error("Errore delete righe:", deleteError);
+      setErrorMessage("Errore durante il salvataggio delle righe (cancellazione).");
+      setSaving(false);
+      return;
+    }
+
+    const payloadRows = rows.map((row, index) => ({
+      rapportino_id: rapportinoId,
+      row_index: index,
+      categoria: row.categoria || "",
+      descrizione: row.descrizione || "",
+      operatori: row.operatori || "",
+      tempo: row.tempo || "",
+      previsto:
+        row.previsto === "" || row.previsto === null
+          ? null
+          : Number(
+              typeof row.previsto === "string"
+                ? row.previsto.replace(",", ".")
+                : row.previsto
+            ),
+      prodotto:
+        row.prodotto === "" || row.prodotto === null
+          ? null
+          : Number(
+              typeof row.prodotto === "string"
+                ? row.prodotto.replace(",", ".")
+                : row.prodotto
+            ),
+      note: row.note || "",
+    }));
+
+    if (payloadRows.length > 0) {
+      const { error: insertRowsError } = await supabase
+        .from("rapportino_rows")
+        .insert(payloadRows);
+
+      if (insertRowsError) {
+        console.error("Errore insert righe:", insertRowsError);
+        setErrorMessage("Errore durante il salvataggio delle righe.");
+        setSaving(false);
+        return;
+      }
+    }
+
+    setSaving(false);
   }
 
-  function handleNewDay() {
-    setDate(todayISO());
-    setRapportinoId(null);
-    setStatus('DRAFT');
-    setSaveMessage(null);
-    setLoadError(null);
-
-    const tmpl = getDefaultRowsForCrewRole(crewRole);
-    setRows(tmpl.length ? tmpl : [makeEmptyRow(0)]);
-    // costr et commessa restent → le capo garde son bateau
+  // Stampa / export PDF (A4 orizzontale tramite CSS)
+  function handlePrint() {
+    window.print();
   }
 
   return (
-    <div className="bg-white rounded-xl shadow p-4 space-y-4">
-      {/* Intestazione */}
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">
-            Rapportino Giornaliero {crewRole ? `– ${crewRole}` : ''}
-          </h2>
+    <div className="rapportino-page">
+      {/* Titolo */}
+      <h1 className="rapportino-title">
+        Rapportino Giornaliero – {crewRoleLabel}
+      </h1>
 
-          <div className="mt-2 space-y-1 text-sm text-slate-700">
-            <div className="flex flex-wrap gap-2 items-center">
-              <span className="font-medium">Capo squadra:</span>
-              <input
-                type="text"
-                value={capoName || ''}
-                onChange={(e) => setCapoName(e.target.value)}
-                className="border border-slate-300 rounded px-2 py-0.5 text-sm"
-              />
-            </div>
-
-            <div className="flex flex-wrap gap-4 items-center">
-              <label className="flex items-center gap-2">
-                <span className="text-xs uppercase tracking-wide text-slate-500">
-                  Costr.
-                </span>
-                <input
-                  type="text"
-                  value={costr}
-                  onChange={(e) => setCostr(e.target.value)}
-                  className="border border-slate-300 rounded px-2 py-0.5 text-sm w-24"
-                  placeholder="6368"
-                />
-              </label>
-
-              <label className="flex items-center gap-2">
-                <span className="text-xs uppercase tracking-wide text-slate-500">
-                  Commessa
-                </span>
-                <input
-                  type="text"
-                  value={commessa}
-                  onChange={(e) => setCommessa(e.target.value)}
-                  className="border border-slate-300 rounded px-2 py-0.5 text-sm w-24"
-                  placeholder="SDC"
-                />
-              </label>
-
-              <label className="flex items-center gap-2">
-                <span className="text-xs uppercase tracking-wide text-slate-500">
-                  Data
-                </span>
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="border border-slate-300 rounded px-2 py-0.5 text-sm"
-                />
-              </label>
-            </div>
-
-            <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
-              <span className="uppercase tracking-wide">Stato:</span>
-              <span
-                className={`inline-flex items-center px-2 py-0.5 rounded-full border text-xs ${
-                  status === 'DRAFT'
-                    ? 'bg-yellow-50 border-yellow-300 text-yellow-800'
-                    : status === 'VALIDATED_CAPO'
-                    ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
-                    : status === 'APPROVED_UFFICIO'
-                    ? 'bg-blue-50 border-blue-300 text-blue-800'
-                    : status === 'RETURNED'
-                    ? 'bg-red-50 border-red-300 text-red-800'
-                    : 'bg-slate-100 border-slate-300 text-slate-700'
-                }`}
-              >
-                {status}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-col md:flex-row gap-3">
-          <div className="flex gap-2 mt-2 md:mt-6 justify-end">
-            <button
-              type="button"
-              onClick={handleNewDay}
-              className="px-3 py-1.5 text-xs rounded border border-slate-400 text-slate-700 hover:bg-slate-100 disabled:opacity-60"
-              disabled={loading || saving}
-            >
-              Nuova giornata
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              className="px-3 py-1.5 text-xs rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
-              disabled={loading || saving}
-            >
-              {saving ? 'Salvataggio…' : 'Salva rapportino'}
-            </button>
-          </div>
+      {/* Meta (Costr, Commessa, Capo, Data, Stato) */}
+      <div className="rapportino-meta mb-2">
+        <div className="rapportino-meta-row">
+          <span>
+            <span className="rapportino-meta-label">Costr.:</span>{" "}
+            <input
+              type="text"
+              value={costr}
+              onChange={(e) => setCostr(e.target.value)}
+              className="border-b border-dotted border-slate-400 bg-transparent outline-none px-1"
+            />
+          </span>
+          <span>
+            <span className="rapportino-meta-label">Commessa:</span>{" "}
+            <input
+              type="text"
+              value={commessa}
+              onChange={(e) => setCommessa(e.target.value)}
+              className="border-b border-dotted border-slate-400 bg-transparent outline-none px-1"
+            />
+          </span>
+          <span>
+            <span className="rapportino-meta-label">Capo Squadra:</span>{" "}
+            <input
+              type="text"
+              value={capoName}
+              onChange={(e) => setCapoName(e.target.value)}
+              className="border-b border-dotted border-slate-400 bg-transparent outline-none px-1"
+            />
+          </span>
+          <span>
+            <span className="rapportino-meta-label">Data:</span>{" "}
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="border-b border-dotted border-slate-400 bg-transparent outline-none px-1"
+            />
+            <span className="ml-2 text-xs text-slate-500">
+              ({formatDateHuman(date)})
+            </span>
+          </span>
+          <span className="flex items-center gap-2">
+            <span className="rapportino-meta-label">Stato:</span>
+            <span className="inline-flex items-center rounded-full border border-amber-400 px-2 py-0.5 text-xs font-semibold text-amber-700">
+              {status || "DRAFT"}
+            </span>
+          </span>
         </div>
       </div>
 
-      {loadError && (
-        <div className="text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded">
-          {loadError}
-        </div>
-      )}
+      {/* Toolbar – non stampata */}
+      <div className="rapportino-toolbar no-print">
+        <button
+          type="button"
+          onClick={() => {
+            setRows(getTemplateRowsForCrew(crewRole));
+            setStatus("DRAFT");
+          }}
+          className="px-3 py-1.5 rounded-md border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50"
+        >
+          Nuova giornata
+        </button>
+
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving || loading}
+          className="px-4 py-1.5 rounded-md bg-emerald-600 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+        >
+          {saving ? "Salvataggio..." : "Salva rapportino"}
+        </button>
+
+        <button
+          type="button"
+          onClick={handlePrint}
+          className="px-4 py-1.5 rounded-md border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50"
+        >
+          Stampa / Export PDF
+        </button>
+      </div>
 
       {/* Tabella principale */}
-      <div className="overflow-x-auto">
-        <table className="min-w-full border border-slate-200 text-xs">
-          <thead className="bg-slate-50">
-            <tr>
-              <th className="border border-slate-200 px-2 py-1 text-left w-24">
-                CATEGORIA
-              </th>
-              <th className="border border-slate-200 px-2 py-1 text-left w-48">
-                DESCRIZIONE ATTIVITÀ
-              </th>
-              <th className="border border-slate-200 px-2 py-1 text-left w-40">
-                OPERATORE
-              </th>
-              <th className="border border-slate-200 px-2 py-1 text-left w-40">
-                TEMPO IMPIEGATO
-              </th>
-              <th className="border border-slate-200 px-2 py-1 text-right w-20">
-                PREVISTO
-              </th>
-              <th className="border border-slate-200 px-2 py-1 text-right w-20">
-                PRODOTTO
-              </th>
-              <th className="border border-slate-200 px-2 py-1 text-left w-40">
-                NOTE
-              </th>
-              <th className="border border-slate-200 px-2 py-1 text-center w-12">
-                -
-              </th>
+      <table className="rapportino-table">
+        <thead>
+          <tr>
+            <th className="col-categoria">CATEGORIA</th>
+            <th className="col-descrizione">DESCRIZIONE ATTIVITA&apos;</th>
+            <th className="col-operatori">OPERATORE</th>
+            <th className="col-tempo">Tempo impiegato</th>
+            <th className="col-previsto">PREVISTO</th>
+            <th className="col-prodotto">PRODOTTO</th>
+            <th className="col-note">NOTE</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, index) => (
+            <tr key={row.id || index}>
+              <td>
+                <textarea
+                  value={row.categoria}
+                  onChange={(e) =>
+                    handleRowChange(index, "categoria", e.target.value)
+                  }
+                />
+              </td>
+              <td>
+                <textarea
+                  value={row.descrizione}
+                  onChange={(e) =>
+                    handleRowChange(index, "descrizione", e.target.value)
+                  }
+                />
+              </td>
+              <td>
+                <textarea
+                  placeholder="Una riga per operatore"
+                  value={row.operatori}
+                  onChange={(e) =>
+                    handleRowChange(index, "operatori", e.target.value)
+                  }
+                />
+              </td>
+              <td>
+                <textarea
+                  placeholder="Stesse righe degli operatori"
+                  value={row.tempo}
+                  onChange={(e) =>
+                    handleRowChange(index, "tempo", e.target.value)
+                  }
+                />
+              </td>
+              <td>
+                <input
+                  type="text"
+                  value={row.previsto}
+                  onChange={(e) =>
+                    handleRowChange(index, "previsto", e.target.value)
+                  }
+                />
+              </td>
+              <td>
+                <input
+                  type="text"
+                  value={row.prodotto}
+                  onChange={(e) =>
+                    handleRowChange(index, "prodotto", e.target.value)
+                  }
+                />
+              </td>
+              <td>
+                <textarea
+                  value={row.note}
+                  onChange={(e) =>
+                    handleRowChange(index, "note", e.target.value)
+                  }
+                />
+              </td>
+              <td className="no-print" style={{ width: "24px", textAlign: "center" }}>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteRow(index)}
+                  className="text-red-500 text-lg leading-none"
+                  aria-label="Elimina riga"
+                >
+                  ×
+                </button>
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, index) => (
-              <tr key={index}>
-                <td className="border border-slate-200 px-1 py-1 align-top">
-                  <input
-                    type="text"
-                    value={row.categoria}
-                    onChange={(e) =>
-                      handleRowChange(index, 'categoria', e.target.value)
-                    }
-                    className="w-full border border-slate-200 rounded px-1 py-0.5"
-                    disabled={loading}
-                  />
-                </td>
-                <td className="border border-slate-200 px-1 py-1 align-top">
-                  <textarea
-                    value={row.descrizione}
-                    onChange={(e) =>
-                      handleRowChange(index, 'descrizione', e.target.value)
-                    }
-                    rows={3}
-                    className="w-full border border-slate-200 rounded px-1 py-0.5"
-                    disabled={loading}
-                  />
-                </td>
-                <td className="border border-slate-200 px-1 py-1 align-top">
-                  <textarea
-                    value={row.operatori}
-                    onChange={(e) =>
-                      handleRowChange(index, 'operatori', e.target.value)
-                    }
-                    rows={3}
-                    className="w-full border border-slate-200 rounded px-1 py-0.5"
-                    placeholder="Una riga per operatore"
-                    disabled={loading}
-                  />
-                </td>
-                <td className="border border-slate-200 px-1 py-1 align-top">
-                  <textarea
-                    value={row.tempo}
-                    onChange={(e) =>
-                      handleRowChange(index, 'tempo', e.target.value)
-                    }
-                    rows={3}
-                    className="w-full border border-slate-200 rounded px-1 py-0.5"
-                    placeholder="Stesse righe degli operatori"
-                    disabled={loading}
-                  />
-                </td>
-                <td className="border border-slate-200 px-1 py-1 align-top">
-                  <input
-                    type="number"
-                    step="0.5"
-                    value={row.previsto}
-                    onChange={(e) =>
-                      handleRowChange(index, 'previsto', e.target.value)
-                    }
-                    className="w-full border border-slate-200 rounded px-1 py-0.5 text-right"
-                    disabled={loading}
-                  />
-                </td>
-                <td className="border border-slate-200 px-1 py-1 align-top">
-                  <input
-                    type="number"
-                    step="0.5"
-                    value={row.prodotto}
-                    onChange={(e) =>
-                      handleRowChange(index, 'prodotto', e.target.value)
-                    }
-                    className="w-full border border-slate-200 rounded px-1 py-0.5 text-right"
-                    disabled={loading}
-                  />
-                </td>
-                <td className="border border-slate-200 px-1 py-1 align-top">
-                  <textarea
-                    value={row.note}
-                    onChange={(e) =>
-                      handleRowChange(index, 'note', e.target.value)
-                    }
-                    rows={3}
-                    className="w-full border border-slate-200 rounded px-1 py-0.5"
-                    disabled={loading}
-                  />
-                </td>
-                <td className="border border-slate-200 px-1 py-1 align-top text-center">
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveRow(index)}
-                    className="text-xs text-red-600 hover:text-red-800 disabled:opacity-40"
-                    disabled={loading || rows.length === 1}
-                  >
-                    ✕
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+          ))}
+        </tbody>
+      </table>
 
-        <div className="mt-2 flex justify-between items-center">
-          <button
-            type="button"
-            onClick={handleAddRow}
-            className="px-3 py-1.5 text-xs rounded border border-slate-400 text-slate-700 hover:bg-slate-100 disabled:opacity-60"
-            disabled={loading}
-          >
-            + Aggiungi riga
-          </button>
+      {/* Aggiungi riga + totale */}
+      <div className="flex items-center justify-between mt-2">
+        <button
+          type="button"
+          onClick={handleAddRow}
+          className="no-print px-3 py-1.5 rounded-md border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50"
+        >
+          + Aggiungi riga
+        </button>
 
-          <div className="text-xs text-slate-600">
-            Prodotto totale:{' '}
-            <span className="font-semibold">
-              {computeProdottoTot(rows).toString()}
-            </span>
-          </div>
+        <div className="rapportino-footer">
+          Prodotto totale: {totalProdotto || 0}
         </div>
       </div>
 
-      {loading && (
-        <p className="text-xs text-slate-500">Caricamento del rapportino…</p>
-      )}
-
-      {saveMessage && (
-        <p className="text-xs text-slate-600 mt-1">{saveMessage}</p>
-      )}
+      {/* Messaggi di stato */}
+      <div className="mt-2 text-sm text-slate-500">
+        {loading && "Caricamento del rapportino..."}
+        {errorMessage && (
+          <div className="mt-1 text-red-600 no-print">{errorMessage}</div>
+        )}
+      </div>
     </div>
   );
 }
