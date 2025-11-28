@@ -22,6 +22,18 @@ const STATUS_LABELS = {
   VALIDATED_CAPO: 'Validata dal Capo'
 };
 
+/**
+ * Fait grandir/réduire la hauteur d’un <textarea> en fonction du contenu.
+ * Utilisé pour DESCRIZIONE / OPERATORE / Tempo impiegato / NOTE.
+ */
+function autoResizeTextArea(event) {
+  const el = event.target;
+  // On remet à zéro pour permettre au textarea de "shrink" quand on efface
+  el.style.height = 'auto';
+  // On ajuste à la hauteur réelle du contenu
+  el.style.height = `${el.scrollHeight}px`;
+}
+
 export default function RapportinoSheet({ crewRole }) {
   const { profile } = useAuth();
 
@@ -206,7 +218,7 @@ export default function RapportinoSheet({ crewRole }) {
   const handleValidateDay = async () => {
     const ok = await handleSave('VALIDATED_CAPO');
     if (ok) {
-      // Rien de spécial pour l’instant, mais on pourrait verrouiller certaines colonnes
+      // Plus tard : on pourra verrouiller certaines colonnes
     }
   };
 
@@ -227,13 +239,11 @@ export default function RapportinoSheet({ crewRole }) {
     // 1) On s’assure d’abord que le salvataggio réussit
     const ok = await handleSave();
     if (!ok) {
-      // Ici on ne fait rien de plus : le message rouge est déjà affiché
-      // et l’export est bloqué.
+      // Message rouge déjà affiché, export bloqué
       return;
     }
 
-    // 2) Pour l’instant, on laisse window.print (on remplacera plus tard
-    //    par un export PDF html2canvas/jsPDF robuste).
+    // 2) Pour l’instant on reste sur window.print (tu pourras passer au moteur PDF plus tard)
     window.print();
   };
 
@@ -330,8 +340,9 @@ export default function RapportinoSheet({ crewRole }) {
             </thead>
             <tbody>
               {rows.map((row, index) => (
-                <tr key={index}>
-                  <td className="border rapportino-border px-2 py-1 align-top text-xs w-32">
+                <tr key={index} className="align-top">
+                  {/* CATEGORIA */}
+                  <td className="border rapportino-border px-2 py-1 text-xs w-32">
                     <input
                       type="text"
                       className="w-full border-none focus:outline-none bg-transparent"
@@ -341,39 +352,50 @@ export default function RapportinoSheet({ crewRole }) {
                       }
                     />
                   </td>
-                  <td className="border rapportino-border px-2 py-1 align-top text-xs w-64">
+
+                  {/* DESCRIZIONE ATTIVITA' */}
+                  <td className="border rapportino-border px-1 py-1 text-xs w-64">
                     <textarea
-                      className="w-full border-none focus:outline-none bg-transparent resize-none leading-snug"
-                      rows={3}
+                      className="rapportino-textarea w-full border-none focus:outline-none bg-transparent leading-snug"
+                      rows={1}
                       value={row.descrizione}
                       onChange={(e) =>
                         handleChangeCell(index, 'descrizione', e.target.value)
                       }
+                      onInput={autoResizeTextArea}
                     />
                   </td>
-                  <td className="border rapportino-border px-2 py-1 align-top text-xs w-48">
+
+                  {/* OPERATORE */}
+                  <td className="border rapportino-border px-1 py-1 text-xs w-48">
                     <textarea
-                      className="w-full border-none focus:outline-none bg-transparent resize-none leading-snug"
-                      rows={3}
+                      className="rapportino-textarea w-full border-none focus:outline-none bg-transparent leading-snug"
+                      rows={1}
                       placeholder="Una riga per operatore"
                       value={row.operatori}
                       onChange={(e) =>
                         handleChangeCell(index, 'operatori', e.target.value)
                       }
+                      onInput={autoResizeTextArea}
                     />
                   </td>
-                  <td className="border rapportino-border px-2 py-1 align-top text-xs w-40">
+
+                  {/* Tempo impiegato */}
+                  <td className="border rapportino-border px-1 py-1 text-xs w-40">
                     <textarea
-                      className="w-full border-none focus:outline-none bg-transparent resize-none leading-snug"
-                      rows={3}
+                      className="rapportino-textarea w-full border-none focus:outline-none bg-transparent leading-snug"
+                      rows={1}
                       placeholder="Stesse righe degli operatori"
                       value={row.tempo}
                       onChange={(e) =>
                         handleChangeCell(index, 'tempo', e.target.value)
                       }
+                      onInput={autoResizeTextArea}
                     />
                   </td>
-                  <td className="border rapportino-border px-2 py-1 align-top text-xs w-20">
+
+                  {/* PREVISTO */}
+                  <td className="border rapportino-border px-2 py-1 text-xs w-20">
                     <input
                       type="text"
                       className="w-full border-none focus:outline-none bg-transparent text-right"
@@ -383,7 +405,9 @@ export default function RapportinoSheet({ crewRole }) {
                       }
                     />
                   </td>
-                  <td className="border rapportino-border px-2 py-1 align-top text-xs w-24">
+
+                  {/* PRODOTTO */}
+                  <td className="border rapportino-border px-2 py-1 text-xs w-24">
                     <input
                       type="text"
                       className="w-full border-none focus:outline-none bg-transparent text-right"
@@ -393,17 +417,22 @@ export default function RapportinoSheet({ crewRole }) {
                       }
                     />
                   </td>
-                  <td className="border rapportino-border px-2 py-1 align-top text-xs">
+
+                  {/* NOTE */}
+                  <td className="border rapportino-border px-1 py-1 text-xs">
                     <textarea
-                      className="w-full border-none focus:outline-none bg-transparent resize-none leading-snug"
-                      rows={3}
+                      className="rapportino-textarea w-full border-none focus:outline-none bg-transparent leading-snug"
+                      rows={1}
                       value={row.note}
                       onChange={(e) =>
                         handleChangeCell(index, 'note', e.target.value)
                       }
+                      onInput={autoResizeTextArea}
                     />
                   </td>
-                  <td className="border rapportino-border px-2 py-1 align-top text-xs text-center">
+
+                  {/* Bouton supprimer ligne */}
+                  <td className="border rapportino-border px-2 py-1 text-xs text-center">
                     <button
                       type="button"
                       onClick={() => handleRemoveRow(index)}
