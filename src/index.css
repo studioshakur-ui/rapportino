@@ -11,16 +11,9 @@ body {
   @apply bg-slate-100 text-slate-900;
 }
 
-/* Zona principale del foglio rapportino */
-.rapportino-page {
-  @apply bg-white shadow-lg;
-}
-
-/* Tabella del rapportino: look "documento" */
+/* Tableau du rapportino : look "document" */
 .rapportino-table {
   font-family: "Times New Roman", Times, serif;
-  border-collapse: collapse;
-  width: 100%;
 }
 
 .rapportino-header-border {
@@ -31,40 +24,28 @@ body {
   border-width: 0.5px;
 }
 
-/* Toasts (messaggi di stato) */
-.toast-container {
-  position: fixed;
-  right: 1rem;
-  bottom: 1rem;
-  z-index: 50;
+/* Textareas du rapportino qui s'ajustent automatiquement */
+.rapportino-textarea {
+  resize: none;
+  overflow: hidden;
+  min-height: 24px;
+  line-height: 1.2;
 }
 
-.toast {
-  @apply px-4 py-2 rounded shadow-md text-sm text-white;
-}
-
-.toast-success {
-  @apply bg-emerald-600;
-}
-
-.toast-error {
-  @apply bg-red-600;
-}
-
-/* Elementi solo schermo / solo stampa */
+/* Utilitaires écran / impression */
 .no-print {
-  /* visibile a schermo, nascosto in stampa */
+  /* visible à l'écran, caché à l'impression */
 }
 
 .print-only {
   display: none;
 }
 
-.print-break-before {
+.page-break-before {
   page-break-before: always;
 }
 
-/* Stampa A4 orizzontale */
+/* Impression A4 horizontale */
 @media print {
   @page {
     size: A4 landscape;
@@ -73,7 +54,7 @@ body {
 
   body,
   #root {
-    background: white !important;
+    @apply bg-white;
   }
 
   .no-print {
@@ -82,10 +63,5 @@ body {
 
   .print-only {
     display: block !important;
-  }
-
-  .rapportino-page {
-    box-shadow: none !important;
-    border-radius: 0 !important;
   }
 }
