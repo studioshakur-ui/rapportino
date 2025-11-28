@@ -11,18 +11,18 @@ body {
   @apply bg-slate-100 text-slate-900;
 }
 
-/* TABLEAU RAPPORTINO : look "document" */
-.rapportino-card {
-  @apply bg-white shadow-md rounded-none border border-slate-300;
+/* Zona principale del foglio rapportino */
+.rapportino-page {
+  @apply bg-white shadow-lg;
 }
 
+/* Tabella del rapportino: look "documento" */
 .rapportino-table {
   font-family: "Times New Roman", Times, serif;
   border-collapse: collapse;
   width: 100%;
 }
 
-/* Bordures fines comme sur le papier */
 .rapportino-header-border {
   border-width: 0.8px;
 }
@@ -31,48 +31,40 @@ body {
   border-width: 0.5px;
 }
 
-/* Hauteur des lignes pour écriture à la main */
-.rapportino-row {
-  height: 52px; /* un peu plus haut que la version précédente */
+/* Toasts (messaggi di stato) */
+.toast-container {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 50;
 }
 
-/* Cellules de saisie (textareas) sans look "formulaire" */
-.rapportino-cell-input {
-  @apply w-full h-full resize-none outline-none;
-  border: none;
-  background: transparent;
-  padding: 4px;
-  font-family: inherit;
-  font-size: 0.9rem;
+.toast {
+  @apply px-4 py-2 rounded shadow-md text-sm text-white;
 }
 
-/* Aides texte grisées ("Una riga per operatore") */
-.rapportino-placeholder {
-  color: #9ca3af; /* slate-400 */
+.toast-success {
+  @apply bg-emerald-600;
 }
 
-/* Footer impression : totaux & mention CORE */
-.rapportino-footer {
-  margin-top: 8px;
-  font-size: 0.75rem;
-  display: flex;
-  justify-content: space-between;
+.toast-error {
+  @apply bg-red-600;
 }
 
-/* Utilitaires écran / impression */
+/* Elementi solo schermo / solo stampa */
 .no-print {
-  /* visible à l'écran, caché à l'impression */
+  /* visibile a schermo, nascosto in stampa */
 }
 
 .print-only {
   display: none;
 }
 
-.page-break-before {
+.print-break-before {
   page-break-before: always;
 }
 
-/* Impression A4 horizontale */
+/* Stampa A4 orizzontale */
 @media print {
   @page {
     size: A4 landscape;
@@ -81,7 +73,7 @@ body {
 
   body,
   #root {
-    @apply bg-white;
+    background: white !important;
   }
 
   .no-print {
@@ -92,9 +84,8 @@ body {
     display: block !important;
   }
 
-  /* Supprimer l’ombre et arrondis pour le PDF */
-  .rapportino-card {
-    box-shadow: none;
-    border-radius: 0;
+  .rapportino-page {
+    box-shadow: none !important;
+    border-radius: 0 !important;
   }
 }
