@@ -21,6 +21,7 @@ function getTodayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Modello di righe base per ogni tipo squadra
 function getTemplateRows(crewRole) {
   if (crewRole === 'ELETTRICISTA') {
     return [
@@ -63,7 +64,7 @@ function getTemplateRows(crewRole) {
     ];
   }
 
-  // Pour CARPENTERIA / MONTAGGIO on laisse vide, le capo écrit tout lui-même
+  // Per CARPENTERIA / MONTAGGIO: il capo compila tutto a mano (stessa griglia)
   return [
     {
       categoria: '',
@@ -90,12 +91,12 @@ export default function RapportinoSheet({ crewRole }) {
   const [rows, setRows] = useState([]);
   const [prodottoTotale, setProdottoTotale] = useState(0);
 
-  // Pour l'en-tête
   const [costr, setCostr] = useState('');
   const commessa = 'SDC';
 
   const printRef = useRef(null);
 
+  // Caricamento / creazione del rapportino del giorno
   useEffect(() => {
     if (!profile || !crewRole) return;
 
@@ -106,7 +107,7 @@ export default function RapportinoSheet({ crewRole }) {
       setSaveError(null);
 
       try {
-        // 1) Chercher un rapportino existant pour (user, role, date)
+        // 1) Cerchiamo un rapportino esistente per (user, role, data)
         const { data, error } = await supabase
           .from('rapportini')
           .select('id, data, status')
@@ -124,9 +125,9 @@ export default function RapportinoSheet({ crewRole }) {
           }
         }
 
-        let existing = data && data.length > 0 ? data[0] : null;
+        const existing = data && data.length > 0 ? data[0] : null;
 
-        // 2) S'il n'existe pas, en créer un (BOZZA)
+        // 2) Se non esiste, lo creiamo in BOZZA
         if (!existing) {
           const { data: inserted, error: insertError } = await supabase
             .from('rapportini')
@@ -155,7 +156,7 @@ export default function RapportinoSheet({ crewRole }) {
             setRows(getTemplateRows(crewRole));
           }
         } else {
-          // 3) Charger les lignes existantes
+          // 3) Carichiamo le righe esistenti
           const { data: lines, error: rowsError } = await supabase
             .from('rapportino_rows')
             .select(
@@ -215,7 +216,7 @@ export default function RapportinoSheet({ crewRole }) {
     };
   }, [profile, crewRole, date]);
 
-  // Recalcule le produit total quand les lignes changent
+  // Ricalcolo del prodotto totale quando cambiano le righe
   useEffect(() => {
     const sum = rows.reduce((acc, row) => {
       const val = Number(row.prodotto);
@@ -293,7 +294,7 @@ export default function RapportinoSheet({ crewRole }) {
     setSaveError(null);
 
     try {
-      // 1) Mettre à jour le rapportino (status & date si modifiée)
+      // 1) Aggiornare la testa del rapportino
       const { error: upError } = await supabase
         .from('rapportini')
         .update({
@@ -309,7 +310,7 @@ export default function RapportinoSheet({ crewRole }) {
         );
       }
 
-      // 2) Effacer les lignes existantes
+      // 2) Cancellare le righe esistenti
       const { error: delError } = await supabase
         .from('rapportino_rows')
         .delete()
@@ -322,7 +323,7 @@ export default function RapportinoSheet({ crewRole }) {
         );
       }
 
-      // 3) Réinsérer les lignes dans l’ordre
+      // 3) Reinserire le righe nell’ordine giusto
       const rowsToInsert = rows.map((row, index) => ({
         rapportino_id: rapportinoId,
         row_index: index,
@@ -392,3 +393,248 @@ export default function RapportinoSheet({ crewRole }) {
       console.error('Errore export PDF:', e);
       alert('Errore durante la generazione del PDF.');
     }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="p-8 text-center text-slate-600">
+        Caricamento del rapportino...
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {/* ZONA DA ESPORTARE / STAMPARE */}
+      <div
+        ref={printRef}
+        className="rapportino-card p-6 bg-white mx-auto max-w-5xl"
+      >
+        {/* En-tête */}
+        <div className="flex justify-between mb-6 text-sm">
+          <div className="space-y-1">
+            <div>
+              <span className="font-semibold mr-1">COSTR.:</span>
+              <input
+                type="text"
+                value={costr}
+                onChange={(e) => setCostr(e.target.value)}
+                className="border-b border-slate-400 outline-none px-1 text-xs"
+                placeholder="6368 / 6358"
+              />
+            </div>
+            <div>
+              <span className="font-semibold mr-1">Capo Squadra:</span>
+              <span className="border-b border-slate-400 px-1 text-xs">
+                {capoDisplayName}
+              </span>
+            </div>
+          </div>
+
+          <div className="text-center flex-1">
+            <div className="font-semibold text-base mb-1">
+              Rapportino Giornaliero – {crewLabel}
+            </div>
+          </div>
+
+          <div className="space-y-1 text-right">
+            <div>
+              <span className="font-semibold mr-1">COMMESSA:</span>
+              <span className="border-b border-slate-400 px-1 text-xs">
+                {commessa}
+              </span>
+            </div>
+            <div>
+              <span className="font-semibold mr-1">DATA:</span>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="border-b border-slate-400 outline-none px-1 text-xs"
+              />
+            </div>
+            <div>
+              <span className="font-semibold mr-1">Stato:</span>
+              <span className="border-b border-slate-400 px-1 text-xs">
+                {STATUS_LABELS[status] || 'BOZZA'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Tabella principale */}
+        <table className="rapportino-table text-xs border border-slate-500">
+          <thead>
+            <tr className="rapportino-header-border border border-slate-500 text-center">
+              <th className="rapportino-border border border-slate-500 px-2 py-1 w-24">
+                CATEGORIA
+              </th>
+              <th className="rapportino-border border border-slate-500 px-2 py-1">
+                DESCRIZIONE ATTIVITA'
+              </th>
+              <th className="rapportino-border border border-slate-500 px-2 py-1 w-48">
+                OPERATORE
+              </th>
+              <th className="rapportino-border border border-slate-500 px-2 py-1 w-40">
+                Tempo impiegato
+              </th>
+              <th className="rapportino-border border border-slate-500 px-2 py-1 w-20">
+                PREVISTO
+              </th>
+              <th className="rapportino-border border border-slate-500 px-2 py-1 w-20">
+                PRODOTTO
+              </th>
+              <th className="rapportino-border border border-slate-500 px-2 py-1 w-40">
+                NOTE
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => (
+              <tr
+                key={index}
+                className="rapportino-row border border-slate-500 align-top"
+              >
+                <td className="rapportino-border border border-slate-500 px-2">
+                  <textarea
+                    className="rapportino-cell-input"
+                    value={row.categoria}
+                    onChange={(e) =>
+                      handleRowChange(index, 'categoria', e.target.value)
+                    }
+                  />
+                </td>
+                <td className="rapportino-border border border-slate-500 px-2">
+                  <textarea
+                    className="rapportino-cell-input"
+                    value={row.descrizione}
+                    onChange={(e) =>
+                      handleRowChange(index, 'descrizione', e.target.value)
+                    }
+                  />
+                </td>
+                <td className="rapportino-border border border-slate-500 px-2">
+                  <textarea
+                    className="rapportino-cell-input"
+                    value={row.operatori}
+                    placeholder="Una riga per operatore"
+                    onChange={(e) =>
+                      handleRowChange(index, 'operatori', e.target.value)
+                    }
+                  />
+                </td>
+                <td className="rapportino-border border border-slate-500 px-2">
+                  <textarea
+                    className="rapportino-cell-input"
+                    value={row.tempo}
+                    placeholder="Stesse righe degli operatori"
+                    onChange={(e) =>
+                      handleRowChange(index, 'tempo', e.target.value)
+                    }
+                  />
+                </td>
+                <td className="rapportino-border border border-slate-500 px-2 text-center">
+                  <input
+                    type="number"
+                    step="0.1"
+                    className="rapportino-cell-input text-center"
+                    value={row.previsto}
+                    onChange={(e) =>
+                      handleRowChange(index, 'previsto', e.target.value)
+                    }
+                  />
+                </td>
+                <td className="rapportino-border border border-slate-500 px-2 text-center">
+                  <input
+                    type="number"
+                    step="0.1"
+                    className="rapportino-cell-input text-center"
+                    value={row.prodotto}
+                    onChange={(e) =>
+                      handleRowChange(index, 'prodotto', e.target.value)
+                    }
+                  />
+                </td>
+                <td className="rapportino-border border border-slate-500 px-2">
+                  <textarea
+                    className="rapportino-cell-input"
+                    value={row.note}
+                    onChange={(e) =>
+                      handleRowChange(index, 'note', e.target.value)
+                    }
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* Footer stampato: totali + firme + marca CORE */}
+        <div className="rapportino-footer">
+          <div>
+            <div>
+              <strong>Prodotto totale:</strong> {prodottoTotale || 0}
+            </div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div>
+              <strong>Generato da:</strong> CORE – Rapportino V2
+            </div>
+            <div style={{ marginTop: '8px' }}>
+              <span style={{ marginRight: '40px' }}>
+                Firma Capo Squadra: __________________
+              </span>
+              <span>Firma Ufficio: __________________</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Zona bottoni & errori (solo schermo) */}
+      <div className="no-print mt-4 max-w-5xl mx-auto">
+        {saveError && (
+          <p className="text-red-600 text-sm mb-3">
+            {saveError}
+          </p>
+        )}
+
+        <div className="flex justify-between items-center gap-2">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleNewDay}
+              className="px-4 py-2 border border-slate-400 rounded bg-white hover:bg-slate-100 text-sm"
+            >
+              Nuova giornata
+            </button>
+            <button
+              type="button"
+              onClick={handleAddRow}
+              className="px-4 py-2 border border-slate-400 rounded bg-white hover:bg-slate-100 text-sm"
+            >
+              + Aggiungi riga
+            </button>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={isSaving}
+              className="px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700 text-sm disabled:opacity-60"
+            >
+              {isSaving ? 'Salvataggio...' : 'Salva rapportino'}
+            </button>
+            <button
+              type="button"
+              onClick={handleExportPdf}
+              className="px-4 py-2 rounded bg-slate-700 text-white hover:bg-slate-800 text-sm"
+            >
+              Esporta PDF
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
