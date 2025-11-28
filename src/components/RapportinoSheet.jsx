@@ -1,74 +1,9 @@
+// src/components/RapportinoSheet.jsx
+
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import { supabase } from '../lib/supabaseClient';
-
-const EMPTY_ROWS_BY_CREW = {
-  ELETTRICISTA: [
-    {
-      categoria: 'STESURA',
-      descrizione: 'STESURA',
-      operatori: '',
-      tempo: '',
-      previsto: '150',
-      prodotto: '',
-      note: ''
-    },
-    {
-      categoria: 'STESURA',
-      descrizione: 'FASCETTATURA CAVI',
-      operatori: '',
-      tempo: '',
-      previsto: '600',
-      prodotto: '',
-      note: ''
-    },
-    {
-      categoria: 'STESURA',
-      descrizione: 'RIPRESA CAVI',
-      operatori: '',
-      tempo: '',
-      previsto: '150',
-      prodotto: '',
-      note: ''
-    },
-    {
-      categoria: 'STESURA',
-      descrizione: 'VARI STESURA CAVI',
-      operatori: '',
-      tempo: '',
-      previsto: '0,2',
-      prodotto: '',
-      note: ''
-    }
-  ],
-  CARPENTERIA: [
-    {
-      categoria: 'CARPENTERIA',
-      descrizione: '',
-      operatori: '',
-      tempo: '',
-      previsto: '',
-      prodotto: '',
-      note: ''
-    }
-  ],
-  MONTAGGIO: [
-    {
-      categoria: 'MONTAGGIO',
-      descrizione: '',
-      operatori: '',
-      tempo: '',
-      previsto: '',
-      prodotto: '',
-      note: ''
-    }
-  ]
-};
-
-const STATUS_LABELS = {
-  DRAFT: 'Bozza',
-  VALIDATED_CAPO: 'Validata dal Capo'
-};
+import { EMPTY_ROWS_BY_CREW, STATUS_LABELS } from '../rapportino/constants';
 
 export default function RapportinoSheet({ crewRole }) {
   const { profile } = useAuth();
@@ -203,13 +138,9 @@ export default function RapportinoSheet({ crewRole }) {
     }
   };
 
-  /**
-   * handleSave doit fonctionner dans 2 cas :
-   *  - appelé depuis un bouton React (event en premier argument) -> on l'ignore
-   *  - appelé avec un statut explicite ('VALIDATED_CAPO') -> on le garde
-   */
+  // handleSave: gère soit un statut explicite, soit un event React (ignoré)
   const handleSave = async (overrideStatusOrEvent = null) => {
-    let overrideStatus =
+    const overrideStatus =
       typeof overrideStatusOrEvent === 'string' ? overrideStatusOrEvent : null;
 
     resetError();
@@ -265,7 +196,7 @@ export default function RapportinoSheet({ crewRole }) {
   const handleValidateDay = async () => {
     const ok = await handleSave('VALIDATED_CAPO');
     if (ok) {
-      // plus tard : lock colonne, signature, etc.
+      // plus tard : lock colonne, signature, ecc.
     }
   };
 
@@ -285,7 +216,8 @@ export default function RapportinoSheet({ crewRole }) {
     const ok = await handleSave();
     if (!ok) return;
 
-    // Pour l’instant on reste sur window.print (export jsPDF viendra après)
+    // Export robusto (jsPDF/html2canvas) arriverà après;
+    // pour l’instant on laisse window.print.
     window.print();
   };
 
