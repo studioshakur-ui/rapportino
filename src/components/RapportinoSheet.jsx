@@ -4,16 +4,64 @@ import { supabase } from '../lib/supabaseClient';
 
 const EMPTY_ROWS_BY_CREW = {
   ELETTRICISTA: [
-    { categoria: 'STESURA', descrizione: 'STESURA', operatori: '', tempo: '', previsto: '150', prodotto: '', note: '' },
-    { categoria: 'STESURA', descrizione: 'FASCETTATURA CAVI', operatori: '', tempo: '', previsto: '600', prodotto: '', note: '' },
-    { categoria: 'STESURA', descrizione: 'RIPRESA CAVI', operatori: '', tempo: '', previsto: '150', prodotto: '', note: '' },
-    { categoria: 'STESURA', descrizione: 'VARI STESURA CAVI', operatori: '', tempo: '', previsto: '0,2', prodotto: '', note: '' }
+    {
+      categoria: 'STESURA',
+      descrizione: 'STESURA',
+      operatori: '',
+      tempo: '',
+      previsto: '150',
+      prodotto: '',
+      note: ''
+    },
+    {
+      categoria: 'STESURA',
+      descrizione: 'FASCETTATURA CAVI',
+      operatori: '',
+      tempo: '',
+      previsto: '600',
+      prodotto: '',
+      note: ''
+    },
+    {
+      categoria: 'STESURA',
+      descrizione: 'RIPRESA CAVI',
+      operatori: '',
+      tempo: '',
+      previsto: '150',
+      prodotto: '',
+      note: ''
+    },
+    {
+      categoria: 'STESURA',
+      descrizione: 'VARI STESURA CAVI',
+      operatori: '',
+      tempo: '',
+      previsto: '0,2',
+      prodotto: '',
+      note: ''
+    }
   ],
   CARPENTERIA: [
-    { categoria: 'CARPENTERIA', descrizione: '', operatori: '', tempo: '', previsto: '', prodotto: '', note: '' }
+    {
+      categoria: 'CARPENTERIA',
+      descrizione: '',
+      operatori: '',
+      tempo: '',
+      previsto: '',
+      prodotto: '',
+      note: ''
+    }
   ],
   MONTAGGIO: [
-    { categoria: 'MONTAGGIO', descrizione: '', operatori: '', tempo: '', previsto: '', prodotto: '', note: '' }
+    {
+      categoria: 'MONTAGGIO',
+      descrizione: '',
+      operatori: '',
+      tempo: '',
+      previsto: '',
+      prodotto: '',
+      note: ''
+    }
   ]
 };
 
@@ -21,18 +69,6 @@ const STATUS_LABELS = {
   DRAFT: 'Bozza',
   VALIDATED_CAPO: 'Validata dal Capo'
 };
-
-/**
- * Fait grandir/réduire la hauteur d’un <textarea> en fonction du contenu.
- * Utilisé pour DESCRIZIONE / OPERATORE / Tempo impiegato / NOTE.
- */
-function autoResizeTextArea(event) {
-  const el = event.target;
-  // On remet à zéro pour permettre au textarea de "shrink" quand on efface
-  el.style.height = 'auto';
-  // On ajuste à la hauteur réelle du contenu
-  el.style.height = `${el.scrollHeight}px`;
-}
 
 export default function RapportinoSheet({ crewRole }) {
   const { profile } = useAuth();
@@ -71,7 +107,12 @@ export default function RapportinoSheet({ crewRole }) {
     setRows((prev) => [
       ...prev,
       {
-        categoria: crewRole === 'CARPENTERIA' ? 'CARPENTERIA' : crewRole === 'MONTAGGIO' ? 'MONTAGGIO' : 'STESURA',
+        categoria:
+          crewRole === 'CARPENTERIA'
+            ? 'CARPENTERIA'
+            : crewRole === 'MONTAGGIO'
+            ? 'MONTAGGIO'
+            : 'STESURA',
         descrizione: '',
         operatori: '',
         tempo: '',
@@ -121,6 +162,7 @@ export default function RapportinoSheet({ crewRole }) {
     return {
       id: rapportinoId || undefined,
       capo_id: profile.id,
+      capo_name: capoSquadra || null, // <<< IMPORTANT : remplissage capo_name
       crew_role: crewRole,
       data,
       costr: costr || null,
@@ -150,7 +192,7 @@ export default function RapportinoSheet({ crewRole }) {
       descrizione: row.descrizione || null,
       operatori: row.operatori || null,
       tempo: row.tempo || null,
-      previsto: row.prevvisto || row.previsto || null,
+      previsto: row.previsto || null,
       prodotto: row.prodotto || null,
       note: row.note || null
     }));
@@ -197,12 +239,10 @@ export default function RapportinoSheet({ crewRole }) {
       setIsSaving(false);
       setLastSaveOk(false);
 
-      // Message humain pour il capo
       setSaveErrorMsg(
         'Errore durante il salvataggio del rapportino. Puoi comunque continuare a scrivere.'
       );
 
-      // Détails techniques pour toi
       const technical =
         err && typeof err === 'object'
           ? `${err.code ? `Codice: ${err.code}\n` : ''}${
@@ -218,7 +258,7 @@ export default function RapportinoSheet({ crewRole }) {
   const handleValidateDay = async () => {
     const ok = await handleSave('VALIDATED_CAPO');
     if (ok) {
-      // Plus tard : on pourra verrouiller certaines colonnes
+      // plus tard : verrouiller des colonnes si besoin
     }
   };
 
@@ -231,7 +271,6 @@ export default function RapportinoSheet({ crewRole }) {
   };
 
   const handleOpenArchivio = () => {
-    // placeholder pour plus tard
     alert('Archivio non ancora implementato in questa versione.');
   };
 
@@ -239,11 +278,11 @@ export default function RapportinoSheet({ crewRole }) {
     // 1) On s’assure d’abord que le salvataggio réussit
     const ok = await handleSave();
     if (!ok) {
-      // Message rouge déjà affiché, export bloqué
+      // On bloque l’export si la sauvegarde échoue
       return;
     }
 
-    // 2) Pour l’instant on reste sur window.print (tu pourras passer au moteur PDF plus tard)
+    // 2) Pour l’instant, on reste sur window.print() (export robuste viendra après)
     window.print();
   };
 
@@ -340,9 +379,8 @@ export default function RapportinoSheet({ crewRole }) {
             </thead>
             <tbody>
               {rows.map((row, index) => (
-                <tr key={index} className="align-top">
-                  {/* CATEGORIA */}
-                  <td className="border rapportino-border px-2 py-1 text-xs w-32">
+                <tr key={index}>
+                  <td className="border rapportino-border px-2 py-1 align-top text-xs w-32">
                     <input
                       type="text"
                       className="w-full border-none focus:outline-none bg-transparent"
@@ -352,50 +390,39 @@ export default function RapportinoSheet({ crewRole }) {
                       }
                     />
                   </td>
-
-                  {/* DESCRIZIONE ATTIVITA' */}
-                  <td className="border rapportino-border px-1 py-1 text-xs w-64">
+                  <td className="border rapportino-border px-2 py-1 align-top text-xs w-64">
                     <textarea
-                      className="rapportino-textarea w-full border-none focus:outline-none bg-transparent leading-snug"
-                      rows={1}
+                      className="w-full border-none focus:outline-none bg-transparent resize-none leading-snug"
+                      rows={3}
                       value={row.descrizione}
                       onChange={(e) =>
                         handleChangeCell(index, 'descrizione', e.target.value)
                       }
-                      onInput={autoResizeTextArea}
                     />
                   </td>
-
-                  {/* OPERATORE */}
-                  <td className="border rapportino-border px-1 py-1 text-xs w-48">
+                  <td className="border rapportino-border px-2 py-1 align-top text-xs w-48">
                     <textarea
-                      className="rapportino-textarea w-full border-none focus:outline-none bg-transparent leading-snug"
-                      rows={1}
+                      className="w-full border-none focus:outline-none bg-transparent resize-none leading-snug"
+                      rows={3}
                       placeholder="Una riga per operatore"
                       value={row.operatori}
                       onChange={(e) =>
                         handleChangeCell(index, 'operatori', e.target.value)
                       }
-                      onInput={autoResizeTextArea}
                     />
                   </td>
-
-                  {/* Tempo impiegato */}
-                  <td className="border rapportino-border px-1 py-1 text-xs w-40">
+                  <td className="border rapportino-border px-2 py-1 align-top text-xs w-40">
                     <textarea
-                      className="rapportino-textarea w-full border-none focus:outline-none bg-transparent leading-snug"
-                      rows={1}
+                      className="w-full border-none focus:outline-none bg-transparent resize-none leading-snug"
+                      rows={3}
                       placeholder="Stesse righe degli operatori"
                       value={row.tempo}
                       onChange={(e) =>
                         handleChangeCell(index, 'tempo', e.target.value)
                       }
-                      onInput={autoResizeTextArea}
                     />
                   </td>
-
-                  {/* PREVISTO */}
-                  <td className="border rapportino-border px-2 py-1 text-xs w-20">
+                  <td className="border rapportino-border px-2 py-1 align-top text-xs w-20">
                     <input
                       type="text"
                       className="w-full border-none focus:outline-none bg-transparent text-right"
@@ -405,9 +432,7 @@ export default function RapportinoSheet({ crewRole }) {
                       }
                     />
                   </td>
-
-                  {/* PRODOTTO */}
-                  <td className="border rapportino-border px-2 py-1 text-xs w-24">
+                  <td className="border rapportino-border px-2 py-1 align-top text-xs w-24">
                     <input
                       type="text"
                       className="w-full border-none focus:outline-none bg-transparent text-right"
@@ -417,22 +442,17 @@ export default function RapportinoSheet({ crewRole }) {
                       }
                     />
                   </td>
-
-                  {/* NOTE */}
-                  <td className="border rapportino-border px-1 py-1 text-xs">
+                  <td className="border rapportino-border px-2 py-1 align-top text-xs">
                     <textarea
-                      className="rapportino-textarea w-full border-none focus:outline-none bg-transparent leading-snug"
-                      rows={1}
+                      className="w-full border-none focus:outline-none bg-transparent resize-none leading-snug"
+                      rows={3}
                       value={row.note}
                       onChange={(e) =>
                         handleChangeCell(index, 'note', e.target.value)
                       }
-                      onInput={autoResizeTextArea}
                     />
                   </td>
-
-                  {/* Bouton supprimer ligne */}
-                  <td className="border rapportino-border px-2 py-1 text-xs text-center">
+                  <td className="border rapportino-border px-2 py-1 align-top text-xs text-center">
                     <button
                       type="button"
                       onClick={() => handleRemoveRow(index)}
