@@ -1,5 +1,3 @@
-// src/components/RapportinoSheet.jsx
-
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import { supabase } from '../lib/supabaseClient';
@@ -87,6 +85,25 @@ export default function RapportinoSheet({ crewRole }) {
   };
 
   // ------------------------------------------------------
+  //  Helpers numerici
+  // ------------------------------------------------------
+  const normalizeNumeric = (value) => {
+    if (value === null || value === undefined) return null;
+    const trimmed = String(value).trim();
+    if (!trimmed) return null;
+
+    // virgola → punto
+    const fixed = trimmed.replace(',', '.');
+
+    const num = Number(fixed);
+    if (!Number.isFinite(num)) {
+      // Si l’utente scrive "ciao", on n’envoie pas "ciao", on met null
+      return null;
+    }
+    return num;
+  };
+
+  // ------------------------------------------------------
   //  Salvataggio in Supabase
   // ------------------------------------------------------
   const buildRapportinoPayload = (overrideStatus) => {
@@ -126,8 +143,8 @@ export default function RapportinoSheet({ crewRole }) {
       descrizione: row.descrizione || null,
       operatori: row.operatori || null,
       tempo: row.tempo || null,
-      previsto: row.previsto || null,
-      prodotto: row.prodotto || null,
+      previsto: normalizeNumeric(row.previsto),
+      prodotto: normalizeNumeric(row.prodotto),
       note: row.note || null
     }));
 
@@ -138,7 +155,6 @@ export default function RapportinoSheet({ crewRole }) {
     }
   };
 
-  // handleSave: gère soit un statut explicite, soit un event React (ignoré)
   const handleSave = async (overrideStatusOrEvent = null) => {
     const overrideStatus =
       typeof overrideStatusOrEvent === 'string' ? overrideStatusOrEvent : null;
@@ -216,7 +232,7 @@ export default function RapportinoSheet({ crewRole }) {
     const ok = await handleSave();
     if (!ok) return;
 
-    // Export robusto (jsPDF/html2canvas) arriverà après;
+    // Export robusto (jsPDF/html2canvas) arriverà dopo;
     // pour l’instant on laisse window.print.
     window.print();
   };
