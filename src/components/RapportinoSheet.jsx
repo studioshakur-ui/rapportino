@@ -31,20 +31,20 @@ const TEMPLATE_ROWS = {
     { categoria: 'STESURA', descrizione: 'STESURA' },
     { categoria: 'STESURA', descrizione: 'FASCETTATURA CAVI' },
     { categoria: 'STESURA', descrizione: 'RIPRESA CAVI' },
-    { categoria: 'STESURA', descrizione: 'VARI STESURA CAVI' },
+    { categoria: 'STESURA', descrizione: 'VARI STESURA CAVI' }
   ],
   CARPENTERIA: [
     { categoria: 'CARPENTERIA', descrizione: '' },
     { categoria: 'CARPENTERIA', descrizione: '' },
     { categoria: 'CARPENTERIA', descrizione: '' },
-    { categoria: 'CARPENTERIA', descrizione: '' },
+    { categoria: 'CARPENTERIA', descrizione: '' }
   ],
   MONTAGGIO: [
     { categoria: 'MONTAGGIO', descrizione: '' },
     { categoria: 'MONTAGGIO', descrizione: '' },
     { categoria: 'MONTAGGIO', descrizione: '' },
-    { categoria: 'MONTAGGIO', descrizione: '' },
-  ],
+    { categoria: 'MONTAGGIO', descrizione: '' }
+  ]
 };
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -60,6 +60,7 @@ export default function RapportinoSheet({ crewRole }) {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState(null);
   const [info, setInfo] = useState(null);
 
@@ -78,7 +79,6 @@ export default function RapportinoSheet({ crewRole }) {
   const rapportinoRef = useRef(null);
 
   const capoName = useMemo(() => {
-    // On force en MAJ si possible
     if (profile?.display_name) return profile.display_name.toUpperCase();
     if (profile?.full_name) return profile.full_name.toUpperCase();
     if (profile?.email) return profile.email.split('@')[0].toUpperCase();
@@ -155,7 +155,7 @@ export default function RapportinoSheet({ crewRole }) {
             tempo: r.tempo ?? '',
             previsto: r.previsto ?? '',
             prodotto: r.prodotto ?? '',
-            note: r.note ?? '',
+            note: r.note ?? ''
           }))
         );
       } else {
@@ -180,7 +180,7 @@ export default function RapportinoSheet({ crewRole }) {
             tempo: '',
             previsto: '',
             prodotto: '',
-            note: '',
+            note: ''
           }))
         );
       }
@@ -243,13 +243,13 @@ export default function RapportinoSheet({ crewRole }) {
           tempo: r.tempo ?? '',
           previsto: r.previsto ?? '',
           prodotto: r.prodotto ?? '',
-          note: r.note ?? '',
+          note: r.note ?? ''
         }))
       );
     } catch (e) {
       console.error('Errore caricamento archivio:', e);
       setError(
-        'Errore durante il caricamento dal archivio. Puoi comunque continuare a scrivere.'
+        'Errore durante il caricamento dall’archivio. Puoi comunque continuare a scrivere.'
       );
     } finally {
       setLoading(false);
@@ -257,10 +257,11 @@ export default function RapportinoSheet({ crewRole }) {
   };
 
   /**
-   * Sauvegarde du rapportino (status paramétrable).
+   * Sauvegarde du rapportino (insert / update simple).
+   * Retourne true si OK, false si erreur.
    */
   const handleSave = async (overrideStatus) => {
-    if (!profile?.id) return;
+    if (!profile?.id) return false;
 
     setSaving(true);
     setError(null);
@@ -269,32 +270,41 @@ export default function RapportinoSheet({ crewRole }) {
     const statusToSave = overrideStatus || status || 'DRAFT';
 
     try {
-      // 1) Upsert rapportino
-      const { data: upserted, error: upErr } = await supabase
-        .from('rapportini')
-        .upsert(
-          {
-            id: rapportinoId ?? undefined,
+      let currentId = rapportinoId;
+
+      // 1) INSERT si pas d'id, sinon UPDATE
+      if (!currentId) {
+        const { data: inserted, error: insertError } = await supabase
+          .from('rapportini')
+          .insert({
             capo_id: profile.id,
             crew_role: crewRole,
             data: dataGiorno,
             costr: costr || null,
             commessa: commessa || null,
             status: statusToSave,
-            prodotto_totale: prodottoTotale,
-          },
-          {
-            onConflict: 'capo_id, data, crew_role',
-          }
-        )
-        .select('id')
-        .single();
+            prodotto_totale: prodottoTotale
+          })
+          .select('id')
+          .single();
 
-      if (upErr) throw upErr;
+        if (insertError) throw insertError;
+        currentId = inserted.id;
+        setRapportinoId(inserted.id);
+      } else {
+        const { error: updateError } = await supabase
+          .from('rapportini')
+          .update({
+            data: dataGiorno,
+            costr: costr || null,
+            commessa: commessa || null,
+            status: statusToSave,
+            prodotto_totale: prodottoTotale
+          })
+          .eq('id', currentId);
 
-      const currentId = upserted.id;
-      setRapportinoId(currentId);
-      setStatus(statusToSave);
+        if (updateError) throw updateError;
+      }
 
       // 2) Réécrire toutes les lignes
       const { error: delErr } = await supabase
@@ -313,7 +323,7 @@ export default function RapportinoSheet({ crewRole }) {
         tempo: r.tempo || null,
         previsto: r.previsto || null,
         prodotto: r.prodotto || null,
-        note: r.note || null,
+        note: r.note || null
       }));
 
       if (rowsToInsert.length > 0) {
@@ -329,7 +339,7 @@ export default function RapportinoSheet({ crewRole }) {
         .from('profiles')
         .update({
           default_costr: costr || null,
-          default_commessa: commessa || null,
+          default_commessa: commessa || null
         })
         .eq('id', profile.id);
 
@@ -337,12 +347,15 @@ export default function RapportinoSheet({ crewRole }) {
         console.warn('Impossibile aggiornare defaults profilo:', profErr);
       }
 
+      setStatus(statusToSave);
       setInfo('Rapportino salvato correttamente.');
+      return true;
     } catch (e) {
       console.error('Errore salvataggio rapportino:', e);
       setError(
         'Errore durante il salvataggio del rapportino. Puoi comunque continuare a scrivere.'
       );
+      return false;
     } finally {
       setSaving(false);
     }
@@ -363,8 +376,8 @@ export default function RapportinoSheet({ crewRole }) {
         tempo: '',
         previsto: '',
         prodotto: '',
-        note: '',
-      },
+        note: ''
+      }
     ]);
   };
 
@@ -378,7 +391,7 @@ export default function RapportinoSheet({ crewRole }) {
         i === index
           ? {
               ...row,
-              [field]: value,
+              [field]: value
             }
           : row
       )
@@ -389,6 +402,95 @@ export default function RapportinoSheet({ crewRole }) {
     const oggi = todayIso();
     setDataGiorno(oggi);
     loadOrCreateRapportino(oggi);
+  };
+
+  /**
+   * Esporta in PDF usando html2canvas + jsPDF.
+   * 1) Salvataggio
+   * 2) Generazione PDF dal blocco rapportinoRef
+   */
+  const handleExportPDF = async () => {
+    if (!rapportinoRef.current) {
+      setError('Impossibile generare il PDF: vista non pronta.');
+      return;
+    }
+
+    setExporting(true);
+    setError(null);
+    setInfo(null);
+
+    try {
+      // 1) Sauvegarder d'abord
+      const ok = await handleSave();
+      if (!ok) {
+        setError(
+          'Impossibile generare il PDF perché il salvataggio è fallito. Controlla i campi e riprova.'
+        );
+        return;
+      }
+
+      // 2) Import dynamique des libs
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf')
+      ]);
+
+      const element = rapportinoRef.current;
+
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        useCORS: true
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+
+      // On ajuste l'image pour qu'elle rentre dans la page
+      const imgWidth = pageWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      if (imgHeight <= pageHeight) {
+        pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      } else {
+        const ratio = Math.min(
+          pageWidth / canvas.width,
+          pageHeight / canvas.height
+        );
+        const w = canvas.width * ratio;
+        const h = canvas.height * ratio;
+        const x = (pageWidth - w) / 2;
+        const y = (pageHeight - h) / 2;
+        pdf.addImage(imgData, 'PNG', x, y, w, h);
+      }
+
+      const baseDate = dataGiorno || todayIso();
+      const safeDate = baseDate.replace(/-/g, '');
+      const safeCrew = (crewLabel || crewRole || 'squadra')
+        .toLowerCase()
+        .replace(/\s+/g, '');
+      const safeCapo = capoName.replace(/\s+/g, '_');
+
+      const filename = `rapportino_${safeCrew}_${safeCapo}_${safeDate}.pdf`;
+      pdf.save(filename);
+
+      setInfo('PDF generato correttamente.');
+    } catch (e) {
+      console.error('Errore esportazione PDF:', e);
+      setError(
+        'Errore durante la generazione del PDF. Riprova per favore.'
+      );
+    } finally {
+      setExporting(false);
+    }
   };
 
   /**
@@ -409,7 +511,6 @@ export default function RapportinoSheet({ crewRole }) {
         .eq('capo_id', profile.id)
         .eq('crew_role', crewRole)
         .order('data', { ascending: false })
-        .order('created_at', { ascending: false })
         .limit(50);
 
       if (archErr) throw archErr;
@@ -432,9 +533,13 @@ export default function RapportinoSheet({ crewRole }) {
     await loadRapportinoById(item.id);
   };
 
+  const statusLabel = STATUS_LABELS[status] ?? status;
+
+  const disableActions = saving || loading || exporting;
+
   return (
     <div className="mt-6">
-      {/* Carte principale du rapportino */}
+      {/* Carte principale du rapportino (bloc exportable) */}
       <div
         ref={rapportinoRef}
         className="rapportino-table bg-white shadow-md rounded-lg px-8 py-6 max-w-5xl mx-auto"
@@ -491,7 +596,7 @@ export default function RapportinoSheet({ crewRole }) {
                     'bg-slate-100 text-slate-700 border border-slate-300')
                 }
               >
-                {STATUS_LABELS[status] ?? status}
+                {statusLabel}
               </span>
             </div>
           </div>
@@ -622,27 +727,30 @@ export default function RapportinoSheet({ crewRole }) {
           </table>
         </div>
 
-        {/* Bas de page : actions + total */}
-        <div className="mt-4 flex items-center justify-between">
+        {/* Bas de page : actions + total (no-print) */}
+        <div className="mt-4 flex items-center justify-between no-print">
           <div className="flex gap-2">
             <button
               type="button"
               onClick={handleNuovaGiornata}
-              className="px-4 py-2 rounded border border-slate-300 hover:bg-slate-100 text-sm"
+              disabled={disableActions}
+              className="px-4 py-2 rounded border border-slate-300 hover:bg-slate-100 text-sm disabled:opacity-60"
             >
               Nuova giornata
             </button>
             <button
               type="button"
               onClick={handleAddRow}
-              className="px-4 py-2 rounded border border-slate-300 hover:bg-slate-100 text-sm"
+              disabled={disableActions}
+              className="px-4 py-2 rounded border border-slate-300 hover:bg-slate-100 text-sm disabled:opacity-60"
             >
               + Aggiungi riga
             </button>
             <button
               type="button"
               onClick={openArchivio}
-              className="px-4 py-2 rounded border border-slate-300 hover:bg-slate-100 text-sm"
+              disabled={disableActions}
+              className="px-4 py-2 rounded border border-slate-300 hover:bg-slate-100 text-sm disabled:opacity-60"
             >
               Archivio
             </button>
@@ -658,7 +766,7 @@ export default function RapportinoSheet({ crewRole }) {
               <button
                 type="button"
                 onClick={() => handleSave()}
-                disabled={saving || loading}
+                disabled={disableActions}
                 className="px-4 py-2 rounded bg-emerald-600 text-white text-sm hover:bg-emerald-700 disabled:opacity-60"
               >
                 {saving ? 'Salvataggio…' : 'Salva rapportino'}
@@ -666,17 +774,25 @@ export default function RapportinoSheet({ crewRole }) {
               <button
                 type="button"
                 onClick={handleValidate}
-                disabled={saving || loading}
+                disabled={disableActions}
                 className="px-4 py-2 rounded border border-emerald-700 text-emerald-700 text-sm hover:bg-emerald-50 disabled:opacity-60"
               >
                 Valida giornata
+              </button>
+              <button
+                type="button"
+                onClick={handleExportPDF}
+                disabled={disableActions}
+                className="px-4 py-2 rounded border border-slate-500 text-sm hover:bg-slate-100 disabled:opacity-60"
+              >
+                {exporting ? 'Generazione PDF…' : 'Esporta PDF'}
               </button>
             </div>
           </div>
         </div>
 
-        {/* Zone messages */}
-        <div className="mt-3 min-h-[1.5rem] text-sm">
+        {/* Zone messages (no-print) */}
+        <div className="mt-3 min-h-[1.5rem] text-sm no-print">
           {error && <p className="text-red-600">{error}</p>}
           {!error && info && <p className="text-emerald-700">{info}</p>}
           {!error && !info && loading && (
@@ -685,9 +801,9 @@ export default function RapportinoSheet({ crewRole }) {
         </div>
       </div>
 
-      {/* Modal Archivio */}
+      {/* Modal Archivio (no-print) */}
       {archivioOpen && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+        <div className="no-print fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-lg max-w-3xl w-full max-h-[80vh] flex flex-col">
             <div className="px-4 py-3 border-b flex items-center justify-between">
               <h2 className="font-semibold text-lg">
