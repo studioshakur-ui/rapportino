@@ -1,577 +1,586 @@
-import { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import { supabase } from '../lib/supabaseClient';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 
-// Modèle de lignes par tipo squadra
+const CREW_LABELS = {
+  ELETTRICISTA: 'Elettricista',
+  CARPENTERIA: 'Carpenteria',
+  MONTAGGIO: 'Montaggio'
+};
+
+// Helpers
+
+function createEmptyRow(overrides = {}) {
+  return {
+    categoria: '',
+    descrizione: '',
+    operatori: '',
+    tempo: '',
+    previsto: '',
+    prodotto: '',
+    note: '',
+    ...overrides
+  };
+}
+
+/**
+ * Modelli di righe per ogni tipo squadra,
+ * basati sui tuoi rapportini cartacei.
+ */
 const DEFAULT_ROWS_BY_CREW = {
   ELETTRICISTA: [
-    {
+    createEmptyRow({
       categoria: 'STESURA',
       descrizione: 'STESURA',
-      operatori: '',
-      tempo: '',
-      previsto: 150,
-      prodotto: '',
-      note: ''
-    },
-    {
+      previsto: '150'
+    }),
+    createEmptyRow({
       categoria: 'STESURA',
       descrizione: 'FASCETTATURA CAVI',
-      operatori: '',
-      tempo: '',
-      previsto: 600,
-      prodotto: '',
-      note: ''
-    },
-    {
+      previsto: '600'
+    }),
+    createEmptyRow({
       categoria: 'STESURA',
       descrizione: 'RIPRESA CAVI',
-      operatori: '',
-      tempo: '',
-      previsto: 150,
-      prodotto: '',
-      note: ''
-    },
-    {
+      previsto: '150'
+    }),
+    createEmptyRow({
       categoria: 'STESURA',
       descrizione: 'VARI STESURA CAVI',
-      operatori: '',
-      tempo: '',
-      previsto: 0.2,
-      prodotto: '',
-      note: ''
-    }
+      previsto: '0.2'
+    })
   ],
+
   CARPENTERIA: [
-    {
+    createEmptyRow({
       categoria: 'CARPENTERIA',
-      descrizione: '',
-      operatori: '',
-      tempo: '',
-      previsto: '',
-      prodotto: '',
-      note: ''
-    }
+      descrizione: 'PREPARAZIONE STAFFE SOLETTE/STRADI CAVI MAGAZZINO'
+    }),
+    createEmptyRow({
+      categoria: 'CARPENTERIA',
+      descrizione: 'SALDATURA STAFFE STRADE CAVI'
+    }),
+    createEmptyRow({
+      categoria: 'CARPENTERIA',
+      descrizione: 'MONTAGGIO STRADE CAVI'
+    }),
+    createEmptyRow({
+      categoria: 'CARPENTERIA',
+      descrizione: 'SALDATURA TONDINI'
+    }),
+    createEmptyRow({
+      categoria: 'CARPENTERIA',
+      descrizione: 'SALDATURA BASAMENTI (APPARECCHIATURE)'
+    }),
+    createEmptyRow({
+      categoria: 'CARPENTERIA',
+      descrizione: 'TRACCIATURA KIEPE/COLLARI'
+    }),
+    createEmptyRow({
+      categoria: 'CARPENTERIA',
+      descrizione: 'SALDATURA KIEPE/COLLARI'
+    }),
+    createEmptyRow({
+      categoria: 'CARPENTERIA',
+      descrizione: 'MOLATURA KIEPE'
+    }),
+    createEmptyRow({
+      categoria: 'CARPENTERIA',
+      descrizione: 'MOLATURA STAFFE, TONDINI, BASAMENTI'
+    }),
+    createEmptyRow({
+      categoria: 'CARPENTERIA',
+      descrizione: 'VARIE CARPENTERIE'
+    })
   ],
+
   MONTAGGIO: [
-    {
+    createEmptyRow({
+      categoria: 'IMBARCHI',
+      descrizione: 'VARI IMBARCHI (LOGISTICA E TRASPORTO)',
+      previsto: '0.2'
+    }),
+    createEmptyRow({
       categoria: 'MONTAGGIO',
-      descrizione: '',
-      operatori: '',
-      tempo: '',
-      previsto: '',
-      prodotto: '',
-      note: ''
-    }
+      descrizione: 'MONTAGGIO APPARECCHIATURA MINORE DI 50 KG',
+      previsto: '12'
+    }),
+    createEmptyRow({
+      categoria: 'MONTAGGIO',
+      descrizione: 'MONTAGGIO APPARECCHIATURA DA 51 KG A 150 KG',
+      previsto: '1'
+    }),
+    createEmptyRow({
+      categoria: 'MONTAGGIO',
+      descrizione: 'MONTAGGIO APPARECCHIATURA DA 151 KG A 400 KG',
+      previsto: '1'
+    }),
+    createEmptyRow({
+      categoria: 'MONTAGGIO',
+      descrizione: 'MONTAGGIO APPARECCHIATURA DA 401 KG A 1400 KG',
+      previsto: '0.1'
+    })
   ]
 };
 
-function getDefaultRows(crewRole) {
-  const base = DEFAULT_ROWS_BY_CREW[crewRole] || DEFAULT_ROWS_BY_CREW.ELETTRICISTA;
-  // On clone pour ne pas modifier le modèle
-  return base.map((r) => ({ ...r }));
-}
-
-function formatToday() {
-  const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-}
+const STATUS_LABELS = {
+  DRAFT: 'Bozza',
+  SENT: 'Inviato',
+  ARCHIVED: 'Archiviato'
+};
 
 export default function RapportinoSheet({ crewRole }) {
   const { profile } = useAuth();
-  const capoName = (profile?.display_name || profile?.email || '').toUpperCase();
-
-  // --- ÉTATS DE BASE ---
-  const [data, setData] = useState(formatToday());
-  const [stato, setStato] = useState('BOZZA');
-  const [rows, setRows] = useState(getDefaultRows(crewRole));
-  const [prodottoTotale, setProdottoTotale] = useState(0);
-
-  const [saving, setSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState('');
-  const [saveError, setSaveError] = useState(null);
-
-  // Id du rapportino dans Supabase (si déjà créé)
-  const [rapportinoId, setRapportinoId] = useState(null);
-
-  // Ref pour export PDF
   const rapportinoRef = useRef(null);
 
-  // États pour export PDF
-  const [exporting, setExporting] = useState(false);
-  const [exportError, setExportError] = useState(null);
+  const [date, setDate] = useState(() => {
+    const today = new Date();
+    return today.toISOString().slice(0, 10); // YYYY-MM-DD
+  });
 
-  // --- AUTO-RESIZE TEXTAREAS ---
-  const autoResizeAllTextareas = () => {
-    if (typeof document === 'undefined') return;
-    const textareas = document.querySelectorAll('textarea.autosize-rapportino');
-    textareas.forEach((el) => {
-      el.style.height = 'auto';
-      el.style.height = `${el.scrollHeight}px`;
-    });
-  };
+  const [rapportinoId, setRapportinoId] = useState(null);
+  const [status, setStatus] = useState('DRAFT');
+  const [rows, setRows] = useState(
+    DEFAULT_ROWS_BY_CREW[crewRole] || [createEmptyRow()]
+  );
 
-  const handleAutoResize = (event) => {
-    const el = event.target;
-    el.style.height = 'auto';
-    el.style.height = `${el.scrollHeight}px`;
-  };
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
+  const [saveError, setSaveError] = useState('');
 
-  // Quand les lignes changent → recalcul produit total + auto-resize
+  // --- Auto-resize des textareas (hauteur adaptable) ---
+
   useEffect(() => {
-    let total = 0;
-    rows.forEach((r) => {
-      const val = parseFloat(r.prodotto);
-      if (!Number.isNaN(val)) total += val;
+    const textareas = document.querySelectorAll(
+      'textarea[data-autoresize="true"]'
+    );
+    textareas.forEach((ta) => {
+      ta.style.height = 'auto';
+      ta.style.height = `${ta.scrollHeight}px`;
     });
-    setProdottoTotale(total);
-
-    autoResizeAllTextareas();
   }, [rows]);
 
-  // --- CHARGEMENT / CREATION RAPPORTINO (simplifié) ---
+  // --- Charger / créer le rapportino du jour ---
+
   useEffect(() => {
-    // Si tu as déjà ta logique Supabase qui fonctionne,
-    // tu peux la garder et ignorer ce useEffect.
-    async function loadRapportino() {
-      if (!profile?.id) return;
+    if (!profile?.id || !crewRole) return;
+    loadOrCreateRapportino();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.id, crewRole, date]);
 
-      setSaveError(null);
-      setSaveMessage('');
+  async function loadOrCreateRapportino() {
+    setSaveError('');
+    setSaveMessage('');
 
-      try {
-        const { data: rapp, error } = await supabase
-          .from('rapportini')
-          .select('id, stato, costr, commessa')
-          .eq('capo_id', profile.id)
-          .eq('crew_role', crewRole)
-          .eq('data', data)
-          .maybeSingle();
+    const capoId = profile.id;
 
-        if (error && error.code !== 'PGRST116') {
-          console.error('Errore caricamento rapportino:', error);
-          setSaveError('Errore nel caricamento del rapportino.');
-          return;
-        }
+    // Chercher un rapportino existant
+    const { data, error } = await supabase
+      .from('rapportini')
+      .select('*')
+      .eq('capo_id', capoId)
+      .eq('crew_role', crewRole)
+      .eq('data', date)
+      .maybeSingle();
 
-        if (!rapp) {
-          // Aucun rapportino pour ce jour / cette squadra → on laisse le modèle par défaut
-          setRapportinoId(null);
-          setRows(getDefaultRows(crewRole));
-          setStato('BOZZA');
-          return;
-        }
+    if (error) {
+      console.error('Errore caricamento rapportino:', error);
+      setSaveError(
+        'Errore durante il caricamento del rapportino. Puoi comunque scrivere, ma il salvataggio potrebbe fallire.'
+      );
+      return;
+    }
 
-        setRapportinoId(rapp.id);
-        setStato(rapp.stato || 'BOZZA');
+    if (!data) {
+      // Pas encore de rapportino → on reste sur le modèle par défaut
+      setRapportinoId(null);
+      setStatus('DRAFT');
+      setRows(DEFAULT_ROWS_BY_CREW[crewRole] || [createEmptyRow()]);
+      return;
+    }
 
-        const { data: rowData, error: rowError } = await supabase
-          .from('rapportino_rows')
-          .select(
-            'id, row_index, categoria, descrizione, operatori, tempo, previsto, prodotto, note'
-          )
-          .eq('rapportino_id', rapp.id)
-          .order('row_index', { ascending: true });
+    setRapportinoId(data.id);
+    setStatus(data.status || 'DRAFT');
 
-        if (rowError) {
-          console.error('Errore caricamento righe:', rowError);
-          setSaveError('Errore nel caricamento delle righe del rapportino.');
-          return;
-        }
+    // Charger les righe
+    const { data: rowsData, error: rowsError } = await supabase
+      .from('rapportino_rows')
+      .select('*')
+      .eq('rapportino_id', data.id)
+      .order('row_index', { ascending: true });
 
-        if (!rowData || rowData.length === 0) {
-          setRows(getDefaultRows(crewRole));
-        } else {
-          const mapped = rowData.map((r) => ({
-            id: r.id,
+    if (rowsError) {
+      console.error('Errore caricamento righe rapportino:', rowsError);
+      setSaveError(
+        'Errore durante il caricamento delle righe. Puoi comunque scrivere, ma il salvataggio potrebbe fallire.'
+      );
+      return;
+    }
+
+    if (!rowsData || rowsData.length === 0) {
+      setRows(DEFAULT_ROWS_BY_CREW[crewRole] || [createEmptyRow()]);
+    } else {
+      setRows(
+        rowsData.map((r) =>
+          createEmptyRow({
             categoria: r.categoria || '',
             descrizione: r.descrizione || '',
             operatori: r.operatori || '',
             tempo: r.tempo || '',
-            previsto: r.previsto ?? '',
-            prodotto: r.prodotto ?? '',
+            previsto: r.previsto != null ? String(r.previsto) : '',
+            prodotto: r.prodotto != null ? String(r.prodotto) : '',
             note: r.note || ''
-          }));
-          setRows(mapped);
-        }
-      } catch (err) {
-        console.error('Errore generico caricamento rapportino:', err);
-        setSaveError('Errore imprevisto nel caricamento.');
-      }
+          })
+        )
+      );
     }
+  }
 
-    loadRapportino();
-  }, [crewRole, data, profile?.id]);
+  // --- Gestion des lignes ---
 
-  // --- HANDLERS TABLE ---
-
-  const handleChangeField = (rowIndex, field, value) => {
-    setRows((prev) =>
-      prev.map((row, idx) =>
-        idx === rowIndex
-          ? {
-              ...row,
-              [field]: value
-            }
-          : row
-      )
-    );
+  const handleChangeRow = (index, field, value) => {
+    setRows((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
   };
 
   const handleAddRow = () => {
-    setRows((prev) => [
-      ...prev,
-      {
-        categoria: '',
-        descrizione: '',
-        operatori: '',
-        tempo: '',
-        previsto: '',
-        prodotto: '',
-        note: ''
-      }
-    ]);
+    setRows((prev) => [...prev, createEmptyRow()]);
   };
 
-  const handleNewDay = () => {
-    setRows(getDefaultRows(crewRole));
-    setStato('BOZZA');
-    setRapportinoId(null);
-    setSaveError(null);
-    setSaveMessage('');
+  const handleRemoveRow = (index) => {
+    setRows((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // --- SAUVEGARDE SUPABASE (simplifié) ---
+  const totalProdotto = rows.reduce((sum, r) => {
+    const n = parseFloat(
+      String(r.prodotto || '').replace(',', '.').trim() || '0'
+    );
+    return sum + (isNaN(n) ? 0 : n);
+  }, 0);
 
-  const handleSave = async () => {
+  // --- Sauvegarde Supabase ---
+
+  const handleSaveRapportino = async () => {
     if (!profile?.id) return;
 
-    setSaving(true);
-    setSaveError(null);
+    setIsSaving(true);
+    setSaveError('');
     setSaveMessage('');
 
+    const capoId = profile.id;
+
     try {
-      let currentId = rapportinoId;
+      // Upsert rapportino
+      const payload = {
+        capo_id: capoId,
+        data: date,
+        crew_role: crewRole,
+        status,
+        prodotto_totale: totalProdotto
+      };
 
-      // 1) Upsert rapportini
-      if (!currentId) {
-        const { data: inserted, error: insertError } = await supabase
+      let result;
+      if (rapportinoId) {
+        result = await supabase
           .from('rapportini')
-          .insert({
-            capo_id: profile.id,
-            crew_role: crewRole,
-            data,
-            stato,
-            costr: null,
-            commessa: 'SDC'
-          })
-          .select('id')
+          .update(payload)
+          .eq('id', rapportinoId)
+          .select()
           .single();
-
-        if (insertError) {
-          console.error('Errore creazione rapportino:', insertError);
-          setSaveError('Errore durante la creazione del rapportino.');
-          setSaving(false);
-          return;
-        }
-        currentId = inserted.id;
-        setRapportinoId(inserted.id);
       } else {
-        const { error: updateError } = await supabase
+        result = await supabase
           .from('rapportini')
-          .update({
-            stato,
-            data
-          })
-          .eq('id', currentId);
-
-        if (updateError) {
-          console.error('Errore aggiornamento rapportino:', updateError);
-          setSaveError('Errore durante l\'aggiornamento del rapportino.');
-          setSaving(false);
-          return;
-        }
+          .insert(payload)
+          .select()
+          .single();
       }
 
-      // 2) Supprimer les anciennes lignes puis réinsérer (simple & robuste)
-      const { error: deleteError } = await supabase
+      if (result.error) {
+        throw result.error;
+      }
+
+      const savedRapportino = result.data;
+      setRapportinoId(savedRapportino.id);
+
+      // Remplacer toutes les righe
+      const { error: delError } = await supabase
         .from('rapportino_rows')
         .delete()
-        .eq('rapportino_id', currentId);
+        .eq('rapportino_id', savedRapportino.id);
 
-      if (deleteError) {
-        console.error('Errore cancellazione righe:', deleteError);
-        setSaveError('Errore durante la cancellazione delle righe precedenti.');
-        setSaving(false);
-        return;
+      if (delError) {
+        throw delError;
       }
 
-      const rowsToInsert = rows.map((row, index) => ({
-        rapportino_id: currentId,
+      const rowsToInsert = rows.map((r, index) => ({
+        rapportino_id: savedRapportino.id,
         row_index: index,
-        categoria: row.categoria || null,
-        descrizione: row.descrizione || null,
-        operatori: row.operatori || null,
-        tempo: row.tempo || null,
+        categoria: r.categoria || null,
+        descrizione: r.descrizione || null,
+        operatori: r.operatori || null,
+        tempo: r.tempo || null,
         previsto:
-          row.previsto === '' || row.previsto === null
-            ? null
-            : Number.isNaN(Number(row.previsto))
-            ? null
-            : Number(row.previsto),
+          r.previsto !== '' && r.previsto != null
+            ? parseFloat(String(r.previsto).replace(',', '.'))
+            : null,
         prodotto:
-          row.prodotto === '' || row.prodotto === null
-            ? null
-            : Number.isNaN(Number(row.prodotto))
-            ? null
-            : Number(row.prodotto),
-        note: row.note || null
+          r.prodotto !== '' && r.prodotto != null
+            ? parseFloat(String(r.prodotto).replace(',', '.'))
+            : null,
+        note: r.note || null
       }));
 
       if (rowsToInsert.length > 0) {
-        const { error: insertRowsError } = await supabase
+        const { error: insError } = await supabase
           .from('rapportino_rows')
           .insert(rowsToInsert);
 
-        if (insertRowsError) {
-          console.error('Errore inserimento righe:', insertRowsError);
-          setSaveError('Errore durante il salvataggio delle righe.');
-          setSaving(false);
-          return;
+        if (insError) {
+          throw insError;
         }
       }
 
       setSaveMessage('Rapportino salvato correttamente.');
     } catch (err) {
-      console.error('Errore generico salvataggio rapportino:', err);
-      setSaveError('Errore imprevisto durante il salvataggio.');
+      console.error('Errore salvataggio rapportino:', err);
+      setSaveError(
+        'Errore durante il salvataggio del rapportino. Puoi continuare a scrivere, ma i dati potrebbero non essere salvati.'
+      );
     } finally {
-      setSaving(false);
+      setIsSaving(false);
+      setTimeout(() => {
+        setSaveMessage('');
+      }, 3000);
     }
   };
 
-  // --- EXPORT PDF ROBUSTE ---
+  // --- Export PDF (robuste, sans window.print) ---
 
-  const handleExportPdf = async () => {
-    if (!rapportinoRef.current) return;
-
+  const handleExportPDF = async () => {
+    setSaveError('');
     try {
-      setExportError(null);
-      setExporting(true);
-
       const element = rapportinoRef.current;
+      if (!element) return;
+
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf')
+      ]);
 
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
-        windowWidth: element.scrollWidth,
-        windowHeight: element.scrollHeight
+        backgroundColor: '#ffffff'
       });
 
       const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('landscape', 'mm', 'a4');
+
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+      });
+
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
 
-      const imgWidth = pageWidth;
+      const imgWidth = pageWidth - 20; // margini
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-      let heightLeft = imgHeight;
-      let position = 0;
+      const x = 10;
+      const y = (pageHeight - imgHeight) / 2;
 
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
+      pdf.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight);
 
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-      }
+      const capoName =
+        (profile?.display_name || profile?.email || 'capo')
+          .split('@')[0]
+          .toUpperCase();
 
-      const safeCrew = (crewRole || 'squadra').toLowerCase();
-      const filename = `rapportino_${safeCrew}_${data}.pdf`;
-      pdf.save(filename);
+      const fileName = `rapportino_${crewRole.toLowerCase()}_${capoName}_${date}.pdf`;
+      pdf.save(fileName);
     } catch (err) {
       console.error('Errore export PDF:', err);
-      setExportError('Errore durante l\'esportazione del PDF.');
-    } finally {
-      setExporting(false);
+      setSaveError(
+        'Errore durante la generazione del PDF. Riprova, per favore.'
+      );
     }
   };
 
-  // --- RENDER ---
+  const handleNewDay = () => {
+    setRapportinoId(null);
+    setStatus('DRAFT');
+    setRows(DEFAULT_ROWS_BY_CREW[crewRole] || [createEmptyRow()]);
+    setSaveError('');
+    setSaveMessage('');
+  };
+
+  const statusLabel = STATUS_LABELS[status] || status;
+
+  // --- Render ---
 
   return (
     <div className="mt-6 flex justify-center">
-      <div
-        ref={rapportinoRef}
-        className="bg-white shadow-md rounded-md px-6 pt-4 pb-6 max-w-5xl w-full rapportino-table"
-      >
-        {/* EN-TÊTE RAPPORT */}
-        <header className="mb-4">
-          <div className="flex justify-between mb-2">
+      <div className="bg-white shadow-md rounded-md p-4 md:p-6 w-full max-w-6xl">
+        {/* ZONE EXPORTABLE EN PDF */}
+        <div ref={rapportinoRef} className="rapportino-table">
+          {/* En-tête */}
+          <div className="flex justify-between items-start mb-4">
             <div>
-              <div className="font-semibold">
-                COSTR.: <span className="ml-2 border-b border-slate-400 inline-block w-40" />
+              <div className="text-sm">
+                <span className="font-semibold mr-2">COSTR.:</span>
+                <span className="inline-block min-w-[120px] border-b border-slate-400">
+                  6368
+                </span>
               </div>
-              <div className="font-semibold mt-1">
-                Commessa:&nbsp;
-                <span>SDC</span>
+              <div className="text-sm mt-1">
+                <span className="font-semibold mr-2">Commessa:</span>
+                <span className="inline-block min-w-[120px] border-b border-slate-400">
+                  SDC
+                </span>
               </div>
-              <div className="font-semibold mt-1">
-                Capo Squadra:&nbsp;
-                <span>{capoName}</span>
+              <div className="text-sm mt-1">
+                <span className="font-semibold mr-2">Capo Squadra:</span>
+                <span className="inline-block min-w-[160px] border-b border-slate-400">
+                  {(profile?.display_name || profile?.email || '')
+                    .split('@')[0]
+                    .toUpperCase()}
+                </span>
               </div>
             </div>
-            <div className="text-right">
-              <div className="font-semibold">
-                Rapportino Giornaliero – {crewRole}
+
+            <div className="text-center">
+              <div className="font-semibold text-base">
+                Rapportino Giornaliero – {CREW_LABELS[crewRole] || crewRole}
               </div>
-              <div className="mt-2 flex items-center justify-end gap-2">
-                <span className="font-semibold">Data:</span>
+              <div className="mt-2 text-sm">
+                <span className="font-semibold mr-2">Data:</span>
                 <input
                   type="date"
-                  value={data}
-                  onChange={(e) => setData(e.target.value)}
                   className="border border-slate-400 rounded px-2 py-1 text-sm"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
                 />
               </div>
-              <div className="mt-2">
+            </div>
+
+            <div className="text-right text-sm">
+              <div>
                 <span className="font-semibold mr-1">Stato:</span>
-                <span className="inline-block px-3 py-0.5 rounded-full border border-amber-500 text-xs bg-amber-100 text-amber-800">
-                  {stato === 'BOZZA' ? 'Bozza' : stato}
+                <span className="px-3 py-1 rounded-full border border-amber-300 bg-amber-100 text-amber-800 text-xs">
+                  {statusLabel}
                 </span>
               </div>
             </div>
           </div>
-        </header>
 
-        {/* TABLEAU PRINCIPAL */}
-        <div className="border border-slate-400">
-          <table className="w-full border-collapse text-sm">
+          {/* Tableau */}
+          <table className="w-full border-collapse text-xs rapportino-header-border">
             <thead>
               <tr className="bg-slate-100">
-                <th className="rapportino-header-border border-slate-400 px-2 py-1 text-left w-24">
+                <th className="rapportino-header-border border text-left px-2 py-1 w-[12%]">
                   CATEGORIA
                 </th>
-                <th className="rapportino-header-border border-slate-400 px-2 py-1 text-left w-56">
+                <th className="rapportino-header-border border text-left px-2 py-1 w-[24%]">
                   DESCRIZIONE ATTIVITA'
                 </th>
-                <th className="rapportino-header-border border-slate-400 px-2 py-1 text-left w-56">
+                <th className="rapportino-header-border border text-left px-2 py-1 w-[20%]">
                   OPERATORE
                 </th>
-                <th className="rapportino-header-border border-slate-400 px-2 py-1 text-left w-56">
+                <th className="rapportino-header-border border text-left px-2 py-1 w-[16%]">
                   Tempo impiegato
                 </th>
-                <th className="rapportino-header-border border-slate-400 px-2 py-1 text-left w-24">
+                <th className="rapportino-header-border border text-left px-2 py-1 w-[10%]">
                   PREVISTO
                 </th>
-                <th className="rapportino-header-border border-slate-400 px-2 py-1 text-left w-24">
+                <th className="rapportino-header-border border text-left px-2 py-1 w-[10%]">
                   PRODOTTO
                 </th>
-                <th className="rapportino-header-border border-slate-400 px-2 py-1 text-left w-56">
+                <th className="rapportino-header-border border text-left px-2 py-1 w-[18%]">
                   NOTE
                 </th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row, index) => (
-                <tr key={index} className="align-top">
-                  {/* CATEGORIA */}
-                  <td className="rapportino-border border-slate-400 px-2 py-1">
+                <tr key={index}>
+                  <td className="rapportino-border border align-top px-2 py-1">
                     <input
                       type="text"
+                      className="w-full border-none outline-none text-xs"
                       value={row.categoria}
                       onChange={(e) =>
-                        handleChangeField(index, 'categoria', e.target.value.toUpperCase())
+                        handleChangeRow(index, 'categoria', e.target.value)
                       }
-                      className="w-full border-none outline-none text-sm"
                     />
                   </td>
-
-                  {/* DESCRIZIONE */}
-                  <td className="rapportino-border border-slate-400 px-2 py-1">
+                  <td className="rapportino-border border align-top px-2 py-1">
                     <textarea
-                      className="w-full border-none outline-none text-sm resize-none overflow-hidden autosize-rapportino"
+                      data-autoresize="true"
                       rows={1}
+                      className="w-full border-none outline-none resize-none text-xs"
                       value={row.descrizione}
-                      onChange={(e) => {
-                        handleAutoResize(e);
-                        handleChangeField(index, 'descrizione', e.target.value);
-                      }}
+                      onChange={(e) =>
+                        handleChangeRow(index, 'descrizione', e.target.value)
+                      }
                     />
                   </td>
-
-                  {/* OPERATORE */}
-                  <td className="rapportino-border border-slate-400 px-2 py-1">
+                  <td className="rapportino-border border align-top px-2 py-1">
                     <textarea
-                      className="w-full border-none outline-none text-sm resize-none overflow-hidden autosize-rapportino"
+                      data-autoresize="true"
                       rows={1}
+                      className="w-full border-none outline-none resize-none text-xs"
                       placeholder="Una riga per operatore"
                       value={row.operatori}
-                      onChange={(e) => {
-                        handleAutoResize(e);
-                        handleChangeField(index, 'operatori', e.target.value.toUpperCase());
-                      }}
+                      onChange={(e) =>
+                        handleChangeRow(index, 'operatori', e.target.value)
+                      }
                     />
                   </td>
-
-                  {/* TEMPO */}
-                  <td className="rapportino-border border-slate-400 px-2 py-1">
+                  <td className="rapportino-border border align-top px-2 py-1">
                     <textarea
-                      className="w-full border-none outline-none text-sm resize-none overflow-hidden autosize-rapportino"
+                      data-autoresize="true"
                       rows={1}
+                      className="w-full border-none outline-none resize-none text-xs"
                       placeholder="Stesse righe degli operatori"
                       value={row.tempo}
-                      onChange={(e) => {
-                        handleAutoResize(e);
-                        handleChangeField(index, 'tempo', e.target.value);
-                      }}
+                      onChange={(e) =>
+                        handleChangeRow(index, 'tempo', e.target.value)
+                      }
                     />
                   </td>
-
-                  {/* PREVISTO */}
-                  <td className="rapportino-border border-slate-400 px-2 py-1">
+                  <td className="rapportino-border border align-top px-2 py-1">
                     <input
-                      type="number"
-                      step="0.1"
+                      type="text"
+                      className="w-full border-none outline-none text-xs text-right"
                       value={row.previsto}
                       onChange={(e) =>
-                        handleChangeField(index, 'previsto', e.target.value)
+                        handleChangeRow(index, 'previsto', e.target.value)
                       }
-                      className="w-full border-none outline-none text-sm text-right"
                     />
                   </td>
-
-                  {/* PRODOTTO */}
-                  <td className="rapportino-border border-slate-400 px-2 py-1">
+                  <td className="rapportino-border border align-top px-2 py-1">
                     <input
-                      type="number"
-                      step="0.1"
+                      type="text"
+                      className="w-full border-none outline-none text-xs text-right"
                       value={row.prodotto}
                       onChange={(e) =>
-                        handleChangeField(index, 'prodotto', e.target.value)
+                        handleChangeRow(index, 'prodotto', e.target.value)
                       }
-                      className="w-full border-none outline-none text-sm text-right"
                     />
                   </td>
-
-                  {/* NOTE */}
-                  <td className="rapportino-border border-slate-400 px-2 py-1">
+                  <td className="rapportino-border border align-top px-2 py-1">
                     <textarea
-                      className="w-full border-none outline-none text-sm resize-none overflow-hidden autosize-rapportino"
+                      data-autoresize="true"
                       rows={1}
+                      className="w-full border-none outline-none resize-none text-xs"
                       value={row.note}
-                      onChange={(e) => {
-                        handleAutoResize(e);
-                        handleChangeField(index, 'note', e.target.value);
-                      }}
+                      onChange={(e) =>
+                        handleChangeRow(index, 'note', e.target.value)
+                      }
                     />
                   </td>
                 </tr>
@@ -580,8 +589,8 @@ export default function RapportinoSheet({ crewRole }) {
           </table>
         </div>
 
-        {/* PIED DE PAGE : BOUTONS + TOTALE */}
-        <div className="mt-4 flex items-center justify-between">
+        {/* Barre d'actions – seulement écran */}
+        <div className="no-print mt-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div className="flex gap-2">
             <button
               type="button"
@@ -599,49 +608,38 @@ export default function RapportinoSheet({ crewRole }) {
             </button>
           </div>
 
-          <div className="text-sm font-semibold">
-            Prodotto totale:&nbsp;
-            <span>{prodottoTotale}</span>
-          </div>
+          <div className="flex flex-col md:flex-row md:items-center gap-3">
+            <div className="text-sm">
+              Prodotto totale:{' '}
+              <span className="font-semibold">{totalProdotto}</span>
+            </div>
 
-          <div className="flex gap-2">
             <button
               type="button"
-              onClick={handleSave}
-              disabled={saving}
-              className={`px-4 py-2 rounded bg-emerald-600 text-white text-sm hover:bg-emerald-700 ${
-                saving ? 'opacity-60 cursor-not-allowed' : ''
-              }`}
+              onClick={handleSaveRapportino}
+              disabled={isSaving}
+              className="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm"
             >
-              {saving ? 'Salvataggio...' : 'Salva rapportino'}
+              {isSaving ? 'Salvataggio...' : 'Salva rapportino'}
             </button>
+
             <button
               type="button"
-              onClick={handleExportPdf}
-              disabled={exporting}
-              className={`px-4 py-2 rounded border border-slate-400 text-sm hover:bg-slate-100 ${
-                exporting ? 'opacity-60 cursor-not-allowed' : ''
-              }`}
+              onClick={handleExportPDF}
+              className="px-4 py-2 rounded border border-slate-500 hover:bg-slate-100 text-sm"
             >
-              {exporting ? 'Esportazione...' : 'Esporta PDF'}
+              Esporta PDF
             </button>
           </div>
         </div>
 
-        {/* MESSAGES D'ERREUR / SUCCÈS */}
+        {/* Messages */}
         {saveError && (
-          <p className="mt-2 text-sm text-red-600">
-            {saveError}
-          </p>
+          <p className="no-print mt-3 text-sm text-red-600">{saveError}</p>
         )}
-        {saveMessage && !saveError && (
-          <p className="mt-2 text-sm text-emerald-700">
+        {saveMessage && (
+          <p className="no-print mt-3 text-sm text-emerald-700">
             {saveMessage}
-          </p>
-        )}
-        {exportError && (
-          <p className="mt-2 text-sm text-red-600">
-            {exportError}
           </p>
         )}
       </div>
