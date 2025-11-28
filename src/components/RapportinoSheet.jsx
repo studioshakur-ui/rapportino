@@ -162,7 +162,7 @@ export default function RapportinoSheet({ crewRole }) {
     return {
       id: rapportinoId || undefined,
       capo_id: profile.id,
-      capo_name: capoSquadra || null, // <<< IMPORTANT : remplissage capo_name
+      capo_name: capoSquadra || null, // important pour la colonne NOT NULL
       crew_role: crewRole,
       data,
       costr: costr || null,
@@ -173,7 +173,6 @@ export default function RapportinoSheet({ crewRole }) {
   };
 
   const saveRows = async (rapportinoIdValue) => {
-    // On efface les anciennes lignes puis on insère les nouvelles
     const deleteRes = await supabase
       .from('rapportino_rows')
       .delete()
@@ -204,7 +203,16 @@ export default function RapportinoSheet({ crewRole }) {
     }
   };
 
-  const handleSave = async (overrideStatus = null) => {
+  /**
+   * handleSave doit fonctionner dans 2 cas :
+   *  - appelé depuis un bouton React (event en premier argument) -> on l'ignore
+   *  - appelé avec un statut explicite ('VALIDATED_CAPO') -> on le garde
+   */
+  const handleSave = async (overrideStatusOrEvent = null) => {
+    // On détecte si le premier argument est un event React
+    let overrideStatus =
+      typeof overrideStatusOrEvent === 'string' ? overrideStatusOrEvent : null;
+
     resetError();
     setIsSaving(true);
     setLastSaveOk(false);
@@ -258,7 +266,7 @@ export default function RapportinoSheet({ crewRole }) {
   const handleValidateDay = async () => {
     const ok = await handleSave('VALIDATED_CAPO');
     if (ok) {
-      // plus tard : verrouiller des colonnes si besoin
+      // plus tard : lock colonne, signature, etc.
     }
   };
 
@@ -275,14 +283,10 @@ export default function RapportinoSheet({ crewRole }) {
   };
 
   const handleExportPdf = async () => {
-    // 1) On s’assure d’abord que le salvataggio réussit
     const ok = await handleSave();
-    if (!ok) {
-      // On bloque l’export si la sauvegarde échoue
-      return;
-    }
+    if (!ok) return;
 
-    // 2) Pour l’instant, on reste sur window.print() (export robuste viendra après)
+    // Pour l’instant on reste sur window.print (export jsPDF viendra après)
     window.print();
   };
 
@@ -501,7 +505,7 @@ export default function RapportinoSheet({ crewRole }) {
         <div className="flex gap-2 flex-wrap justify-end">
           <button
             type="button"
-            onClick={handleSave}
+            onClick={() => handleSave()}   {/* <<< important : pas d’event */}
             disabled={isSaving}
             className="px-4 py-2 rounded bg-emerald-600 text-white text-sm hover:bg-emerald-700 disabled:opacity-60"
           >
