@@ -9,38 +9,54 @@
 
 body {
   @apply bg-slate-100 text-slate-900;
-  margin: 0;
 }
 
-/* Shell rapportino à l'écran */
-.rapportino-page {
-  min-height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding: 1.5rem;
+/* TABLEAU RAPPORTINO : look "document" */
+.rapportino-card {
+  @apply bg-white shadow-md rounded-none border border-slate-300;
 }
 
-.rapportino-sheet-container {
-  background-color: white;
-  padding: 1.5rem 2rem 2rem;
-  border-radius: 0.5rem;
-  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.15);
-  max-width: 1120px;
+.rapportino-table {
+  font-family: "Times New Roman", Times, serif;
+  border-collapse: collapse;
   width: 100%;
 }
 
-/* Tableau du rapportino : look "document" */
-.rapportino-table {
-  font-family: "Times New Roman", Times, serif;
-}
-
+/* Bordures fines comme sur le papier */
 .rapportino-header-border {
   border-width: 0.8px;
 }
 
 .rapportino-border {
   border-width: 0.5px;
+}
+
+/* Hauteur des lignes pour écriture à la main */
+.rapportino-row {
+  height: 52px; /* un peu plus haut que la version précédente */
+}
+
+/* Cellules de saisie (textareas) sans look "formulaire" */
+.rapportino-cell-input {
+  @apply w-full h-full resize-none outline-none;
+  border: none;
+  background: transparent;
+  padding: 4px;
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+/* Aides texte grisées ("Una riga per operatore") */
+.rapportino-placeholder {
+  color: #9ca3af; /* slate-400 */
+}
+
+/* Footer impression : totaux & mention CORE */
+.rapportino-footer {
+  margin-top: 8px;
+  font-size: 0.75rem;
+  display: flex;
+  justify-content: space-between;
 }
 
 /* Utilitaires écran / impression */
@@ -60,14 +76,12 @@ body {
 @media print {
   @page {
     size: A4 landscape;
-    margin: 8mm; /* un peu moins de marge pour agrandir la feuille */
+    margin: 10mm;
   }
 
   body,
   #root {
-    background: white !important;
-    margin: 0;
-    padding: 0;
+    @apply bg-white;
   }
 
   .no-print {
@@ -78,15 +92,9 @@ body {
     display: block !important;
   }
 
-  .rapportino-page {
-    padding: 0;
-  }
-
-  .rapportino-sheet-container {
+  /* Supprimer l’ombre et arrondis pour le PDF */
+  .rapportino-card {
     box-shadow: none;
     border-radius: 0;
-    padding: 8mm;
-    max-width: none;
-    width: 100%;
   }
 }
