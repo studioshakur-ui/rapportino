@@ -162,7 +162,7 @@ export default function RapportinoSheet({ crewRole }) {
     return {
       id: rapportinoId || undefined,
       capo_id: profile.id,
-      capo_name: capoSquadra || null, // important pour la colonne NOT NULL
+      capo_name: capoSquadra || null,
       crew_role: crewRole,
       data,
       costr: costr || null,
@@ -209,7 +209,6 @@ export default function RapportinoSheet({ crewRole }) {
    *  - appelé avec un statut explicite ('VALIDATED_CAPO') -> on le garde
    */
   const handleSave = async (overrideStatusOrEvent = null) => {
-    // On détecte si le premier argument est un event React
     let overrideStatus =
       typeof overrideStatusOrEvent === 'string' ? overrideStatusOrEvent : null;
 
@@ -505,7 +504,7 @@ export default function RapportinoSheet({ crewRole }) {
         <div className="flex gap-2 flex-wrap justify-end">
           <button
             type="button"
-            onClick={() => handleSave()}   {/* <<< important : pas d’event */}
+            onClick={() => handleSave()}
             disabled={isSaving}
             className="px-4 py-2 rounded bg-emerald-600 text-white text-sm hover:bg-emerald-700 disabled:opacity-60"
           >
