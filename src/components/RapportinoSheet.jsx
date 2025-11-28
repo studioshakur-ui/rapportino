@@ -1,6 +1,10 @@
 // src/components/RapportinoSheet.jsx
 
+<<<<<<< HEAD
 import useRapportinoLogic from '../rapportino/useRapportinoLogic';
+=======
+import { useRapportinoLogic } from '../rapportino/useRapportinoLogic';
+>>>>>>> 0eadc61 (Initial commit Rapportino locale)
 
 export default function RapportinoSheet({ crewRole }) {
   const {
@@ -14,7 +18,11 @@ export default function RapportinoSheet({ crewRole }) {
     statusLabel,
     capoSquadra,
 
+<<<<<<< HEAD
     // lignes
+=======
+    // righe
+>>>>>>> 0eadc61 (Initial commit Rapportino locale)
     rows,
     handleChangeCell,
     handleAddRow,
@@ -22,6 +30,7 @@ export default function RapportinoSheet({ crewRole }) {
     prodottoTotale,
 
     // actions
+<<<<<<< HEAD
     handleNewDay,
     handleOpenArchivio,
     handleSaveClick,
@@ -29,17 +38,34 @@ export default function RapportinoSheet({ crewRole }) {
     handleExportPdf,
 
     // état sauvegarde / erreurs
+=======
+    handleSave,
+    handleValidateDay,
+    handleNewDay,
+    handleOpenArchivio,
+    handleExportPdf,
+
+    // stato salvataggio / errori
+>>>>>>> 0eadc61 (Initial commit Rapportino locale)
     isSaving,
     lastSaveOk,
     saveErrorMsg,
     saveErrorDetails,
     showErrorDetails,
+<<<<<<< HEAD
     setShowErrorDetails
+=======
+    setShowErrorDetails,
+>>>>>>> 0eadc61 (Initial commit Rapportino locale)
   } = useRapportinoLogic(crewRole);
 
   return (
     <div className="mt-6 bg-white shadow-md rounded-lg p-6 rapportino-table print:bg-white">
+<<<<<<< HEAD
       {/* Zone imprimable */}
+=======
+      {/* Zona stampabile */}
+>>>>>>> 0eadc61 (Initial commit Rapportino locale)
       <div id="rapportino-print-area">
         <div className="flex justify-between mb-4">
           <div className="space-y-2">
@@ -214,7 +240,11 @@ export default function RapportinoSheet({ crewRole }) {
         </div>
       </div>
 
+<<<<<<< HEAD
       {/* Footer azioni / info – NON stampato */}
+=======
+      {/* Footer azioni – NON stampato */}
+>>>>>>> 0eadc61 (Initial commit Rapportino locale)
       <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between no-print">
         <div className="flex gap-2 flex-wrap">
           <button
@@ -247,7 +277,11 @@ export default function RapportinoSheet({ crewRole }) {
         <div className="flex gap-2 flex-wrap justify-end">
           <button
             type="button"
+<<<<<<< HEAD
             onClick={handleSaveClick}
+=======
+            onClick={() => handleSave()}
+>>>>>>> 0eadc61 (Initial commit Rapportino locale)
             disabled={isSaving}
             className="px-4 py-2 rounded bg-emerald-600 text-white text-sm hover:bg-emerald-700 disabled:opacity-60"
           >
@@ -272,7 +306,11 @@ export default function RapportinoSheet({ crewRole }) {
         </div>
       </div>
 
+<<<<<<< HEAD
       {/* Message d’erreur humain + détails techniques */}
+=======
+      {/* Messaggi di errore / successo – NON stampati */}
+>>>>>>> 0eadc61 (Initial commit Rapportino locale)
       {saveErrorMsg && (
         <div className="mt-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded p-3 no-print">
           <div>{saveErrorMsg}</div>
@@ -282,7 +320,13 @@ export default function RapportinoSheet({ crewRole }) {
               onClick={() => setShowErrorDetails((v) => !v)}
               className="mt-1 text-xs underline"
             >
+<<<<<<< HEAD
               {showErrorDetails ? 'Nascondi dettagli tecnici' : 'Mostra dettagli tecnici'}
+=======
+              {showErrorDetails
+                ? 'Nascondi dettagli tecnici'
+                : 'Mostra dettagli tecnici'}
+>>>>>>> 0eadc61 (Initial commit Rapportino locale)
             </button>
           )}
           {showErrorDetails && saveErrorDetails && (
@@ -295,7 +339,12 @@ export default function RapportinoSheet({ crewRole }) {
 
       {lastSaveOk && !saveErrorMsg && (
         <div className="mt-3 text-xs text-emerald-700 no-print">
+<<<<<<< HEAD
           Ultimo salvataggio riuscito. Puoi continuare a compilare o esportare il PDF.
+=======
+          Ultimo salvataggio riuscito. Puoi continuare a compilare o esportare
+          il PDF.
+>>>>>>> 0eadc61 (Initial commit Rapportino locale)
         </div>
       )}
     </div>
