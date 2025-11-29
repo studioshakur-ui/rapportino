@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { ROLE_OPTIONS, STATUS_LABELS } from '../App'
+import { ROLE_OPTIONS } from '../constants/roles';
 
 export default function ArchivioModal({
   archivio,

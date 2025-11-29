@@ -1,3 +1,4 @@
+// src/auth/AuthProvider.jsx
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
@@ -10,7 +11,7 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Init auth + profile
+  // Initialisation de l'auth + profil
   useEffect(() => {
     let mounted = true;
 
@@ -23,20 +24,24 @@ export function AuthProvider({ children }) {
         if (sessionError) throw sessionError;
 
         const currentSession = data.session;
-        setSession(currentSession || null);
-        setUser(currentSession?.user ?? null);
+        if (mounted) {
+          setSession(currentSession || null);
+          setUser(currentSession?.user ?? null);
+        }
 
         if (currentSession?.user) {
           await fetchProfile(currentSession.user.id, mounted);
-        } else {
+        } else if (mounted) {
           setProfile(null);
         }
       } catch (err) {
         console.error('Erreur init auth:', err);
-        setError('Erreur de connexion. Merci de vous reconnecter.');
-        setSession(null);
-        setUser(null);
-        setProfile(null);
+        if (mounted) {
+          setError('Erreur de connexion. Merci de vous reconnecter.');
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+        }
       } finally {
         if (mounted) setLoading(false);
       }
@@ -46,11 +51,12 @@ export function AuthProvider({ children }) {
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (_event, newSession) => {
+        const newUser = newSession?.user ?? null;
         setSession(newSession);
-        setUser(newSession?.user ?? null);
+        setUser(newUser);
 
-        if (newSession?.user) {
-          await fetchProfile(newSession.user.id, true);
+        if (newUser) {
+          await fetchProfile(newUser.id, true);
         } else {
           setProfile(null);
         }
@@ -74,12 +80,14 @@ export function AuthProvider({ children }) {
       if (error && status !== 406) throw error;
 
       if (!data) {
-        // Créer un profil de base si inexistant
-        const { data: userData, error: getUserError } = await supabase.auth.getUser();
+        // Crée un profil minimal si inexistant
+        const { data: userData, error: getUserError } =
+          await supabase.auth.getUser();
         if (getUserError) throw getUserError;
 
         const authUser = userData.user;
         const email = authUser?.email ?? '';
+
         const displayName =
           authUser?.user_metadata?.full_name ||
           authUser?.user_metadata?.name ||
@@ -90,8 +98,9 @@ export function AuthProvider({ children }) {
           .insert({
             id: userId,
             email,
+            full_name: displayName, // important: NOT NULL dans ton schéma
             display_name: displayName,
-            app_role: 'CAPO'
+            app_role: 'CAPO',
           })
           .select('*')
           .single();
@@ -103,9 +112,12 @@ export function AuthProvider({ children }) {
       }
     } catch (err) {
       console.error('Erreur chargement profil:', err);
-      if (mounted) setError('Impossible de charger votre profil. Merci de vous reconnecter.');
+      if (mounted) {
+        setError(
+          'Impossible de charger votre profil. Merci de vous reconnecter.'
+        );
+      }
 
-      // On force la déconnexion pour éviter les blocages
       try {
         await supabase.auth.signOut();
       } catch (signOutErr) {
@@ -134,7 +146,7 @@ export function AuthProvider({ children }) {
     loading,
     error,
     signOut,
-    refreshProfile: () => user && fetchProfile(user.id)
+    refreshProfile: () => user && fetchProfile(user.id),
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

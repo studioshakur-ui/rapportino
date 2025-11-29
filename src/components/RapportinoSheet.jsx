@@ -1,71 +1,313 @@
 // src/components/RapportinoSheet.jsx
 
-<<<<<<< HEAD
-import useRapportinoLogic from '../rapportino/useRapportinoLogic';
-=======
-import { useRapportinoLogic } from '../rapportino/useRapportinoLogic';
->>>>>>> 0eadc61 (Initial commit Rapportino locale)
+import { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../auth/AuthProvider';
+import { supabase } from '../lib/supabaseClient';
+
+const EMPTY_ROWS_BY_CREW = {
+  ELETTRICISTA: [
+    {
+      categoria: 'STESURA',
+      descrizione: 'STESURA',
+      operatori: '',
+      tempo: '',
+      previsto: '150',
+      prodotto: '',
+      note: '',
+    },
+    {
+      categoria: 'STESURA',
+      descrizione: 'FASCETTATURA CAVI',
+      operatori: '',
+      tempo: '',
+      previsto: '600',
+      prodotto: '',
+      note: '',
+    },
+    {
+      categoria: 'STESURA',
+      descrizione: 'RIPRESA CAVI',
+      operatori: '',
+      tempo: '',
+      previsto: '150',
+      prodotto: '',
+      note: '',
+    },
+    {
+      categoria: 'STESURA',
+      descrizione: 'VARI STESURA CAVI',
+      operatori: '',
+      tempo: '',
+      previsto: '0,2',
+      prodotto: '',
+      note: '',
+    },
+  ],
+  CARPENTERIA: [
+    {
+      categoria: 'CARPENTERIA',
+      descrizione: '',
+      operatori: '',
+      tempo: '',
+      previsto: '',
+      prodotto: '',
+      note: '',
+    },
+  ],
+  MONTAGGIO: [
+    {
+      categoria: 'MONTAGGIO',
+      descrizione: '',
+      operatori: '',
+      tempo: '',
+      previsto: '',
+      prodotto: '',
+      note: '',
+    },
+  ],
+};
+
+const STATUS_LABELS = {
+  DRAFT: 'Bozza',
+  VALIDATED_CAPO: 'Validata dal Capo',
+};
+
+// Convertit "0,2" -> 0.2, "" -> null, "ciao" -> null
+function parseNumeric(val) {
+  if (val === null || val === undefined) return null;
+  const str = String(val).trim();
+  if (!str) return null;
+  const num = parseFloat(str.replace(',', '.'));
+  return Number.isFinite(num) ? num : null;
+}
 
 export default function RapportinoSheet({ crewRole }) {
-  const {
-    // header
-    costr,
-    setCostr,
-    commessa,
-    setCommessa,
-    data,
-    setData,
-    statusLabel,
-    capoSquadra,
+  const { profile } = useAuth();
 
-<<<<<<< HEAD
-    // lignes
-=======
-    // righe
->>>>>>> 0eadc61 (Initial commit Rapportino locale)
-    rows,
-    handleChangeCell,
-    handleAddRow,
-    handleRemoveRow,
-    prodottoTotale,
+  // ------------------------------------------------------
+  //  Header
+  // ------------------------------------------------------
+  const [costr, setCostr] = useState('6368');
+  const [commessa, setCommessa] = useState('SDC');
+  const [data, setData] = useState(() => new Date().toISOString().slice(0, 10));
+  const [status, setStatus] = useState('DRAFT');
 
-    // actions
-<<<<<<< HEAD
-    handleNewDay,
-    handleOpenArchivio,
-    handleSaveClick,
-    handleValidateDay,
-    handleExportPdf,
+  // Capo sempre in MAIUSCOLO
+  const capoSquadra = useMemo(() => {
+    const src = profile?.display_name || profile?.email || '';
+    return src.toUpperCase();
+  }, [profile]);
 
-    // état sauvegarde / erreurs
-=======
-    handleSave,
-    handleValidateDay,
-    handleNewDay,
-    handleOpenArchivio,
-    handleExportPdf,
+  // ------------------------------------------------------
+  //  Righe del rapporto
+  // ------------------------------------------------------
+  const baseRows =
+    EMPTY_ROWS_BY_CREW[crewRole] || EMPTY_ROWS_BY_CREW.ELETTRICISTA;
+  const [rows, setRows] = useState(baseRows);
 
-    // stato salvataggio / errori
->>>>>>> 0eadc61 (Initial commit Rapportino locale)
-    isSaving,
-    lastSaveOk,
-    saveErrorMsg,
-    saveErrorDetails,
-    showErrorDetails,
-<<<<<<< HEAD
-    setShowErrorDetails
-=======
-    setShowErrorDetails,
->>>>>>> 0eadc61 (Initial commit Rapportino locale)
-  } = useRapportinoLogic(crewRole);
+  useEffect(() => {
+    setRows(EMPTY_ROWS_BY_CREW[crewRole] || EMPTY_ROWS_BY_CREW.ELETTRICISTA);
+  }, [crewRole]);
 
+  const handleChangeCell = (index, field, value) => {
+    setRows((prev) =>
+      prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)),
+    );
+  };
+
+  const handleAddRow = () => {
+    setRows((prev) => [
+      ...prev,
+      {
+        categoria:
+          crewRole === 'CARPENTERIA'
+            ? 'CARPENTERIA'
+            : crewRole === 'MONTAGGIO'
+            ? 'MONTAGGIO'
+            : 'STESURA',
+        descrizione: '',
+        operatori: '',
+        tempo: '',
+        previsto: '',
+        prodotto: '',
+        note: '',
+      },
+    ]);
+  };
+
+  const handleRemoveRow = (index) => {
+    setRows((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const prodottoTotale = useMemo(() => {
+    return rows.reduce((sum, r) => {
+      const v = parseNumeric(r.prodotto);
+      return sum + (v ?? 0);
+    }, 0);
+  }, [rows]);
+
+  // ------------------------------------------------------
+  //  Stato salvataggio / errori
+  // ------------------------------------------------------
+  const [rapportinoId, setRapportinoId] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSaveOk, setLastSaveOk] = useState(false);
+
+  const [saveErrorMsg, setSaveErrorMsg] = useState('');
+  const [saveErrorDetails, setSaveErrorDetails] = useState('');
+  const [showErrorDetails, setShowErrorDetails] = useState(false);
+
+  const resetError = () => {
+    setSaveErrorMsg('');
+    setSaveErrorDetails('');
+    setShowErrorDetails(false);
+  };
+
+  // ------------------------------------------------------
+  //  Payload Rapportino
+  // ------------------------------------------------------
+  const buildRapportinoPayload = (overrideStatus) => {
+    if (!profile?.id) {
+      return null;
+    }
+
+    const effectiveStatus = overrideStatus || status || 'DRAFT';
+
+    return {
+      id: rapportinoId || undefined,
+      capo_id: profile.id,
+      crew_role: crewRole,
+      data,
+      costr: costr || null,
+      commessa: commessa || null,
+      status: effectiveStatus,
+      prodotto_totale: parseNumeric(prodottoTotale),
+    };
+  };
+
+  // ------------------------------------------------------
+  //  Salvataggio righe
+  // ------------------------------------------------------
+  const saveRows = async (rapportinoIdValue) => {
+    const deleteRes = await supabase
+      .from('rapportino_rows')
+      .delete()
+      .eq('rapportino_id', rapportinoIdValue);
+
+    if (deleteRes.error) {
+      throw deleteRes.error;
+    }
+
+    if (rows.length === 0) return;
+
+    const rowsPayload = rows.map((row, index) => ({
+      rapportino_id: rapportinoIdValue,
+      row_index: index,
+      categoria: row.categoria || null,
+      descrizione: row.descrizione || null,
+      operatori: row.operatori || null,
+      tempo: row.tempo || null,
+      previsto: parseNumeric(row.previsto),
+      prodotto: parseNumeric(row.prodotto),
+      note: row.note || null,
+    }));
+
+    const insertRes = await supabase.from('rapportino_rows').insert(rowsPayload);
+
+    if (insertRes.error) {
+      throw insertRes.error;
+    }
+  };
+
+  // ------------------------------------------------------
+  //  Salvataggio principale
+  // ------------------------------------------------------
+  const handleSave = async (overrideStatus = null) => {
+    resetError();
+    setIsSaving(true);
+    setLastSaveOk(false);
+
+    try {
+      const payload = buildRapportinoPayload(overrideStatus);
+      if (!payload) {
+        throw new Error('Profilo utente non disponibile (capo_id mancante).');
+      }
+
+      const { data: upsertData, error: upsertError } = await supabase
+        .from('rapportini')
+        .upsert(payload)
+        .select('id')
+        .single();
+
+      if (upsertError) {
+        throw upsertError;
+      }
+
+      const newId = upsertData.id;
+      setRapportinoId(newId);
+      setStatus(payload.status);
+
+      await saveRows(newId);
+
+      setLastSaveOk(true);
+      setIsSaving(false);
+      return true;
+    } catch (err) {
+      console.error('Errore salvataggio rapportino:', err);
+      setIsSaving(false);
+      setLastSaveOk(false);
+
+      setSaveErrorMsg(
+        'Errore durante il salvataggio del rapportino. Puoi comunque continuare a scrivere.',
+      );
+
+      const technical =
+        err && typeof err === 'object'
+          ? `${err.code ? `Codice: ${err.code}\n` : ''}${
+              err.message ? `Messaggio: ${err.message}` : String(err)
+            }`
+          : String(err);
+
+      setSaveErrorDetails(technical);
+      return false;
+    }
+  };
+
+  const handleValidateDay = async () => {
+    const ok = await handleSave('VALIDATED_CAPO');
+    if (ok) {
+      // plus tard : verrouiller certaines colonnes
+    }
+  };
+
+  const handleNewDay = () => {
+    resetError();
+    setRapportinoId(null);
+    setStatus('DRAFT');
+    setRows(EMPTY_ROWS_BY_CREW[crewRole] || EMPTY_ROWS_BY_CREW.ELETTRICISTA);
+    setLastSaveOk(false);
+  };
+
+  const handleOpenArchivio = () => {
+    alert('Archivio non ancora implementato in questa versione.');
+  };
+
+  const handleExportPdf = async () => {
+    const ok = await handleSave();
+    if (!ok) {
+      return;
+    }
+    window.print();
+  };
+
+  const statusLabel = STATUS_LABELS[status] || status;
+
+  // ------------------------------------------------------
+  //  UI
+  // ------------------------------------------------------
   return (
     <div className="mt-6 bg-white shadow-md rounded-lg p-6 rapportino-table print:bg-white">
-<<<<<<< HEAD
       {/* Zone imprimable */}
-=======
-      {/* Zona stampabile */}
->>>>>>> 0eadc61 (Initial commit Rapportino locale)
       <div id="rapportino-print-area">
         <div className="flex justify-between mb-4">
           <div className="space-y-2">
@@ -240,30 +482,26 @@ export default function RapportinoSheet({ crewRole }) {
         </div>
       </div>
 
-<<<<<<< HEAD
       {/* Footer azioni / info – NON stampato */}
-=======
-      {/* Footer azioni – NON stampato */}
->>>>>>> 0eadc61 (Initial commit Rapportino locale)
       <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between no-print">
         <div className="flex gap-2 flex-wrap">
           <button
             type="button"
-            onClick={handleNewDay}
+            onClick={() => handleNewDay()}
             className="px-4 py-2 rounded border border-slate-300 hover:bg-slate-100 text-sm"
           >
             Nuova giornata
           </button>
           <button
             type="button"
-            onClick={handleAddRow}
+            onClick={() => handleAddRow()}
             className="px-4 py-2 rounded border border-slate-300 hover:bg-slate-100 text-sm"
           >
             + Aggiungi riga
           </button>
           <button
             type="button"
-            onClick={handleOpenArchivio}
+            onClick={() => handleOpenArchivio()}
             className="px-4 py-2 rounded border border-slate-300 hover:bg-slate-100 text-sm"
           >
             Archivio
@@ -275,13 +513,10 @@ export default function RapportinoSheet({ crewRole }) {
         </div>
 
         <div className="flex gap-2 flex-wrap justify-end">
+          {/* Bouton salvataggio principale */}
           <button
             type="button"
-<<<<<<< HEAD
-            onClick={handleSaveClick}
-=======
             onClick={() => handleSave()}
->>>>>>> 0eadc61 (Initial commit Rapportino locale)
             disabled={isSaving}
             className="px-4 py-2 rounded bg-emerald-600 text-white text-sm hover:bg-emerald-700 disabled:opacity-60"
           >
@@ -289,7 +524,7 @@ export default function RapportinoSheet({ crewRole }) {
           </button>
           <button
             type="button"
-            onClick={handleValidateDay}
+            onClick={() => handleValidateDay()}
             disabled={isSaving}
             className="px-4 py-2 rounded border border-emerald-600 text-emerald-700 text-sm hover:bg-emerald-50 disabled:opacity-60"
           >
@@ -297,7 +532,7 @@ export default function RapportinoSheet({ crewRole }) {
           </button>
           <button
             type="button"
-            onClick={handleExportPdf}
+            onClick={() => handleExportPdf()}
             disabled={isSaving}
             className="px-4 py-2 rounded bg-sky-600 text-white text-sm hover:bg-sky-700 disabled:opacity-60"
           >
@@ -306,11 +541,7 @@ export default function RapportinoSheet({ crewRole }) {
         </div>
       </div>
 
-<<<<<<< HEAD
       {/* Message d’erreur humain + détails techniques */}
-=======
-      {/* Messaggi di errore / successo – NON stampati */}
->>>>>>> 0eadc61 (Initial commit Rapportino locale)
       {saveErrorMsg && (
         <div className="mt-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded p-3 no-print">
           <div>{saveErrorMsg}</div>
@@ -320,13 +551,9 @@ export default function RapportinoSheet({ crewRole }) {
               onClick={() => setShowErrorDetails((v) => !v)}
               className="mt-1 text-xs underline"
             >
-<<<<<<< HEAD
-              {showErrorDetails ? 'Nascondi dettagli tecnici' : 'Mostra dettagli tecnici'}
-=======
               {showErrorDetails
                 ? 'Nascondi dettagli tecnici'
                 : 'Mostra dettagli tecnici'}
->>>>>>> 0eadc61 (Initial commit Rapportino locale)
             </button>
           )}
           {showErrorDetails && saveErrorDetails && (
@@ -339,12 +566,8 @@ export default function RapportinoSheet({ crewRole }) {
 
       {lastSaveOk && !saveErrorMsg && (
         <div className="mt-3 text-xs text-emerald-700 no-print">
-<<<<<<< HEAD
-          Ultimo salvataggio riuscito. Puoi continuare a compilare o esportare il PDF.
-=======
-          Ultimo salvataggio riuscito. Puoi continuare a compilare o esportare
-          il PDF.
->>>>>>> 0eadc61 (Initial commit Rapportino locale)
+          Ultimo salvataggio riuscito. Puoi continuare a compilare o esportare il
+          PDF.
         </div>
       )}
     </div>

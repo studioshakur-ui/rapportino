@@ -1,25 +1,54 @@
-import React from 'react'
-import { Navigate } from 'react-router-dom'
-import { useAuth } from './AuthProvider'
+// src/auth/RequireRole.jsx
+import React, { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from './AuthProvider';
+import LoadingScreen from '../components/LoadingScreen';
 
-export default function RequireRole({ allow = [], children }) {
-  const { user, loading } = useAuth()
+/**
+ * Composant de garde de route basé sur les rôles applicatifs.
+ *
+ * allow: tableau de rôles autorisés, ex:
+ *   - ['CAPO']
+ *   - ['UFFICIO', 'DIREZIONE']
+ */
+export default function RequireRole({ allow, children }) {
+  const { loading, session, profile } = useAuth();
+  const navigate = useNavigate();
 
-  // Chargement initial de l'auth
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-sm text-slate-600">
-        Caricamento...
-      </div>
-    )
+  useEffect(() => {
+    if (loading) return;
+
+    // Pas de session → vers login
+    if (!session) {
+      navigate('/login', { replace: true });
+      return;
+    }
+
+    // On attend que le profil soit chargé
+    if (!profile) return;
+
+    // Vérification du rôle
+    if (allow && allow.length > 0 && !allow.includes(profile.app_role)) {
+      if (profile.app_role === 'UFFICIO') {
+        navigate('/ufficio', { replace: true });
+      } else if (profile.app_role === 'DIREZIONE') {
+        navigate('/direction', { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
+    }
+  }, [loading, session, profile, allow, navigate]);
+
+  // Phase de chargement initial ou profil pas encore là
+  if (loading || !session || !profile) {
+    return <LoadingScreen message="Caricamento..." />;
   }
 
-  // Pas d'utilisateur connecté → login
-  if (!user) {
-    return <Navigate to="/login" replace />
+  // Rôle non autorisé → on est en train de rediriger
+  if (allow && allow.length > 0 && !allow.includes(profile.app_role)) {
+    return <LoadingScreen message="Reindirizzamento..." />;
   }
 
-  // 🔥 TEMPORAIRE : on ignore completely "allow" et les rôles
-  // Tous les utilisateurs connectés peuvent voir la page
-  return children
+  // Tout est OK → on rend l'UI protégée
+  return <>{children}</>;
 }

@@ -1,12 +1,13 @@
-import React from 'react'
-import { Routes, Route } from 'react-router-dom'
+// src/routes.jsx
+import React from 'react';
+import { Routes, Route } from 'react-router-dom';
 
-import RequireRole from './auth/RequireRole'
-import Login from './pages/Login'
+import RequireRole from './auth/RequireRole';
+import Login from './pages/Login';
 
-import AppShell from './AppShell'
-import UfficioShell from './UfficioShell'
-import DirectionShell from './DirectionShell'
+import AppShell from './AppShell';
+import UfficioShell from './UfficioShell';
+import DirectionShell from './DirectionShell';
 
 export default function AppRoutes() {
   return (
@@ -14,7 +15,7 @@ export default function AppRoutes() {
       {/* Public */}
       <Route path="/login" element={<Login />} />
 
-      {/* CAPO (mais pour l'instant, ouvert à tous les users connectés) */}
+      {/* CAPO – Rapportino / Archivio côté Capo */}
       <Route
         path="/*"
         element={
@@ -24,17 +25,17 @@ export default function AppRoutes() {
         }
       />
 
-      {/* UFFICIO */}
+      {/* UFFICIO – Contrôle rapportini */}
       <Route
         path="/ufficio/*"
         element={
-          <RequireRole allow={['UFFICIO']}>
+          <RequireRole allow={['UFFICIO', 'DIREZIONE']}>
             <UfficioShell />
           </RequireRole>
         }
       />
 
-      {/* DIREZIONE */}
+      {/* DIREZIONE – future zone direction */}
       <Route
         path="/direction/*"
         element={
@@ -44,5 +45,5 @@ export default function AppRoutes() {
         }
       />
     </Routes>
-  )
+  );
 }
