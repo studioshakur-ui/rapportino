@@ -3,6 +3,8 @@ import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 
 import RequireRole from './auth/RequireRole';
+
+import Landing from './pages/Landing';
 import Login from './pages/Login';
 
 import AppShell from './AppShell';
@@ -12,12 +14,15 @@ import DirectionShell from './DirectionShell';
 export default function AppRoutes() {
   return (
     <Routes>
-      {/* Public */}
+      {/* PUBLIC – Landing marketing */}
+      <Route path="/" element={<Landing />} />
+
+      {/* PUBLIC – Login */}
       <Route path="/login" element={<Login />} />
 
       {/* CAPO – Rapportino / Archivio côté Capo */}
       <Route
-        path="/*"
+        path="/app/*"
         element={
           <RequireRole allow={['CAPO']}>
             <AppShell />
@@ -35,7 +40,7 @@ export default function AppRoutes() {
         }
       />
 
-      {/* DIREZIONE – future zone direction */}
+      {/* DIREZIONE – zone direction */}
       <Route
         path="/direction/*"
         element={
@@ -44,6 +49,9 @@ export default function AppRoutes() {
           </RequireRole>
         }
       />
+
+      {/* Fallback : toute autre route renvoie vers la landing */}
+      <Route path="/*" element={<Landing />} />
     </Routes>
   );
 }
