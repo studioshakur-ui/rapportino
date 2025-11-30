@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ------------------------------- */
+/* POLICES / GLOBAL */
+/* ------------------------------- */
+
 :root {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
@@ -11,20 +15,16 @@ body {
   @apply bg-slate-100 text-slate-900;
 }
 
-/* Tableau du rapportino : look "document" */
+/* ------------------------------- */
+/* STYLE SPÉCIAL RAPPORTINO */
+/* ------------------------------- */
+
+/* Style feuille papier */
 .rapportino-table {
   font-family: "Times New Roman", Times, serif;
 }
 
-.rapportino-header-border {
-  border-width: 0.8px;
-}
-
-.rapportino-border {
-  border-width: 0.5px;
-}
-
-/* Textareas du rapportino qui s'ajustent automatiquement */
+/* Les textarea qui s'ajustent à l'écran */
 .rapportino-textarea {
   resize: none;
   overflow: hidden;
@@ -32,20 +32,26 @@ body {
   line-height: 1.2;
 }
 
-/* Utilitaires écran / impression */
-.no-print {
-  /* visible à l'écran, caché à l'impression */
+/* Conteneur général imprimable */
+.rapportino-print-root {
+  background: white;
+  padding: 10mm;
 }
 
+/* Éléments visibles uniquement à l'écran */
+.no-print {
+  /* rien ici volontairement */
+}
+
+/* Éléments visibles seulement à l’impression */
 .print-only {
   display: none;
 }
 
-.page-break-before {
-  page-break-before: always;
-}
+/* ------------------------------- */
+/* MODE IMPRESSION */
+/* ------------------------------- */
 
-/* Impression A4 horizontale */
 @media print {
   @page {
     size: A4 landscape;
@@ -54,7 +60,9 @@ body {
 
   body,
   #root {
-    @apply bg-white;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
   }
 
   .no-print {
@@ -63,5 +71,24 @@ body {
 
   .print-only {
     display: block !important;
+  }
+
+  .rapportino-print-root {
+    padding: 0;
+    background: white !important;
+  }
+
+  /* Réduction légère du texte pour que tout passe mieux */
+  .rapportino-table {
+    font-size: 11px;
+  }
+
+  /* IMPORTANT : permet au header du tableau (thead) de se répéter automatiquement */
+  thead {
+    display: table-header-group !important;
+  }
+
+  tfoot {
+    display: table-footer-group !important;
   }
 }

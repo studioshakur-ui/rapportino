@@ -466,8 +466,15 @@ export default function UfficioRapportinoDetail() {
       {/* Tabella cavi (solo Elettricista) */}
       {isElett && (
         <section className="mb-8 border border-slate-700 bg-slate-900/70 rounded-lg overflow-hidden">
-          <div className="px-3 py-2 border-b border-slate-700 bg-slate-800/80 text-[11px] font-semibold text-slate-100">
-            Lista cavi posati (giornata)
+          <div className="px-3 py-2 border-b border-slate-700 bg-slate-800/80 text-[11px] font-semibold text-slate-100 flex items-center justify-between gap-2">
+            <span>Lista cavi posati (giornata)</span>
+            <Link
+              to="/ufficio/inca"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded border border-emerald-400/80 text-[10px] font-medium text-emerald-100 hover:bg-emerald-500/10 hover:border-emerald-300"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              <span>Apri vista INCA</span>
+            </Link>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-[11px]">

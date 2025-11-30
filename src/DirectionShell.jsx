@@ -1,155 +1,141 @@
 // src/DirectionShell.jsx
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from './auth/AuthProvider';
-
-function DirectionHome() {
-  return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      {/* Bandeau titre */}
-      <section>
-        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400 mb-1">
-          Area Direzione · Panoramica cantiere
-        </div>
-        <h1 className="text-2xl font-semibold text-slate-50 mb-2">
-          Cruscotto di produzione e avanzamento cavi
-        </h1>
-        <p className="text-[14px] text-slate-400 max-w-2xl leading-relaxed">
-          Questa vista raccoglierà i dati consolidati dall&apos;Archivio: ore
-          validate, metri di cavo posati, squadre attive e scostamenti rispetto
-          ai piani. Progettata per decisioni rapide e verificabili.
-        </p>
-      </section>
-
-      {/* KPIs */}
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[
-          {
-            label: 'Ore validate (giorno)',
-            value: '—',
-            hint: 'Totale ore approvate dai rapportini di oggi.',
-          },
-          {
-            label: 'Metri cavo posati (stimati)',
-            value: '—',
-            hint: 'Derivato da attività e stati cavi in Archivio.',
-          },
-          {
-            label: 'Squadre attive',
-            value: '—',
-            hint: 'Numero di squadre con rapportino inviato.',
-          },
-        ].map((kpi) => (
-          <div
-            key={kpi.label}
-            className="rounded-xl border border-slate-800 bg-slate-950/80 px-4 py-3 flex flex-col justify-between shadow-[0_0_24px_rgba(15,23,42,0.8)]"
-          >
-            <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400 mb-1.5">
-              {kpi.label}
-            </div>
-            <div className="text-2xl font-semibold text-slate-50 mb-1">
-              {kpi.value}
-            </div>
-            <div className="text-[11px] text-slate-500">{kpi.hint}</div>
-          </div>
-        ))}
-      </section>
-
-      {/* Blocs charts placeholders */}
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 rounded-xl border border-slate-800 bg-slate-950/80 px-4 py-3">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
-              Curva produzione (ore / metri)
-            </div>
-            <span className="text-[11px] text-slate-500">
-              S vs S-1 · placeholder grafico
-            </span>
-          </div>
-          <div className="h-40 md:h-48 rounded-lg bg-gradient-to-br from-sky-500/10 via-emerald-500/5 to-slate-900 border border-slate-800/80 flex items-center justify-center text-[12px] text-slate-500">
-            Qui verrà integrato il grafico di avanzamento (React + charts).
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-4 py-3">
-          <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400 mb-2">
-            Indicatori di rischio
-          </div>
-          <ul className="space-y-1.5 text-[13px] text-slate-300">
-            <li>• Rapportini mancanti per data / nave.</li>
-            <li>• Cavi critici con stato incompleto.</li>
-            <li>• Zone con ore oltre soglia pianificata.</li>
-            <li>• Alert HSE derivati da note in Archivio.</li>
-          </ul>
-          <p className="mt-2 text-[11px] text-slate-500">
-            I dati saranno generati a partire dalle regole definite con la
-            Direzione e l&apos;Ufficio.
-          </p>
-        </div>
-      </section>
-    </div>
-  );
-}
+import ConnectionIndicator from './components/ConnectionIndicator';
 
 export default function DirectionShell() {
   const { profile, signOut } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  if (!profile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-400">
+        Caricamento profilo Direzione…
+      </div>
+    );
+  }
 
   const handleLogout = async () => {
-    await signOut();
+    try {
+      await signOut();
+    } catch (err) {
+      console.error('Errore logout direzione:', err);
+    } finally {
+      navigate('/login');
+    }
   };
 
-  const displayName =
-    profile?.full_name || profile?.display_name || profile?.email || 'Direzione';
+  const navItemClasses = (active) =>
+    [
+      'block px-2.5 py-1.5 rounded-lg text-sm transition-colors border',
+      active
+        ? 'bg-sky-500/15 text-sky-100 border-sky-500/60'
+        : 'text-slate-300 border-transparent hover:bg-slate-900 hover:border-slate-700',
+    ].join(' ');
 
-  const ruolo = profile?.app_role || 'DIREZIONE';
+  const isActive = (prefix) => location.pathname.startsWith(prefix);
+
+  const displayName =
+    profile.display_name || profile.full_name || profile.email;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-50 flex flex-col">
-      {/* Header Direzione */}
-      <header className="flex items-center justify-between px-4 md:px-6 py-3 border-b border-slate-900 bg-slate-950/95">
-        <div className="flex flex-col gap-0.5">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
-            CORE · Area Direzione
-          </div>
-          <div className="text-sm text-slate-300">
-            Cruscotto strategico basato sui dati dell&apos;Archivio
-          </div>
-        </div>
-        <div className="flex items-center gap-3 text-[11px]">
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-emerald-500/60 bg-emerald-500/10 text-emerald-200">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)]" />
-            <span>Dati consolidati</span>
-          </span>
-          <div className="text-right text-slate-400">
-            <div>
-              Utente:{' '}
-              <span className="text-slate-100 font-medium">{displayName}</span>
-            </div>
-            <div>
-              Ruolo:{' '}
-              <span className="text-emerald-300 font-semibold tracking-wide">
-                {ruolo}
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+      {/* HEADER */}
+      <header className="no-print sticky top-0 z-20 border-b border-slate-800 bg-slate-950/95 backdrop-blur">
+        <div className="px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center px-3 py-1 rounded-full border border-slate-700 bg-slate-900/80 text-[11px] tracking-[0.16em] uppercase text-slate-300">
+              Sistema centrale di cantiere
+            </span>
+            <div className="flex flex-col leading-tight">
+              <span className="text-xs text-slate-400">Modulo Direzione</span>
+              <span className="text-sm font-semibold text-slate-50">
+                CORE – Controllo produzione & KPI
               </span>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="px-3 py-1.5 rounded-md border border-slate-600 text-[11px] text-slate-100 hover:bg-slate-900"
-          >
-            Logout
-          </button>
+
+          <div className="flex items-center gap-3 text-xs">
+            <ConnectionIndicator />
+            <div className="hidden sm:flex flex-col items-end mr-1">
+              <span className="text-slate-400">Utente Direzione</span>
+              <span className="text-slate-50 font-medium">{displayName}</span>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="px-3 py-1.5 rounded-md border border-rose-500 text-rose-200 hover:bg-rose-600 hover:text-white text-xs font-medium transition-colors"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </header>
 
-      {/* Contenu routes Direzione */}
-      <main className="flex-1 px-4 md:px-6 py-5 overflow-y-auto">
-        <Routes>
-          <Route path="/" element={<DirectionHome />} />
-          {/* fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </main>
+      {/* LAYOUT */}
+      <div className="flex flex-1 min-h-0">
+        {/* SIDEBAR */}
+        <aside className="no-print w-60 bg-slate-950 border-r border-slate-800 px-3 py-4 flex flex-col gap-5">
+          {/* Blocco principale */}
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-2">
+              Direzione
+            </div>
+            <nav className="space-y-1.5">
+              <Link
+                to="/direction"
+                className={navItemClasses(isActive('/direction'))}
+              >
+                Panoramica & KPI
+              </Link>
+            </nav>
+          </div>
+
+          {/* Sezione Ufficio */}
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-2">
+              Ufficio · Rapportini
+            </div>
+            <nav className="space-y-1.5">
+              <Link
+                to="/ufficio/rapportini"
+                className={navItemClasses(isActive('/ufficio/rapportini'))}
+              >
+                Elenco rapportini
+              </Link>
+            </nav>
+          </div>
+
+          {/* Sezione INCA / tracciamento */}
+          <div className="mt-1">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-2">
+              INCA · Tracciamento cavi
+            </div>
+            <nav className="space-y-1.5">
+              <Link
+                to="/ufficio/inca"
+                className={navItemClasses(isActive('/ufficio/inca'))}
+              >
+                Modulo INCA
+              </Link>
+            </nav>
+          </div>
+
+          {/* Bas de sidebar */}
+          <div className="mt-auto pt-4 border-t border-slate-800 text-[10px] text-slate-500">
+            <div>CORE · SHAKUR Engineering</div>
+            <div className="text-slate-600">
+              Direzione · Trieste · La Spezia · Dakar
+            </div>
+          </div>
+        </aside>
+
+        {/* CONTENT */}
+        <main className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }

@@ -12,10 +12,12 @@ const STATUS_LABELS = {
 };
 
 const STATUS_BADGE_CLASS = {
-  DRAFT: 'bg-gray-200 text-gray-800',
-  VALIDATED_CAPO: 'bg-yellow-100 text-yellow-800',
-  APPROVED_UFFICIO: 'bg-green-100 text-green-800',
-  RETURNED: 'bg-red-100 text-red-800',
+  DRAFT: 'bg-slate-700/80 text-slate-200',
+  VALIDATED_CAPO:
+    'bg-amber-500/15 text-amber-200 border border-amber-400/60',
+  APPROVED_UFFICIO:
+    'bg-emerald-500/15 text-emerald-200 border border-emerald-400/60',
+  RETURNED: 'bg-rose-500/15 text-rose-200 border border-rose-400/60',
 };
 
 function formatDate(value) {
@@ -121,7 +123,9 @@ export default function UfficioRapportiniList() {
   if (authLoading || loading) {
     return (
       <div className="p-4">
-        <p className="text-sm text-gray-500">Caricamento rapportini Ufficio…</p>
+        <p className="text-sm text-slate-400">
+          Caricamento rapportini Ufficio…
+        </p>
       </div>
     );
   }
@@ -129,38 +133,42 @@ export default function UfficioRapportiniList() {
   if (error) {
     return (
       <div className="p-4">
-        <p className="text-sm text-red-600">{error}</p>
+        <p className="text-sm text-rose-400">{error}</p>
       </div>
     );
   }
 
   return (
-    <div className="p-4 max-w-6xl mx-auto">
+    <div className="p-3 md:p-4 max-w-6xl mx-auto text-slate-100">
       <header className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Rapportini – Ufficio</h1>
-          <p className="text-xs text-gray-500">
+          <h1 className="text-lg md:text-xl font-semibold text-slate-50">
+            Rapportini – Ufficio
+          </h1>
+          <p className="text-xs text-slate-400">
             Controllo e approvazione delle giornate validate dai Capi.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2 text-xs text-gray-500">
+        <div className="flex flex-wrap gap-2 text-xs text-slate-400">
           <span>
             Utente:&nbsp;
-            <strong>{profile?.full_name || profile?.email || 'UFFICIO'}</strong>
+            <strong className="text-slate-100">
+              {profile?.full_name || profile?.email || 'UFFICIO'}
+            </strong>
           </span>
-          <span className="px-2 py-0.5 rounded-full bg-sky-100 text-sky-800">
+          <span className="px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-200 border border-sky-500/60">
             Ruolo: {profile?.app_role}
           </span>
         </div>
       </header>
 
       {/* Filtri */}
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div className="flex flex-wrap gap-2">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-wrap gap-3">
           <div className="flex flex-col text-xs">
-            <label className="mb-1 font-medium">Stato</label>
+            <label className="mb-1 font-medium text-slate-300">Stato</label>
             <select
-              className="border border-gray-300 rounded-md px-2 py-1 text-xs"
+              className="border border-slate-700 rounded-md px-2 py-1 text-xs bg-slate-900/70 text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
@@ -172,9 +180,11 @@ export default function UfficioRapportiniList() {
           </div>
 
           <div className="flex flex-col text-xs">
-            <label className="mb-1 font-medium">Tipo squadra</label>
+            <label className="mb-1 font-medium text-slate-300">
+              Tipo squadra
+            </label>
             <select
-              className="border border-gray-300 rounded-md px-2 py-1 text-xs"
+              className="border border-slate-700 rounded-md px-2 py-1 text-xs bg-slate-900/70 text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
             >
@@ -186,12 +196,14 @@ export default function UfficioRapportiniList() {
           </div>
         </div>
 
-        <div className="flex flex-col text-xs">
-          <label className="mb-1 font-medium">Filtra per Capo</label>
+        <div className="flex flex-col text-xs min-w-[180px]">
+          <label className="mb-1 font-medium text-slate-300">
+            Filtra per Capo
+          </label>
           <input
             type="text"
             placeholder="Nome Capo…"
-            className="border border-gray-300 rounded-md px-2 py-1 text-xs"
+            className="border border-slate-700 rounded-md px-2 py-1 text-xs bg-slate-900/70 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
             value={capoFilter}
             onChange={(e) => setCapoFilter(e.target.value)}
           />
@@ -199,19 +211,31 @@ export default function UfficioRapportiniList() {
       </div>
 
       {/* Tabella */}
-      <div className="overflow-x-auto border border-gray-200 rounded-lg bg-white">
+      <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/60 shadow-[0_0_0_1px_rgba(15,23,42,0.7)]">
         <table className="min-w-full text-xs">
-          <thead className="bg-gray-50 border-b border-gray-200">
+          <thead className="bg-slate-900/80 border-b border-slate-800">
             <tr>
-              <th className="px-3 py-2 text-left font-medium text-gray-600">Data</th>
-              <th className="px-3 py-2 text-left font-medium text-gray-600">Capo</th>
-              <th className="px-3 py-2 text-left font-medium text-gray-600">Squadra</th>
-              <th className="px-3 py-2 text-left font-medium text-gray-600">Commessa</th>
-              <th className="px-3 py-2 text-left font-medium text-gray-600">
+              <th className="px-3 py-2 text-left font-medium text-slate-300">
+                Data
+              </th>
+              <th className="px-3 py-2 text-left font-medium text-slate-300">
+                Capo
+              </th>
+              <th className="px-3 py-2 text-left font-medium text-slate-300">
+                Squadra
+              </th>
+              <th className="px-3 py-2 text-left font-medium text-slate-300">
+                Commessa
+              </th>
+              <th className="px-3 py-2 text-left font-medium text-slate-300">
                 Prodotto totale
               </th>
-              <th className="px-3 py-2 text-left font-medium text-gray-600">Stato</th>
-              <th className="px-3 py-2 text-right font-medium text-gray-600">Dettaglio</th>
+              <th className="px-3 py-2 text-left font-medium text-slate-300">
+                Stato
+              </th>
+              <th className="px-3 py-2 text-right font-medium text-slate-300">
+                Dettaglio
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -219,7 +243,7 @@ export default function UfficioRapportiniList() {
               <tr>
                 <td
                   colSpan={7}
-                  className="px-3 py-4 text-center text-xs text-gray-400"
+                  className="px-3 py-4 text-center text-xs text-slate-500"
                 >
                   Nessun rapportino trovato per i filtri selezionati.
                 </td>
@@ -230,29 +254,30 @@ export default function UfficioRapportiniList() {
               const prodotto = formatProdotto(r);
               const statusLabel = STATUS_LABELS[r.status] || r.status;
               const badgeClass =
-                STATUS_BADGE_CLASS[r.status] || 'bg-gray-100 text-gray-700';
+                STATUS_BADGE_CLASS[r.status] ||
+                'bg-slate-700/80 text-slate-200';
 
               const dateToShow = r.report_date || r.data;
 
               return (
                 <tr
                   key={r.id}
-                  className="border-b border-gray-100 hover:bg-sky-50 cursor-pointer"
+                  className="border-b border-slate-800 hover:bg-slate-900/80 cursor-pointer transition-colors"
                   onClick={() => handleRowClick(r.id)}
                 >
-                  <td className="px-3 py-2 whitespace-nowrap">
+                  <td className="px-3 py-2 whitespace-nowrap text-slate-100">
                     {formatDate(dateToShow)}
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap">
+                  <td className="px-3 py-2 whitespace-nowrap text-slate-100">
                     {r.capo_name || '—'}
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap">
+                  <td className="px-3 py-2 whitespace-nowrap text-slate-100">
                     {r.crew_role || '—'}
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap">
+                  <td className="px-3 py-2 whitespace-nowrap text-slate-100">
                     {r.commessa || '—'}
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap">
+                  <td className="px-3 py-2 whitespace-nowrap text-slate-100">
                     {prodotto.toLocaleString('it-IT', {
                       minimumFractionDigits: 0,
                       maximumFractionDigits: 2,
@@ -269,7 +294,7 @@ export default function UfficioRapportiniList() {
                     <Link
                       to={`/ufficio/rapportini/${r.id}`}
                       onClick={(e) => e.stopPropagation()}
-                      className="text-xs text-sky-700 hover:underline"
+                      className="text-xs text-sky-300 hover:text-sky-200 hover:underline"
                     >
                       Apri
                     </Link>
