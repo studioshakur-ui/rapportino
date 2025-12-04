@@ -1,10 +1,7 @@
+/* src/index.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* ------------------------------- */
-/* POLICES / GLOBAL */
-/* ------------------------------- */
 
 :root {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
@@ -15,16 +12,34 @@ body {
   @apply bg-slate-100 text-slate-900;
 }
 
-/* ------------------------------- */
-/* STYLE SPÉCIAL RAPPORTINO */
-/* ------------------------------- */
+/* ====== RAPPORTINO – LOOK DOCUMENT À L’ÉCRAN ====== */
 
-/* Style feuille papier */
-.rapportino-table {
-  font-family: "Times New Roman", Times, serif;
+.rapportino-sheet {
+  /* ton container "feuille" A4 à l'écran */
+  width: 1120px;
+  max-width: 100%;
+  margin: 1.5rem auto;
+  background: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.35);
+  padding: 1.5rem 1.75rem;
 }
 
-/* Les textarea qui s'ajustent à l'écran */
+.rapportino-table {
+  font-family: "Times New Roman", Times, serif;
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.rapportino-header-border {
+  border-width: 0.8px;
+}
+
+.rapportino-border {
+  border-width: 0.5px;
+}
+
+/* Textareas du rapportino qui s'ajustent automatiquement à l'écran */
 .rapportino-textarea {
   resize: none;
   overflow: hidden;
@@ -32,25 +47,27 @@ body {
   line-height: 1.2;
 }
 
-/* Conteneur général imprimable */
-.rapportino-print-root {
-  background: white;
-  padding: 10mm;
+/* Version print-only des cellules texte (OPERATORI / TEMPO) */
+.rapportino-print-text {
+  white-space: pre-wrap;
+  line-height: 1.2;
 }
 
-/* Éléments visibles uniquement à l'écran */
+/* Utilitaires écran / impression */
+
 .no-print {
-  /* rien ici volontairement */
+  /* visible à l'écran, caché à l'impression */
 }
 
-/* Éléments visibles seulement à l’impression */
 .print-only {
   display: none;
 }
 
-/* ------------------------------- */
-/* MODE IMPRESSION */
-/* ------------------------------- */
+.page-break-before {
+  page-break-before: always;
+}
+
+/* ====== IMPRESSION A4 HORIZONTALE ====== */
 
 @media print {
   @page {
@@ -58,13 +75,22 @@ body {
     margin: 10mm;
   }
 
+  html,
   body,
   #root {
+    height: auto !important;
+    min-height: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
-    background: white !important;
+    background: #ffffff !important;
   }
 
+  /* On enlève les fonds sombres de l'app */
+  body {
+    background: #ffffff !important;
+  }
+
+  /* Masquer tout ce qui est "cockpit" / boutons / header fixe */
   .no-print {
     display: none !important;
   }
@@ -73,22 +99,46 @@ body {
     display: block !important;
   }
 
-  .rapportino-print-root {
-    padding: 0;
-    background: white !important;
+  /* La feuille ne doit pas imposer de hauteur fixe → le navigateur gère la pagination */
+  .rapportino-shell {
+    /* wrapper autour de la feuille, si tu en as un */
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
   }
 
-  /* Réduction légère du texte pour que tout passe mieux */
+  .rapportino-sheet {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0.5rem 0.75rem !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
   .rapportino-table {
-    font-size: 11px;
+    width: 100% !important;
+    border-collapse: collapse;
+    page-break-inside: auto;
   }
 
-  /* IMPORTANT : permet au header du tableau (thead) de se répéter automatiquement */
-  thead {
-    display: table-header-group !important;
+  .rapportino-table thead {
+    display: table-header-group; /* répéter l'en-tête sur chaque page */
   }
 
-  tfoot {
-    display: table-footer-group !important;
+  .rapportino-table tfoot {
+    display: table-footer-group;
+  }
+
+  .rapportino-table tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  .rapportino-table th,
+  .rapportino-table td {
+    border-color: #cbd5e1;
   }
 }
