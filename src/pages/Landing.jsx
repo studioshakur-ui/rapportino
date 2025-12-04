@@ -3,6 +3,9 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 export default function Landing() {
+  const [openModule, setOpenModule] = useState(null); // 'RAPPORTINO' | 'UFFICIO' | 'ARCHIVIO' | 'PERCORSO' | null
+  const [now, setNow] = useState(new Date());
+
   useEffect(() => {
     console.log(
       '%cCORE — a SHAKUR Engineering System',
@@ -14,8 +17,18 @@ export default function Landing() {
     );
   }, []);
 
-  const [openModule, setOpenModule] = useState(null); // 'RAPPORTINO' | 'UFFICIO' | 'ARCHIVIO' | 'PERCORSO' | null
+  // Petite horloge (mise à jour chaque minute)
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
+  const timeLabel = now.toLocaleTimeString('it-IT', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  // ───────────────────────── MODALE MODULES ─────────────────────────
   const renderModuleModal = () => {
     if (!openModule) return null;
 
@@ -185,10 +198,10 @@ export default function Landing() {
           </button>
           <div className="px-5 pt-5 pb-4 md:px-7 md:pt-6 md:pb-6">
             <div className="mb-3">
-              <div className={`text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-1`}>
+              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-1">
                 Modulo CORE
               </div>
-              <h3 className={`text-xl md:text-[20px] font-semibold text-slate-50 mb-1`}>
+              <h3 className="text-xl md:text-[20px] font-semibold text-slate-50 mb-1">
                 {title}
               </h3>
               <p className="text-[14px] text-slate-300 leading-relaxed">{subtitle}</p>
@@ -234,46 +247,62 @@ export default function Landing() {
     );
   };
 
+  // ───────────────────────── LAYOUT PRINCIPAL ─────────────────────────
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50 flex flex-col">
       {/* HEADER */}
       <header className="w-full border-b border-slate-900/80 bg-slate-950/90 backdrop-blur-sm">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-slate-700 bg-slate-900/90 text-[12px] uppercase tracking-[0.18em] text-slate-300">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          {/* Bloc gauche : badge système + signature */}
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-slate-700 bg-slate-900/90 text-[11px] sm:text-[12px] uppercase tracking-[0.18em] text-slate-300">
               <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
               Sistema Centrale di Cantiere
             </div>
-            <div className="text-[11px] text-slate-500 mt-1 font-mono">
-              Engineered by SHAKUR Engineering Labs
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 font-mono">
+              <span>Engineered by SHAKUR Engineering Labs</span>
+              <span className="hidden sm:inline text-slate-700">·</span>
+              <span className="hidden sm:inline text-slate-500">
+                CNCS · CORE / Rapportino &amp; INCA
+              </span>
             </div>
           </div>
 
-          <Link
-            to="/login"
-            className="rounded-md bg-sky-500 hover:bg-sky-400 text-slate-950 border border-sky-400 px-4 py-2 text-[14px] font-medium"
-          >
-            Accedi a CORE
-          </Link>
+          {/* Bloc droite : horloge + bouton accès */}
+          <div className="flex items-center gap-3 justify-between md:justify-end">
+            <div className="hidden sm:flex flex-col items-end text-[11px] text-slate-400 font-mono">
+              <span>
+                {timeLabel} · v1 · Early Access
+              </span>
+              <span className="text-slate-600">Precision · Discipline · Zero error</span>
+            </div>
+
+            <Link
+              to="/login"
+              className="rounded-md bg-sky-500 hover:bg-sky-400 text-slate-950 border border-sky-400 px-4 py-2 text-[13px] sm:text-[14px] font-medium"
+            >
+              Accedi a CORE
+            </Link>
+          </div>
         </div>
       </header>
 
       {/* CONTENU */}
       <main className="flex-1">
-        <div className="max-w-6xl mx-auto px-4 py-12 flex flex-col gap-16">
+        <div className="max-w-6xl mx-auto px-4 py-8 md:py-12 flex flex-col gap-10 md:gap-16">
           {/* HERO */}
           <section>
-            <h1 className="text-4xl font-semibold text-slate-50 tracking-tight mb-4">
+            <h1 className="text-3xl md:text-4xl font-semibold text-slate-50 tracking-tight mb-3">
               CORE
-              <span className="ml-2 text-slate-400 text-2xl font-normal">
+              <span className="ml-2 text-slate-400 text-xl md:text-2xl font-normal">
                 — controllo totale, precisione navale.
               </span>
             </h1>
-            <p className="text-[15px] text-slate-300 max-w-2xl leading-relaxed mb-4">
+            <p className="text-[14px] md:text-[15px] text-slate-300 max-w-2xl leading-relaxed mb-3">
               Progettato da SHAKUR Engineering per cantieri complessi, crociere e unità
               militari. Una sola piattaforma per rapportini, squadre, cavi, avanzamento e audit.
             </p>
-            <p className="text-[14px] text-slate-400 max-w-xl leading-relaxed">
+            <p className="hidden md:block text-[14px] text-slate-400 max-w-xl leading-relaxed">
               Nato dall’esperienza reale a bordo: ogni dettaglio è costruito sulla regola
               principale del cantiere navale —{' '}
               <span className="text-slate-200 font-medium">l’errore è fatale</span>.
@@ -286,39 +315,41 @@ export default function Landing() {
               {/* Glow décoratif */}
               <div className="absolute inset-0 opacity-[0.12] bg-[radial-gradient(circle_at_top,_#22d3ee_0,_transparent_60%),_radial-gradient(circle_at_bottom,_#22c55e_0,_transparent_65%)]" />
 
-              <div className="p-6 relative text-[14px] text-slate-200">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex gap-3">
-                    <span className="px-3 py-1 rounded-full border border-sky-500/60 bg-sky-500/10 text-sky-100 text-[12px] tracking-wide">
+              <div className="p-5 md:p-6 relative text-[14px] text-slate-200">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                  <div className="flex gap-2">
+                    <span className="px-3 py-1 rounded-full border border-sky-500/60 bg-sky-500/10 text-sky-100 text-[11px] sm:text-[12px] tracking-wide">
                       Cruise Line
                     </span>
-                    <span className="px-3 py-1 rounded-full border border-emerald-500/60 bg-emerald-500/10 text-emerald-100 text-[12px] tracking-wide">
+                    <span className="px-3 py-1 rounded-full border border-emerald-500/60 bg-emerald-500/10 text-emerald-100 text-[11px] sm:text-[12px] tracking-wide">
                       Military
                     </span>
                   </div>
-                  <span className="font-mono text-[12px] text-slate-400">v1 · Early Access</span>
+                  <span className="font-mono text-[11px] sm:text-[12px] text-slate-400">
+                    v1 · Early Access · SHAKUR Pattern
+                  </span>
                 </div>
 
-                <p className="text-[14px] text-slate-300 mb-6 leading-relaxed max-w-2xl">
+                <p className="text-[13px] sm:text-[14px] text-slate-300 mb-5 leading-relaxed max-w-2xl">
                   Un unico motore per cantieri civili e militari: CORE mantiene precisione,
                   tracciabilità e disciplina indipendentemente dalla complessità dell’impianto.
                 </p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="rounded-xl border border-slate-700 bg-slate-900/70 p-4">
-                    <h3 className="text-[14px] font-medium text-slate-200 mb-1">
+                    <h3 className="text-[13px] md:text-[14px] font-medium text-slate-200 mb-1">
                       Nave da Crociera
                     </h3>
-                    <p className="text-[13px] text-slate-400 leading-snug">
+                    <p className="text-[12px] md:text-[13px] text-slate-400 leading-snug">
                       Impianti, corridoi, cabine, servizi — gestione ad alto volume con tempi
                       stretti e turni serrati.
                     </p>
                   </div>
                   <div className="rounded-xl border border-slate-700 bg-slate-900/80 p-4">
-                    <h3 className="text-[14px] font-medium text-slate-200 mb-1">
+                    <h3 className="text-[13px] md:text-[14px] font-medium text-slate-200 mb-1">
                       Unità Militare
                     </h3>
-                    <p className="text-[13px] text-slate-400 leading-snug">
+                    <p className="text-[12px] md:text-[13px] text-slate-400 leading-snug">
                       Tracciabilità, sicurezza, audit completi, accessi profilati. Progettato per
                       ambienti dove l’errore non è un’opzione.
                     </p>
@@ -330,7 +361,7 @@ export default function Landing() {
 
           {/* MODULES – cliquables avec popups */}
           <section>
-            <h2 className="text-xl font-semibold text-slate-100 mb-4">
+            <h2 className="text-lg md:text-xl font-semibold text-slate-100 mb-4">
               Quattro moduli, un’unica plancia
             </h2>
 
@@ -342,14 +373,14 @@ export default function Landing() {
                 className="text-left rounded-xl p-4 border border-slate-800 bg-slate-900/80 hover:border-emerald-500/60 hover:bg-slate-900 transition-colors"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[13px] font-semibold tracking-wider text-slate-200">
+                  <span className="text-[12px] md:text-[13px] font-semibold tracking-wider text-slate-200">
                     RAPPORTINO · CAPO
                   </span>
                   <span className="text-[11px] px-2 py-1 rounded-full border bg-emerald-500/10 border-emerald-500/40 text-emerald-300">
                     Attivo
                   </span>
                 </div>
-                <p className="text-[14px] text-slate-300 leading-relaxed mb-1.5">
+                <p className="text-[13px] md:text-[14px] text-slate-300 leading-relaxed mb-1.5">
                   Compilazione in meno di 2 minuti. Squadre, attività, tempi e PDF pulito.
                 </p>
                 <p className="text-[12px] text-emerald-300">
@@ -364,14 +395,14 @@ export default function Landing() {
                 className="text-left rounded-xl p-4 border border-slate-800 bg-slate-900/80 hover:border-sky-500/60 hover:bg-slate-900 transition-colors"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[13px] font-semibold tracking-wider text-slate-200">
+                  <span className="text-[12px] md:text-[13px] font-semibold tracking-wider text-slate-200">
                     UFFICIO · CONTROLLO
                   </span>
                   <span className="text-[11px] px-2 py-1 rounded-full border bg-sky-500/10 border-sky-500/40 text-sky-300">
                     Attivo
                   </span>
                 </div>
-                <p className="text-[14px] text-slate-300 leading-relaxed mb-1.5">
+                <p className="text-[13px] md:text-[14px] text-slate-300 leading-relaxed mb-1.5">
                   Verifica, approvazione e storico ufficiale. Zero rapportini persi nei giri mail.
                 </p>
                 <p className="text-[12px] text-sky-300">
@@ -386,14 +417,14 @@ export default function Landing() {
                 className="text-left rounded-xl p-4 border border-slate-800 bg-slate-900/90 hover:border-fuchsia-500/60 hover:bg-slate-900 transition-colors shadow-[0_0_22px_rgba(15,23,42,0.9)]"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[13px] font-semibold tracking-wider text-slate-200">
+                  <span className="text-[12px] md:text-[13px] font-semibold tracking-wider text-slate-200">
                     ARCHIVIO · REGISTRO
                   </span>
                   <span className="text-[11px] px-2 py-1 rounded-full border bg-fuchsia-500/10 border-fuchsia-500/50 text-fuchsia-300">
                     Cuore dati
                   </span>
                 </div>
-                <p className="text-[14px] text-slate-200 leading-relaxed mb-1.5">
+                <p className="text-[13px] md:text-[14px] text-slate-200 leading-relaxed mb-1.5">
                   Single Source of Truth del cantiere. Se non è in archivio, non è successo.
                 </p>
                 <p className="text-[12px] text-fuchsia-300">
@@ -408,14 +439,14 @@ export default function Landing() {
                 className="text-left rounded-xl p-4 border border-dashed border-slate-800 bg-slate-900/80 hover:border-amber-500/60 hover:bg-slate-900 transition-colors"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[13px] font-semibold tracking-wider text-slate-200">
+                  <span className="text-[12px] md:text-[13px] font-semibold tracking-wider text-slate-200">
                     PERCORSO · CAVI
                   </span>
                   <span className="text-[11px] px-2 py-1 rounded-full border bg-amber-500/10 border-amber-500/40 text-amber-300">
                     Coming Soon
                   </span>
                 </div>
-                <p className="text-[14px] text-slate-300 leading-relaxed mb-1.5">
+                <p className="text-[13px] md:text-[14px] text-slate-300 leading-relaxed mb-1.5">
                   Dal disegno al metro posato. Sincronizzato con INCA + IPC (spec progettuale).
                 </p>
                 <p className="text-[12px] text-amber-300">
@@ -427,12 +458,12 @@ export default function Landing() {
 
           {/* CTA BAS */}
           <section className="flex items-center justify-between flex-wrap gap-4">
-            <p className="text-[14px] text-slate-400 max-w-lg">
+            <p className="text-[13px] md:text-[14px] text-slate-400 max-w-lg">
               CORE è in uso reale su cantiere. Accesso riservato a personale autorizzato.
             </p>
             <Link
               to="/login"
-              className="rounded-md bg-sky-500 hover:bg-sky-400 text-slate-950 border border-sky-400 px-5 py-2 text-[14px] font-medium"
+              className="rounded-md bg-sky-500 hover:bg-sky-400 text-slate-950 border border-sky-400 px-5 py-2 text-[13px] md:text-[14px] font-medium"
             >
               Accedi con credenziali interne
             </Link>
@@ -441,11 +472,13 @@ export default function Landing() {
       </main>
 
       {/* FOOTER */}
-      <footer className="border-t border-slate-900 py-4 text-[12px] text-slate-500">
+      <footer className="border-t border-slate-900 py-4 text-[11px] sm:text-[12px] text-slate-500">
         <div className="max-w-6xl mx-auto px-4 flex justify-between flex-wrap gap-2">
           <span>
             CORE · Sistema centrale di cantiere —{' '}
-            <span className="font-mono ml-2 text-slate-400">SHAKUR Engineering</span>
+            <span className="font-mono ml-2 text-slate-400">
+              SHAKUR Engineering Labs
+            </span>
           </span>
           <span className="text-slate-600">
             Trieste · La Spezia · Dakar · Precision. Discipline. Zero error.
