@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../auth/AuthProvider';
 import LoadingScreen from './LoadingScreen';
 import ListaCaviPanel from './ListaCaviPanel';
+import RapportinoHeader from './rapportino/RapportinoHeader';
+import RapportinoTable from './rapportino/RapportinoTable';
 
 const STATUS_LABELS = {
   DRAFT: 'Bozza',
@@ -173,7 +175,7 @@ export default function RapportinoPage({
   const [showErrorDetails, setShowErrorDetails] = useState(false);
   const [successMessage, setSuccessMessage] = useState(null);
 
-  // Charger le rapportino existant (si présent) à chaque changement de date / tipo squadra
+  // Charger le rapportino existant (date + capo + crewRole)
   useEffect(() => {
     let active = true;
 
@@ -202,6 +204,7 @@ export default function RapportinoPage({
           .maybeSingle();
 
         if (rapError && rapError.code !== 'PGRST116') {
+          // PGRST116 = no rows
           throw rapError;
         }
 
@@ -220,6 +223,7 @@ export default function RapportinoPage({
           setCommessa(rapData.commessa || 'SDC');
           setStatus(rapData.status || 'DRAFT');
 
+          // Charger les lignes
           const { data: righe, error: righeError } = await supabase
             .from('rapportino_rows')
             .select('*')
@@ -462,6 +466,7 @@ export default function RapportinoPage({
     if (!savedId) {
       return;
     }
+    // Impression A4 paysage gérée via ton CSS (@media print / @page)
     window.print();
   };
 
@@ -547,193 +552,23 @@ export default function RapportinoPage({
             </div>
           </div>
 
-          {/* === HEADER VERSION PAPIER === */}
-          <div className="mb-3">
-            {/* Ligne 1 : titre centré */}
-            <div className="text-center text-[16px] font-semibold mb-3 tracking-wide">
-              RAPPORTINO GIORNALIERO
-            </div>
+          {/* HEADER PAPIER */}
+          <RapportinoHeader
+            costr={costr}
+            commessa={commessa}
+            reportDate={reportDate}
+            capoName={capoName}
+            onChangeCostr={setCostr}
+            onChangeCommessa={setCommessa}
+            onChangeDate={setReportDate}
+          />
 
-            {/* Ligne 2 : COSTR */}
-            <div className="mb-1">
-              <span className="font-semibold mr-2">COSTR.:</span>
-              <input
-                type="text"
-                value={costr}
-                onChange={(e) => setCostr(e.target.value)}
-                className="inline-block w-28 border-b border-slate-400 focus:outline-none focus:border-slate-800 px-1"
-              />
-            </div>
-
-            {/* Ligne 3 : Commessa / Capo Squadra / DATA */}
-            <div className="grid grid-cols-[1fr_0.9fr_1fr] items-center gap-2">
-              <div>
-                <span className="font-semibold mr-2">Commessa:</span>
-                <input
-                  type="text"
-                  value={commessa}
-                  onChange={(e) => setCommessa(e.target.value)}
-                  className="inline-block w-24 border-b border-slate-400 focus:outline-none focus:border-slate-800 px-1"
-                />
-              </div>
-
-              <div className="pl-4">
-                <span className="font-semibold mr-2">Capo Squadra:</span>
-                <span className="px-1">{capoName}</span>
-              </div>
-
-              <div className="text-right">
-                <span className="font-semibold mr-2">DATA:</span>
-                <input
-                  type="date"
-                  value={reportDate}
-                  onChange={(e) => setReportDate(e.target.value)}
-                  className="border border-slate-300 rounded px-2 py-1 text-[11px]"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Table principale */}
-          <div className="border border-slate-300 rounded-md overflow-hidden">
-            <table className="w-full border-collapse text-[12px]">
-              <thead className="bg-slate-100 border-b border-slate-300">
-                <tr>
-                  <th className="w-28 border-r border-slate-300 px-2 py-1 text-left">
-                    CATEGORIA
-                  </th>
-                  <th className="w-72 border-r border-slate-300 px-2 py-1 text-left">
-                    DESCRIZIONE ATTIVITÀ
-                  </th>
-                  <th className="w-40 border-r border-slate-300 px-2 py-1 text-left">
-                    OPERATORE
-                  </th>
-                  <th className="w-32 border-r border-slate-300 px-2 py-1 text-left">
-                    Tempo impiegato
-                  </th>
-                  <th className="w-24 border-r border-slate-300 px-2 py-1 text-right">
-                    PREVISTO
-                  </th>
-                  <th className="w-24 border-r border-slate-300 px-2 py-1 text-right">
-                    PRODOTTO
-                  </th>
-                  <th className="border-slate-300 px-2 py-1 text-left">
-                    NOTE
-                  </th>
-                  <th className="border-slate-300 px-2 py-1 text-xs w-6 no-print">
-                    -
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r, idx) => (
-                  <tr key={idx} className="border-t border-slate-200 align-top">
-                    <td className="border-r border-slate-200 px-2 py-1">
-                      <input
-                        type="text"
-                        value={r.categoria}
-                        onChange={(e) =>
-                          handleRowChange(idx, 'categoria', e.target.value)
-                        }
-                        className="w-full border-none bg-transparent text-[12px] focus:outline-none"
-                      />
-                    </td>
-                    <td className="border-r border-slate-200 px-2 py-1">
-                      <textarea
-                        value={r.descrizione}
-                        onChange={(e) =>
-                          handleRowChange(
-                            idx,
-                            'descrizione',
-                            e.target.value,
-                          )
-                        }
-                        className="w-full border-none bg-transparent text-[12px] resize-none focus:outline-none"
-                        rows={3}
-                      />
-                    </td>
-
-                    {/* OPERATORE */}
-                    <td className="border-r border-slate-200 px-2 py-1">
-                      <textarea
-                        data-optempo="1"
-                        value={r.operatori}
-                        onChange={(e) =>
-                          handleRowChange(
-                            idx,
-                            'operatori',
-                            e.target.value,
-                            e.target,
-                          )
-                        }
-                        className="w-full border-none bg-transparent text-[12px] resize-none focus:outline-none rapportino-textarea"
-                        rows={3}
-                        placeholder="Una riga per operatore"
-                      />
-                    </td>
-
-                    {/* TEMPO IMPIEGATO */}
-                    <td className="border-r border-slate-200 px-2 py-1">
-                      <textarea
-                        data-optempo="1"
-                        value={r.tempo}
-                        onChange={(e) =>
-                          handleRowChange(
-                            idx,
-                            'tempo',
-                            e.target.value,
-                            e.target,
-                          )
-                        }
-                        className="w-full border-none bg-transparent text-[12px] resize-none focus:outline-none text-right rapportino-textarea"
-                        rows={3}
-                        placeholder="Stesse righe degli operatori"
-                      />
-                    </td>
-
-                    <td className="border-r border-slate-200 px-2 py-1 text-right">
-                      <input
-                        type="text"
-                        value={r.previsto}
-                        onChange={(e) =>
-                          handleRowChange(idx, 'previsto', e.target.value)
-                        }
-                        className="w-full border-none bg-transparent text-[12px] text-right focus:outline-none"
-                      />
-                    </td>
-                    <td className="border-r border-slate-200 px-2 py-1 text-right">
-                      <input
-                        type="text"
-                        value={r.prodotto}
-                        onChange={(e) =>
-                          handleRowChange(idx, 'prodotto', e.target.value)
-                        }
-                        className="w-full border-none bg-transparent text-[12px] text-right focus:outline-none"
-                      />
-                    </td>
-                    <td className="px-2 py-1 relative">
-                      <textarea
-                        value={r.note}
-                        onChange={(e) =>
-                          handleRowChange(idx, 'note', e.target.value)
-                        }
-                        className="w-full border-none bg-transparent text-[12px] resize-none focus:outline-none"
-                        rows={3}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveRow(idx)}
-                        className="no-print absolute -right-2 top-1 text-xs text-slate-400 hover:text-rose-600"
-                      >
-                        ×
-                      </button>
-                    </td>
-                    <td className="px-2 py-1 text-center no-print" />
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {/* TABLE PAPIER */}
+          <RapportinoTable
+            rows={rows}
+            onRowChange={handleRowChange}
+            onRemoveRow={handleRemoveRow}
+          />
 
           {/* Footer feuille / actions (non imprimé) */}
           <div className="mt-3 flex flex-col gap-2 no-print">
