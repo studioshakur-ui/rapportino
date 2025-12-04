@@ -14,7 +14,8 @@ export default function RapportinoTable({
             <th className="w-28 border-r border-slate-300 px-2 py-1 text-left">
               CATEGORIA
             </th>
-            <th className="w-72 border-r border-slate-300 px-2 py-1 text-left">
+            {/* colonne un peu plus étroite */}
+            <th className="w-64 border-r border-slate-300 px-2 py-1 text-left">
               DESCRIZIONE ATTIVITÀ
             </th>
             <th className="w-40 border-r border-slate-300 px-2 py-1 text-left">
@@ -29,7 +30,8 @@ export default function RapportinoTable({
             <th className="w-24 border-r border-slate-300 px-2 py-1 text-right">
               PRODOTTO
             </th>
-            <th className="border-slate-300 px-2 py-1 text-left">
+            {/* colonne NOTE un peu plus large */}
+            <th className="w-40 border-slate-300 px-2 py-1 text-left">
               NOTE
             </th>
             <th className="border-slate-300 px-2 py-1 text-xs w-6 no-print">
@@ -59,7 +61,7 @@ export default function RapportinoTable({
                   onChange={(e) =>
                     onRowChange(idx, 'descrizione', e.target.value)
                   }
-                  className="w-full border-none bg-transparent text-[12px] resize-none focus:outline-none"
+                  className="w-full border-none bg-transparent text-[12px] resize-none focus:outline-none rapportino-textarea"
                   rows={3}
                 />
               </td>
@@ -79,11 +81,10 @@ export default function RapportinoTable({
                   }
                   className="w-full border-none bg-transparent text-[12px] resize-none focus:outline-none rapportino-textarea"
                   rows={3}
-                  placeholder="Una riga per operatore"
                 />
               </td>
 
-              {/* TEMPO IMPIEGATO (multi-lignes, autosync) */}
+              {/* TEMPO IMPIEGATO (multi-lignes, autosync, texte à gauche) */}
               <td className="border-r border-slate-200 px-2 py-1">
                 <textarea
                   data-optempo="1"
@@ -96,9 +97,8 @@ export default function RapportinoTable({
                       e.target,
                     )
                   }
-                  className="w-full border-none bg-transparent text-[12px] resize-none focus:outline-none text-right rapportino-textarea"
+                  className="w-full border-none bg-transparent text-[12px] resize-none focus:outline-none rapportino-textarea"
                   rows={3}
-                  placeholder="Stesse righe degli operatori"
                 />
               </td>
 
@@ -114,7 +114,7 @@ export default function RapportinoTable({
                 />
               </td>
 
-              {/* PRODOTTO → textarea multi-ligne pour groupes (ABCDE / FGH…) */}
+              {/* PRODOTTO → textarea multi-ligne, on pourra mettre 980 + détail par groupe */}
               <td className="border-r border-slate-200 px-2 py-1 text-right">
                 <textarea
                   value={r.prodotto}
@@ -123,11 +123,10 @@ export default function RapportinoTable({
                   }
                   className="w-full border-none bg-transparent text-[12px] resize-none focus:outline-none text-right rapportino-textarea"
                   rows={3}
-                  placeholder="Possibile dividere per gruppi"
                 />
               </td>
 
-              {/* NOTE */}
+              {/* NOTE (plus large) */}
               <td className="px-2 py-1 relative">
                 <textarea
                   value={r.note}
