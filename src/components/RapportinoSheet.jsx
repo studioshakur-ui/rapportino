@@ -71,35 +71,37 @@ const STATUS_LABELS = {
   VALIDATED_CAPO: 'Validata dal Capo',
 };
 
-// Convertit "0,2" -> 0.2, "" -> null, "ciao" -> null
+/**
+ * Convertit des valeurs libres en nombre :
+ * - "0,2"      -> 0.2
+ * - "170 120"  -> 290
+ * - "170\n120" -> 290
+ * - "170mt"    -> 170
+ * - "" ou aucun nombre -> null
+ */
 function parseNumeric(val) {
   if (val === null || val === undefined) return null;
   const str = String(val).trim();
   if (!str) return null;
-  const num = parseFloat(str.replace(',', '.'));
-  return Number.isFinite(num) ? num : null;
-}
 
-// Pour aligner OPERATORE / TEMPO sur la même hauteur par ligne
-function adjustOperatorTempoHeights(textareaEl) {
-  if (!textareaEl) return;
-  const tr = textareaEl.closest('tr');
-  if (!tr) return;
-  const tAreas = tr.querySelectorAll('textarea[data-optempo="1"]');
-  if (!tAreas.length) return;
+  // normalise la virgule décimale
+  const normalized = str.replace(/,/g, '.');
 
-  // Réinitialise et calcule les hauteurs
-  let max = 0;
-  tAreas.forEach((ta) => {
-    ta.style.height = 'auto';
-    const h = ta.scrollHeight;
-    if (h > max) max = h;
-  });
+  // coupe sur espaces, retours ligne, tab, ; etc.
+  const tokens = normalized.split(/[\s;]+/).filter(Boolean);
 
-  // Applique la même hauteur aux deux
-  tAreas.forEach((ta) => {
-    ta.style.height = max + 'px';
-  });
+  let sum = 0;
+  let found = false;
+
+  for (const t of tokens) {
+    const n = parseFloat(t);
+    if (Number.isFinite(n)) {
+      sum += n;
+      found = true;
+    }
+  }
+
+  return found ? sum : null;
 }
 
 export default function RapportinoSheet({ crewRole }) {
@@ -110,17 +112,8 @@ export default function RapportinoSheet({ crewRole }) {
   // ------------------------------------------------------
   const [costr, setCostr] = useState('6368');
   const [commessa, setCommessa] = useState('SDC');
-  const [data, setData] = useState(() =>
-    new Date().toISOString().slice(0, 10),
-  );
+  const [data, setData] = useState(() => new Date().toISOString().slice(0, 10));
   const [status, setStatus] = useState('DRAFT');
-
-  const formattedDate = useMemo(() => {
-    if (!data) return '';
-    const [y, m, d] = data.split('-');
-    if (!y || !m || !d) return data;
-    return `${d}/${m}/${y}`;
-  }, [data]);
 
   // Capo sempre in MAIUSCOLO
   const capoSquadra = useMemo(() => {
@@ -139,15 +132,10 @@ export default function RapportinoSheet({ crewRole }) {
     setRows(EMPTY_ROWS_BY_CREW[crewRole] || EMPTY_ROWS_BY_CREW.ELETTRICISTA);
   }, [crewRole]);
 
-  const handleChangeCell = (index, field, value, targetForHeight) => {
+  const handleChangeCell = (index, field, value) => {
     setRows((prev) =>
       prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)),
     );
-
-    // Ajuste la hauteur OPERATORE / TEMPO sur la même ligne
-    if (targetForHeight) {
-      adjustOperatorTempoHeights(targetForHeight);
-    }
   };
 
   const handleAddRow = () => {
@@ -243,6 +231,7 @@ export default function RapportinoSheet({ crewRole }) {
       operatori: row.operatori || null,
       tempo: row.tempo || null,
       previsto: parseNumeric(row.previsto),
+      // ici on stocke la SOMME des nombres présents dans la cellule prodotto
       prodotto: parseNumeric(row.prodotto),
       note: row.note || null,
     }));
@@ -342,65 +331,64 @@ export default function RapportinoSheet({ crewRole }) {
   // ------------------------------------------------------
   return (
     <div className="mt-6 bg-white shadow-md rounded-lg p-6 rapportino-table print:bg-white">
-      {/* Bandeau stato / info — ÉCRAN SEULEMENT */}
-      <div className="flex items-center justify-between mb-4 no-print text-[11px]">
-        <div className="text-slate-500">
-          CORE · Modulo Rapportino ·{' '}
-          <span className="font-semibold">{crewRole}</span>
-        </div>
-        <div>
-          <span className="mr-2 text-slate-500">Stato:</span>
-          <span className="inline-block px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-semibold border border-amber-300">
-            {statusLabel}
-          </span>
-        </div>
-      </div>
-
       {/* Zone imprimable */}
       <div id="rapportino-print-area">
-        {/* === HEADER VERSION PAPIER === */}
+        {/* HEADER */}
         <div className="mb-4">
-          {/* Ligne 1 : titre centré */}
-          <div className="text-center text-[16px] font-semibold mb-3 tracking-wide">
-            RAPPORTINO GIORNALIERO
+          {/* Ligne 1 : titre au centre */}
+          <div className="flex justify-center mb-2">
+            <h2 className="font-semibold text-lg">Rapportino Giornaliero</h2>
           </div>
 
-          {/* Ligne 2 : COSTR */}
-          <div className="mb-1">
-            <span className="font-semibold mr-2">COSTR.:</span>
-            <input
-              type="text"
-              className="border-b border-slate-400 focus:outline-none px-1 min-w-[80px]"
-              value={costr}
-              onChange={(e) => setCostr(e.target.value)}
-            />
-          </div>
-
-          {/* Ligne 3 : Commessa / Capo / Data */}
-          <div className="grid grid-cols-[1fr_0.9fr_1fr] items-center">
-            <div>
-              <span className="font-semibold mr-2">Commessa:</span>
-              <input
-                type="text"
-                className="border-b border-slate-400 focus:outline-none px-1 min-w-[80px]"
-                value={commessa}
-                onChange={(e) => setCommessa(e.target.value)}
-              />
+          {/* Ligne 2 : costr / commessa / capo / data */}
+          <div className="flex justify-between">
+            {/* Gauche */}
+            <div className="space-y-1">
+              <div>
+                <span className="font-semibold mr-2">COSTR.:</span>
+                <input
+                  type="text"
+                  className="border-b border-slate-400 focus:outline-none px-1 min-w-[80px]"
+                  value={costr}
+                  onChange={(e) => setCostr(e.target.value)}
+                />
+              </div>
+              <div>
+                <span className="font-semibold mr-2">Commessa:</span>
+                <input
+                  type="text"
+                  className="border-b border-slate-400 focus:outline-none px-1 min-w-[80px]"
+                  value={commessa}
+                  onChange={(e) => setCommessa(e.target.value)}
+                />
+              </div>
             </div>
 
-            <div className="pl-4">
-              <span className="font-semibold mr-2">Capo Squadra:</span>
-              <span className="px-1">{capoSquadra}</span>
+            {/* Centre : capo sur la même ligne que “Commessa” mais plus central */}
+            <div className="flex flex-col items-center justify-center">
+              <div>
+                <span className="font-semibold mr-2">Capo Squadra:</span>
+                <span className="px-1">{capoSquadra}</span>
+              </div>
             </div>
 
-            <div className="text-right">
-              <span className="font-semibold mr-2">DATA:</span>
-              <input
-                type="date"
-                className="border border-slate-300 rounded px-2 py-1 text-xs"
-                value={data}
-                onChange={(e) => setData(e.target.value)}
-              />
+            {/* Droite : data + stato (uniquement écran) */}
+            <div className="space-y-1 text-right">
+              <div>
+                <span className="font-semibold mr-2">Data:</span>
+                <input
+                  type="date"
+                  className="border border-slate-300 rounded px-2 py-1 text-sm"
+                  value={data}
+                  onChange={(e) => setData(e.target.value)}
+                />
+              </div>
+              <div className="no-print">
+                <span className="font-semibold mr-2">Stato:</span>
+                <span className="inline-block px-3 py-1 rounded-full bg-yellow-100 text-yellow-800 text-xs font-semibold border border-yellow-300">
+                  {statusLabel}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -459,45 +447,28 @@ export default function RapportinoSheet({ crewRole }) {
                       }
                     />
                   </td>
-
-                  {/* OPERATORE */}
                   <td className="border rapportino-border px-2 py-1 align-top text-xs w-48">
                     <textarea
-                      data-optempo="1"
-                      className="w-full border-none focus:outline-none bg-transparent resize-none leading-snug rapportino-textarea"
+                      className="w-full border-none focus:outline-none bg-transparent resize-none leading-snug"
                       rows={3}
                       placeholder="Una riga per operatore"
                       value={row.operatori}
                       onChange={(e) =>
-                        handleChangeCell(
-                          index,
-                          'operatori',
-                          e.target.value,
-                          e.target,
-                        )
+                        handleChangeCell(index, 'operatori', e.target.value)
                       }
                     />
                   </td>
-
-                  {/* TEMPO IMPIEGATO */}
                   <td className="border rapportino-border px-2 py-1 align-top text-xs w-40">
                     <textarea
-                      data-optempo="1"
-                      className="w-full border-none focus:outline-none bg-transparent resize-none leading-snug text-right rapportino-textarea"
+                      className="w-full border-none focus:outline-none bg-transparent resize-none leading-snug"
                       rows={3}
                       placeholder="Stesse righe degli operatori"
                       value={row.tempo}
                       onChange={(e) =>
-                        handleChangeCell(
-                          index,
-                          'tempo',
-                          e.target.value,
-                          e.target,
-                        )
+                        handleChangeCell(index, 'tempo', e.target.value)
                       }
                     />
                   </td>
-
                   <td className="border rapportino-border px-2 py-1 align-top text-xs w-20">
                     <input
                       type="text"
@@ -508,10 +479,12 @@ export default function RapportinoSheet({ crewRole }) {
                       }
                     />
                   </td>
+                  {/* PRODOTTO MULTI-LIGNE PAR GROUPE */}
                   <td className="border rapportino-border px-2 py-1 align-top text-xs w-24">
-                    <input
-                      type="text"
-                      className="w-full border-none focus:outline-none bg-transparent text-right"
+                    <textarea
+                      className="w-full border-none focus:outline-none bg-transparent resize-none leading-snug text-right"
+                      rows={3}
+                      placeholder="Una riga per gruppo"
                       value={row.prodotto}
                       onChange={(e) =>
                         handleChangeCell(index, 'prodotto', e.target.value)
@@ -528,8 +501,6 @@ export default function RapportinoSheet({ crewRole }) {
                       }
                     />
                   </td>
-
-                  {/* Colonne delete — seulement écran */}
                   <td className="border rapportino-border px-2 py-1 align-top text-xs text-center no-print">
                     <button
                       type="button"
