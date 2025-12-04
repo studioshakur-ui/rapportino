@@ -24,14 +24,24 @@ function getTodayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Gère aussi les multi-lignes : "980\n550" → 1530
 function parseNumeric(value) {
   if (value === null || value === undefined) return null;
   const s = String(value).trim();
   if (!s) return null;
-  const normalized = s.replace(',', '.');
-  const n = Number(normalized);
-  if (Number.isNaN(n)) return null;
-  return n;
+
+  // on récupère tous les nombres dans la string
+  const matches = s.match(/[-+]?\d*[.,]?\d+/g);
+  if (!matches) return null;
+
+  let sum = 0;
+  for (const m of matches) {
+    const n = Number(m.replace(',', '.'));
+    if (Number.isFinite(n)) {
+      sum += n;
+    }
+  }
+  return sum;
 }
 
 function getBaseRows(crewRole) {
@@ -570,6 +580,11 @@ export default function RapportinoPage({
             onRemoveRow={handleRemoveRow}
           />
 
+          {/* Signature CORE / SHAKUR – seulement sur le PDF */}
+          <div className="mt-1 text-[9px] text-slate-400 text-right print:block hidden">
+            CORE – Sistema centrale di cantiere · SHAKUR Engineering
+          </div>
+
           {/* Footer feuille / actions (non imprimé) */}
           <div className="mt-3 flex flex-col gap-2 no-print">
             {error && (
@@ -606,14 +621,16 @@ export default function RapportinoPage({
                 <button
                   type="button"
                   onClick={handleNewDay}
-                  className="px-3 py-1.5 rounded-md border border-slate-400 text-slate-700 bg-slate-100 hover:bg-slate-200"
+                  disabled={saving}
+                  className="px-3 py-1.5 rounded-md border border-slate-400 text-slate-700 bg-slate-100 hover:bg-slate-200 disabled:opacity-60"
                 >
                   Nuova giornata
                 </button>
                 <button
                   type="button"
                   onClick={handleAddRow}
-                  className="px-3 py-1.5 rounded-md border border-slate-400 text-slate-700 bg-slate-100 hover:bg-slate-200"
+                  disabled={saving}
+                  className="px-3 py-1.5 rounded-md border border-slate-400 text-slate-700 bg-slate-100 hover:bg-slate-200 disabled:opacity-60"
                 >
                   + Aggiungi riga
                 </button>
@@ -635,7 +652,7 @@ export default function RapportinoPage({
                   type="button"
                   onClick={handleValidate}
                   disabled={saving}
-                  className="px-3 py-1.5 rounded-md border border-emerald-600 bg-emerald-500 text-slate-950 hover:bg-emerald-400"
+                  className="px-3 py-1.5 rounded-md border border-emerald-600 bg-emerald-500 text-slate-950 hover:bg-emerald-400 disabled:opacity-60"
                 >
                   Valida giornata
                 </button>
@@ -643,7 +660,7 @@ export default function RapportinoPage({
                   type="button"
                   onClick={handleExportPdf}
                   disabled={saving}
-                  className="px-3 py-1.5 rounded-md border border-sky-600 bg-sky-500 text-slate-950 hover:bg-sky-400"
+                  className="px-3 py-1.5 rounded-md border border-sky-600 bg-sky-500 text-slate-950 hover:bg-sky-400 disabled:opacity-60"
                 >
                   Esporta PDF
                 </button>
