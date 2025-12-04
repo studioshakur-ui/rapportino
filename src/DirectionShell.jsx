@@ -1,8 +1,9 @@
 // src/DirectionShell.jsx
 import React from 'react';
-import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from './auth/AuthProvider';
 import ConnectionIndicator from './components/ConnectionIndicator';
+import DirectionDashboard from './components/DirectionDashboard';
 
 export default function DirectionShell() {
   const { profile, signOut } = useAuth();
@@ -87,7 +88,7 @@ export default function DirectionShell() {
                 to="/direction"
                 className={navItemClasses(isActive('/direction'))}
               >
-                Panoramica & KPI
+                Panoramica & Presenze
               </Link>
             </nav>
           </div>
@@ -131,9 +132,9 @@ export default function DirectionShell() {
           </div>
         </aside>
 
-        {/* CONTENT */}
+        {/* CONTENT – Panoramica Direzione */}
         <main className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6">
-          <Outlet />
+          <DirectionDashboard />
         </main>
       </div>
     </div>
