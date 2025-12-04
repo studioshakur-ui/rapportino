@@ -1,5 +1,4 @@
 // src/components/RapportinoSheet.jsx
-
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import { supabase } from '../lib/supabaseClient';
@@ -81,6 +80,28 @@ function parseNumeric(val) {
   return Number.isFinite(num) ? num : null;
 }
 
+// Pour aligner OPERATORE / TEMPO sur la même hauteur par ligne
+function adjustOperatorTempoHeights(textareaEl) {
+  if (!textareaEl) return;
+  const tr = textareaEl.closest('tr');
+  if (!tr) return;
+  const tAreas = tr.querySelectorAll('textarea[data-optempo="1"]');
+  if (!tAreas.length) return;
+
+  // Réinitialise et calcule les hauteurs
+  let max = 0;
+  tAreas.forEach((ta) => {
+    ta.style.height = 'auto';
+    const h = ta.scrollHeight;
+    if (h > max) max = h;
+  });
+
+  // Applique la même hauteur aux deux
+  tAreas.forEach((ta) => {
+    ta.style.height = max + 'px';
+  });
+}
+
 export default function RapportinoSheet({ crewRole }) {
   const { profile } = useAuth();
 
@@ -89,8 +110,17 @@ export default function RapportinoSheet({ crewRole }) {
   // ------------------------------------------------------
   const [costr, setCostr] = useState('6368');
   const [commessa, setCommessa] = useState('SDC');
-  const [data, setData] = useState(() => new Date().toISOString().slice(0, 10));
+  const [data, setData] = useState(() =>
+    new Date().toISOString().slice(0, 10),
+  );
   const [status, setStatus] = useState('DRAFT');
+
+  const formattedDate = useMemo(() => {
+    if (!data) return '';
+    const [y, m, d] = data.split('-');
+    if (!y || !m || !d) return data;
+    return `${d}/${m}/${y}`;
+  }, [data]);
 
   // Capo sempre in MAIUSCOLO
   const capoSquadra = useMemo(() => {
@@ -109,10 +139,15 @@ export default function RapportinoSheet({ crewRole }) {
     setRows(EMPTY_ROWS_BY_CREW[crewRole] || EMPTY_ROWS_BY_CREW.ELETTRICISTA);
   }, [crewRole]);
 
-  const handleChangeCell = (index, field, value) => {
+  const handleChangeCell = (index, field, value, targetForHeight) => {
     setRows((prev) =>
       prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)),
     );
+
+    // Ajuste la hauteur OPERATORE / TEMPO sur la même ligne
+    if (targetForHeight) {
+      adjustOperatorTempoHeights(targetForHeight);
+    }
   };
 
   const handleAddRow = () => {
@@ -307,19 +342,42 @@ export default function RapportinoSheet({ crewRole }) {
   // ------------------------------------------------------
   return (
     <div className="mt-6 bg-white shadow-md rounded-lg p-6 rapportino-table print:bg-white">
+      {/* Bandeau stato / info — ÉCRAN SEULEMENT */}
+      <div className="flex items-center justify-between mb-4 no-print text-[11px]">
+        <div className="text-slate-500">
+          CORE · Modulo Rapportino ·{' '}
+          <span className="font-semibold">{crewRole}</span>
+        </div>
+        <div>
+          <span className="mr-2 text-slate-500">Stato:</span>
+          <span className="inline-block px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-semibold border border-amber-300">
+            {statusLabel}
+          </span>
+        </div>
+      </div>
+
       {/* Zone imprimable */}
       <div id="rapportino-print-area">
-        <div className="flex justify-between mb-4">
-          <div className="space-y-2">
-            <div>
-              <span className="font-semibold mr-2">COSTR.:</span>
-              <input
-                type="text"
-                className="border-b border-slate-400 focus:outline-none px-1 min-w-[80px]"
-                value={costr}
-                onChange={(e) => setCostr(e.target.value)}
-              />
-            </div>
+        {/* === HEADER VERSION PAPIER === */}
+        <div className="mb-4">
+          {/* Ligne 1 : titre centré */}
+          <div className="text-center text-[16px] font-semibold mb-3 tracking-wide">
+            RAPPORTINO GIORNALIERO
+          </div>
+
+          {/* Ligne 2 : COSTR */}
+          <div className="mb-1">
+            <span className="font-semibold mr-2">COSTR.:</span>
+            <input
+              type="text"
+              className="border-b border-slate-400 focus:outline-none px-1 min-w-[80px]"
+              value={costr}
+              onChange={(e) => setCostr(e.target.value)}
+            />
+          </div>
+
+          {/* Ligne 3 : Commessa / Capo / Data */}
+          <div className="grid grid-cols-[1fr_0.9fr_1fr] items-center">
             <div>
               <span className="font-semibold mr-2">Commessa:</span>
               <input
@@ -329,33 +387,20 @@ export default function RapportinoSheet({ crewRole }) {
                 onChange={(e) => setCommessa(e.target.value)}
               />
             </div>
-            <div>
+
+            <div className="pl-4">
               <span className="font-semibold mr-2">Capo Squadra:</span>
               <span className="px-1">{capoSquadra}</span>
             </div>
-          </div>
 
-          <div className="text-center">
-            <h2 className="font-semibold text-lg">
-              Rapportino Giornaliero – {crewRole}
-            </h2>
-          </div>
-
-          <div className="space-y-2 text-right">
-            <div>
-              <span className="font-semibold mr-2">Data:</span>
+            <div className="text-right">
+              <span className="font-semibold mr-2">DATA:</span>
               <input
                 type="date"
-                className="border border-slate-300 rounded px-2 py-1 text-sm"
+                className="border border-slate-300 rounded px-2 py-1 text-xs"
                 value={data}
                 onChange={(e) => setData(e.target.value)}
               />
-            </div>
-            <div>
-              <span className="font-semibold mr-2">Stato:</span>
-              <span className="inline-block px-3 py-1 rounded-full bg-yellow-100 text-yellow-800 text-xs font-semibold border border-yellow-300">
-                {statusLabel}
-              </span>
             </div>
           </div>
         </div>
@@ -386,7 +431,7 @@ export default function RapportinoSheet({ crewRole }) {
                 <th className="border rapportino-header-border px-2 py-1 text-left text-xs">
                   NOTE
                 </th>
-                <th className="border rapportino-header-border px-2 py-1 text-xs w-6">
+                <th className="border rapportino-header-border px-2 py-1 text-xs w-6 no-print">
                   -
                 </th>
               </tr>
@@ -414,28 +459,45 @@ export default function RapportinoSheet({ crewRole }) {
                       }
                     />
                   </td>
+
+                  {/* OPERATORE */}
                   <td className="border rapportino-border px-2 py-1 align-top text-xs w-48">
                     <textarea
-                      className="w-full border-none focus:outline-none bg-transparent resize-none leading-snug"
+                      data-optempo="1"
+                      className="w-full border-none focus:outline-none bg-transparent resize-none leading-snug rapportino-textarea"
                       rows={3}
                       placeholder="Una riga per operatore"
                       value={row.operatori}
                       onChange={(e) =>
-                        handleChangeCell(index, 'operatori', e.target.value)
+                        handleChangeCell(
+                          index,
+                          'operatori',
+                          e.target.value,
+                          e.target,
+                        )
                       }
                     />
                   </td>
+
+                  {/* TEMPO IMPIEGATO */}
                   <td className="border rapportino-border px-2 py-1 align-top text-xs w-40">
                     <textarea
-                      className="w-full border-none focus:outline-none bg-transparent resize-none leading-snug"
+                      data-optempo="1"
+                      className="w-full border-none focus:outline-none bg-transparent resize-none leading-snug text-right rapportino-textarea"
                       rows={3}
                       placeholder="Stesse righe degli operatori"
                       value={row.tempo}
                       onChange={(e) =>
-                        handleChangeCell(index, 'tempo', e.target.value)
+                        handleChangeCell(
+                          index,
+                          'tempo',
+                          e.target.value,
+                          e.target,
+                        )
                       }
                     />
                   </td>
+
                   <td className="border rapportino-border px-2 py-1 align-top text-xs w-20">
                     <input
                       type="text"
@@ -466,7 +528,9 @@ export default function RapportinoSheet({ crewRole }) {
                       }
                     />
                   </td>
-                  <td className="border rapportino-border px-2 py-1 align-top text-xs text-center">
+
+                  {/* Colonne delete — seulement écran */}
+                  <td className="border rapportino-border px-2 py-1 align-top text-xs text-center no-print">
                     <button
                       type="button"
                       onClick={() => handleRemoveRow(index)}
@@ -513,7 +577,6 @@ export default function RapportinoSheet({ crewRole }) {
         </div>
 
         <div className="flex gap-2 flex-wrap justify-end">
-          {/* Bouton salvataggio principale */}
           <button
             type="button"
             onClick={() => handleSave()}
