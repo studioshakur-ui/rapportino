@@ -5,9 +5,7 @@ import { useAuth } from '../auth/AuthProvider';
 import LoadingScreen from './LoadingScreen';
 import ListaCaviPanel from './ListaCaviPanel';
 
-/**
- * Libellés de statut utilisés dans l'UI et sur la feuille.
- */
+// Status labels (écran uniquement)
 const STATUS_LABELS = {
   DRAFT: 'Bozza',
   VALIDATED_CAPO: 'Validata dal Capo',
@@ -20,6 +18,18 @@ const CREW_LABELS = {
   CARPENTERIA: 'Carpenteria',
   MONTAGGIO: 'Montaggio',
 };
+
+// Defaults si pas encore de données
+const DEFAULT_COSTR = '6368';
+const DEFAULT_COMMESSA = 'SDC';
+
+// Helpers locaux pour header + gabarit
+function headerStorageKey(userId, crewRole) {
+  return `core_rapportino_header_${userId}_${crewRole}`;
+}
+function templateStorageKey(userId, crewRole) {
+  return `core_rapportino_template_${userId}_${crewRole}`;
+}
 
 function getTodayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -36,7 +46,7 @@ function parseNumeric(value) {
 }
 
 /**
- * Modèle de base des lignes selon le tipo squadra
+ * Base rows par type de squadra (structure physique de la feuille)
  */
 function getBaseRows(crewRole) {
   if (crewRole === 'ELETTRICISTA') {
@@ -120,7 +130,7 @@ function getBaseRows(crewRole) {
     ];
   }
 
-  // fallback générique
+  // Fallback
   return [
     {
       id: null,
@@ -136,44 +146,144 @@ function getBaseRows(crewRole) {
   ];
 }
 
-export default function RapportinoPage({ crewRole }) {
+/**
+ * Applique le gabarit sauvegardé (operatori + tempo + éventuelle desc)
+ * sur les lignes de base d'une nouvelle journée.
+ */
+function applyTemplateToBase(baseRows, template) {
+  if (!template || !Array.isArray(template.rows)) return baseRows;
+
+  return baseRows.map((row, idx) => {
+    const t = template.rows[idx];
+    if (!t) return row;
+
+    return {
+      ...row,
+      categoria: t.categoria ?? row.categoria,
+      descrizione: t.descrizione ?? row.descrizione,
+      operatori: t.operatori ?? '',
+      tempo: t.tempo ?? '',
+      previsto: t.previsto ?? row.previsto,
+      prodotto: '',
+      note: '',
+    };
+  });
+}
+
+/**
+ * Sauvegarde locale du header (Costr + Commessa)
+ */
+function saveLocalHeader(userId, crewRole, costr, commessa) {
+  if (typeof window === 'undefined') return;
+  try {
+    const payload = { costr, commessa };
+    window.localStorage.setItem(
+      headerStorageKey(userId, crewRole),
+      JSON.stringify(payload)
+    );
+  } catch (e) {
+    console.error('Errore salvataggio header locale:', e);
+  }
+}
+
+function loadLocalHeader(userId, crewRole) {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(
+      headerStorageKey(userId, crewRole)
+    );
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) {
+    console.error('Errore lettura header locale:', e);
+    return null;
+  }
+}
+
+/**
+ * Sauvegarde locale du gabarit (operatori + tempo + base righe)
+ */
+function saveLocalTemplate(userId, crewRole, rows) {
+  if (typeof window === 'undefined') return;
+  try {
+    const rowsForTemplate = rows.map((r) => ({
+      categoria: r.categoria ?? '',
+      descrizione: r.descrizione ?? '',
+      operatori: r.operatori ?? '',
+      tempo: r.tempo ?? '',
+      previsto: r.previsto ?? '',
+    }));
+    const payload = { rows: rowsForTemplate };
+    window.localStorage.setItem(
+      templateStorageKey(userId, crewRole),
+      JSON.stringify(payload)
+    );
+  } catch (e) {
+    console.error('Errore salvataggio template locale:', e);
+  }
+}
+
+function loadLocalTemplate(userId, crewRole) {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(
+      templateStorageKey(userId, crewRole)
+    );
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) {
+    console.error('Errore lettura template locale:', e);
+    return null;
+  }
+}
+
+/**
+ * Ajuste la hauteur des textareas (effet "multi-lignes papier")
+ */
+function autoResizeTextarea(el) {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
+}
+
+export default function RapportinoPage({
+  crewRole,
+  onChangeCrewRole,
+  onLogout,
+}) {
   const { profile } = useAuth();
 
   const [rapportinoId, setRapportinoId] = useState(null);
   const [reportDate, setReportDate] = useState(getTodayISO());
-  const [costr, setCostr] = useState('6368');
-  const [commessa, setCommessa] = useState('SDC');
+  const [costr, setCostr] = useState(DEFAULT_COSTR);
+  const [commessa, setCommessa] = useState(DEFAULT_COMMESSA);
   const [status, setStatus] = useState('DRAFT');
 
   const [rows, setRows] = useState(() => getBaseRows(crewRole));
 
-  const [initialLoading, setInitialLoading] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-
   const [error, setError] = useState(null);
   const [errorDetails, setErrorDetails] = useState(null);
   const [showErrorDetails, setShowErrorDetails] = useState(false);
   const [successMessage, setSuccessMessage] = useState(null);
 
-  // Chargement du rapportino existant (si présent) pour date + capo + crewRole
+  // Charger rapportino existant ou nouvelle journée
   useEffect(() => {
     let active = true;
+    if (!profile?.id) return;
 
     async function loadRapportino() {
-      if (!profile?.id) {
-        setInitialLoading(false);
-        return;
-      }
-
       try {
-        setInitialLoading(true);
         setLoading(true);
+        setInitialLoading(true);
         setError(null);
         setErrorDetails(null);
         setShowErrorDetails(false);
         setSuccessMessage(null);
 
+        // 1) Cherche un rapportino existant pour cette date
         const { data: rapData, error: rapError } = await supabase
           .from('rapportini')
           .select('*')
@@ -191,18 +301,25 @@ export default function RapportinoPage({ crewRole }) {
         if (!active) return;
 
         if (!rapData) {
-          // aucune journée trouvée → base template
+          // Aucun rapportino pour ce jour → nouvelle journée
+          const localHeader = loadLocalHeader(profile.id, crewRole);
           setRapportinoId(null);
-          setCostr('6368');
-          setCommessa('SDC');
           setStatus('DRAFT');
-          setRows(getBaseRows(crewRole));
+          setCostr(localHeader?.costr || DEFAULT_COSTR);
+          setCommessa(localHeader?.commessa || DEFAULT_COMMESSA);
+
+          const baseRows = getBaseRows(crewRole);
+          const template = loadLocalTemplate(profile.id, crewRole);
+          const initialRows = applyTemplateToBase(baseRows, template);
+          setRows(initialRows);
         } else {
+          // Rapportino existant
           setRapportinoId(rapData.id);
-          setCostr(rapData.costr || rapData.cost || '6368');
-          setCommessa(rapData.commessa || 'SDC');
+          setCostr(rapData.costr || rapData.cost || DEFAULT_COSTR);
+          setCommessa(rapData.commessa || DEFAULT_COMMESSA);
           setStatus(rapData.status || 'DRAFT');
 
+          // 2) Charge les lignes associées
           const { data: righe, error: righeError } = await supabase
             .from('rapportino_rows')
             .select('*')
@@ -211,8 +328,11 @@ export default function RapportinoPage({ crewRole }) {
 
           if (righeError) throw righeError;
 
+          if (!active) return;
+
           if (!righe || righe.length === 0) {
-            setRows(getBaseRows(crewRole));
+            const baseRows = getBaseRows(crewRole);
+            setRows(baseRows);
           } else {
             const mapped = righe.map((r, idx) => ({
               id: r.id,
@@ -241,12 +361,13 @@ export default function RapportinoPage({ crewRole }) {
             'Errore durante il caricamento del rapportino. Puoi comunque compilare una nuova giornata.'
           );
           setErrorDetails(err?.message || String(err));
-          setRows(getBaseRows(crewRole));
+          const baseRows = getBaseRows(crewRole);
+          setRows(baseRows);
         }
       } finally {
         if (active) {
-          setInitialLoading(false);
           setLoading(false);
+          setInitialLoading(false);
         }
       }
     }
@@ -258,6 +379,7 @@ export default function RapportinoPage({ crewRole }) {
     };
   }, [profile?.id, crewRole, reportDate]);
 
+  // Produit totale (écran seulement)
   const prodottoTotale = useMemo(() => {
     return rows.reduce((sum, r) => {
       const v = parseNumeric(r.prodotto);
@@ -267,15 +389,15 @@ export default function RapportinoPage({ crewRole }) {
   }, [rows]);
 
   const capoName =
-    (profile?.display_name || profile?.full_name || profile?.email || '')
+    (profile?.display_name ||
+      profile?.full_name ||
+      profile?.email ||
+      '') // uppercase comme papier
       .toUpperCase()
       .trim() || 'CAPO';
 
-  const statusLabel = STATUS_LABELS[status] || status;
-  const crewLabel = CREW_LABELS[crewRole] || crewRole;
-
   const handleRowChange = (index, field, value) => {
-    setRows(prev => {
+    setRows((prev) => {
       const copy = [...prev];
       const row = { ...copy[index] };
       row[field] = value;
@@ -285,7 +407,7 @@ export default function RapportinoPage({ crewRole }) {
   };
 
   const handleAddRow = () => {
-    setRows(prev => {
+    setRows((prev) => {
       const nextIndex = prev.length;
       return [
         ...prev,
@@ -311,8 +433,8 @@ export default function RapportinoPage({ crewRole }) {
     });
   };
 
-  const handleRemoveRow = index => {
-    setRows(prev => {
+  const handleRemoveRow = (index) => {
+    setRows((prev) => {
       if (prev.length === 1) {
         return getBaseRows(crewRole);
       }
@@ -324,10 +446,17 @@ export default function RapportinoPage({ crewRole }) {
 
   const handleNewDay = () => {
     setRapportinoId(null);
-    setCostr('6368');
-    setCommessa('SDC');
     setStatus('DRAFT');
-    setRows(getBaseRows(crewRole));
+    // Header récupéré depuis localStorage (déjà enregistré)
+    const localHeader = loadLocalHeader(profile.id, crewRole);
+    setCostr(localHeader?.costr || DEFAULT_COSTR);
+    setCommessa(localHeader?.commessa || DEFAULT_COMMESSA);
+
+    const baseRows = getBaseRows(crewRole);
+    const template = loadLocalTemplate(profile.id, crewRole);
+    const initialRows = applyTemplateToBase(baseRows, template);
+
+    setRows(initialRows);
     setError(null);
     setErrorDetails(null);
     setShowErrorDetails(false);
@@ -348,8 +477,12 @@ export default function RapportinoPage({ crewRole }) {
       const finalStatus = nextStatus || status || 'DRAFT';
       const prodottoTot = prodottoTotale;
 
+      // Sauvegarde locale header + template pour la prochaine journée
+      saveLocalHeader(profile.id, crewRole, costr, commessa);
+      saveLocalTemplate(profile.id, crewRole, rows);
+
+      // 1) Upsert rapportini
       const headerPayload = {
-        id: rapportinoId || undefined,
         capo_id: profile.id,
         user_id: profile.id,
         capo_name: capoName,
@@ -364,6 +497,10 @@ export default function RapportinoPage({ crewRole }) {
         prodotto_tot: prodottoTot,
       };
 
+      if (rapportinoId) {
+        headerPayload.id = rapportinoId;
+      }
+
       const { data: savedRap, error: saveError } = await supabase
         .from('rapportini')
         .upsert(headerPayload)
@@ -376,7 +513,7 @@ export default function RapportinoPage({ crewRole }) {
       setRapportinoId(newId);
       setStatus(savedRap.status || finalStatus);
 
-      // Reset complet des lignes puis insert
+      // 2) Delete + insert righe
       const { error: delError } = await supabase
         .from('rapportino_rows')
         .delete()
@@ -434,106 +571,145 @@ export default function RapportinoPage({ crewRole }) {
   const handleExportPdf = async () => {
     const savedId = await handleSave();
     if (!savedId) return;
-    // Export PDF robuste via moteur d'impression navigateur (A4 paysage défini dans index.css)
     window.print();
+  };
+
+  const handleArchivioClick = () => {
+    alert('Archivio non ancora implementato in questa versione.');
   };
 
   if (!profile) {
     return <LoadingScreen message="Caricamento del profilo..." />;
   }
 
-  if (initialLoading) {
+  if (initialLoading || loading) {
     return <LoadingScreen message="Caricamento del rapportino..." />;
   }
 
+  const statusLabel = STATUS_LABELS[status] || status;
+  const crewLabel = CREW_LABELS[crewRole] || crewRole;
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col">
-      {/* Contenu principal centré : feuille A4 horizontale */}
+      {/* Header cockpit (écran seulement) */}
+      <header className="no-print border-b border-slate-300 bg-slate-900 text-slate-50 px-4 py-3 flex items-center justify-between">
+        <div className="flex flex-col">
+          <span className="text-xs font-semibold tracking-wide text-slate-300">
+            CORE · Modulo RAPPORTINO
+          </span>
+          <span className="text-sm">
+            Capo squadra:{' '}
+            <span className="font-semibold text-slate-50">{capoName}</span>
+          </span>
+          <span className="text-[11px] text-slate-400">
+            Tipo squadra:{' '}
+            <span className="font-medium text-slate-100">{crewLabel}</span>
+          </span>
+        </div>
+        <div className="flex items-center gap-2 text-[11px]">
+          <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-100 border border-slate-600">
+            Stato: {statusLabel}
+          </span>
+          <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-100 border border-slate-600">
+            Prodotto totale: {prodottoTotale.toFixed(2)}
+          </span>
+          <button
+            type="button"
+            onClick={onChangeCrewRole}
+            className="px-2.5 py-1 rounded border border-slate-500 text-slate-100 hover:bg-slate-800"
+          >
+            Cambia squadra
+          </button>
+          <button
+            type="button"
+            onClick={handleArchivioClick}
+            className="px-2.5 py-1 rounded border border-slate-500 text-slate-100 hover:bg-slate-800"
+          >
+            Archivio
+          </button>
+          <button
+            type="button"
+            onClick={onLogout}
+            className="px-2.5 py-1 rounded border border-rose-500 text-rose-100 hover:bg-rose-600 hover:text-rose-50"
+          >
+            Logout
+          </button>
+        </div>
+      </header>
+
+      {/* Feuille imprimable A4 (le vrai rapportino) */}
       <main className="flex-1 flex justify-center py-4 px-2">
         <div className="bg-white shadow-md shadow-slate-300 rounded-lg w-[1120px] max-w-full px-6 py-4 print:shadow-none print:border-none">
-          {/* En-tête de la feuille rapportino */}
-          <div className="flex items-start justify-between mb-3">
-            <div>
-              <h1 className="text-lg font-semibold tracking-wide">
-                RAPPORTINO GIORNALIERO
-              </h1>
-              <div className="text-[12px] text-slate-600">
-                Nave / Costruttore:{' '}
+          {/* En-tête feuille rapportino (style papier) */}
+          <div className="flex items-start justify-between mb-3 rapportino-table">
+            <div className="text-[12px] text-slate-700">
+              <div className="mb-1">
+                <span className="font-semibold">Costr.:</span>{' '}
                 <input
                   type="text"
                   value={costr}
-                  onChange={e => setCostr(e.target.value)}
-                  className="inline-block w-28 border-b border-slate-400 focus:outline-none focus:border-slate-800 px-1"
+                  onChange={(e) => setCostr(e.target.value)}
+                  className="inline-block w-32 border-b border-slate-500 focus:outline-none focus:border-slate-900 px-1"
                 />
               </div>
-              <div className="text-[12px] text-slate-600 mt-1">
-                Commessa:{' '}
+              <div>
+                <span className="font-semibold">Commessa:</span>{' '}
                 <input
                   type="text"
                   value={commessa}
-                  onChange={e => setCommessa(e.target.value)}
-                  className="inline-block w-24 border-b border-slate-400 focus:outline-none focus:border-slate-800 px-1"
+                  onChange={(e) => setCommessa(e.target.value)}
+                  className="inline-block w-32 border-b border-slate-500 focus:outline-none focus:border-slate-900 px-1"
                 />
-              </div>
-              <div className="mt-2 text-[11px] text-slate-500">
-                Stato:{' '}
-                <span className="font-semibold">
-                  {statusLabel}
-                </span>
               </div>
             </div>
 
-            <div className="text-right text-[12px] text-slate-700">
+            <div className="text-center">
+              <h1 className="text-base font-semibold tracking-wide mb-1">
+                Rapportino Giornaliero
+              </h1>
+            </div>
+
+            <div className="text-[12px] text-slate-700 text-right">
+              <div className="mb-1">
+                <span className="font-semibold">Capo Squadra:</span>{' '}
+                <span className="uppercase">{capoName}</span>
+              </div>
               <div>
-                Data:{' '}
+                <span className="font-semibold">DATA</span>{' '}
                 <input
                   type="date"
                   value={reportDate}
-                  onChange={e => setReportDate(e.target.value)}
+                  onChange={(e) => setReportDate(e.target.value)}
                   className="border border-slate-300 rounded px-1 py-0.5 text-[11px]"
                 />
-              </div>
-              <div className="mt-1">
-                Capo squadra:{' '}
-                <span className="font-semibold">{capoName}</span>
-              </div>
-              <div className="mt-1">
-                Tipo squadra:{' '}
-                <span className="font-medium">{crewLabel}</span>
-              </div>
-              <div className="mt-1">
-                Prodotto totale:{' '}
-                <span className="font-mono font-semibold">
-                  {prodottoTotale.toFixed(2)}
-                </span>
               </div>
             </div>
           </div>
 
-          {/* Tableau principal, style document */}
-          <div className="border border-slate-300 rounded-md overflow-hidden">
-            <table className="w-full border-collapse text-[12px] rapportino-table">
-              <thead className="bg-slate-100 border-b border-slate-300">
+          {/* Tableau principal (style papier) */}
+          <div className="border border-slate-400 rounded-md overflow-hidden rapportino-table">
+            <table className="w-full border-collapse text-[12px]">
+              <thead className="bg-slate-100 border-b border-slate-400">
                 <tr>
-                  <th className="w-28 border-r border-slate-300 px-2 py-1 text-left">
+                  <th className="w-28 border-r border-slate-400 px-2 py-1 text-left">
                     CATEGORIA
                   </th>
-                  <th className="w-72 border-r border-slate-300 px-2 py-1 text-left">
+                  <th className="w-72 border-r border-slate-400 px-2 py-1 text-left">
                     DESCRIZIONE ATTIVITÀ
                   </th>
-                  <th className="w-40 border-r border-slate-300 px-2 py-1 text-left">
-                    OPERATORI
+                  <th className="w-40 border-r border-slate-400 px-2 py-1 text-left">
+                    OPERATORE
                   </th>
-                  <th className="w-32 border-r border-slate-300 px-2 py-1 text-left">
-                    TEMPO IMPIEGATO
+                  <th className="w-32 border-r border-slate-400 px-2 py-1 text-left">
+                    Tempo impiegato
                   </th>
-                  <th className="w-24 border-r border-slate-300 px-2 py-1 text-right">
+                  <th className="w-24 border-r border-slate-400 px-2 py-1 text-right">
                     PREVISTO
                   </th>
-                  <th className="w-24 border-r border-slate-300 px-2 py-1 text-right">
+                  <th className="w-24 border-r border-slate-400 px-2 py-1 text-right">
                     PRODOTTO
                   </th>
-                  <th className="border-slate-300 px-2 py-1 text-left">
+                  <th className="border-slate-400 px-2 py-1 text-left">
                     NOTE
                   </th>
                 </tr>
@@ -542,102 +718,97 @@ export default function RapportinoPage({ crewRole }) {
                 {rows.map((r, idx) => (
                   <tr
                     key={idx}
-                    className="border-t border-slate-200 align-top"
+                    className="border-t border-slate-300 align-top"
                   >
                     {/* CATEGORIA */}
-                    <td className="border border-slate-300 px-2 py-1 align-top">
+                    <td className="border-r border-slate-300 px-2 py-1">
                       <input
                         type="text"
                         value={r.categoria}
-                        onChange={e =>
+                        onChange={(e) =>
                           handleRowChange(idx, 'categoria', e.target.value)
                         }
-                        className="w-full bg-transparent text-[12px] focus:outline-none"
+                        className="w-full border-none bg-transparent text-[12px] focus:outline-none"
                       />
                     </td>
 
-                    {/* DESCRIZIONE – textarea écran + pre impression */}
-                    <td className="border border-slate-300 px-2 py-1 align-top">
+                    {/* DESCRIZIONE */}
+                    <td className="border-r border-slate-300 px-2 py-1">
                       <textarea
                         value={r.descrizione}
-                        onChange={e =>
-                          handleRowChange(idx, 'descrizione', e.target.value)
-                        }
-                        className="rapportino-textarea w-full bg-transparent text-[12px] focus:outline-none no-print"
+                        onChange={(e) => {
+                          handleRowChange(idx, 'descrizione', e.target.value);
+                          autoResizeTextarea(e.target);
+                        }}
+                        onInput={(e) => autoResizeTextarea(e.target)}
+                        className="w-full border-none bg-transparent text-[12px] rapportino-textarea focus:outline-none"
                         rows={2}
                       />
-                      <pre className="print-only text-[12px] whitespace-pre-wrap leading-tight">
-                        {r.descrizione}
-                      </pre>
                     </td>
 
-                    {/* OPERATORI – liste dynamique verticale */}
-                    <td className="border border-slate-300 px-2 py-1 align-top">
+                    {/* OPERATORE */}
+                    <td className="border-r border-slate-300 px-2 py-1">
                       <textarea
                         value={r.operatori}
-                        onChange={e =>
-                          handleRowChange(idx, 'operatori', e.target.value)
-                        }
-                        className="rapportino-textarea w-full bg-transparent text-[12px] focus:outline-none no-print"
+                        onChange={(e) => {
+                          handleRowChange(idx, 'operatori', e.target.value);
+                          autoResizeTextarea(e.target);
+                        }}
+                        onInput={(e) => autoResizeTextarea(e.target)}
+                        className="w-full border-none bg-transparent text-[12px] rapportino-textarea focus:outline-none"
                         rows={2}
                       />
-                      <pre className="print-only text-[12px] whitespace-pre-wrap leading-tight">
-                        {r.operatori}
-                      </pre>
                     </td>
 
-                    {/* TEMPO IMPIEGATO – aligné avec OPERATORI */}
-                    <td className="border border-slate-300 px-2 py-1 align-top">
+                    {/* TEMPO IMPIEGATO */}
+                    <td className="border-r border-slate-300 px-2 py-1">
                       <textarea
                         value={r.tempo}
-                        onChange={e =>
-                          handleRowChange(idx, 'tempo', e.target.value)
-                        }
-                        className="rapportino-textarea w-full bg-transparent text-[12px] focus:outline-none no-print"
+                        onChange={(e) => {
+                          handleRowChange(idx, 'tempo', e.target.value);
+                          autoResizeTextarea(e.target);
+                        }}
+                        onInput={(e) => autoResizeTextarea(e.target)}
+                        className="w-full border-none bg-transparent text-[12px] rapportino-textarea focus:outline-none"
                         rows={2}
                       />
-                      <pre className="print-only text-[12px] whitespace-pre-wrap leading-tight text-right">
-                        {r.tempo}
-                      </pre>
                     </td>
 
                     {/* PREVISTO */}
-                    <td className="border border-slate-300 px-2 py-1 text-right align-top">
+                    <td className="border-r border-slate-300 px-2 py-1 text-right">
                       <input
                         type="text"
                         value={r.previsto}
-                        onChange={e =>
+                        onChange={(e) =>
                           handleRowChange(idx, 'previsto', e.target.value)
                         }
-                        className="w-full bg-transparent text-right text-[12px] focus:outline-none"
+                        className="w-full border-none bg-transparent text-[12px] text-right focus:outline-none"
                       />
                     </td>
 
                     {/* PRODOTTO */}
-                    <td className="border border-slate-300 px-2 py-1 text-right align-top">
+                    <td className="border-r border-slate-300 px-2 py-1 text-right">
                       <input
                         type="text"
                         value={r.prodotto}
-                        onChange={e =>
+                        onChange={(e) =>
                           handleRowChange(idx, 'prodotto', e.target.value)
                         }
-                        className="w-full bg-transparent text-right text-[12px] focus:outline-none"
+                        className="w-full border-none bg-transparent text-[12px] text-right focus:outline-none"
                       />
                     </td>
 
-                    {/* NOTE – textarea écran + pre impression */}
-                    <td className="border border-slate-300 px-2 py-1 relative align-top">
+                    {/* NOTE + bouton suppression (écran seulement) */}
+                    <td className="px-2 py-1 relative">
                       <textarea
                         value={r.note}
-                        onChange={e =>
+                        onChange={(e) =>
                           handleRowChange(idx, 'note', e.target.value)
                         }
-                        className="rapportino-textarea w-full bg-transparent text-[12px] focus:outline-none no-print"
+                        onInput={(e) => autoResizeTextarea(e.target)}
+                        className="w-full border-none bg-transparent text-[12px] rapportino-textarea focus:outline-none"
                         rows={2}
                       />
-                      <pre className="print-only text-[12px] whitespace-pre-wrap leading-tight">
-                        {r.note}
-                      </pre>
                       <button
                         type="button"
                         onClick={() => handleRemoveRow(idx)}
@@ -652,7 +823,7 @@ export default function RapportinoPage({ crewRole }) {
             </table>
           </div>
 
-          {/* Messages d'erreur / succès + actions (non imprimés) */}
+          {/* Actions & messages (écran seulement) */}
           <div className="mt-3 flex flex-col gap-2 no-print">
             {error && (
               <div className="text-[12px] text-amber-900 bg-amber-100 border border-amber-300 rounded px-3 py-2">
@@ -661,7 +832,7 @@ export default function RapportinoPage({ crewRole }) {
                 {errorDetails && (
                   <button
                     type="button"
-                    onClick={() => setShowErrorDetails(v => !v)}
+                    onClick={() => setShowErrorDetails((v) => !v)}
                     className="mt-1 text-[11px] underline text-amber-800"
                   >
                     {showErrorDetails
@@ -733,7 +904,7 @@ export default function RapportinoPage({ crewRole }) {
             </div>
           </div>
 
-          {/* Lista Cavi – uniquement pour ELETTRICISTA, non imprimée */}
+          {/* Lista Cavi – seulement pour ELETTRICISTA, écran uniquement */}
           {crewRole === 'ELETTRICISTA' && (
             <div className="mt-4 no-print">
               <ListaCaviPanel rapportinoId={rapportinoId} />
@@ -744,4 +915,3 @@ export default function RapportinoPage({ crewRole }) {
     </div>
   );
 }
-
