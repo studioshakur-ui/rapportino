@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../auth/AuthProvider';
 import LoadingScreen from './LoadingScreen';
 import ListaCaviPanel from './ListaCaviPanel';
-import { getBaseRows, parseNumeric } from '../config/rapportinoTemplates';
+import { getBaseRowsFor } from './rapportino/rapportinoTemplates';
 
 const STATUS_LABELS = {
   DRAFT: 'Bozza',
@@ -23,6 +23,16 @@ function getTodayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function parseNumeric(value) {
+  if (value === null || value === undefined) return null;
+  const s = String(value).trim();
+  if (!s) return null;
+  const normalized = s.replace(',', '.');
+  const n = Number(normalized);
+  if (Number.isNaN(n)) return null;
+  return n;
+}
+
 // Ajuste automatiquement la hauteur OPERATORE / TEMPO pour une ligne
 function adjustOperatorTempoHeights(textareaEl) {
   if (!textareaEl) return;
@@ -39,12 +49,43 @@ function adjustOperatorTempoHeights(textareaEl) {
   });
 
   tAreas.forEach((ta) => {
-    ta.style.height = `${max}px`;
+    ta.style.height = max + 'px';
   });
+}
+
+// Détermine la couleur du cadre principal selon le statut
+function getStatusFrameClass(status, rapportinoId, rows) {
+  const hasAnyContent =
+    rows &&
+    rows.some(
+      (r) =>
+        r.descrizione?.trim() ||
+        r.operatori?.trim() ||
+        r.tempo?.trim() ||
+        r.prodotto?.trim() ||
+        r.note?.trim()
+    );
+
+  if (!rapportinoId && !hasAnyContent) {
+    // tout nouveau, vraiment vide
+    return 'border-rose-500 shadow-[0_0_0_1px_rgba(244,63,94,0.4)]';
+  }
+
+  if (status === 'VALIDATED_CAPO' || status === 'APPROVED_UFFICIO') {
+    return 'border-emerald-500 shadow-[0_0_0_1px_rgba(16,185,129,0.5)]';
+  }
+
+  if (status === 'RETURNED') {
+    return 'border-amber-500 shadow-[0_0_0_1px_rgba(245,158,11,0.5)]';
+  }
+
+  // Bozza / en cours
+  return 'border-orange-400 shadow-[0_0_0_1px_rgba(251,146,60,0.45)]';
 }
 
 export default function RapportinoPage({
   crewRole,
+  costruttore,
   onChangeCrewRole,
   onLogout,
 }) {
@@ -52,11 +93,13 @@ export default function RapportinoPage({
 
   const [rapportinoId, setRapportinoId] = useState(null);
   const [reportDate, setReportDate] = useState(getTodayISO());
-  const [costr, setCostr] = useState('6368');
+  const [costr, setCostr] = useState(costruttore || '6368');
   const [commessa, setCommessa] = useState('SDC');
   const [status, setStatus] = useState('DRAFT');
 
-  const [rows, setRows] = useState(() => getBaseRows(crewRole, '6368'));
+  const [rows, setRows] = useState(() =>
+    getBaseRowsFor(costruttore || '6368', crewRole)
+  );
 
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -66,7 +109,7 @@ export default function RapportinoPage({
   const [showErrorDetails, setShowErrorDetails] = useState(false);
   const [successMessage, setSuccessMessage] = useState(null);
 
-  // Charger le rapportino existant (si présent) à chaque changement de date / tipo squadra
+  // Charger le rapportino existant à chaque changement de date / squadra / costr
   useEffect(() => {
     let active = true;
 
@@ -84,11 +127,15 @@ export default function RapportinoPage({
         setShowErrorDetails(false);
         setSuccessMessage(null);
 
+        const currentCostr = costr || costruttore || '6368';
+
+        // On filtre aussi par COSTR
         const { data: rapData, error: rapError } = await supabase
           .from('rapportini')
           .select('*')
           .eq('capo_id', profile.id)
           .eq('crew_role', crewRole)
+          .eq('costr', currentCostr)
           .or(`data.eq.${reportDate},report_date.eq.${reportDate}`)
           .order('created_at', { ascending: false })
           .limit(1)
@@ -101,22 +148,17 @@ export default function RapportinoPage({
         if (!active) return;
 
         if (!rapData) {
-          // Aucun rapportino existant → reset sur base (avec template costr + ruolo)
+          // Aucun rapportino existant → base selon navire+ruolo
+          const base = getBaseRowsFor(currentCostr, crewRole);
           setRapportinoId(null);
-          setCostr((prev) => prev || '6368');
-          setCommessa((prev) => prev || 'SDC');
+          setCostr(currentCostr);
+          setCommessa('SDC');
           setStatus('DRAFT');
-          setRows((prevRows) =>
-            prevRows && prevRows.length > 0
-              ? getBaseRows(crewRole, costr || '6368')
-              : getBaseRows(crewRole, costr || '6368'),
-          );
+          setRows(base);
         } else {
-          // On a déjà un rapportino sauvegardé
           setRapportinoId(rapData.id);
-          const nextCostr = rapData.costr || rapData.cost || costr || '6368';
-          setCostr(nextCostr);
-          setCommessa(rapData.commessa || commessa || 'SDC');
+          setCostr(rapData.costr || rapData.cost || currentCostr);
+          setCommessa(rapData.commessa || 'SDC');
           setStatus(rapData.status || 'DRAFT');
 
           const { data: righe, error: righeError } = await supabase
@@ -130,8 +172,7 @@ export default function RapportinoPage({
           if (!active) return;
 
           if (!righe || righe.length === 0) {
-            // Pas de lignes enregistrées → on applique le template
-            setRows(getBaseRows(crewRole, nextCostr));
+            setRows(getBaseRowsFor(currentCostr, crewRole));
           } else {
             const mapped = righe.map((r, idx) => ({
               id: r.id,
@@ -157,10 +198,12 @@ export default function RapportinoPage({
         console.error('Errore caricamento rapportino:', err);
         if (active) {
           setError(
-            'Errore durante il caricamento del rapportino. Puoi comunque compilare una nuova giornata.',
+            'Errore durante il caricamento del rapportino. Puoi comunque compilare una nuova giornata.'
           );
           setErrorDetails(err?.message || String(err));
-          setRows(getBaseRows(crewRole, costr || '6368'));
+          setRows(
+            getBaseRowsFor(costr || costruttore || '6368', crewRole)
+          );
         }
       } finally {
         if (active) {
@@ -175,8 +218,7 @@ export default function RapportinoPage({
     return () => {
       active = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.id, crewRole, reportDate]);
+  }, [profile?.id, crewRole, reportDate, costr, costruttore]);
 
   const prodottoTotale = useMemo(() => {
     return rows.reduce((sum, r) => {
@@ -203,7 +245,6 @@ export default function RapportinoPage({
       return copy;
     });
 
-    // Synchronise la hauteur OPERATORE / TEMPO si nécessaire
     if (targetForHeight) {
       adjustOperatorTempoHeights(targetForHeight);
     }
@@ -239,7 +280,7 @@ export default function RapportinoPage({
   const handleRemoveRow = (index) => {
     setRows((prev) => {
       if (prev.length === 1) {
-        return getBaseRows(crewRole, costr || '6368');
+        return getBaseRowsFor(costr || costruttore || '6368', crewRole);
       }
       const copy = [...prev];
       copy.splice(index, 1);
@@ -248,9 +289,11 @@ export default function RapportinoPage({
   };
 
   const handleNewDay = () => {
+    const base = getBaseRowsFor(costr || costruttore || '6368', crewRole);
     setRapportinoId(null);
     setStatus('DRAFT');
-    setRows(getBaseRows(crewRole, costr || '6368'));
+    setCommessa('SDC');
+    setRows(base);
     setError(null);
     setErrorDetails(null);
     setShowErrorDetails(false);
@@ -334,13 +377,13 @@ export default function RapportinoPage({
       }
 
       setSuccessMessage(
-        'Ultimo salvataggio riuscito. Puoi continuare a compilare o esportare il PDF.',
+        'Ultimo salvataggio riuscito. Puoi continuare a compilare o esportare il PDF.'
       );
       return newId;
     } catch (err) {
       console.error('Errore salvataggio rapportino:', err);
       setError(
-        'Errore durante il salvataggio del rapportino. Puoi comunque continuare a scrivere.',
+        'Errore durante il salvataggio del rapportino. Puoi comunque continuare a scrivere.'
       );
       setErrorDetails(err?.message || String(err));
       return null;
@@ -376,13 +419,15 @@ export default function RapportinoPage({
     return <LoadingScreen message="Caricamento del rapportino..." />;
   }
 
+  const frameClass = getStatusFrameClass(status, rapportinoId, rows);
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col">
       {/* Header principale (non imprimé) */}
       <header className="border-b border-slate-300 bg-slate-900 text-slate-50 px-4 py-3 flex items-center justify-between no-print">
         <div className="flex flex-col">
           <span className="text-xs font-semibold tracking-wide text-slate-300">
-            CORE · Modulo RAPPORTINO
+            CORE · Modulo RAPPORTINO · COSTR {costr}
           </span>
           <span className="text-sm">
             Capo squadra:{' '}
@@ -423,7 +468,9 @@ export default function RapportinoPage({
 
       {/* Contenu imprimable */}
       <main className="flex-1 flex justify-center py-4 px-2">
-        <div className="bg-white shadow-md shadow-slate-300 rounded-lg w-[1200px] max-w-full px-6 py-4 print:shadow-none print:border-none">
+        <div
+          className={`bg-white rounded-lg w-[1120px] max-w-full px-6 py-4 print:shadow-none print:border-none border ${frameClass}`}
+        >
           {/* Bandeau stato & prodotto total – écran uniquement */}
           <div className="flex items-center justify-between mb-2 no-print text-[12px] text-slate-600">
             <div>
@@ -472,7 +519,7 @@ export default function RapportinoPage({
                   type="text"
                   value={commessa}
                   onChange={(e) => setCommessa(e.target.value)}
-                  className="inline-block w-32 border-b border-slate-400 focus:outline-none focus:border-slate-800 px-1"
+                  className="inline-block w-24 border-b border-slate-400 focus:outline-none focus:border-slate-800 px-1"
                 />
               </div>
 
@@ -498,7 +545,7 @@ export default function RapportinoPage({
             <table className="w-full border-collapse text-[12px]">
               <thead className="bg-slate-100 border-b border-slate-300">
                 <tr>
-                  <th className="w-28 border-r border-slate-300 px-2 py-1 text-left">
+                  <th className="w-24 border-r border-slate-300 px-2 py-1 text-left">
                     CATEGORIA
                   </th>
                   <th className="w-64 border-r border-slate-300 px-2 py-1 text-left">
@@ -507,7 +554,7 @@ export default function RapportinoPage({
                   <th className="w-40 border-r border-slate-300 px-2 py-1 text-left">
                     OPERATORE
                   </th>
-                  <th className="w-28 border-r border-slate-300 px-2 py-1 text-left">
+                  <th className="w-32 border-r border-slate-300 px-2 py-1 text-left">
                     Tempo impiegato
                   </th>
                   <th className="w-24 border-r border-slate-300 px-2 py-1 text-right">
@@ -516,7 +563,7 @@ export default function RapportinoPage({
                   <th className="w-24 border-r border-slate-300 px-2 py-1 text-right">
                     PRODOTTO
                   </th>
-                  <th className="w-40 border-r border-slate-300 px-2 py-1 text-left">
+                  <th className="border-slate-300 px-2 py-1 text-left w-64">
                     NOTE
                   </th>
                   <th className="border-slate-300 px-2 py-1 text-xs w-6 no-print">
@@ -544,7 +591,7 @@ export default function RapportinoPage({
                           handleRowChange(
                             idx,
                             'descrizione',
-                            e.target.value,
+                            e.target.value
                           )
                         }
                         className="w-full border-none bg-transparent text-[12px] resize-none focus:outline-none"
@@ -562,7 +609,7 @@ export default function RapportinoPage({
                             idx,
                             'operatori',
                             e.target.value,
-                            e.target,
+                            e.target
                           )
                         }
                         className="w-full border-none bg-transparent text-[12px] resize-none focus:outline-none rapportino-textarea"
@@ -570,7 +617,7 @@ export default function RapportinoPage({
                       />
                     </td>
 
-                    {/* TEMPO IMPIEGATO (alignement à gauche) */}
+                    {/* TEMPO IMPIEGATO (gauche, pas aligné à droite) */}
                     <td className="border-r border-slate-200 px-2 py-1">
                       <textarea
                         data-optempo="1"
@@ -580,7 +627,7 @@ export default function RapportinoPage({
                             idx,
                             'tempo',
                             e.target.value,
-                            e.target,
+                            e.target
                           )
                         }
                         className="w-full border-none bg-transparent text-[12px] resize-none focus:outline-none rapportino-textarea"
@@ -608,7 +655,7 @@ export default function RapportinoPage({
                         className="w-full border-none bg-transparent text-[12px] text-right focus:outline-none"
                       />
                     </td>
-                    <td className="border-r border-slate-200 px-2 py-1 relative">
+                    <td className="px-2 py-1 relative">
                       <textarea
                         value={r.note}
                         onChange={(e) =>
@@ -712,8 +759,8 @@ export default function RapportinoPage({
               </div>
             </div>
 
-            <div className="mt-3 text-[10px] text-slate-400 text-center">
-              CORE – Sistema centrale di cantiere · SHAKUR Engineering
+            <div className="mt-2 text-[10px] text-right text-slate-500">
+              CORE — Sistema centrale di cantiere · SHAKUR Engineering
             </div>
           </div>
 
