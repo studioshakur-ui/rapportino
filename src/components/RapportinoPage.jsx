@@ -9,7 +9,7 @@ import {
   parseNumeric,
   getBaseRows,
   adjustOperatorTempoHeights,
-} from '../rapportino/rapportinoUtils';
+} from '../rapportinoUtils';
 
 const STATUS_LABELS = {
   DRAFT: 'Bozza',
