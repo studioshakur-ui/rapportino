@@ -4,8 +4,13 @@ import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../auth/AuthProvider';
 import LoadingScreen from './LoadingScreen';
 import ListaCaviPanel from './ListaCaviPanel';
+import {
+  getTodayISO,
+  parseNumeric,
+  getBaseRows,
+  adjustOperatorTempoHeights,
+} from '../rapportino/rapportinoUtils';
 
-// Libellés de statut
 const STATUS_LABELS = {
   DRAFT: 'Bozza',
   VALIDATED_CAPO: 'Validata dal Capo',
@@ -19,244 +24,19 @@ const CREW_LABELS = {
   MONTAGGIO: 'Montaggio',
 };
 
-function getTodayISO() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-// "150" -> 150, "0,2" -> 0.2, "" -> null
-function parseNumeric(value) {
-  if (value === null || value === undefined) return null;
-  const s = String(value).trim();
-  if (!s) return null;
-  const normalized = s.replace(',', '.');
-  const n = Number(normalized);
-  if (Number.isNaN(n)) return null;
-  return n;
-}
-
-/**
- * Modèle ELECTTRICISTA pour 6368 (SDC – militaire)
- * (ancienne croisière, mais on utilise maintenant le layout 6358 partout)
- */
-const MODEL_ELETTRICISTA_6368 = [
-  {
-    id: null,
-    row_index: 0,
-    categoria: 'STESURA',
-    descrizione: 'STESURA',
-    operatori: '',
-    tempo: '',
-    previsto: '150',
-    prodotto: '',
-    note: '',
-  },
-  {
-    id: null,
-    row_index: 1,
-    categoria: 'STESURA',
-    descrizione: 'FASCETTATURA CAVI',
-    operatori: '',
-    tempo: '',
-    previsto: '600',
-    prodotto: '',
-    note: '',
-  },
-  {
-    id: null,
-    row_index: 2,
-    categoria: 'STESURA',
-    descrizione: 'RIPRESA CAVI',
-    operatori: '',
-    tempo: '',
-    previsto: '150',
-    prodotto: '',
-    note: '',
-  },
-  {
-    id: null,
-    row_index: 3,
-    categoria: 'STESURA',
-    descrizione: 'VARI STESURA CAVI',
-    operatori: '',
-    tempo: '',
-    previsto: '0,2',
-    prodotto: '',
-    note: '',
-  },
-];
-
-/**
- * Modèle ELECTTRICISTA pour 6358 (DE-ICNG – ton papier)
- */
-const MODEL_ELETTRICISTA_6358 = [
-  {
-    id: null,
-    row_index: 0,
-    categoria: 'STESURA',
-    descrizione: 'STESURA CAVI (3X6)',
-    operatori: '',
-    tempo: '',
-    previsto: '150',
-    prodotto: '',
-    note: '',
-  },
-  {
-    id: null,
-    row_index: 1,
-    categoria: 'STESURA',
-    descrizione: 'FASCETTATURA CAVI',
-    operatori: '',
-    tempo: '',
-    previsto: '600',
-    prodotto: '',
-    note: '',
-  },
-  {
-    id: null,
-    row_index: 2,
-    categoria: 'STESURA',
-    descrizione: 'RIPRESA CAVI',
-    operatori: '',
-    tempo: '',
-    previsto: '150',
-    prodotto: '',
-    note: '',
-  },
-  {
-    id: null,
-    row_index: 3,
-    categoria: 'STESURA',
-    descrizione: 'SISTEMAZIONE CAVI (3X6)',
-    operatori: '',
-    tempo: '',
-    previsto: '10,0',
-    prodotto: '',
-    note: '',
-  },
-  {
-    id: null,
-    row_index: 4,
-    categoria: 'GESTIONE E VARIE',
-    descrizione: 'VARI STESURA',
-    operatori: '',
-    tempo: '',
-    previsto: '0,2',
-    prodotto: '',
-    note: '',
-  },
-];
-
-/**
- * Patch demandé : on utilise pour l’instant
- * le modèle 6358 même quand on est sur COSTR 6368.
- */
-const MODEL_BY_COSTR = {
-  '6368': MODEL_ELETTRICISTA_6358, // ⚠️ patch temporaire
-  '6358': MODEL_ELETTRICISTA_6358,
-};
-
-function cloneRows(template) {
-  return template.map((r) => ({ ...r }));
-}
-
-function getBaseRows(crewRole, costr) {
-  // ELECTTRICISTA – dépend du COSTR
-  if (crewRole === 'ELETTRICISTA') {
-    const tpl = MODEL_BY_COSTR[costr] || MODEL_ELETTRICISTA_6368;
-    return cloneRows(tpl);
-  }
-
-  // CARPENTERIA
-  if (crewRole === 'CARPENTERIA') {
-    return [
-      {
-        id: null,
-        row_index: 0,
-        categoria: 'CARPENTERIA',
-        descrizione: '',
-        operatori: '',
-        tempo: '',
-        previsto: '',
-        prodotto: '',
-        note: '',
-      },
-    ];
-  }
-
-  // MONTAGGIO
-  if (crewRole === 'MONTAGGIO') {
-    return [
-      {
-        id: null,
-        row_index: 0,
-        categoria: 'MONTAGGIO',
-        descrizione: '',
-        operatori: '',
-        tempo: '',
-        previsto: '',
-        prodotto: '',
-        note: '',
-      },
-    ];
-  }
-
-  // fallback
-  return [
-    {
-      id: null,
-      row_index: 0,
-      categoria: '',
-      descrizione: '',
-      operatori: '',
-      tempo: '',
-      previsto: '',
-      prodotto: '',
-      note: '',
-    },
-  ];
-}
-
-// Ajuste la hauteur OPERATORE / TEMPO pour une ligne
-function adjustOperatorTempoHeights(textareaEl) {
-  if (!textareaEl) return;
-  const tr = textareaEl.closest('tr');
-  if (!tr) return;
-  const tAreas = tr.querySelectorAll('textarea[data-optempo="1"]');
-  if (!tAreas.length) return;
-
-  let max = 0;
-  tAreas.forEach((ta) => {
-    ta.style.height = 'auto';
-    const h = ta.scrollHeight;
-    if (h > max) max = h;
-  });
-
-  tAreas.forEach((ta) => {
-    ta.style.height = `${max}px`;
-  });
-}
-
-export default function RapportinoPage({
-  crewRole,
-  onChangeCrewRole,
-  onLogout,
-  initialCostr,
-}) {
+export default function RapportinoPage({ crewRole, onChangeCrewRole, onLogout }) {
   const { profile } = useAuth();
 
-  // COSTR / header
-  const [costr, setCostr] = useState(initialCostr || '6368');
+  // ⚠️ COSTR ici est PUREMENT VISUEL (PDF + écran)
+  // La recherche en DB se fait uniquement sur (capo_id, crew_role, report_date)
+  const [costr, setCostr] = useState('6368');
   const [commessa, setCommessa] = useState('SDC');
+  const [rapportinoId, setRapportinoId] = useState(null);
   const [reportDate, setReportDate] = useState(getTodayISO());
   const [status, setStatus] = useState('DRAFT');
 
-  const [rapportinoId, setRapportinoId] = useState(null);
+  const [rows, setRows] = useState(() => getBaseRows(crewRole));
 
-  const [rows, setRows] = useState(() =>
-    getBaseRows(crewRole, initialCostr || '6368'),
-  );
-
-  // états UI
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -265,7 +45,11 @@ export default function RapportinoPage({
   const [showErrorDetails, setShowErrorDetails] = useState(false);
   const [successMessage, setSuccessMessage] = useState(null);
 
-  // charge rapportino existant selon capo / crew / date
+  // --------------------------------------------------
+  // CHARGEMENT DU RAPPORTINO EXISTANT
+  // clé unique = capo_id + crew_role + report_date
+  // (COSTR ignoré pour éviter les conflits 6368/6358)
+  // --------------------------------------------------
   useEffect(() => {
     let active = true;
 
@@ -300,15 +84,18 @@ export default function RapportinoPage({
         if (!active) return;
 
         if (!rapData) {
-          // aucun rapportino → modèle de base
+          // Aucun rapportino pour ce jour / rôle → nouveau
           setRapportinoId(null);
+          setCostr('6368');
+          setCommessa('SDC');
           setStatus('DRAFT');
-          setRows(getBaseRows(crewRole, costr));
+          setRows(getBaseRows(crewRole));
         } else {
           setRapportinoId(rapData.id);
+          // IMPORTANT : on laisse la possibilité de changer COSTR (ex : 6358)
+          setCostr(rapData.costr || rapData.cost || '6368');
+          setCommessa(rapData.commessa || 'SDC');
           setStatus(rapData.status || 'DRAFT');
-          setCostr(rapData.costr || rapData.cost || costr);
-          setCommessa(rapData.commessa || commessa);
 
           const { data: righe, error: righeError } = await supabase
             .from('rapportino_rows')
@@ -317,10 +104,11 @@ export default function RapportinoPage({
             .order('row_index', { ascending: true });
 
           if (righeError) throw righeError;
+
           if (!active) return;
 
           if (!righe || righe.length === 0) {
-            setRows(getBaseRows(crewRole, rapData.costr || costr));
+            setRows(getBaseRows(crewRole));
           } else {
             const mapped = righe.map((r, idx) => ({
               id: r.id,
@@ -349,7 +137,7 @@ export default function RapportinoPage({
             'Errore durante il caricamento del rapportino. Puoi comunque compilare una nuova giornata.',
           );
           setErrorDetails(err?.message || String(err));
-          setRows(getBaseRows(crewRole, costr));
+          setRows(getBaseRows(crewRole));
         }
       } finally {
         if (active) {
@@ -364,8 +152,11 @@ export default function RapportinoPage({
     return () => {
       active = false;
     };
-  }, [profile?.id, crewRole, reportDate, costr, commessa]);
+  }, [profile?.id, crewRole, reportDate]);
 
+  // --------------------------------------------------
+  // AGGREGATION PRODOTTO
+  // --------------------------------------------------
   const prodottoTotale = useMemo(
     () =>
       rows.reduce((sum, r) => {
@@ -384,6 +175,9 @@ export default function RapportinoPage({
   const statusLabel = STATUS_LABELS[status] || status;
   const crewLabel = CREW_LABELS[crewRole] || crewRole;
 
+  // --------------------------------------------------
+  // HANDLERS LIGNES
+  // --------------------------------------------------
   const handleRowChange = (index, field, value, targetForHeight) => {
     setRows((prev) => {
       const copy = [...prev];
@@ -428,7 +222,7 @@ export default function RapportinoPage({
   const handleRemoveRow = (index) => {
     setRows((prev) => {
       if (prev.length === 1) {
-        return getBaseRows(crewRole, costr);
+        return getBaseRows(crewRole);
       }
       const copy = [...prev];
       copy.splice(index, 1);
@@ -439,7 +233,9 @@ export default function RapportinoPage({
   const handleNewDay = () => {
     setRapportinoId(null);
     setStatus('DRAFT');
-    setRows(getBaseRows(crewRole, costr));
+    setCostr('6368');
+    setCommessa('SDC');
+    setRows(getBaseRows(crewRole));
     setError(null);
     setErrorDetails(null);
     setShowErrorDetails(false);
@@ -447,6 +243,9 @@ export default function RapportinoPage({
     setReportDate(getTodayISO());
   };
 
+  // --------------------------------------------------
+  // SAUVEGARDE (upsert sur ID → pas de duplicate key)
+  // --------------------------------------------------
   async function handleSave(nextStatus = null) {
     if (!profile?.id) return null;
 
@@ -461,13 +260,13 @@ export default function RapportinoPage({
       const prodottoTot = prodottoTotale;
 
       const headerPayload = {
-        id: rapportinoId || undefined,
+        id: rapportinoId || undefined, // ← important pour éviter un nouvel enregistrement
         capo_id: profile.id,
         user_id: profile.id,
         capo_name: capoName,
-        data: reportDate,
-        report_date: reportDate,
         crew_role: crewRole,
+        report_date: reportDate,
+        data: reportDate, // compat ancien champ
         costr,
         cost: costr,
         commessa,
@@ -476,12 +275,9 @@ export default function RapportinoPage({
         prodotto_tot: prodottoTot,
       };
 
-      // ✅ Fix duplicate key: onConflict utilise (user_id, crew_role, report_date)
       const { data: savedRap, error: saveError } = await supabase
         .from('rapportini')
-        .upsert(headerPayload, {
-          onConflict: 'user_id,crew_role,report_date',
-        })
+        .upsert(headerPayload, { onConflict: 'id' })
         .select('*')
         .single();
 
@@ -491,7 +287,7 @@ export default function RapportinoPage({
       setRapportinoId(newId);
       setStatus(savedRap.status || finalStatus);
 
-      // On remplace toutes les lignes du jour
+      // On simplifie : on efface les lignes existantes et on ré-insère
       const { error: delError } = await supabase
         .from('rapportino_rows')
         .delete()
@@ -499,17 +295,21 @@ export default function RapportinoPage({
 
       if (delError) throw delError;
 
-      const rowsPayload = rows.map((r, idx) => ({
-        rapportino_id: newId,
-        row_index: r.row_index ?? idx,
-        categoria: r.categoria || null,
-        descrizione: r.descrizione || null,
-        operatori: r.operatori || null,
-        tempo: r.tempo || null,
-        previsto: parseNumeric(r.previsto),
-        prodotto: parseNumeric(r.prodotto),
-        note: r.note || null,
-      }));
+      const rowsPayload = rows.map((r, idx) => {
+        const previstoNum = parseNumeric(r.previsto);
+        const prodottoNum = parseNumeric(r.prodotto);
+        return {
+          rapportino_id: newId,
+          row_index: r.row_index ?? idx,
+          categoria: r.categoria || null,
+          descrizione: r.descrizione || null,
+          operatori: r.operatori || null,
+          tempo: r.tempo || null,
+          previsto: previstoNum,
+          prodotto: prodottoNum,
+          note: r.note || null,
+        };
+      });
 
       if (rowsPayload.length > 0) {
         const { error: insError } = await supabase
@@ -537,13 +337,14 @@ export default function RapportinoPage({
 
   const handleValidate = async () => {
     const savedId = await handleSave('VALIDATED_CAPO');
-    if (savedId) setStatus('VALIDATED_CAPO');
+    if (savedId) {
+      setStatus('VALIDATED_CAPO');
+    }
   };
 
   const handleExportPdf = async () => {
     const savedId = await handleSave();
     if (!savedId) return;
-    // Impression / export PDF natif navigateur
     window.print();
   };
 
@@ -559,13 +360,16 @@ export default function RapportinoPage({
     return <LoadingScreen message="Caricamento del rapportino..." />;
   }
 
+  // --------------------------------------------------
+  // RENDER
+  // --------------------------------------------------
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col">
-      {/* Header non imprimé */}
+      {/* Header principale (non imprimé) */}
       <header className="border-b border-slate-300 bg-slate-900 text-slate-50 px-4 py-3 flex items-center justify-between no-print">
         <div className="flex flex-col">
           <span className="text-xs font-semibold tracking-wide text-slate-300">
-            CORE · Modulo RAPPORTINO · COSTR {costr}
+            CORE · Modulo RAPPORTINO · COSTR {costr || '—'}
           </span>
           <span className="text-sm">
             Capo squadra:{' '}
@@ -604,10 +408,10 @@ export default function RapportinoPage({
         </div>
       </header>
 
-      {/* Zone imprimable */}
+      {/* Contenu imprimable */}
       <main className="flex-1 flex justify-center py-4 px-2">
         <div className="bg-white shadow-md shadow-slate-300 rounded-lg w-[1120px] max-w-full px-6 py-4 print:shadow-none print:border-none">
-          {/* bandeau état + produit total (écran seulement) */}
+          {/* Bandeau stato & prodotto total – écran uniquement */}
           <div className="flex items-center justify-between mb-2 no-print text-[12px] text-slate-600">
             <div>
               CORE · Rapportino ·{' '}
@@ -629,23 +433,22 @@ export default function RapportinoPage({
             </div>
           </div>
 
-          {/* HEADER version papier */}
+          {/* === HEADER VERSION PAPIER === */}
           <div className="mb-3">
             <div className="text-center text-[16px] font-semibold mb-3 tracking-wide">
               RAPPORTINO GIORNALIERO
             </div>
 
-            <div className="mb-1">
-              <span className="font-semibold mr-2">COSTR.:</span>
-              <input
-                type="text"
-                value={costr}
-                onChange={(e) => setCostr(e.target.value)}
-                className="inline-block w-28 border-b border-slate-400 focus:outline-none focus:border-slate-800 px-1"
-              />
-            </div>
-
-            <div className="grid grid-cols-[1fr_0.9fr_1fr] items-center gap-2">
+            <div className="mb-1 flex gap-8">
+              <div>
+                <span className="font-semibold mr-2">COSTR.:</span>
+                <input
+                  type="text"
+                  value={costr}
+                  onChange={(e) => setCostr(e.target.value.trim())}
+                  className="inline-block w-32 border-b border-slate-400 focus:outline-none focus:border-slate-800 px-1"
+                />
+              </div>
               <div>
                 <span className="font-semibold mr-2">Commessa:</span>
                 <input
@@ -655,12 +458,13 @@ export default function RapportinoPage({
                   className="inline-block w-32 border-b border-slate-400 focus:outline-none focus:border-slate-800 px-1"
                 />
               </div>
+            </div>
 
-              <div className="pl-4">
+            <div className="grid grid-cols-[1fr_1fr] items-center gap-2">
+              <div>
                 <span className="font-semibold mr-2">Capo Squadra:</span>
                 <span className="px-1">{capoName}</span>
               </div>
-
               <div className="text-right">
                 <span className="font-semibold mr-2">DATA:</span>
                 <input
@@ -673,39 +477,35 @@ export default function RapportinoPage({
             </div>
           </div>
 
-          {/* TABLE principale */}
+          {/* Table principale */}
           <div className="border border-slate-300 rounded-md overflow-hidden">
             <table className="w-full border-collapse text-[12px]">
               <thead className="bg-slate-100 border-b border-slate-300">
                 <tr>
-                  <th className="w-28 border-r border-slate-300 px-2 py-1 text-left uppercase tracking-[0.08em] text-[11px] text-slate-700">
+                  <th className="w-28 border-r border-slate-300 px-2 py-1 text-left">
                     CATEGORIA
                   </th>
-                  <th className="w-72 border-r border-slate-300 px-2 py-1 text-left uppercase tracking-[0.08em] text-[11px] text-slate-700">
+                  <th className="w-72 border-r border-slate-300 px-2 py-1 text-left">
                     DESCRIZIONE ATTIVITÀ
                   </th>
-                  <th className="w-40 border-r border-slate-300 px-2 py-1 text-left uppercase tracking-[0.08em] text-[11px] text-slate-700">
+                  <th className="w-40 border-r border-slate-300 px-2 py-1 text-left">
                     OPERATORE
                   </th>
-                  <th className="w-32 border-r border-slate-300 px-2 py-1 text-left uppercase tracking-[0.08em] text-[11px] text-slate-700">
-                    TEMPO IMPIEGATO
-                    <span className="ml-1 text-[9px] font-normal text-slate-500">
-                      (ORE)
-                    </span>
+                  <th className="w-32 border-r border-slate-300 px-2 py-1 text-left">
+                    Tempo impiegato
                   </th>
-                  <th className="w-24 border-r border-slate-300 px-2 py-1 text-right uppercase tracking-[0.08em] text-[11px] text-slate-700">
+                  <th className="w-24 border-r border-slate-300 px-2 py-1 text-right">
                     PREVISTO
                   </th>
-                  <th className="w-24 border-r border-slate-300 px-2 py-1 text-right uppercase tracking-[0.08em] text-[11px] text-slate-700">
+                  <th className="w-24 border-r border-slate-300 px-2 py-1 text-right">
                     PRODOTTO
-                    <span className="ml-1 text-[9px] font-normal text-slate-500">
-                      (MT)
-                    </span>
                   </th>
-                  <th className="px-2 py-1 text-left uppercase tracking-[0.08em] text-[11px] text-slate-700">
+                  <th className="border-slate-300 px-2 py-1 text-left">
                     NOTE
                   </th>
-                  <th className="px-2 py-1 text-xs w-6 no-print border-l border-slate-300" />
+                  <th className="border-slate-300 px-2 py-1 text-xs w-6 no-print">
+                    -
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -725,11 +525,7 @@ export default function RapportinoPage({
                       <textarea
                         value={r.descrizione}
                         onChange={(e) =>
-                          handleRowChange(
-                            idx,
-                            'descrizione',
-                            e.target.value,
-                          )
+                          handleRowChange(idx, 'descrizione', e.target.value)
                         }
                         className="w-full border-none bg-transparent text-[12px] resize-none focus:outline-none"
                         rows={3}
@@ -811,7 +607,7 @@ export default function RapportinoPage({
             </table>
           </div>
 
-          {/* Footer actions (non imprimé) */}
+          {/* Footer / actions (non imprimé) */}
           <div className="mt-3 flex flex-col gap-2 no-print">
             {error && (
               <div className="text-[12px] text-amber-900 bg-amber-100 border border-amber-300 rounded px-3 py-2">
@@ -892,7 +688,7 @@ export default function RapportinoPage({
             </div>
           </div>
 
-          {/* Lista Cavi – seulement pour ELETTRICISTA (non imprimé) */}
+          {/* Lista Cavi – ELETTRICISTA seulement (non imprimé) */}
           {crewRole === 'ELETTRICISTA' && (
             <div className="mt-4 no-print">
               <ListaCaviPanel rapportinoId={rapportinoId} />
