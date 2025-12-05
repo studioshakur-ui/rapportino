@@ -3,7 +3,8 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from './auth/AuthProvider';
 import LoadingScreen from './components/LoadingScreen';
 import RoleSelect from './components/RoleSelect';
-import RapportinoPage from './components/RapportinoPage';
+// en haut
+import Rapportino6358Emergency from './components/Rapportino6358Emergency';
 import CostrSelect from './components/CostrSelect';
 import CapoModuleSelect from './components/CapoModuleSelect';
 import { btnSmall } from './ui/designSystem';
@@ -255,14 +256,12 @@ export default function AppShell() {
       </header>
 
       {/* Contenu : la feuille rapportino fait le show */}
-      <main className="flex-1 overflow-auto bg-slate-100 pt-10">
-        <RapportinoPage
-          crewRole={crewRole}
-          costruttore={costruttore}
-          onChangeCrewRole={handleChangeCrewRole}
-          onLogout={handleLogout}
-        />
-      </main>
+   
+// ...
+
+<main className="flex-1 overflow-auto bg-slate-100 pt-10">
+  <Rapportino6358Emergency />
+</main>
     </div>
   );
 }
