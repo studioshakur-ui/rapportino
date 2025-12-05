@@ -29,8 +29,9 @@ export default function RapportinoPage({ crewRole, onChangeCrewRole, onLogout })
 
   // ⚠️ COSTR ici est PUREMENT VISUEL (PDF + écran)
   // La recherche en DB se fait uniquement sur (capo_id, crew_role, report_date)
-  const [costr, setCostr] = useState('6368');
-  const [commessa, setCommessa] = useState('SDC');
+  // 🔁 POUR AUJOURD'HUI : on part DIRECTEMENT sur 6358 (et plus 6368)
+  const [costr, setCostr] = useState('6358');
+  const [commessa, setCommessa] = useState('ICING');
   const [rapportinoId, setRapportinoId] = useState(null);
   const [reportDate, setReportDate] = useState(getTodayISO());
   const [status, setStatus] = useState('DRAFT');
@@ -85,16 +86,17 @@ export default function RapportinoPage({ crewRole, onChangeCrewRole, onLogout })
 
         if (!rapData) {
           // Aucun rapportino pour ce jour / rôle → nouveau
+          // 🔁 ICI AUSSI : on part sur 6358 + ICING par défaut
           setRapportinoId(null);
-          setCostr('6368');
-          setCommessa('SDC');
+          setCostr('6358');
+          setCommessa('ICING');
           setStatus('DRAFT');
           setRows(getBaseRows(crewRole));
         } else {
           setRapportinoId(rapData.id);
           // IMPORTANT : on laisse la possibilité de changer COSTR (ex : 6358)
-          setCostr(rapData.costr || rapData.cost || '6368');
-          setCommessa(rapData.commessa || 'SDC');
+          setCostr(rapData.costr || rapData.cost || '6358');
+          setCommessa(rapData.commessa || 'ICING');
           setStatus(rapData.status || 'DRAFT');
 
           const { data: righe, error: righeError } = await supabase
@@ -231,10 +233,11 @@ export default function RapportinoPage({ crewRole, onChangeCrewRole, onLogout })
   };
 
   const handleNewDay = () => {
+    // 🔁 Quand tu cliques "Nuova giornata", on repart aussi en 6358 + ICING
     setRapportinoId(null);
     setStatus('DRAFT');
-    setCostr('6368');
-    setCommessa('SDC');
+    setCostr('6358');
+    setCommessa('ICING');
     setRows(getBaseRows(crewRole));
     setError(null);
     setErrorDetails(null);
