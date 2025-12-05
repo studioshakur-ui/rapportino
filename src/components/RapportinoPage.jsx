@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../auth/AuthProvider';
 import LoadingScreen from './LoadingScreen';
 import ListaCaviPanel from './ListaCaviPanel';
+import { getBaseRows, parseNumeric } from '../config/rapportinoTemplates';
 
 const STATUS_LABELS = {
   DRAFT: 'Bozza',
@@ -22,115 +23,7 @@ function getTodayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function parseNumeric(value) {
-  if (value === null || value === undefined) return null;
-  const s = String(value).trim();
-  if (!s) return null;
-  const normalized = s.replace(',', '.');
-  const n = Number(normalized);
-  if (Number.isNaN(n)) return null;
-  return n;
-}
-
-function getBaseRows(crewRole) {
-  if (crewRole === 'ELETTRICISTA') {
-    return [
-      {
-        id: null,
-        row_index: 0,
-        categoria: 'STESURA',
-        descrizione: 'STESURA',
-        operatori: '',
-        tempo: '',
-        previsto: '150',
-        prodotto: '',
-        note: '',
-      },
-      {
-        id: null,
-        row_index: 1,
-        categoria: 'STESURA',
-        descrizione: 'FASCETTATURA CAVI',
-        operatori: '',
-        tempo: '',
-        previsto: '600',
-        prodotto: '',
-        note: '',
-      },
-      {
-        id: null,
-        row_index: 2,
-        categoria: 'STESURA',
-        descrizione: 'RIPRESA CAVI',
-        operatori: '',
-        tempo: '',
-        previsto: '150',
-        prodotto: '',
-        note: '',
-      },
-      {
-        id: null,
-        row_index: 3,
-        categoria: 'STESURA',
-        descrizione: 'VARI STESURA CAVI',
-        operatori: '',
-        tempo: '',
-        previsto: '0,2',
-        prodotto: '',
-        note: '',
-      },
-    ];
-  }
-
-  if (crewRole === 'CARPENTERIA') {
-    return [
-      {
-        id: null,
-        row_index: 0,
-        categoria: 'CARPENTERIA',
-        descrizione: '',
-        operatori: '',
-        tempo: '',
-        previsto: '',
-        prodotto: '',
-        note: '',
-      },
-    ];
-  }
-
-  if (crewRole === 'MONTAGGIO') {
-    return [
-      {
-        id: null,
-        row_index: 0,
-        categoria: 'MONTAGGIO',
-        descrizione: '',
-        operatori: '',
-        tempo: '',
-        previsto: '',
-        prodotto: '',
-        note: '',
-      },
-    ];
-  }
-
-  // fallback
-  return [
-    {
-      id: null,
-      row_index: 0,
-      categoria: '',
-      descrizione: '',
-      operatori: '',
-      tempo: '',
-      previsto: '',
-      prodotto: '',
-      note: '',
-    },
-  ];
-}
-
-// Synchronise la hauteur OPERATORE / TEMPO sur une ligne
+// Ajuste automatiquement la hauteur OPERATORE / TEMPO pour une ligne
 function adjustOperatorTempoHeights(textareaEl) {
   if (!textareaEl) return;
   const tr = textareaEl.closest('tr');
@@ -146,7 +39,7 @@ function adjustOperatorTempoHeights(textareaEl) {
   });
 
   tAreas.forEach((ta) => {
-    ta.style.height = max + 'px';
+    ta.style.height = `${max}px`;
   });
 }
 
@@ -163,7 +56,7 @@ export default function RapportinoPage({
   const [commessa, setCommessa] = useState('SDC');
   const [status, setStatus] = useState('DRAFT');
 
-  const [rows, setRows] = useState(() => getBaseRows(crewRole));
+  const [rows, setRows] = useState(() => getBaseRows(crewRole, '6368'));
 
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -173,7 +66,7 @@ export default function RapportinoPage({
   const [showErrorDetails, setShowErrorDetails] = useState(false);
   const [successMessage, setSuccessMessage] = useState(null);
 
-  // Chargement du rapportino (par capo, crewRole, date)
+  // Charger le rapportino existant (si présent) à chaque changement de date / tipo squadra
   useEffect(() => {
     let active = true;
 
@@ -208,16 +101,22 @@ export default function RapportinoPage({
         if (!active) return;
 
         if (!rapData) {
-          // pas de rapportino → base vierge
+          // Aucun rapportino existant → reset sur base (avec template costr + ruolo)
           setRapportinoId(null);
-          setCostr('6368');
-          setCommessa('SDC');
+          setCostr((prev) => prev || '6368');
+          setCommessa((prev) => prev || 'SDC');
           setStatus('DRAFT');
-          setRows(getBaseRows(crewRole));
+          setRows((prevRows) =>
+            prevRows && prevRows.length > 0
+              ? getBaseRows(crewRole, costr || '6368')
+              : getBaseRows(crewRole, costr || '6368'),
+          );
         } else {
+          // On a déjà un rapportino sauvegardé
           setRapportinoId(rapData.id);
-          setCostr(rapData.costr || rapData.cost || '6368');
-          setCommessa(rapData.commessa || 'SDC');
+          const nextCostr = rapData.costr || rapData.cost || costr || '6368';
+          setCostr(nextCostr);
+          setCommessa(rapData.commessa || commessa || 'SDC');
           setStatus(rapData.status || 'DRAFT');
 
           const { data: righe, error: righeError } = await supabase
@@ -227,10 +126,12 @@ export default function RapportinoPage({
             .order('row_index', { ascending: true });
 
           if (righeError) throw righeError;
+
           if (!active) return;
 
           if (!righe || righe.length === 0) {
-            setRows(getBaseRows(crewRole));
+            // Pas de lignes enregistrées → on applique le template
+            setRows(getBaseRows(crewRole, nextCostr));
           } else {
             const mapped = righe.map((r, idx) => ({
               id: r.id,
@@ -259,7 +160,7 @@ export default function RapportinoPage({
             'Errore durante il caricamento del rapportino. Puoi comunque compilare una nuova giornata.',
           );
           setErrorDetails(err?.message || String(err));
-          setRows(getBaseRows(crewRole));
+          setRows(getBaseRows(crewRole, costr || '6368'));
         }
       } finally {
         if (active) {
@@ -274,6 +175,7 @@ export default function RapportinoPage({
     return () => {
       active = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id, crewRole, reportDate]);
 
   const prodottoTotale = useMemo(() => {
@@ -301,6 +203,7 @@ export default function RapportinoPage({
       return copy;
     });
 
+    // Synchronise la hauteur OPERATORE / TEMPO si nécessaire
     if (targetForHeight) {
       adjustOperatorTempoHeights(targetForHeight);
     }
@@ -336,7 +239,7 @@ export default function RapportinoPage({
   const handleRemoveRow = (index) => {
     setRows((prev) => {
       if (prev.length === 1) {
-        return getBaseRows(crewRole);
+        return getBaseRows(crewRole, costr || '6368');
       }
       const copy = [...prev];
       copy.splice(index, 1);
@@ -347,9 +250,7 @@ export default function RapportinoPage({
   const handleNewDay = () => {
     setRapportinoId(null);
     setStatus('DRAFT');
-    setCostr('6368');
-    setCommessa('SDC');
-    setRows(getBaseRows(crewRole));
+    setRows(getBaseRows(crewRole, costr || '6368'));
     setError(null);
     setErrorDetails(null);
     setShowErrorDetails(false);
@@ -522,9 +423,9 @@ export default function RapportinoPage({
 
       {/* Contenu imprimable */}
       <main className="flex-1 flex justify-center py-4 px-2">
-        <div className="bg-white shadow-md shadow-slate-300 rounded-lg w-full max-w-[1250px] mx-auto px-10 py-4 print:shadow-none print:border-none">
+        <div className="bg-white shadow-md shadow-slate-300 rounded-lg w-[1200px] max-w-full px-6 py-4 print:shadow-none print:border-none">
           {/* Bandeau stato & prodotto total – écran uniquement */}
-          <div className="flex items-center justify-between mb-3 no-print text-[12px] text-slate-600">
+          <div className="flex items-center justify-between mb-2 no-print text-[12px] text-slate-600">
             <div>
               CORE · Rapportino ·{' '}
               <span className="font-semibold">{crewLabel}</span>
@@ -571,7 +472,7 @@ export default function RapportinoPage({
                   type="text"
                   value={commessa}
                   onChange={(e) => setCommessa(e.target.value)}
-                  className="inline-block w-24 border-b border-slate-400 focus:outline-none focus:border-slate-800 px-1"
+                  className="inline-block w-32 border-b border-slate-400 focus:outline-none focus:border-slate-800 px-1"
                 />
               </div>
 
@@ -597,16 +498,16 @@ export default function RapportinoPage({
             <table className="w-full border-collapse text-[12px]">
               <thead className="bg-slate-100 border-b border-slate-300">
                 <tr>
-                  <th className="w-32 border-r border-slate-300 px-2 py-1 text-left">
+                  <th className="w-28 border-r border-slate-300 px-2 py-1 text-left">
                     CATEGORIA
                   </th>
-                  <th className="w-[18rem] border-r border-slate-300 px-2 py-1 text-left">
+                  <th className="w-64 border-r border-slate-300 px-2 py-1 text-left">
                     DESCRIZIONE ATTIVITÀ
                   </th>
                   <th className="w-40 border-r border-slate-300 px-2 py-1 text-left">
                     OPERATORE
                   </th>
-                  <th className="w-32 border-r border-slate-300 px-2 py-1 text-left">
+                  <th className="w-28 border-r border-slate-300 px-2 py-1 text-left">
                     Tempo impiegato
                   </th>
                   <th className="w-24 border-r border-slate-300 px-2 py-1 text-right">
@@ -615,7 +516,7 @@ export default function RapportinoPage({
                   <th className="w-24 border-r border-slate-300 px-2 py-1 text-right">
                     PRODOTTO
                   </th>
-                  <th className="w-[16rem] border-slate-300 px-2 py-1 text-left">
+                  <th className="w-40 border-r border-slate-300 px-2 py-1 text-left">
                     NOTE
                   </th>
                   <th className="border-slate-300 px-2 py-1 text-xs w-6 no-print">
@@ -669,7 +570,7 @@ export default function RapportinoPage({
                       />
                     </td>
 
-                    {/* TEMPO IMPIEGATO */}
+                    {/* TEMPO IMPIEGATO (alignement à gauche) */}
                     <td className="border-r border-slate-200 px-2 py-1">
                       <textarea
                         data-optempo="1"
@@ -682,7 +583,7 @@ export default function RapportinoPage({
                             e.target,
                           )
                         }
-                        className="w-full border-none bg-transparent text-[12px] resize-none focus:outline-none text-left rapportino-textarea"
+                        className="w-full border-none bg-transparent text-[12px] resize-none focus:outline-none rapportino-textarea"
                         rows={3}
                       />
                     </td>
@@ -707,7 +608,7 @@ export default function RapportinoPage({
                         className="w-full border-none bg-transparent text-[12px] text-right focus:outline-none"
                       />
                     </td>
-                    <td className="px-2 py-1 relative">
+                    <td className="border-r border-slate-200 px-2 py-1 relative">
                       <textarea
                         value={r.note}
                         onChange={(e) =>
@@ -731,12 +632,7 @@ export default function RapportinoPage({
             </table>
           </div>
 
-          {/* Signature CORE – SHAKUR (impression uniquement) */}
-          <div className="mt-3 text-[10px] text-slate-400 text-right pr-1 hidden print:block">
-            CORE – Sistema centrale di cantiere · SHAKUR Engineering
-          </div>
-
-          {/* Footer actions – non imprimé */}
+          {/* Footer feuille / actions (non imprimé) */}
           <div className="mt-3 flex flex-col gap-2 no-print">
             {error && (
               <div className="text-[12px] text-amber-900 bg-amber-100 border border-amber-300 rounded px-3 py-2">
@@ -814,6 +710,10 @@ export default function RapportinoPage({
                   Esporta PDF
                 </button>
               </div>
+            </div>
+
+            <div className="mt-3 text-[10px] text-slate-400 text-center">
+              CORE – Sistema centrale di cantiere · SHAKUR Engineering
             </div>
           </div>
 
