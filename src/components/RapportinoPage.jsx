@@ -114,6 +114,7 @@ function getBaseRows(crewRole) {
     ];
   }
 
+  // fallback
   return [
     {
       id: null,
@@ -158,6 +159,8 @@ export default function RapportinoPage({
 
   const [rapportinoId, setRapportinoId] = useState(null);
   const [reportDate, setReportDate] = useState(getTodayISO());
+
+  // IMPORTANT : costr est maintenant partie de la clé (navire)
   const [costr, setCostr] = useState('6368');
   const [commessa, setCommessa] = useState('SDC');
   const [status, setStatus] = useState('DRAFT');
@@ -172,7 +175,8 @@ export default function RapportinoPage({
   const [showErrorDetails, setShowErrorDetails] = useState(false);
   const [successMessage, setSuccessMessage] = useState(null);
 
-  // Charger le rapportino existant (si présent) à chaque changement de date / tipo squadra
+  // Charger le rapportino existant (si présent)
+  // Clé logique : CAPO + DATA + SQUADRA + COSTR
   useEffect(() => {
     let active = true;
 
@@ -190,12 +194,19 @@ export default function RapportinoPage({
         setShowErrorDetails(false);
         setSuccessMessage(null);
 
-        const { data: rapData, error: rapError } = await supabase
+        let query = supabase
           .from('rapportini')
           .select('*')
           .eq('capo_id', profile.id)
           .eq('crew_role', crewRole)
-          .or(`data.eq.${reportDate},report_date.eq.${reportDate}`)
+          .or(`data.eq.${reportDate},report_date.eq.${reportDate}`);
+
+        // Filtre par COSTR : on veut séparer 6368 / 6358
+        if (costr) {
+          query = query.eq('costr', costr);
+        }
+
+        const { data: rapData, error: rapError } = await query
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
@@ -207,15 +218,15 @@ export default function RapportinoPage({
         if (!active) return;
 
         if (!rapData) {
+          // Aucun rapportino pour cette combinaison → feuille vierge
           setRapportinoId(null);
-          setCostr('6368');
-          setCommessa('SDC');
           setStatus('DRAFT');
           setRows(getBaseRows(crewRole));
+          // On NE touche PAS à costr/commessa : on garde le choix de l’utilisateur
         } else {
           setRapportinoId(rapData.id);
-          setCostr(rapData.costr || rapData.cost || '6368');
-          setCommessa(rapData.commessa || 'SDC');
+          setCostr(rapData.costr || rapData.cost || costr || ''); // sécurités
+          setCommessa(rapData.commessa || commessa || 'SDC');
           setStatus(rapData.status || 'DRAFT');
 
           const { data: righe, error: righeError } = await supabase
@@ -273,7 +284,7 @@ export default function RapportinoPage({
     return () => {
       active = false;
     };
-  }, [profile?.id, crewRole, reportDate]);
+  }, [profile?.id, crewRole, reportDate, costr]);
 
   const prodottoTotale = useMemo(() => {
     return rows.reduce((sum, r) => {
@@ -346,8 +357,7 @@ export default function RapportinoPage({
   const handleNewDay = () => {
     setRapportinoId(null);
     setStatus('DRAFT');
-    setCostr('6368');
-    setCommessa('SDC');
+    // On garde le COSTR et la commessa tapés par le capo
     setRows(getBaseRows(crewRole));
     setError(null);
     setErrorDetails(null);
@@ -454,9 +464,11 @@ export default function RapportinoPage({
     }
   };
 
-  // 🔴 CHANGEMENT IMPORTANT :
-  // On exporte toujours, même si le save échoue ou que ListaCavi est vide.
-  const handleExportPdf = () => {
+  const handleExportPdf = async () => {
+    const savedId = await handleSave();
+    if (!savedId) {
+      return;
+    }
     window.print();
   };
 
@@ -472,13 +484,23 @@ export default function RapportinoPage({
     return <LoadingScreen message="Caricamento del rapportino..." />;
   }
 
+  // Couleur de bordure du cadre selon lo stato
+  const frameBorderClass =
+    status === 'APPROVED_UFFICIO'
+      ? 'border-emerald-400'
+      : status === 'VALIDATED_CAPO'
+      ? 'border-amber-300'
+      : status === 'RETURNED'
+      ? 'border-rose-400'
+      : 'border-amber-300';
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col">
       {/* Header principale (non imprimé) */}
       <header className="border-b border-slate-300 bg-slate-900 text-slate-50 px-4 py-3 flex items-center justify-between no-print">
         <div className="flex flex-col">
           <span className="text-xs font-semibold tracking-wide text-slate-300">
-            CORE · Modulo RAPPORTINO · COSTR {costr}
+            CORE · Modulo RAPPORTINO · COSTR {costr || '—'}
           </span>
           <span className="text-sm">
             Capo squadra:{' '}
@@ -519,7 +541,9 @@ export default function RapportinoPage({
 
       {/* Contenu imprimable */}
       <main className="flex-1 flex justify-center py-4 px-2">
-        <div className="bg-white shadow-md shadow-slate-300 rounded-lg w-[1120px] max-w-full px-6 py-4 print:shadow-none print:border-none print:w-full">
+        <div
+          className={`bg-white shadow-md shadow-slate-300 rounded-lg w-[1120px] max-w-full px-6 py-4 print:shadow-none print:border-none border-l-4 border-r-4 ${frameBorderClass}`}
+        >
           {/* Bandeau stato & prodotto total – écran uniquement */}
           <div className="flex items-center justify-between mb-2 no-print text-[12px] text-slate-600">
             <div>
@@ -542,7 +566,7 @@ export default function RapportinoPage({
             </div>
           </div>
 
-          {/* HEADER VERSION PAPIER */}
+          {/* === HEADER VERSION PAPIER === */}
           <div className="mb-3">
             {/* Ligne 1 : titre centré */}
             <div className="text-center text-[16px] font-semibold mb-3 tracking-wide">
@@ -568,7 +592,7 @@ export default function RapportinoPage({
                   type="text"
                   value={commessa}
                   onChange={(e) => setCommessa(e.target.value)}
-                  className="inline-block w-24 border-b border-slate-400 focus:outline-none focus:border-slate-800 px-1"
+                  className="inline-block w-32 border-b border-slate-400 focus:outline-none focus:border-slate-800 px-1"
                 />
               </div>
 
@@ -592,32 +616,36 @@ export default function RapportinoPage({
           {/* Table principale */}
           <div className="border border-slate-300 rounded-md overflow-hidden">
             <table className="w-full border-collapse text-[12px]">
-              <thead className="bg-slate-100 border-b border-slate-300">
+              <thead className="bg-slate-100 border-b-2 border-slate-300">
                 <tr>
-                  <th className="w-28 border-r border-slate-300 px-2 py-1 text-left">
-                    CATEGORIA
+                  <th className="w-28 border-r border-slate-300 px-2 py-2 text-left text-[11px] font-semibold tracking-wide text-slate-700 uppercase">
+                    Categoria
                   </th>
-                  <th className="w-64 border-r border-slate-300 px-2 py-1 text-left">
-                    DESCRIZIONE ATTIVITÀ
+                  <th className="w-72 border-r border-slate-300 px-2 py-2 text-left text-[11px] font-semibold tracking-wide text-slate-700 uppercase">
+                    Descrizione attività
                   </th>
-                  <th className="w-40 border-r border-slate-300 px-2 py-1 text-left">
-                    OPERATORE
+                  <th className="w-40 border-r border-slate-300 px-2 py-2 text-center text-[11px] font-semibold tracking-wide text-slate-700 uppercase">
+                    Operatore
                   </th>
-                  <th className="w-32 border-r border-slate-300 px-2 py-1 text-left">
+                  <th className="w-32 border-r border-slate-300 px-2 py-2 text-center text-[11px] font-semibold tracking-wide text-slate-700 uppercase">
                     Tempo impiegato
+                    <span className="block text-[10px] font-normal text-slate-500">
+                      (ore)
+                    </span>
                   </th>
-                  <th className="w-24 border-r border-slate-300 px-2 py-1 text-right">
-                    PREVISTO
+                  <th className="w-24 border-r border-slate-300 px-2 py-2 text-right text-[11px] font-semibold tracking-wide text-slate-700 uppercase">
+                    Previsto
                   </th>
-                  <th className="w-24 border-r border-slate-300 px-2 py-1 text-right">
-                    PRODOTTO
+                  <th className="w-24 border-r border-slate-300 px-2 py-2 text-right text-[11px] font-semibold tracking-wide text-slate-700 uppercase">
+                    Prodotto
+                    <span className="block text-[10px] font-normal text-slate-500">
+                      (mt)
+                    </span>
                   </th>
-                  <th className="border-slate-300 px-2 py-1 text-left">
-                    NOTE
+                  <th className="border-slate-300 px-2 py-2 text-left text-[11px] font-semibold tracking-wide text-slate-700 uppercase">
+                    Note
                   </th>
-                  <th className="border-slate-300 px-2 py-1 text-xs w-6 no-print">
-                    -
-                  </th>
+                  <th className="border-slate-300 px-2 py-2 text-xs w-6 no-print" />
                 </tr>
               </thead>
               <tbody>
@@ -679,7 +707,7 @@ export default function RapportinoPage({
                             e.target,
                           )
                         }
-                        className="w-full border-none bg-transparent text-[12px] resize-none focus:outline-none text-left rapportino-textarea"
+                        className="w-full border-none bg-transparent text-[12px] resize-none focus:outline-none rapportino-textarea"
                         rows={3}
                       />
                     </td>
