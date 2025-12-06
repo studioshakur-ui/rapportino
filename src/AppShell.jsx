@@ -1,29 +1,23 @@
 // src/AppShell.jsx
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  NavLink,
+  Outlet,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom';
 import { useAuth } from './auth/AuthProvider';
-import LoadingScreen from './components/LoadingScreen';
-import RoleSelect from './components/RoleSelect';
-// en haut
-import Rapportino6358Emergency from './components/Rapportino6358Emergency';
-import CostrSelect from './components/CostrSelect';
-import CapoModuleSelect from './components/CapoModuleSelect';
-import { btnSmall } from './ui/designSystem';
-
-const CREW_VALUES = ['ELETTRICISTA', 'CARPENTERIA', 'MONTAGGIO'];
-
-const CREW_LABELS = {
-  ELETTRICISTA: 'Elettricista',
-  CARPENTERIA: 'Carpenteria',
-  MONTAGGIO: 'Montaggio',
-};
+import ConnectionIndicator from './components/ConnectionIndicator';
 
 function getInitialTheme() {
   if (typeof window === 'undefined') return 'dark';
   try {
     const stored = window.localStorage.getItem('core-theme');
     if (stored === 'dark' || stored === 'light') return stored;
-    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    if (
+      window.matchMedia &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches
+    ) {
       return 'dark';
     }
   } catch {
@@ -33,143 +27,239 @@ function getInitialTheme() {
 }
 
 export default function AppShell() {
+  const { profile, signOut } = useAuth();
   const navigate = useNavigate();
-  const { profile, loading, signOut } = useAuth();
-  const [crewRole, setCrewRole] = useState(null);
-  const navigate = useNavigate();
+  const location = useLocation();
 
-  // lire crew_role depuis localStorage
+  const [theme, setTheme] = useState(getInitialTheme);
+  const isDark = theme === 'dark';
+
   useEffect(() => {
-    if (typeof window === 'undefined') return;
     try {
-      const stored = window.localStorage.getItem('core_crew_role');
-      if (stored && CREW_VALUES.includes(stored)) {
-        setCrewRole(stored);
-      }
-    } catch (e) {
-      console.error('Errore lettura core_crew_role:', e);
+      window.localStorage.setItem('core-theme', theme);
+    } catch {
+      // ignore
     }
-  }, []);
-
-  const handleSelectCrewRole = (role) => {
-    setCrewRole(role);
-    if (typeof window !== 'undefined') {
-      try {
-        window.localStorage.setItem('core_crew_role', role);
-      } catch (e) {
-        console.error('Errore scrittura core_crew_role:', e);
-      }
-    }
-  };
-
-  const handleChangeCrewRole = () => {
-    setCrewRole(null);
-    if (typeof window !== 'undefined') {
-      try {
-        window.localStorage.removeItem('core_crew_role');
-      } catch (e) {
-        console.error('Errore rimozione core_crew_role:', e);
-      }
-    }
-  };
+  }, [theme]);
 
   const handleLogout = async () => {
     try {
       await signOut();
     } catch (err) {
-      console.error('[AppShell] Errore logout:', err);
+      console.error('Errore logout capo:', err);
     } finally {
-      handleChangeCrewRole();
       navigate('/login');
     }
   };
 
-  if (loading || !profile) {
-    return <LoadingScreen message="Caricamento del profilo..." />;
-  }
+  const displayName = useMemo(
+    () =>
+      profile?.display_name ||
+      profile?.full_name ||
+      profile?.email ||
+      'Capo squadra',
+    [profile],
+  );
 
-  // pas encore de tipo squadra → écran de sélection
-  if (!crewRole) {
-    return <RoleSelect onSelect={handleSelectCrewRole} />;
-  }
+  const toggleTheme = () => {
+    setTheme((current) => (current === 'dark' ? 'light' : 'dark'));
+  };
 
-  const displayName = useMemo(() => {
-    if (!profile) return 'Capo';
-    return (
-      profile.display_name ||
-      profile.full_name ||
-      profile.email?.split('@')[0] ||
-      'Capo'
-    );
-  }, [profile]);
+  const navItemClasses = (active, section) => {
+    const base =
+      'w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm border transition-colors';
+    if (active) {
+      if (section === 'archive') {
+        return [
+          base,
+          isDark
+            ? 'bg-violet-500/15 border-violet-500/70 text-violet-100'
+            : 'bg-violet-50 border-violet-400 text-violet-800',
+        ].join(' ');
+      }
+      return [
+        base,
+        isDark
+          ? 'bg-emerald-500/15 border-emerald-500/70 text-emerald-100'
+          : 'bg-emerald-50 border-emerald-400 text-emerald-800',
+      ].join(' ');
+    }
+    return [
+      base,
+      isDark
+        ? 'text-slate-300 border-transparent hover:border-slate-700 hover:bg-slate-900'
+        : 'text-slate-700 border-transparent hover:border-slate-300 hover:bg-slate-50',
+    ].join(' ');
+  };
 
-  const appRole = profile?.app_role || 'CAPO';
-  const crewLabel = CREW_LABELS[crewRole] ?? 'Squadra';
-
-  if (loading) {
-    return <LoadingScreen />;
-  }
+  const isArchive = location.pathname.startsWith('/app/archive');
 
   if (!profile) {
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-400">
+        Caricamento profilo Capo…
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-50 flex flex-col">
-      {/* Barre cockpit fine, sticky, non imprimée */}
-      <header className="no-print fixed top-0 inset-x-0 z-20 bg-slate-950/95 border-b border-slate-800">
-        <div className="max-w-6xl mx-auto px-3 md:px-6 py-1.5 flex items-center justify-between gap-3 text-[11px]">
-          {/* Gauche : status */}
-          <div className="flex items-center gap-3">
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-emerald-500/60 bg-emerald-500/10 text-emerald-200">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)]" />
-              <span>Modalità online</span>
+    <div
+      className={[
+        'min-h-screen flex flex-col',
+        isDark ? 'bg-slate-950 text-slate-50' : 'bg-slate-100 text-slate-900',
+      ].join(' ')}
+    >
+      {/* HEADER CAPO */}
+      <header
+        className={[
+          'no-print border-b backdrop-blur flex items-center justify-between px-4 md:px-6 py-2',
+          isDark
+            ? 'bg-slate-950/95 border-slate-900'
+            : 'bg-white/95 border-slate-200 shadow-sm',
+        ].join(' ')}
+      >
+        <div className="flex flex-col gap-0.5">
+          <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
+            CORE · Sistema centrale di cantiere
+          </div>
+          <div className="text-xs text-slate-400">
+            Modulo Capo ·{' '}
+            <span className="font-semibold">
+              Rapportino giornaliero &amp; Archivio
             </span>
-            <span className="hidden sm:inline text-slate-500">
-              CORE · Modulo Rapportino
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 text-[11px]">
+          {/* Theme switch */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className={[
+              'inline-flex items-center gap-1 rounded-full border px-2 py-0.5',
+              isDark
+                ? 'border-slate-600 bg-slate-900/70 text-slate-200'
+                : 'border-slate-300 bg-slate-50 text-slate-700',
+            ].join(' ')}
+          >
+            <span
+              className={[
+                'inline-flex h-3 w-3 items-center justify-center rounded-full text-[9px]',
+                isDark ? 'bg-slate-800' : 'bg-amber-200',
+              ].join(' ')}
+            >
+              {isDark ? '🌑' : '☀️'}
+            </span>
+            <span className="uppercase tracking-[0.16em]">
+              {isDark ? 'Dark' : 'Light'}
+            </span>
+          </button>
+
+          {/* Connexion */}
+          <ConnectionIndicator />
+
+          {/* User */}
+          <div className="hidden sm:flex flex-col text-right">
+            <span className="text-slate-400 text-xs">Capo squadra</span>
+            <span className="text-slate-100 font-medium">
+              {displayName}
             </span>
           </div>
 
-          {/* Droite : user + actions */}
-          <div className="flex items-center gap-2">
-            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-900/80 border border-slate-700 text-slate-200">
-              <span className="font-medium capitalize">{displayName}</span>
-              <span className="text-slate-500">·</span>
-              <span className="text-sky-300 font-semibold">{appRole}</span>
-              <span className="text-slate-500">·</span>
-              <span className="text-emerald-300 font-semibold">
-                {crewLabel}
-              </span>
-            </span>
-
-            <button
-              type="button"
-              onClick={handleChangeCrewRole}
-              className="px-2.5 py-1 rounded-md border border-slate-600 bg-slate-900/80 text-[11px] text-slate-100 hover:bg-slate-800"
-            >
-              Cambia squadra
-            </button>
-
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="px-2.5 py-1 rounded-md border border-slate-600 bg-slate-900/80 text-[11px] text-slate-100 hover:bg-rose-600 hover:border-rose-500"
-            >
-              Logout
-            </button>
-          </div>
+          {/* Logout */}
+          <button
+            type="button"
+            onClick={handleLogout}
+            className={[
+              'px-3 py-1.5 rounded-full border text-xs font-medium',
+              isDark
+                ? 'border-rose-500 text-rose-100 hover:bg-rose-600/20'
+                : 'border-rose-400 text-rose-700 hover:bg-rose-50',
+            ].join(' ')}
+          >
+            Logout
+          </button>
         </div>
       </header>
 
-      {/* Contenu : on laisse la feuille faire le show */}
-      <main className="flex-1 overflow-auto bg-slate-100 pt-10">
-        {/* pt-10 pour ne pas que la barre fixe recouvre le haut de la feuille */}
-        <RapportinoPage
-          crewRole={crewRole}
-          onChangeCrewRole={handleChangeCrewRole}
-          onLogout={handleLogout}
-        />
-      </main>
+      {/* LAYOUT */}
+      <div className="flex flex-1 min-h-0">
+        {/* SIDEBAR CAPO */}
+        <aside
+          className={[
+            'no-print hidden md:flex md:flex-col w-64 border-r px-3 py-4',
+            isDark
+              ? 'bg-slate-950 border-slate-900'
+              : 'bg-slate-50 border-slate-200',
+          ].join(' ')}
+        >
+          <div className="px-1 pb-3 border-b border-slate-800/60">
+            <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400 mb-1">
+              Area Capo
+            </div>
+            <div className="text-xs text-slate-300">
+              Rapportino · squadre · archivio rapportini
+            </div>
+          </div>
+
+          <nav className="px-1 py-3 space-y-1.5">
+            <NavLink
+              to="/app"
+              end
+              className={({ isActive }) => navItemClasses(isActive)}
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              <span>Rapportino giornaliero</span>
+            </NavLink>
+
+            <NavLink
+              to="/app/archive"
+              className={({ isActive }) => navItemClasses(isActive, 'archive')}
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
+              <span>Archivio · Rapportini v1</span>
+            </NavLink>
+          </nav>
+
+          <div className="mt-auto pt-4 border-t border-slate-800 text-[10px] text-slate-500">
+            <div>CORE · SHAKUR Engineering</div>
+            <div className="text-slate-600">
+              Capo · bordo · linea · cantiere
+            </div>
+          </div>
+        </aside>
+
+        {/* CONTENU CAPO */}
+        <main
+          className={[
+            'flex-1 min-h-0 overflow-y-auto',
+            isDark ? 'bg-slate-950' : 'bg-slate-100',
+          ].join(' ')}
+        >
+          <section className="max-w-5xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
+            {/* Bandeau contextuel */}
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="flex flex-col">
+                <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                  {isArchive
+                    ? 'Archivio storico rapportini v1'
+                    : 'Rapportino giornata squadra'}
+                </span>
+                <span className="text-xs text-slate-400">
+                  {isArchive
+                    ? 'Consultazione in sola lettura dei vecchi rapportini (v1)'
+                    : 'Compilazione, firma e invio del rapportino digitale'}
+                </span>
+              </div>
+            </div>
+
+            {/* Ici, React Router insère soit RapportinoPage, soit ArchivePage */}
+            <div className="border border-slate-800/60 rounded-2xl bg-slate-950/90 shadow-xl overflow-hidden">
+              <Outlet />
+            </div>
+          </section>
+        </main>
+      </div>
     </div>
   );
 }

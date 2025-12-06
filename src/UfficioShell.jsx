@@ -1,24 +1,22 @@
 // src/UfficioShell.jsx
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Routes,
-  Route,
-  Navigate,
   NavLink,
   useNavigate,
   useLocation,
+  Outlet,
 } from 'react-router-dom';
 import { useAuth } from './auth/AuthProvider';
-import UfficioRapportiniList from './ufficio/UfficioRapportiniList';
-import UfficioRapportinoDetail from './ufficio/UfficioRapportinoDetail';
-import IncaRoot from './inca/IncaRoot';
 
 function getInitialTheme() {
   if (typeof window === 'undefined') return 'dark';
   try {
     const stored = window.localStorage.getItem('core-theme');
     if (stored === 'dark' || stored === 'light') return stored;
-    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    if (
+      window.matchMedia &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches
+    ) {
       return 'dark';
     }
   } catch {
@@ -78,6 +76,14 @@ export default function UfficioShell() {
             : 'bg-emerald-50 border-emerald-400 text-emerald-800',
         ].join(' ');
       }
+      if (section === 'archive') {
+        return [
+          base,
+          isDark
+            ? 'bg-violet-500/15 border-violet-500/70 text-violet-100'
+            : 'bg-violet-50 border-violet-400 text-violet-800',
+        ].join(' ');
+      }
       return [
         base,
         isDark
@@ -94,6 +100,15 @@ export default function UfficioShell() {
   };
 
   const isInca = location.pathname.startsWith('/ufficio/inca');
+  const isArchive = location.pathname.startsWith('/ufficio/archive');
+
+  if (!profile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-400">
+        Caricamento profilo Ufficio…
+      </div>
+    );
+  }
 
   return (
     <div
@@ -118,7 +133,7 @@ export default function UfficioShell() {
           <div className="text-xs text-slate-400">
             Modulo Ufficio ·{' '}
             <span className="font-semibold">
-              Controllo rapportini & INCA
+              Controllo rapportini &amp; INCA &amp; Archivio
             </span>
           </div>
         </div>
@@ -154,7 +169,7 @@ export default function UfficioShell() {
               'hidden sm:inline-flex items-center gap-1 rounded-full border px-2 py-0.5',
               isDark
                 ? 'border-sky-500/60 bg-sky-500/10 text-sky-200'
-                : 'border-sky-400/60 bg-sky-50 text-sky-700',
+                : 'border-sky-400/60 bg-sky-50 text-slate-700',
             ].join(' ')}
           >
             <span className="h-1.5 w-1.5 rounded-full bg-sky-400 shadow-[0_0_6px_rgba(56,189,248,0.9)]" />
@@ -172,7 +187,7 @@ export default function UfficioShell() {
               </span>
             </span>
             <span className="text-slate-500">
-              Area Ufficio · Validazione & controllo
+              Area Ufficio · Validazione &amp; controllo
             </span>
           </div>
 
@@ -209,7 +224,7 @@ export default function UfficioShell() {
               Pannello di controllo
             </div>
             <div className="text-xs text-slate-300">
-              Rapportini · stati · INCA · note di ritorno
+              Rapportini · stati · INCA · archivio certificato
             </div>
           </div>
 
@@ -232,18 +247,13 @@ export default function UfficioShell() {
               <span>Percorso cavi · INCA</span>
             </NavLink>
 
-            <button
-              type="button"
-              className={[
-                'w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] border border-dashed cursor-default',
-                isDark
-                  ? 'border-slate-800/70 text-slate-500'
-                  : 'border-slate-300 text-slate-500 bg-slate-50/60',
-              ].join(' ')}
+            <NavLink
+              to="/ufficio/archive"
+              className={({ isActive }) => navItemClasses(isActive, 'archive')}
             >
-              <span className="h-1 w-1 rounded-full bg-slate-500" />
-              <span>Archivio · coming soon</span>
-            </button>
+              <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
+              <span>Archivio · Rapportini v1</span>
+            </NavLink>
           </nav>
 
           {/* Bas de sidebar */}
@@ -263,34 +273,29 @@ export default function UfficioShell() {
           ].join(' ')}
         >
           <section className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
-            {/* Bandeau contextuel (Rapportini / INCA) */}
+            {/* Bandeau contextuel */}
             <div className="mb-4 flex items-center justify-between gap-3">
               <div className="flex flex-col">
                 <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                  {isInca ? 'Tracciamento INCA' : 'Gestione rapportini'}
+                  {isInca
+                    ? 'Tracciamento INCA'
+                    : isArchive
+                    ? 'Archivio storico rapportini v1'
+                    : 'Gestione rapportini'}
                 </span>
                 <span className="text-xs text-slate-400">
                   {isInca
                     ? 'Confronto INCA · percorsi · avanzamento cavi'
+                    : isArchive
+                    ? 'Consultazione in sola lettura · memoria certificata · audit'
                     : 'Validazione, note di ritorno e archivio digitale'}
                 </span>
               </div>
             </div>
 
-            {/* Routes */}
+            {/* Ici on laisse React Router rendre la page courante */}
             <div className="border border-slate-800/60 rounded-2xl bg-slate-950/90 shadow-xl overflow-hidden">
-              <Routes>
-                <Route path="/ufficio" element={<UfficioRapportiniList />} />
-                <Route
-                  path="/ufficio/rapportini/:id"
-                  element={<UfficioRapportinoDetail />}
-                />
-                <Route path="/ufficio/inca/*" element={<IncaRoot />} />
-                <Route
-                  path="*"
-                  element={<Navigate to="/ufficio" replace />}
-                />
-              </Routes>
+              <Outlet />
             </div>
           </section>
         </main>

@@ -1,7 +1,7 @@
 // src/pages/Login.jsx
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { supabase } from '../lib/supabaseClient';
+import { supabase, resetSupabaseAuthStorage } from '../lib/supabaseClient';
 import { useAuth } from '../auth/AuthProvider';
 
 // Thème global partagé avec les autres modules
@@ -81,16 +81,24 @@ export default function Login() {
       return;
     }
 
-    try {
-      const loginPromise = supabase.auth.signInWithPassword({ email, password });
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('timeout-auth')), 10000)
-      );
+    // 🧹 Avant chaque login, on nettoie les sessions Supabase du navigateur
+    resetSupabaseAuthStorage();
 
-      const { data, error: signInError } = await Promise.race([
-        loginPromise,
-        timeoutPromise,
-      ]);
+    // Timeout SOFT : message après 10s, mais on ne coupe PAS la requête
+    const softTimeoutId = setTimeout(() => {
+      console.warn('[Login] Soft timeout 10s: UI warning only');
+      setError(
+        'La richiesta di accesso sta impiegando troppo tempo. Verifica la connessione o riprova.'
+      );
+    }, 10000);
+
+    try {
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      clearTimeout(softTimeoutId);
 
       console.log('[Login] Risultato signInWithPassword:', {
         data,
@@ -137,14 +145,9 @@ export default function Login() {
         navigate('/app', { replace: true });
       }
     } catch (err) {
+      clearTimeout(softTimeoutId);
       console.error('[Login] Errore in handleSubmit:', err);
-      if (err.message === 'timeout-auth') {
-        setError(
-          'La richiesta di accesso sta impiegando troppo tempo. Verifica la connessione o riprova.'
-        );
-      } else {
-        setError('Errore di rete o configurazione. Contatta l’Ufficio.');
-      }
+      setError('Errore di rete o configurazione. Contatta l’Ufficio.');
     } finally {
       console.log('[Login] finally → setSubmitting(false)');
       setSubmitting(false);

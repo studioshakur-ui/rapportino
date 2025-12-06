@@ -13,5 +13,36 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
+// 🔧 Helper: pulizia delle chiavi di sessione Supabase nel browser
+// Utile quando, dopo tanti login/logout nello stesso browser, il client si "incastra".
+export function resetSupabaseAuthStorage() {
+  if (typeof window === "undefined") return;
+
+  try {
+    const ls = window.localStorage;
+    const keys = Object.keys(ls);
+
+    const supabaseKeys = keys.filter(
+      (k) => k.startsWith("sb-") || k.toLowerCase().includes("supabase")
+    );
+
+    if (supabaseKeys.length > 0) {
+      console.warn("[Supabase] Reset auth storage:", supabaseKeys);
+      supabaseKeys.forEach((k) => ls.removeItem(k));
+    }
+  } catch (err) {
+    console.error("[Supabase] Errore nel reset dello storage auth:", err);
+  }
+}
+
 // Client Supabase usato in tutta l’app
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    // On force explicitement l'utilisation du localStorage du navigateur
+    storage:
+      typeof window !== "undefined" ? window.localStorage : undefined,
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+});

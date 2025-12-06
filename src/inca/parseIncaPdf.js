@@ -1,33 +1,31 @@
 // src/inca/parseIncaPdf.js
 // Parser INCA PDF – version A1 (layout-based, structuré, compatible inca_cavi).
 //
-// Hypothèse : PDF de type liste INCA Fincantieri, où chaque câble apparaît
-// sur une ligne principale avec la structure suivante (tokens):
+// Hypothèses :
+//  - PDF = export INCA Fincantieri "STAMPA COMPLETA" (liste cavi).
+//  - Chaque câble commence par une ligne "MARCA / WBS / SUB / LIV / SRTP / ZONA / CODICE / CAVO / SEZIONE / METRI...".
+//  - Les lignes "Da ..." et "Percorso:" suivent éventuellement pour définir l'origine et le chemin.
 //
-// [0] MARCA     (ex: "1-7", "N", "W", "R")
-// [1] PEZZO     (ex: "N", "ND", "MC", "SR")
-// [2] CAVO      (ex: "AH165", "290", "007", "103")
-// [3] WBS       (ex: "401" -> toujours 3 chiffres)
-// [4] SUB       (ex: "AH", "ND", "MC", "SR" -> 2 lettres)
-// [5] LIV       (ex: "N", "S", "R" -> 1 lettre)
-// [6] ZONA      (ex: "2816102158WM", "60", "3", "200"...)
-// [7] CODICE    (ex: "FN02-O-1.5", "CS0.50-O-12", "UN1.5-O-7", "CAVO", "TXOI0,6/1KV7X1,5"...)
-// [8] SEZIONE   (souvent "-" ou une valeur de sezione)
-// [9] MT_TEO
-// [10] MT_DIS
-// [11] MT_STA
-// [12] SIT_CAVO (ex: "M", "N", "E", "Z"...)
-// [13] SIT_TEC  (ex: "P", "B", "00", "MCG"...)
-// [14+] EXTRA   (direttiva, T.O.P., date, "CN/", etc.)
+// Le parser renvoie un tableau d'objets "câble" avec :
+//  - codice_inca      (vrai code INCA, ex: 2816102158WM)
+//  - codice_marca     (code lisible atelier, ex: "1-N AH163" ou "N ND 290")
+//  - codice           (alias = codice_inca pour compatibilité avec inca_cavi.codice)
+//  - descrizione      (ligne brute)
+//  - sezione, tipo_cavo
+//  - metri_teo, metri_dis, metri_totali, metri_previsti, metri_posati_teorici
+//  - situazione / stato_inca
+//  - pagina_pdf
+//  - origine_line, percorso_nodes (pour inca_percorsi)
 //
-// Ce parser produit un tableau d'objets qui peuvent être directement mappés vers
-// la table public.inca_cavi (codice, descrizione, sezione, metri_teo, metri_dis,
-// metri_totali, metri_previsti, metri_posati_teorici, situazione, stato_inca, etc.),
-// plus quelques champs "techniques" supplémentaires pour futurs usages (marca, pezzo, etc.).
+// ⚠️ IMPORTANT : configuration du worker pdf.js pour éviter
+// l'erreur "No GlobalWorkerOptions.workerSrc specified".
 
 import * as pdfjsLib from 'pdfjs-dist/build/pdf';
-// IMPORTANT : on suppose que le worker pdf.js est déjà configuré
-// ailleurs (ex. dans src/pdf.worker.js via GlobalWorkerOptions).
+import workerSrc from 'pdfjs-dist/build/pdf.worker.mjs?url';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
+
+console.log('🔥 PARSER A1 ACTIF — parseIncaPdf.js chargé');
 
 // -------------------------------------------------------------
 // Helpers
@@ -43,26 +41,63 @@ function parseNumber(value) {
   return Number.isFinite(n) ? n : null;
 }
 
-// Détection d'une "ligne câble" INCA basée sur la structure générale :
-// [0] MARCA (alphanum, peut contenir "-")
-// [1] PEZZO (1–2 lettres)
-// [2] CAVO (alphanum)
-// [3] WBS (3 chiffres)
-// [4] SUB (2 lettres)
-// [5] LIV (1 lettre)
-function isCableLineTokens(tokens) {
-  if (!Array.isArray(tokens) || tokens.length < 12) return false;
+/**
+ * Détecte le format de la ligne câble et renvoie une description
+ * ou null si la ligne ne semble pas être un "header" de câble INCA.
+ *
+ * @param {string[]} tokens
+ * @returns {null | { format: '2-part' | '3-part', marcaParts: number, idxWbs: number, idxSub: number, idxLiv: number, idxSrpt: number, idxZona: number, idxCodiceInca: number, idxTipoCavo: number, idxSezione: number, idxMetriStart: number }}
+ */
+function detectCableHeaderFormat(tokens) {
+  if (!Array.isArray(tokens)) return null;
 
-  const [marca, pezzo, cavo, wbs, sub, liv] = tokens;
+  // Format 3-part MARCA (type "N ND 290 401 ND S 2816..."):
+  // [0] marca1, [1] marca2, [2] marca3, [3] WBS(3 digits), [4] SUB, [5] LIV, [6] ZONA, [7] CODICE_INCA, [8] TIPO_CAVO, [9] SEZIONE, ...
+  if (
+    tokens.length >= 10 &&
+    /^\d{3}$/.test(tokens[3]) &&
+    /^[A-Z]{2,3}$/i.test(tokens[4]) &&
+    /^[A-Z]$/i.test(tokens[5])
+  ) {
+    return {
+      format: '3-part',
+      marcaParts: 3,
+      idxWbs: 3,
+      idxSub: 4,
+      idxLiv: 5,
+      idxSrpt: null, // pas toujours explicite
+      idxZona: 6,
+      idxCodiceInca: 7,
+      idxTipoCavo: 8,
+      idxSezione: 9,
+      idxMetriStart: 10,
+    };
+  }
 
-  if (!/^[A-Z0-9\-]+$/i.test(marca)) return false;
-  if (!/^[A-Z]{1,2}$/.test(pezzo)) return false;
-  if (!/^[A-Z0-9]+$/i.test(cavo)) return false;
-  if (!/^\d{3}$/.test(wbs)) return false;
-  if (!/^[A-Z]{2}$/.test(sub)) return false;
-  if (!/^[A-Z]$/.test(liv)) return false;
+  // Format 2-part MARCA (type "1-N AH163 401 AH N 29 2816..."):
+  // [0] marca1, [1] marca2, [2] WBS, [3] SUB, [4] LIV, [5] SRPT, [6] ZONA, [7] CODICE_INCA, [8] TIPO_CAVO, [9] SEZIONE, ...
+  if (
+    tokens.length >= 10 &&
+    /^\d{3}$/.test(tokens[2]) &&
+    /^[A-Z]{2,3}$/i.test(tokens[3]) &&
+    /^[A-Z]$/i.test(tokens[4])
+  ) {
+    return {
+      format: '2-part',
+      marcaParts: 2,
+      idxWbs: 2,
+      idxSub: 3,
+      idxLiv: 4,
+      idxSrpt: 5,
+      idxZona: 6,
+      idxCodiceInca: 7,
+      idxTipoCavo: 8,
+      idxSezione: 9,
+      idxMetriStart: 10,
+    };
+  }
 
-  return true;
+  return null;
 }
 
 // Essaie de repérer T / P / R / B dans les derniers tokens (stato INCA).
@@ -77,10 +112,7 @@ function detectSituazioneFromTokens(tokens) {
   return null;
 }
 
-// -------------------------------------------------------------
 // Regroupement texte pdf.js → lignes
-// -------------------------------------------------------------
-
 function buildLinesFromPage(content) {
   const linesMap = new Map();
 
@@ -88,11 +120,11 @@ function buildLinesFromPage(content) {
     const str = item.str;
     if (!str || !str.trim()) continue;
 
-    const transform = item.transform;
-    const x = transform[4];
-    const y = transform[5];
+    const [a, b, c, d, e, f] = item.transform;
+    const y = f;
+    const x = e;
 
-    // Quantisation du Y pour regrouper les fragments sur une même ligne.
+    // Quantisation du Y pour regrouper les fragments sur une même ligne
     const yKey = Math.round(y / 2) * 2;
 
     if (!linesMap.has(yKey)) {
@@ -101,7 +133,6 @@ function buildLinesFromPage(content) {
     linesMap.get(yKey).push({ x, text: str });
   }
 
-  // y décroissant = du haut vers le bas
   const sortedY = Array.from(linesMap.keys()).sort((a, b) => b - a);
 
   const lines = [];
@@ -120,23 +151,10 @@ function buildLinesFromPage(content) {
 // -------------------------------------------------------------
 
 /**
- * @param {File} file - PDF INCA export
- * @returns {Promise<Array<object>>} liste de câbles structurés
+ * Parse un PDF INCA et renvoie un tableau d'objets "câble" structurés.
  *
- * Chaque objet câble contient au minimum :
- * - codice          -> à mapper sur inca_cavi.codice
- * - descrizione     -> à mapper sur inca_cavi.descrizione
- * - sezione         -> inca_cavi.sezione
- * - metri_teo       -> inca_cavi.metri_teo
- * - metri_dis       -> inca_cavi.metri_dis
- * - metri_totali    -> inca_cavi.metri_totali
- * - metri_previsti  -> inca_cavi.metri_previsti
- * - metri_posati_teorici -> inca_cavi.metri_posati_teorici
- * - situazione      -> inca_cavi.situazione
- * - stato_inca      -> inca_cavi.stato_inca
- * - pagina_pdf      -> inca_cavi.pagina_pdf (numéro de page)
- *
- * + champs techniques (marca, pezzo, cavo, wbs, sub, liv, zona, sit_cavo, sit_tec, direttiva, top, mlf, esec, raw_line, origine_line, percorso_nodes)
+ * @param {File} file
+ * @returns {Promise<Array<object>>}
  */
 export async function parseIncaPdf(file) {
   if (!file) return [];
@@ -161,7 +179,6 @@ export async function parseIncaPdf(file) {
       `[INCA] parseIncaPdf – Aperçu texte pour: ${file.name}`
     );
     console.log('Nombre total de lignes détectées :', allLinesWithPage.length);
-    console.log('Exemples (40 premières lignes) :');
     allLinesWithPage.slice(0, 40).forEach((lwp, idx) => {
       console.log(
         String(idx + 1).padStart(3, ' ') +
@@ -179,78 +196,78 @@ export async function parseIncaPdf(file) {
       const rawLine = normalizeSpaces(line);
       const tokens = rawLine.split(' ').filter(Boolean);
 
-      if (!isCableLineTokens(tokens)) {
+      const headerInfo = detectCableHeaderFormat(tokens);
+      if (!headerInfo) {
         i += 1;
         continue;
       }
 
-      // Ligne câble détectée
-      const [marca, pezzo, cavo, wbs, sub, liv, ...rest] = tokens;
+      const {
+        format,
+        marcaParts,
+        idxWbs,
+        idxSub,
+        idxLiv,
+        idxSrpt,
+        idxZona,
+        idxCodiceInca,
+        idxTipoCavo,
+        idxSezione,
+        idxMetriStart,
+      } = headerInfo;
 
-      if (rest.length < 6) {
-        i += 1;
-        continue;
-      }
+      const marcaTokens = tokens.slice(0, marcaParts);
+      const codice_marca = marcaTokens.join(' ');
 
-      // Mapping des colonnes à partir de rest :
-      // [0] ZONA
-      // [1] CODICE (INCA)
-      // [2] SEZIONE
-      // [3] MT_TEO
-      // [4] MT_DIS
-      // [5] MT_STA
-      // [6] SIT_CAVO
-      // [7] SIT_TEC (facultatif)
-      // [8+] EXTRA (direttiva, T.O.P., date, "CN/", etc.)
+      const wbs = tokens[idxWbs] || null;
+      const sub = tokens[idxSub] || null;
+      const liv = tokens[idxLiv] || null;
+      const srpt = idxSrpt != null ? tokens[idxSrpt] || null : null;
+      const zona = tokens[idxZona] || null;
 
-      const zona = rest[0] || null;
-      const codiceInca = rest[1] || null;
-      const sezione = rest[2] || null;
+      const codice_inca = tokens[idxCodiceInca] || null;
+      const tipo_cavo = tokens[idxTipoCavo] || null;
+      const sezione = tokens[idxSezione] || null;
 
-      const metri_teo = parseNumber(rest[3]);
-      const metri_dis = parseNumber(rest[4]);
-      const metri_sta = parseNumber(rest[5]);
+      const metri_teo = parseNumber(tokens[idxMetriStart]);
+      const metri_dis = parseNumber(tokens[idxMetriStart + 1]);
+      const metri_sta = parseNumber(tokens[idxMetriStart + 2]);
 
-      const sit_cavo = rest[6] || null;
-      const sit_tec = rest[7] || null;
+      const sit_cavo = tokens[idxMetriStart + 3] || null;
+      const sit_tec = tokens[idxMetriStart + 4] || null;
 
-      const extra = rest.slice(8);
+      const extra = tokens.slice(idxMetriStart + 5);
       const direttiva = extra[0] || null;
-      const top = extra[1] || null;
-      const mlf = extra[2] || null;
-      const esec = extra.slice(3).join(' ') || null;
+      const top_posa = extra[1] || null;
+      const esec_att = extra.slice(2).join(' ') || null;
 
       const situazione =
-        detectSituazioneFromTokens(rest) || detectSituazioneFromTokens(extra);
+        detectSituazioneFromTokens(tokens) || detectSituazioneFromTokens(extra);
 
       const metri_totali = metri_teo ?? null;
       const metri_previsti = metri_teo ?? null;
-      const metri_posati_teorici = metri_sta ?? null;
+      const metri_posati_teorici =
+        (situazione && situazione.toUpperCase() === 'P' && metri_totali) || 0;
 
       const cable = {
-        // Champs techniques "tête"
-        marca,
-        pezzo,
-        cavo,
+        codice_inca: codice_inca || null,
+        codice_marca: codice_marca || null,
+        codice: codice_inca || codice_marca || null,
+
+        descrizione: rawLine,
+
+        marca: codice_marca || null,
         wbs,
         sub,
         liv,
+        srpt,
         zona,
-
-        // Champs principaux pour inca_cavi
-        codice: codiceInca,
-        descrizione: rawLine, // pour l'instant: la ligne brute
+        tipo_cavo,
         sezione,
 
         metri_teo,
         metri_dis,
-        // Dans ta structure, tu as aussi:
-        // - metri_sit_cavo
-        // - metri_sit_tec
-        // Pour le PDF on n'a pas ces infos séparées → null par défaut
-        metri_sit_cavo: null,
-        metri_sit_tec: null,
-
+        metri_sta,
         metri_totali,
         metri_previsti,
         metri_posati_teorici,
@@ -258,25 +275,22 @@ export async function parseIncaPdf(file) {
         sit_cavo,
         sit_tec,
         direttiva,
-        top,
-        mlf,
-        esec,
+        top_posa,
+        esec_att,
 
         situazione: situazione || null,
         stato_inca: situazione || null,
 
         pagina_pdf: pageNum,
 
-        // Pour futurs raffinements (origine, percorso, etc.)
         raw_line: rawLine,
         origine_line: null,
         percorso_nodes: [],
       };
 
-      // Lignes suivantes éventuelles: "Da ..." et "Percorso:"
+      // Lignes suivantes : "Da ..." et "Percorso:"
       let j = i + 1;
 
-      // "Da ..."
       if (j < allLinesWithPage.length) {
         const next = allLinesWithPage[j];
         const nextLine = normalizeSpaces(next.line);
@@ -286,7 +300,6 @@ export async function parseIncaPdf(file) {
         }
       }
 
-      // "Percorso:" + supports (si présent)
       if (j < allLinesWithPage.length) {
         const next2 = allLinesWithPage[j];
         const lPerc = normalizeSpaces(next2.line);
@@ -319,6 +332,6 @@ export async function parseIncaPdf(file) {
       'parseIncaPdf → Errore durante il parsing del PDF INCA:',
       err
     );
-    return [];
+    throw err; // on laisse remonter l'erreur à l'UI
   }
 }

@@ -28,10 +28,10 @@ function formatDate(value) {
 }
 
 function formatProdotto(row) {
-  // On essaie dans l’ordre : prodotto_totale, prodotto_tot, totale_prodotto
+  // On essaie dans l’ordre : totale_prodotto, prodotto_totale, prodotto_tot
+  if (row.totale_prodotto != null) return Number(row.totale_prodotto);
   if (row.prodotto_totale != null) return Number(row.prodotto_totale);
   if (row.prodotto_tot != null) return Number(row.prodotto_tot);
-  if (row.totale_prodotto != null) return Number(row.totale_prodotto);
   return 0;
 }
 
@@ -66,26 +66,22 @@ export default function UfficioRapportiniList() {
       setLoading(true);
       setError(null);
 
-      // UFFICIO a déjà une policy "ufficio can read validated" sur rapportini
-      // qui autorise SELECT sur VALIDATED_CAPO / APPROVED_UFFICIO / RETURNED.
+      // Nouvelle source : table "reports" (public.reports)
       const { data, error: err } = await supabase
-        .from('rapportini')
+        .from('reports')
         .select(
           `
           id,
-          data,
           report_date,
           capo_name,
-          crew_role,
+          role_key,
           commessa,
           status,
-          prodotto_totale,
-          prodotto_tot,
           totale_prodotto
         `
         )
         .in('status', ['VALIDATED_CAPO', 'APPROVED_UFFICIO', 'RETURNED'])
-        .order('data', { ascending: false });
+        .order('report_date', { ascending: false });
 
       if (err) {
         console.error('Errore caricando i rapportini Ufficio:', err);
@@ -104,7 +100,7 @@ export default function UfficioRapportiniList() {
     return (rapportini || []).filter((r) => {
       if (statusFilter !== 'ALL' && r.status !== statusFilter) return false;
 
-      if (roleFilter !== 'ALL' && r.crew_role !== roleFilter) return false;
+      if (roleFilter !== 'ALL' && r.role_key !== roleFilter) return false;
 
       if (capoFilter.trim()) {
         const q = capoFilter.trim().toLowerCase();
@@ -257,7 +253,7 @@ export default function UfficioRapportiniList() {
                 STATUS_BADGE_CLASS[r.status] ||
                 'bg-slate-700/80 text-slate-200';
 
-              const dateToShow = r.report_date || r.data;
+              const dateToShow = r.report_date;
 
               return (
                 <tr
@@ -272,7 +268,7 @@ export default function UfficioRapportiniList() {
                     {r.capo_name || '—'}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap text-slate-100">
-                    {r.crew_role || '—'}
+                    {r.role_key || '—'}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap text-slate-100">
                     {r.commessa || '—'}
