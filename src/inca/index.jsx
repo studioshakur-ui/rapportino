@@ -1,14 +1,16 @@
 // src/inca/index.jsx
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import IncaUploadPanel from './IncaUploadPanel';
 import IncaFilesTable from './IncaFilesTable';
+import IncaFileViewer from './IncaFileViewer';
 
 export default function IncaRoot() {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [selectedFileId, setSelectedFileId] = useState(null);
 
   const loadFiles = useCallback(async () => {
     try {
@@ -19,7 +21,13 @@ export default function IncaRoot() {
         .order('uploaded_at', { ascending: false });
 
       if (qError) throw qError;
-      setFiles(data || []);
+      const list = data || [];
+      setFiles(list);
+
+      // Si aucun file sélectionné, on prend le premier
+      if (list.length > 0 && !selectedFileId) {
+        setSelectedFileId(list[0].id);
+      }
     } catch (err) {
       console.error('Errore caricamento inca_files:', err);
       setError('Errore durante il caricamento dei file INCA.');
@@ -27,7 +35,7 @@ export default function IncaRoot() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [selectedFileId]);
 
   useEffect(() => {
     loadFiles();
@@ -38,6 +46,15 @@ export default function IncaRoot() {
     await loadFiles();
   };
 
+  const handleSelectFile = (fileId) => {
+    setSelectedFileId(fileId);
+  };
+
+  const selectedFile = useMemo(
+    () => files.find((f) => f.id === selectedFileId) || null,
+    [files, selectedFileId]
+  );
+
   return (
     <div className="flex flex-col gap-4 py-4">
       {/* Header INCA */}
@@ -47,7 +64,7 @@ export default function IncaRoot() {
             Modulo INCA · Percorso cavi
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 mt-1">
-            <p className="text-xs text-slate-300">
+            <p className="text-xs text-slate-300 max-w-2xl">
               Importa i file INCA (PDF / Excel / immagine) per avere una base
               teorica dei cavi: metri totali, copertura teorica, confronto con i
               rapportini.
@@ -64,14 +81,24 @@ export default function IncaRoot() {
         <IncaUploadPanel onImported={handleAfterImport} />
       </section>
 
-      {/* Liste des fichiers INCA */}
-      <section>
-        <IncaFilesTable
-          files={files}
-          loading={loading}
-          refreshing={refreshing}
-          error={error}
-        />
+      {/* Layout 2 colonnes : archive + detail */}
+      <section className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1.5fr)] gap-4">
+        {/* Colonne gauche : archivio file INCA */}
+        <div className="min-h-[260px]">
+          <IncaFilesTable
+            files={files}
+            loading={loading}
+            refreshing={refreshing}
+            error={error}
+            selectedFileId={selectedFileId}
+            onSelectFile={handleSelectFile}
+          />
+        </div>
+
+        {/* Colonne droite : dettaglio file + cavi */}
+        <div className="min-h-[260px] rounded-xl border border-slate-800 bg-slate-950/70 backdrop-blur-sm shadow-sm">
+          <IncaFileViewer file={selectedFile} />
+        </div>
       </section>
     </div>
   );

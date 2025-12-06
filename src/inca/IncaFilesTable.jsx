@@ -19,16 +19,20 @@ export default function IncaFilesTable({
   loading,
   refreshing,
   error,
+  selectedFileId,
+  onSelectFile,
 }) {
+  const count = files?.length || 0;
+
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3">
+    <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3 h-full flex flex-col">
       <div className="flex items-center justify-between gap-2 mb-2">
         <div className="flex flex-col">
           <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
             Archivio file INCA
           </div>
           <div className="text-xs text-slate-300">
-            Elenco dei file INCA importati (per analisi teorica Direzione).
+            Elenco dei file INCA importati (base teorica per Direzione / Ufficio).
           </div>
         </div>
         <div className="text-[11px] text-slate-500">
@@ -36,7 +40,7 @@ export default function IncaFilesTable({
             ? 'Caricamento…'
             : refreshing
             ? 'Aggiornamento…'
-            : `${files?.length || 0} file`}
+            : `${count} file`}
         </div>
       </div>
 
@@ -46,7 +50,7 @@ export default function IncaFilesTable({
         </div>
       )}
 
-      <div className="border border-slate-800 rounded-lg overflow-hidden">
+      <div className="border border-slate-800 rounded-lg overflow-hidden flex-1 min-h-0">
         <table className="w-full border-collapse text-[12px]">
           <thead className="bg-slate-900/80 border-b border-slate-800">
             <tr className="text-left text-slate-300">
@@ -92,36 +96,45 @@ export default function IncaFilesTable({
             {!loading &&
               files &&
               files.length > 0 &&
-              files.map((f) => (
-                <tr
-                  key={f.id}
-                  className="border-t border-slate-800/70 hover:bg-slate-900/80"
-                >
-                  <td className="px-2 py-1.5 text-slate-100 truncate max-w-xs">
-                    <div className="flex flex-col">
-                      <span className="font-medium truncate">
-                        {f.file_name || '(senza nome)'}
-                      </span>
-                      <span className="text-[11px] text-slate-500">
-                        {f.file_type || '-'}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-2 py-1.5 text-slate-100">
-                    {f.costr || '-'}
-                  </td>
-                  <td className="px-2 py-1.5 text-slate-100">
-                    {f.commessa || '-'}
-                  </td>
-                  <td className="px-2 py-1.5 text-slate-200">
-                    {formatDateTime(f.uploaded_at)}
-                  </td>
-                  <td className="px-2 py-1.5 text-slate-400 text-[11px]">
-                    {/* Placeholder: plus tard on affichera % copertura dalla vista direzione_inca_teorico */}
-                    Teorico: pronto per analisi
-                  </td>
-                </tr>
-              ))}
+              files.map((f) => {
+                const active = f.id === selectedFileId;
+                return (
+                  <tr
+                    key={f.id}
+                    className={[
+                      'border-t border-slate-800/70 cursor-pointer',
+                      active
+                        ? 'bg-slate-900/90 hover:bg-slate-900'
+                        : 'hover:bg-slate-900/80',
+                    ].join(' ')}
+                    onClick={() => onSelectFile && onSelectFile(f.id)}
+                  >
+                    <td className="px-2 py-1.5 text-slate-100 truncate max-w-xs">
+                      <div className="flex flex-col">
+                        <span className="font-medium truncate">
+                          {f.file_name || '(senza nome)'}
+                        </span>
+                        <span className="text-[11px] text-slate-500">
+                          {f.file_type || '-'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-2 py-1.5 text-slate-100">
+                      {f.costr || '-'}
+                    </td>
+                    <td className="px-2 py-1.5 text-slate-100">
+                      {f.commessa || '-'}
+                    </td>
+                    <td className="px-2 py-1.5 text-slate-200">
+                      {formatDateTime(f.uploaded_at)}
+                    </td>
+                    <td className="px-2 py-1.5 text-slate-400 text-[11px]">
+                      {/* Placeholder: plus tard % copertura dalla vista direzione_inca_teorico */}
+                      Teorico: pronto per analisi
+                    </td>
+                  </tr>
+                );
+              })}
           </tbody>
         </table>
       </div>

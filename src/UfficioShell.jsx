@@ -1,97 +1,210 @@
 // src/UfficioShell.jsx
-import React from 'react';
-import { Routes, Route, Navigate, NavLink, useNavigate, useLocation } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Routes,
+  Route,
+  Navigate,
+  NavLink,
+  useNavigate,
+  useLocation,
+} from 'react-router-dom';
 import { useAuth } from './auth/AuthProvider';
 import UfficioRapportiniList from './ufficio/UfficioRapportiniList';
 import UfficioRapportinoDetail from './ufficio/UfficioRapportinoDetail';
-import IncaRoot from './inca';
+import IncaRoot from './inca/IncaRoot';
+
+function getInitialTheme() {
+  if (typeof window === 'undefined') return 'dark';
+  try {
+    const stored = window.localStorage.getItem('core-theme');
+    if (stored === 'dark' || stored === 'light') return stored;
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      return 'dark';
+    }
+  } catch {
+    // ignore
+  }
+  return 'dark';
+}
 
 export default function UfficioShell() {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
+  const [theme, setTheme] = useState(getInitialTheme);
+  const isDark = theme === 'dark';
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('core-theme', theme);
+    } catch {
+      // ignore
+    }
+  }, [theme]);
+
   const handleLogout = async () => {
     try {
       await signOut();
     } catch (err) {
-      console.error('[UfficioShell] Errore logout:', err);
+      console.error('Errore logout ufficio:', err);
     } finally {
-      // On force le retour au login pour éviter tout état zombie
       navigate('/login');
     }
   };
 
-  const displayName =
-    profile?.full_name || profile?.display_name || profile?.email || 'Ufficio';
+  const displayName = useMemo(
+    () =>
+      profile?.display_name ||
+      profile?.full_name ||
+      profile?.email ||
+      'Ufficio',
+    [profile],
+  );
 
-  const ruolo = profile?.app_role || 'UFFICIO';
+  const toggleTheme = () => {
+    setTheme((current) => (current === 'dark' ? 'light' : 'dark'));
+  };
 
-  const navItemClasses = (active, variant = 'default') => {
+  const navItemClasses = (active, section) => {
     const base =
-      'flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-[13px] border';
-    if (variant === 'inca') {
+      'w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm border transition-colors';
+    if (active) {
+      if (section === 'inca') {
+        return [
+          base,
+          isDark
+            ? 'bg-emerald-500/15 border-emerald-500/70 text-emerald-100'
+            : 'bg-emerald-50 border-emerald-400 text-emerald-800',
+        ].join(' ');
+      }
       return [
         base,
-        active
-          ? 'bg-emerald-500/15 border-emerald-500/70 text-emerald-100'
-          : 'text-slate-300 border-transparent hover:border-slate-700 hover:bg-slate-900',
+        isDark
+          ? 'bg-sky-500/15 border-sky-500/70 text-sky-100'
+          : 'bg-sky-50 border-sky-400 text-sky-800',
       ].join(' ');
     }
     return [
       base,
-      active
-        ? 'bg-sky-500/10 border-sky-500/70 text-sky-100'
-        : 'text-slate-300 border-transparent hover:border-slate-700 hover:bg-slate-900',
+      isDark
+        ? 'text-slate-300 border-transparent hover:border-slate-700 hover:bg-slate-900'
+        : 'text-slate-700 border-transparent hover:border-slate-300 hover:bg-slate-50',
     ].join(' ');
   };
 
   const isInca = location.pathname.startsWith('/ufficio/inca');
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-50 flex flex-col">
-      {/* Header Ufficio – cockpit, cohérent avec le Capo */}
-      <header className="no-print flex items-center justify-between px-4 md:px-6 py-2 border-b border-slate-900 bg-slate-950/95">
+    <div
+      className={[
+        'min-h-screen flex flex-col',
+        isDark ? 'bg-slate-950 text-slate-50' : 'bg-slate-100 text-slate-900',
+      ].join(' ')}
+    >
+      {/* HEADER HARMONISÉ CORE */}
+      <header
+        className={[
+          'no-print border-b backdrop-blur flex items-center justify-between px-4 md:px-6 py-2',
+          isDark
+            ? 'bg-slate-950/95 border-slate-900'
+            : 'bg-white/95 border-slate-200 shadow-sm',
+        ].join(' ')}
+      >
         <div className="flex flex-col gap-0.5">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
-            CORE · Area Ufficio
+          <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
+            CORE · Sistema centrale di cantiere
           </div>
-          <div className="text-xs text-slate-300">
-            Rapportini · stati · INCA · note di ritorno
+          <div className="text-xs text-slate-400">
+            Modulo Ufficio ·{' '}
+            <span className="font-semibold">
+              Controllo rapportini & INCA
+            </span>
           </div>
         </div>
+
         <div className="flex items-center gap-3 text-[11px]">
-          <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-sky-500/60 bg-sky-500/10 text-sky-200">
-            <span className="h-1.5 w-1.5 rounded-full bg-sky-400 shadow-[0_0_6px_rgba(56,189,248,0.9)]" />
-            <span>Archivio sincronizzato</span>
-          </span>
-          <div className="hidden sm:flex flex-col text-right text-slate-400">
-            <span>
-              Utente:{' '}
-              <span className="text-slate-100 font-medium">{displayName}</span>
+          {/* Switch Dark/Light */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className={[
+              'inline-flex items-center gap-1 rounded-full border px-2 py-0.5',
+              isDark
+                ? 'border-slate-600 bg-slate-900/70 text-slate-200'
+                : 'border-slate-300 bg-slate-50 text-slate-700',
+            ].join(' ')}
+          >
+            <span
+              className={[
+                'inline-flex h-3 w-3 items-center justify-center rounded-full text-[9px]',
+                isDark ? 'bg-slate-800' : 'bg-amber-200',
+              ].join(' ')}
+            >
+              {isDark ? '🌑' : '☀️'}
             </span>
-            <span>
-              Ruolo:{' '}
-              <span className="text-sky-300 font-semibold tracking-wide">
-                {ruolo}
+            <span className="uppercase tracking-[0.16em]">
+              {isDark ? 'Dark' : 'Light'}
+            </span>
+          </button>
+
+          {/* Archivio synchronisé */}
+          <span
+            className={[
+              'hidden sm:inline-flex items-center gap-1 rounded-full border px-2 py-0.5',
+              isDark
+                ? 'border-sky-500/60 bg-sky-500/10 text-sky-200'
+                : 'border-sky-400/60 bg-sky-50 text-sky-700',
+            ].join(' ')}
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-sky-400 shadow-[0_0_6px_rgba(56,189,248,0.9)]" />
+            <span className="uppercase tracking-[0.16em] text-[9px]">
+              Archivio sincronizzato
+            </span>
+          </span>
+
+          {/* User info */}
+          <div className="hidden sm:flex flex-col text-right">
+            <span className="text-slate-400">
+              Utente:{' '}
+              <span className="text-slate-100 font-medium">
+                {displayName}
               </span>
             </span>
+            <span className="text-slate-500">
+              Area Ufficio · Validazione & controllo
+            </span>
           </div>
+
+          {/* Logout */}
           <button
             type="button"
             onClick={handleLogout}
-            className="px-3 py-1.5 rounded-md border border-slate-600 text-[11px] text-slate-100 bg-slate-900/80 hover:bg-slate-800"
+            className={[
+              'px-3 py-1.5 rounded-full border text-xs font-medium',
+              isDark
+                ? 'border-rose-500 text-rose-100 hover:bg-rose-600/20'
+                : 'border-rose-400 text-rose-700 hover:bg-rose-50',
+            ].join(' ')}
           >
             Logout
           </button>
         </div>
       </header>
 
-      {/* Corps Mission Control */}
+      {/* LAYOUT Mission Control */}
       <div className="flex flex-1 min-h-0">
-        {/* Colonne gauche : navigation + liste (Mission Control feel) */}
-        <aside className="no-print hidden md:flex md:flex-col w-64 border-r border-slate-900 bg-slate-950/98">
-          <div className="px-4 py-3 border-b border-slate-900">
+        {/* SIDEBAR */}
+        <aside
+          className={[
+            'no-print hidden md:flex md:flex-col w-64 border-r px-3 py-4',
+            isDark
+              ? 'bg-slate-950 border-slate-900'
+              : 'bg-slate-50 border-slate-200',
+          ].join(' ')}
+        >
+          {/* Pannello di controllo */}
+          <div className="px-1 pb-3 border-b border-slate-800/60">
             <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400 mb-1">
               Pannello di controllo
             </div>
@@ -100,7 +213,8 @@ export default function UfficioShell() {
             </div>
           </div>
 
-          <nav className="px-2 py-3 space-y-1">
+          {/* Nav principale */}
+          <nav className="px-1 py-3 space-y-1.5">
             <NavLink
               to="/ufficio"
               end
@@ -120,78 +234,65 @@ export default function UfficioShell() {
 
             <button
               type="button"
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-500 text-[13px] border border-dashed border-slate-800/70 cursor-default"
+              className={[
+                'w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] border border-dashed cursor-default',
+                isDark
+                  ? 'border-slate-800/70 text-slate-500'
+                  : 'border-slate-300 text-slate-500 bg-slate-50/60',
+              ].join(' ')}
             >
-              <span className="h-1.5 w-1.5 rounded-full bg-fuchsia-500/80" />
-              <span>Archivio (prossima fase)</span>
-            </button>
-
-            <button
-              type="button"
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-500 text-[13px] border border-dashed border-slate-800/70 cursor-default"
-            >
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-400/80" />
-              <span>Anomalie / note critiche</span>
+              <span className="h-1 w-1 rounded-full bg-slate-500" />
+              <span>Archivio · coming soon</span>
             </button>
           </nav>
 
-          <div className="mt-auto px-4 py-3 border-t border-slate-900 text-[11px] text-slate-500">
-            <div>Accesso riservato al personale Ufficio / Direzione.</div>
-            <div>Ogni azione viene tracciata in Archivio.</div>
+          {/* Bas de sidebar */}
+          <div className="mt-auto pt-4 border-t border-slate-800 text-[10px] text-slate-500">
+            <div>CORE · SHAKUR Engineering</div>
+            <div className="text-slate-600">
+              Ufficio · Trieste · Riva Trigoso · La Spezia
+            </div>
           </div>
         </aside>
 
-        {/* Colonne principale : layout 2 colonnes liste + dettaglio */}
-        <main className="flex-1 flex flex-col min-w-0">
-          <div className="flex-1 flex flex-col md:flex-row min-h-0">
-            {/* Liste (mobile + desktop) */}
-            {!isInca && (
-              <section className="md:w-1/2 lg:w-2/5 border-b md:border-b-0 md:border-r border-slate-900 min-h-0">
-                <div className="h-full overflow-auto px-3 md:px-4 py-3">
-                  <UfficioRapportiniList />
-                </div>
-              </section>
-            )}
-
-            {/* Détail rapportino / INCA */}
-            <section className="flex-1 min-h-0">
-              <div className="h-full overflow-auto px-3 md:px-4 py-3 bg-slate-950/90">
-                <Routes>
-                  <Route
-                    path="/"
-                    element={
-                      <div className="h-full flex items-center justify-center text-[13px] text-slate-500">
-                        <div className="text-center max-w-sm">
-                          <div className="mb-1 text-slate-300 font-medium">
-                            Seleziona un rapportino dalla lista
-                          </div>
-                          <p>
-                            A sinistra vedi i rapportini inviati dai Capi.
-                            Clicca su una riga per aprire il dettaglio,
-                            verificare le ore e aggiungere eventuali note di
-                            ritorno.
-                          </p>
-                        </div>
-                      </div>
-                    }
-                  />
-                  <Route
-                    path="rapportini/:id"
-                    element={<UfficioRapportinoDetail />}
-                  />
-                  <Route
-                    path="inca/*"
-                    element={
-                      <div className="max-w-5xl mx-auto">
-                        <IncaRoot />
-                      </div>
-                    }
-                  />
-                  <Route path="*" element={<Navigate to="/ufficio" replace />} />
-                </Routes>
+        {/* CONTENT */}
+        <main
+          className={[
+            'flex-1 min-h-0 overflow-y-auto',
+            isDark ? 'bg-slate-950' : 'bg-slate-100',
+          ].join(' ')}
+        >
+          <section className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
+            {/* Bandeau contextuel (Rapportini / INCA) */}
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="flex flex-col">
+                <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                  {isInca ? 'Tracciamento INCA' : 'Gestione rapportini'}
+                </span>
+                <span className="text-xs text-slate-400">
+                  {isInca
+                    ? 'Confronto INCA · percorsi · avanzamento cavi'
+                    : 'Validazione, note di ritorno e archivio digitale'}
+                </span>
               </div>
-            </section>
-          </div>
+            </div>
+
+            {/* Routes */}
+            <div className="border border-slate-800/60 rounded-2xl bg-slate-950/90 shadow-xl overflow-hidden">
+              <Routes>
+                <Route path="/ufficio" element={<UfficioRapportiniList />} />
+                <Route
+                  path="/ufficio/rapportini/:id"
+                  element={<UfficioRapportinoDetail />}
+                />
+                <Route path="/ufficio/inca/*" element={<IncaRoot />} />
+                <Route
+                  path="*"
+                  element={<Navigate to="/ufficio" replace />}
+                />
+              </Routes>
+            </div>
+          </section>
         </main>
       </div>
     </div>

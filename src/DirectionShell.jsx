@@ -1,22 +1,49 @@
 // src/DirectionShell.jsx
-import React from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Link,
+  useNavigate,
+  useLocation,
+  Routes,
+  Route,
+} from 'react-router-dom';
 import { useAuth } from './auth/AuthProvider';
 import ConnectionIndicator from './components/ConnectionIndicator';
 import DirectionDashboard from './components/DirectionDashboard';
+import ArchivePage from './pages/Archive';
+
+function getInitialTheme() {
+  if (typeof window === 'undefined') return 'dark';
+  try {
+    const stored = window.localStorage.getItem('core-theme');
+    if (stored === 'dark' || stored === 'light') return stored;
+    if (
+      window.matchMedia &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches
+    ) {
+      return 'dark';
+    }
+  } catch {
+    // ignore
+  }
+  return 'dark';
+}
 
 export default function DirectionShell() {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  if (!profile) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-400">
-        Caricamento profilo Direzione…
-      </div>
-    );
-  }
+  const [theme, setTheme] = useState(getInitialTheme);
+  const isDark = theme === 'dark';
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('core-theme', theme);
+    } catch {
+      // ignore
+    }
+  }, [theme]);
 
   const handleLogout = async () => {
     try {
@@ -28,45 +55,112 @@ export default function DirectionShell() {
     }
   };
 
+  const displayName = useMemo(
+    () =>
+      profile?.display_name ||
+      profile?.full_name ||
+      profile?.email ||
+      'Direzione',
+    [profile],
+  );
+
+  const toggleTheme = () => {
+    setTheme((current) => (current === 'dark' ? 'light' : 'dark'));
+  };
+
   const navItemClasses = (active) =>
     [
       'block px-2.5 py-1.5 rounded-lg text-sm transition-colors border',
       active
-        ? 'bg-sky-500/15 text-sky-100 border-sky-500/60'
-        : 'text-slate-300 border-transparent hover:bg-slate-900 hover:border-slate-700',
+        ? isDark
+          ? 'bg-sky-500/15 text-sky-100 border-sky-500/60'
+          : 'bg-sky-50 text-sky-800 border-sky-400'
+        : isDark
+        ? 'text-slate-300 border-transparent hover:bg-slate-900 hover:border-slate-700'
+        : 'text-slate-700 border-transparent hover:bg-slate-50 hover:border-slate-300',
     ].join(' ');
 
   const isActive = (prefix) => location.pathname.startsWith(prefix);
 
-  const displayName =
-    profile.display_name || profile.full_name || profile.email;
+  if (!profile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-400">
+        Caricamento profilo Direzione…
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      {/* HEADER */}
-      <header className="no-print sticky top-0 z-20 border-b border-slate-800 bg-slate-950/95 backdrop-blur">
+    <div
+      className={[
+        'min-h-screen flex flex-col',
+        isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900',
+      ].join(' ')}
+    >
+      {/* HEADER HARMONISÉ */}
+      <header
+        className={[
+          'no-print sticky top-0 z-20 border-b backdrop-blur',
+          isDark
+            ? 'bg-slate-950/95 border-slate-800'
+            : 'bg-white/95 border-slate-200 shadow-sm',
+        ].join(' ')}
+      >
         <div className="px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="inline-flex items-center px-3 py-1 rounded-full border border-slate-700 bg-slate-900/80 text-[11px] tracking-[0.16em] uppercase text-slate-300">
-              Sistema centrale di cantiere
-            </span>
             <div className="flex flex-col leading-tight">
-              <span className="text-xs text-slate-400">Modulo Direzione</span>
-              <span className="text-sm font-semibold text-slate-50">
-                CORE – Controllo produzione & KPI
+              <span className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
+                CORE · Sistema centrale di cantiere
+              </span>
+              <span className="text-xs text-slate-400">
+                Modulo Direzione ·{' '}
+                <span className="font-semibold">
+                  Controllo produzione & KPI
+                </span>
               </span>
             </div>
           </div>
 
           <div className="flex items-center gap-3 text-xs">
+            {/* Switch Dark / Light */}
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className={[
+                'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px]',
+                isDark
+                  ? 'border-slate-600 bg-slate-900/70 text-slate-200'
+                  : 'border-slate-300 bg-slate-50 text-slate-700',
+              ].join(' ')}
+            >
+              <span
+                className={[
+                  'inline-flex h-3 w-3 items-center justify-center rounded-full text-[9px]',
+                  isDark ? 'bg-slate-800' : 'bg-amber-200',
+                ].join(' ')}
+              >
+                {isDark ? '🌑' : '☀️'}
+              </span>
+              <span className="uppercase tracking-[0.16em]">
+                {isDark ? 'Dark' : 'Light'}
+              </span>
+            </button>
+
+            {/* ConnectionIndicator existant */}
             <ConnectionIndicator />
+
             <div className="hidden sm:flex flex-col items-end mr-1">
               <span className="text-slate-400">Utente Direzione</span>
               <span className="text-slate-50 font-medium">{displayName}</span>
             </div>
             <button
               onClick={handleLogout}
-              className="px-3 py-1.5 rounded-md border border-rose-500 text-rose-200 hover:bg-rose-600 hover:text-white text-xs font-medium transition-colors"
+              className={[
+                'px-3 py-1.5 rounded-full border text-xs font-medium',
+                isDark
+                  ? 'border-rose-500 text-rose-100 hover:bg-rose-600/20'
+                  : 'border-rose-400 text-rose-700 hover:bg-rose-50',
+              ].join(' ')}
             >
               Logout
             </button>
@@ -77,7 +171,14 @@ export default function DirectionShell() {
       {/* LAYOUT */}
       <div className="flex flex-1 min-h-0">
         {/* SIDEBAR */}
-        <aside className="no-print w-60 bg-slate-950 border-r border-slate-800 px-3 py-4 flex flex-col gap-5">
+        <aside
+          className={[
+            'no-print w-60 border-r px-3 py-4 flex flex-col gap-5',
+            isDark
+              ? 'bg-slate-950 border-slate-800'
+              : 'bg-slate-50 border-slate-200',
+          ].join(' ')}
+        >
           {/* Blocco principale */}
           <div>
             <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-2">
@@ -90,20 +191,26 @@ export default function DirectionShell() {
               >
                 Panoramica & Presenze
               </Link>
+              <Link
+                to="/ufficio"
+                className={navItemClasses(isActive('/ufficio'))}
+              >
+                Area Ufficio · Rapportini
+              </Link>
             </nav>
           </div>
 
-          {/* Sezione Ufficio */}
-          <div>
+          {/* Sezione ARCHIVE */}
+          <div className="mt-1">
             <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-2">
-              Ufficio · Rapportini
+              Archive · Storico
             </div>
             <nav className="space-y-1.5">
               <Link
-                to="/ufficio/rapportini"
-                className={navItemClasses(isActive('/ufficio/rapportini'))}
+                to="/direction/archive"
+                className={navItemClasses(isActive('/direction/archive'))}
               >
-                Elenco rapportini
+                Rapportini v1 · Archivio
               </Link>
             </nav>
           </div>
@@ -132,9 +239,19 @@ export default function DirectionShell() {
           </div>
         </aside>
 
-        {/* CONTENT – Panoramica Direzione */}
-        <main className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6">
-          <DirectionDashboard />
+        {/* CONTENT – routes internes Direzione */}
+        <main
+          className={[
+            'flex-1 min-h-0 overflow-y-auto p-4 md:p-6',
+            isDark ? 'bg-slate-950' : 'bg-slate-100',
+          ].join(' ')}
+        >
+          <Routes>
+            {/* /direction */}
+            <Route path="/" element={<DirectionDashboard />} />
+            {/* /direction/archive */}
+            <Route path="archive" element={<ArchivePage />} />
+          </Routes>
         </main>
       </div>
     </div>
