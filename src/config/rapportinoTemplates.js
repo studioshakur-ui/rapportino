@@ -1,98 +1,189 @@
 // src/config/rapportinoTemplates.js
 
-// Modèles "papier" pour chaque tipo squadra.
-// On ne met que CATEGORIA + DESCRIZIONE, le reste sera vide.
+// Convertit "0,2" -> 0.2, "" -> null, "110 mt" -> 110
+export function parseNumeric(value) {
+  if (value === null || value === undefined) return null;
+  const s = String(value).trim();
+  if (!s) return null;
 
-export const RAPPORTINO_TEMPLATES = {
-  ELETTRICISTA: [
-    { categoria: 'STESURA', descrizione: 'STESURA' },
-    { categoria: 'STESURA', descrizione: 'FASCETTATURA CAVI' },
-    { categoria: 'STESURA', descrizione: 'RIPRESA CAVI' },
-    { categoria: 'STESURA', descrizione: 'VARI STESURA CAVI' },
-  ],
+  const normalized = s.replace(',', '.');
+  const n = parseFloat(normalized);
+  return Number.isFinite(n) ? n : null;
+}
 
-  CARPENTERIA: [
-    {
-      categoria: 'CARPENTERIA',
-      descrizione: 'PREPARAZIONE STAFFE SOLETTE/STRADE CAVI MAGAZZINO',
-    },
-    {
-      categoria: 'CARPENTERIA',
-      descrizione: 'SALDATURA STAFFE STRADE CAVI',
-    },
-    {
-      categoria: 'CARPENTERIA',
-      descrizione: 'MONTAGGIO STRADE CAVI',
-    },
-    {
-      categoria: 'CARPENTERIA',
-      descrizione: 'SALDATURA TONDINI',
-    },
-    {
-      categoria: 'CARPENTERIA',
-      descrizione: 'SALDATURA BASAMENTI (APPARECCHIATURE)',
-    },
-    {
-      categoria: 'CARPENTERIA',
-      descrizione: 'TRACCIATURA KIEPE/COLLARI',
-    },
-    {
-      categoria: 'CARPENTERIA',
-      descrizione: 'SALDATURA KIEPE/COLLARI',
-    },
-    {
-      categoria: 'CARPENTERIA',
-      descrizione: 'MOLATURA KIEPE',
-    },
-    {
-      categoria: 'CARPENTERIA',
-      descrizione: 'MOLATURA STAFFE, TONDINI, BASAMENTI',
-    },
-    {
-      categoria: 'CARPENTERIA',
-      descrizione: 'VARIE CARPENTERIE',
-    },
-  ],
+/**
+ * Retourne les lignes de base du rapportino
+ * en fonction du rôle de la squadra ET du COSTR.
+ *
+ * @param {string} crewRole  - 'ELETTRICISTA' | 'CARPENTERIA' | 'MONTAGGIO'
+ * @param {string|number} costr - ex: '6368', '6358'
+ */
+export function getBaseRows(crewRole, costr) {
+  const role = crewRole || 'ELETTRICISTA';
+  const costrNorm = String(costr || '').trim();
 
-  MONTAGGIO: [
-    {
-      categoria: 'IMBARCHI',
-      descrizione: 'VARI IMBARCHI (LOGISTICA E TRASPORTO)',
-    },
-    {
-      categoria: 'MONTAGGIO',
-      descrizione: 'MONTAGGIO APPARECCHIATURA MINORE DI 50 KG',
-    },
-    {
-      categoria: 'MONTAGGIO',
-      descrizione: 'MONTAGGIO APPARECCHIATURA DA 51 KG A 150 KG',
-    },
-    {
-      categoria: 'MONTAGGIO',
-      descrizione: 'MONTAGGIO APPARECCHIATURA DA 151 KG A 400 KG',
-    },
-    {
-      categoria: 'MONTAGGIO',
-      descrizione: 'MONTAGGIO APPARECCHIATURA DA 401 KG A 1400 KG',
-    },
-  ],
-};
+  //
+  //  TEMPLATE 6358 – DE-IC/NG – ELETTRICISTA
+  //
+  if (role === 'ELETTRICISTA' && costrNorm === '6358') {
+    return [
+      {
+        id: null,
+        row_index: 0,
+        categoria: 'STESURA',
+        descrizione: "STESURA CAVI (3X6)",
+        operatori: '',
+        tempo: '',
+        previsto: '150,0',
+        prodotto: '',
+        note: '',
+      },
+      {
+        id: null,
+        row_index: 1,
+        categoria: 'STESURA',
+        descrizione: 'FASCETTATURA CAVI',
+        operatori: '',
+        tempo: '',
+        previsto: '600,0',
+        prodotto: '',
+        note: '',
+      },
+      {
+        id: null,
+        row_index: 2,
+        categoria: 'STESURA',
+        descrizione: 'RIPRESA CAVI',
+        operatori: '',
+        tempo: '',
+        previsto: '150,0',
+        prodotto: '',
+        note: '',
+      },
+      {
+        id: null,
+        row_index: 3,
+        categoria: 'STESURA',
+        descrizione: 'SISTEMAZIONE CAVI (3X6)',
+        operatori: '',
+        tempo: '',
+        previsto: '10,0',
+        prodotto: '',
+        note: '',
+      },
+      {
+        id: null,
+        row_index: 4,
+        categoria: 'GESTIONE E VARIE',
+        descrizione: 'VARI STESURA',
+        operatori: '',
+        tempo: '',
+        previsto: '0,2',
+        prodotto: '',
+        note: '',
+      },
+    ];
+  }
 
-// Construit les lignes complètes (avec operatori/tempo vides etc.)
-export function getDefaultRowsForCrewRole(crewRole) {
-  const key = (crewRole || '').toUpperCase();
-  const base = RAPPORTINO_TEMPLATES[key];
-  if (!base) return [];
+  //
+  //  TEMPLATE STANDARD ELETTRICISTA (ex: 6368 – SDC)
+  //
+  if (role === 'ELETTRICISTA') {
+    return [
+      {
+        id: null,
+        row_index: 0,
+        categoria: 'STESURA',
+        descrizione: 'STESURA',
+        operatori: '',
+        tempo: '',
+        previsto: '150',
+        prodotto: '',
+        note: '',
+      },
+      {
+        id: null,
+        row_index: 1,
+        categoria: 'STESURA',
+        descrizione: 'FASCETTATURA CAVI',
+        operatori: '',
+        tempo: '',
+        previsto: '600',
+        prodotto: '',
+        note: '',
+      },
+      {
+        id: null,
+        row_index: 2,
+        categoria: 'STESURA',
+        descrizione: 'RIPRESA CAVI',
+        operatori: '',
+        tempo: '',
+        previsto: '150',
+        prodotto: '',
+        note: '',
+      },
+      {
+        id: null,
+        row_index: 3,
+        categoria: 'STESURA',
+        descrizione: 'VARI STESURA CAVI',
+        operatori: '',
+        tempo: '',
+        previsto: '0,2',
+        prodotto: '',
+        note: '',
+      },
+    ];
+  }
 
-  return base.map((row, index) => ({
-    id: null,
-    row_index: index,
-    categoria: row.categoria,
-    descrizione: row.descrizione,
-    operatori: '',
-    tempo: '',
-    previsto: '',
-    prodotto: '',
-    note: '',
-  }));
+  //
+  //  AUTRES RÔLES
+  //
+  if (role === 'CARPENTERIA') {
+    return [
+      {
+        id: null,
+        row_index: 0,
+        categoria: 'CARPENTERIA',
+        descrizione: '',
+        operatori: '',
+        tempo: '',
+        previsto: '',
+        prodotto: '',
+        note: '',
+      },
+    ];
+  }
+
+  if (role === 'MONTAGGIO') {
+    return [
+      {
+        id: null,
+        row_index: 0,
+        categoria: 'MONTAGGIO',
+        descrizione: '',
+        operatori: '',
+        tempo: '',
+        previsto: '',
+        prodotto: '',
+        note: '',
+      },
+    ];
+  }
+
+  // Fallback très générique
+  return [
+    {
+      id: null,
+      row_index: 0,
+      categoria: '',
+      descrizione: '',
+      operatori: '',
+      tempo: '',
+      previsto: '',
+      prodotto: '',
+      note: '',
+    },
+  ];
 }

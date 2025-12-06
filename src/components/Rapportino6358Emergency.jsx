@@ -24,14 +24,24 @@ const CREW_LABELS = {
   MONTAGGIO: 'Montaggio',
 };
 
+// Affichage de la date au format italien (ex : "5 dic 2025")
+function formatDateItalian(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('it-IT', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
 export default function RapportinoPage({ crewRole, onChangeCrewRole, onLogout }) {
   const { profile } = useAuth();
 
-  // ⚠️ COSTR ici est PUREMENT VISUEL (PDF + écran)
-  // La recherche en DB se fait uniquement sur (capo_id, crew_role, report_date)
-  // 🔁 POUR AUJOURD'HUI : on part DIRECTEMENT sur 6358 (et plus 6368)
-  const [costr, setCostr] = useState('6358');
-  const [commessa, setCommessa] = useState('ICING');
+  // COSTR et Commessa : purement visuels (PDF + écran)
+  const [costr, setCostr] = useState('6368');
+  const [commessa, setCommessa] = useState('SDC');
   const [rapportinoId, setRapportinoId] = useState(null);
   const [reportDate, setReportDate] = useState(getTodayISO());
   const [status, setStatus] = useState('DRAFT');
@@ -86,17 +96,15 @@ export default function RapportinoPage({ crewRole, onChangeCrewRole, onLogout })
 
         if (!rapData) {
           // Aucun rapportino pour ce jour / rôle → nouveau
-          // 🔁 ICI AUSSI : on part sur 6358 + ICING par défaut
           setRapportinoId(null);
-          setCostr('6358');
-          setCommessa('ICING');
+          setCostr('6368');
+          setCommessa('SDC');
           setStatus('DRAFT');
           setRows(getBaseRows(crewRole));
         } else {
           setRapportinoId(rapData.id);
-          // IMPORTANT : on laisse la possibilité de changer COSTR (ex : 6358)
-          setCostr(rapData.costr || rapData.cost || '6358');
-          setCommessa(rapData.commessa || 'ICING');
+          setCostr(rapData.costr || rapData.cost || '6368');
+          setCommessa(rapData.commessa || 'SDC');
           setStatus(rapData.status || 'DRAFT');
 
           const { data: righe, error: righeError } = await supabase
@@ -233,11 +241,10 @@ export default function RapportinoPage({ crewRole, onChangeCrewRole, onLogout })
   };
 
   const handleNewDay = () => {
-    // 🔁 Quand tu cliques "Nuova giornata", on repart aussi en 6358 + ICING
     setRapportinoId(null);
     setStatus('DRAFT');
-    setCostr('6358');
-    setCommessa('ICING');
+    setCostr('6368');
+    setCommessa('SDC');
     setRows(getBaseRows(crewRole));
     setError(null);
     setErrorDetails(null);
@@ -247,7 +254,7 @@ export default function RapportinoPage({ crewRole, onChangeCrewRole, onLogout })
   };
 
   // --------------------------------------------------
-  // SAUVEGARDE (upsert sur ID → pas de duplicate key)
+  // SAUVEGARDE (upsert sur ID)
   // --------------------------------------------------
   async function handleSave(nextStatus = null) {
     if (!profile?.id) return null;
@@ -263,13 +270,13 @@ export default function RapportinoPage({ crewRole, onChangeCrewRole, onLogout })
       const prodottoTot = prodottoTotale;
 
       const headerPayload = {
-        id: rapportinoId || undefined, // ← important pour éviter un nouvel enregistrement
+        id: rapportinoId || undefined,
         capo_id: profile.id,
         user_id: profile.id,
         capo_name: capoName,
         crew_role: crewRole,
         report_date: reportDate,
-        data: reportDate, // compat ancien champ
+        data: reportDate,
         costr,
         cost: costr,
         commessa,
@@ -290,7 +297,6 @@ export default function RapportinoPage({ crewRole, onChangeCrewRole, onLogout })
       setRapportinoId(newId);
       setStatus(savedRap.status || finalStatus);
 
-      // On simplifie : on efface les lignes existantes et on ré-insère
       const { error: delError } = await supabase
         .from('rapportino_rows')
         .delete()
@@ -414,7 +420,7 @@ export default function RapportinoPage({ crewRole, onChangeCrewRole, onLogout })
       {/* Contenu imprimable */}
       <main className="flex-1 flex justify-center py-4 px-2">
         <div className="bg-white shadow-md shadow-slate-300 rounded-lg w-[1120px] max-w-full px-6 py-4 print:shadow-none print:border-none">
-          {/* Bandeau stato & prodotto total – écran uniquement */}
+          {/* Bandeau stato & produit total – écran uniquement */}
           <div className="flex items-center justify-between mb-2 no-print text-[12px] text-slate-600">
             <div>
               CORE · Rapportino ·{' '}
@@ -436,46 +442,55 @@ export default function RapportinoPage({ crewRole, onChangeCrewRole, onLogout })
             </div>
           </div>
 
-          {/* === HEADER VERSION PAPIER === */}
+          {/* HEADER papier aligné comme le formulaire original */}
           <div className="mb-3">
-            <div className="text-center text-[16px] font-semibold mb-3 tracking-wide">
+            <div className="text-center text-[17px] font-semibold mb-4 tracking-wide">
               RAPPORTINO GIORNALIERO
             </div>
 
-            <div className="mb-1 flex gap-8">
-              <div>
-                <span className="font-semibold mr-2">COSTR.:</span>
-                <input
-                  type="text"
-                  value={costr}
-                  onChange={(e) => setCostr(e.target.value.trim())}
-                  className="inline-block w-32 border-b border-slate-400 focus:outline-none focus:border-slate-800 px-1"
-                />
+            <div className="flex justify-between mb-1">
+              {/* Bloc gauche : COSTR + Commessa */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold">COSTR.:</span>
+                  <input
+                    type="text"
+                    value={costr}
+                    onChange={(e) => setCostr(e.target.value)}
+                    className="border-b border-slate-400 w-28 focus:outline-none focus:border-slate-800"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold">Commessa:</span>
+                  <input
+                    type="text"
+                    value={commessa}
+                    onChange={(e) => setCommessa(e.target.value)}
+                    className="border-b border-slate-400 w-32 focus:outline-none focus:border-slate-800"
+                  />
+                </div>
               </div>
-              <div>
-                <span className="font-semibold mr-2">Commessa:</span>
-                <input
-                  type="text"
-                  value={commessa}
-                  onChange={(e) => setCommessa(e.target.value)}
-                  className="inline-block w-32 border-b border-slate-400 focus:outline-none focus:border-slate-800 px-1"
-                />
-              </div>
-            </div>
 
-            <div className="grid grid-cols-[1fr_1fr] items-center gap-2">
-              <div>
-                <span className="font-semibold mr-2">Capo Squadra:</span>
-                <span className="px-1">{capoName}</span>
+              {/* Centre : Capo Squadra */}
+              <div className="flex flex-col items-center justify-center">
+                <div className="font-semibold">Capo Squadra:</div>
+                <div className="mt-1 text-[14px]">{capoName}</div>
               </div>
-              <div className="text-right">
-                <span className="font-semibold mr-2">DATA:</span>
-                <input
-                  type="date"
-                  value={reportDate}
-                  onChange={(e) => setReportDate(e.target.value)}
-                  className="border border-slate-300 rounded px-2 py-1 text-[11px]"
-                />
+
+              {/* Droite : DATA en italien + input de date (no-print) */}
+              <div className="flex items-center gap-2">
+                <span className="font-semibold">DATA:</span>
+                <div className="flex flex-col items-start">
+                  <div className="px-3 py-1 border border-slate-300 rounded text-[12px]">
+                    {formatDateItalian(reportDate)}
+                  </div>
+                  <input
+                    type="date"
+                    value={reportDate}
+                    onChange={(e) => setReportDate(e.target.value)}
+                    className="no-print mt-1 border border-slate-300 rounded px-2 py-0.5 text-[10px]"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -485,10 +500,10 @@ export default function RapportinoPage({ crewRole, onChangeCrewRole, onLogout })
             <table className="w-full border-collapse text-[12px]">
               <thead className="bg-slate-100 border-b border-slate-300">
                 <tr>
-                  <th className="w-28 border-r border-slate-300 px-2 py-1 text-left">
+                  <th className="w-40 border-r border-slate-300 px-2 py-1 text-left">
                     CATEGORIA
                   </th>
-                  <th className="w-72 border-r border-slate-300 px-2 py-1 text-left">
+                  <th className="w-60 border-r border-slate-300 px-2 py-1 text-left">
                     DESCRIZIONE ATTIVITÀ
                   </th>
                   <th className="w-40 border-r border-slate-300 px-2 py-1 text-left">
@@ -503,12 +518,8 @@ export default function RapportinoPage({ crewRole, onChangeCrewRole, onLogout })
                   <th className="w-24 border-r border-slate-300 px-2 py-1 text-right">
                     PRODOTTO
                   </th>
-                  <th className="border-slate-300 px-2 py-1 text-left">
-                    NOTE
-                  </th>
-                  <th className="border-slate-300 px-2 py-1 text-xs w-6 no-print">
-                    -
-                  </th>
+                  <th className="px-2 py-1 text-left w-24">NOTE</th>
+                  <th className="w-6 no-print" />
                 </tr>
               </thead>
               <tbody>
