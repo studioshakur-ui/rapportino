@@ -2,211 +2,408 @@
 import React from "react";
 
 export default function CorePresentation() {
-  const sections = [
-    {
-      id: "problema",
-      label: "01",
-      title: "Il problema reale",
-      body: (
-        <>
-          <p className="text-xs text-slate-200 mb-2">
-            Oggi il controllo in CONIT è già forte in ufficio (Navemaster,
-            Excel, report). Il punto fragile è il modo in cui nasce il dato
-            sul campo.
-          </p>
-          <ul className="text-[11px] text-slate-300 space-y-1 list-disc list-inside">
-            <li>Dati che arrivano tardi o già filtrati.</li>
-            <li>Riscritture tra Capo, ufficio e direzione.</li>
-            <li>Ricostruzioni a posteriori quando c’è un problema.</li>
-          </ul>
-          <p className="text-[11px] text-sky-300 mt-2">
-            Il rischio non è nel controllo, ma nel momento in cui il dato nasce
-            male.
-          </p>
-        </>
-      ),
-    },
-    {
-      id: "ruolo-core",
-      label: "02",
-      title: "Dove si inserisce CORE",
-      body: (
-        <>
-          <p className="text-xs text-slate-200 mb-2">
-            CORE non sostituisce il sistema CONIT. Si inserisce prima,
-            alla sorgente del dato.
-          </p>
-          <div className="text-[11px] text-slate-300 mb-2">
-            <div>CAPO → <span className="text-sky-300 font-semibold">CORE</span> → UFFICIO → NAVEMASTER → DIREZIONE</div>
-          </div>
-          <ul className="text-[11px] text-slate-300 space-y-1 list-disc list-inside">
-            <li>Il Capo scrive una volta sola in modo strutturato.</li>
-            <li>L’ufficio non riscrive: controlla e valida.</li>
-            <li>La direzione vede numeri già puliti, senza reinterpretazioni.</li>
-          </ul>
-        </>
-      ),
-    },
-    {
-      id: "cosa-fa",
-      label: "03",
-      title: "Cosa fa oggi, concretamente",
-      body: (
-        <>
-          <p className="text-xs text-slate-200 mb-2">
-            CORE non è un prototipo: oggi copre già il flusso base
-            del lavoro operativo.
-          </p>
-          <ul className="text-[11px] text-slate-300 space-y-1 list-disc list-inside">
-            <li>Rapportini giornalieri squadre / attività / ore / note.</li>
-            <li>Storico rapportini in Archivio (consultazione veloce).</li>
-            <li>Lettura INCA: tratte, metri, stato avanzamento.</li>
-            <li>Allineamento naturale tra campo, ufficio e direzione.</li>
-          </ul>
-          <p className="text-[11px] text-emerald-300 mt-2">
-            È già un sistema vivo, usabile oggi, non una presentazione teorica.
-          </p>
-        </>
-      ),
-    },
-    {
-      id: "cosa-toglie",
-      label: "04",
-      title: "Cosa toglie dalle spalle",
-      body: (
-        <>
-          <p className="text-xs text-slate-200 mb-2">
-            L’obiettivo non è “aggiungere un software”, ma togliere lavoro
-            inutile e rischio di errore.
-          </p>
-          <ul className="text-[11px] text-slate-300 space-y-1 list-disc list-inside">
-            <li>Fine delle riscritture dei rapportini.</li>
-            <li>Meno messaggi di correzione tra Capo e ufficio.</li>
-            <li>Meno ricostruzioni a fine settimana o fine mese.</li>
-            <li>Più chiarezza su costr, commessa, ore e attività.</li>
-          </ul>
-          <p className="text-[11px] text-rose-300 mt-2">
-            Meno rumore operativo, più controllo reale.
-          </p>
-        </>
-      ),
-    },
-    {
-      id: "inca",
-      label: "05",
-      title: "INCA e percorso reale",
-      body: (
-        <>
-          <p className="text-xs text-slate-200 mb-2">
-            Oggi l’INCA è un riferimento tecnico. Con CORE diventa
-            collegato al lavoro reale sul cantiere.
-          </p>
-          <ul className="text-[11px] text-slate-300 space-y-1 list-disc list-inside">
-            <li>Tratte e metri leggibili, zona per zona.</li>
-            <li>Possibilità di confronto teorico / reale.</li>
-            <li>Base per il controllo della posa cavi ("Percorso").</li>
-          </ul>
-          <p className="text-[11px] text-sky-300 mt-2">
-            Dal disegno al metro realmente posato: questa è la direzione.
-          </p>
-        </>
-      ),
-    },
-    {
-      id: "test",
-      label: "06",
-      title: "Come provarlo senza rischi",
-      body: (
-        <>
-          <p className="text-xs text-slate-200 mb-2">
-            L’idea non è cambiare subito il modo di lavorare di tutti.
-            È provare in modo silenzioso su un perimetro controllato.
-          </p>
-          <ul className="text-[11px] text-slate-300 space-y-1 list-disc list-inside">
-            <li>Una nave o una parte di nave.</li>
-            <li>Nessun cambiamento per le squadre sul campo.</li>
-            <li>Nessun doppio lavoro per l’ufficio.</li>
-            <li>Due settimane di osservazione reale.</li>
-          </ul>
-          <p className="text-[11px] text-emerald-300 mt-2">
-            Se non toglie lavoro dalle spalle, si spegne. Punto.
-          </p>
-        </>
-      ),
-    },
-    {
-      id: "cornice",
-      label: "07",
-      title: "Cornice chiara per CONIT",
-      body: (
-        <>
-          <p className="text-xs text-slate-200 mb-2">
-            Questa presentazione è dedicata a CONIT e alla realtà dei cantieri
-            navali dove già lavoriamo.
-          </p>
-          <ul className="text-[11px] text-slate-300 space-y-1 list-disc list-inside">
-            <li>Nessun vincolo automatico, nessun impegno commerciale.</li>
-            <li>Osservazione, numeri e problemi reali al centro.</li>
-            <li>Priorità: ridurre i problemi operativi, non creare lavoro nuovo.</li>
-          </ul>
-        </>
-      ),
-    },
-    {
-      id: "conclusione",
-      label: "08",
-      title: "Conclusione operativa",
-      body: (
-        <>
-          <p className="text-xs text-slate-200 mb-2">
-            CORE non è un progetto, non è una promessa, non è una startup.
-          </p>
-          <p className="text-[11px] text-slate-300">
-            È uno strumento operativo: o riduce i problemi sul campo e
-            in ufficio, oppure non ha senso usarlo.
-          </p>
-          <p className="text-[11px] text-sky-300 mt-3">
-            Questo è il criterio con cui va giudicato.
-          </p>
-        </>
-      ),
-    },
-  ];
-
   return (
-    <div className="p-4 sm:p-6 space-y-4">
-      <header className="mb-2">
-        <div className="text-[10px] uppercase tracking-[0.22em] text-sky-400 mb-1">
-          CORE · Presentazione operativa per CONIT
-        </div>
-        <h1 className="text-sm sm:text-base font-semibold text-slate-50">
-          Come CORE si inserisce nel modo di lavorare di CONIT
-        </h1>
-        <p className="text-[11px] text-slate-400 mt-1 max-w-2xl">
-          Questa pagina non è marketing. Riassume in modo concreto dove
-          CORE interviene, cosa fa oggi e come può essere provato in modo
-          controllato, senza cambiare le abitudini del cantiere.
-        </p>
-      </header>
+    <div className="relative min-h-screen bg-slate-950 text-slate-100 overflow-hidden">
+      {/* HERO IMPACT */}
+      <section className="relative z-10 px-6 md:px-10 py-16 md:py-24 border-b border-slate-800">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-[10px] uppercase tracking-[0.38em] text-sky-400 mb-4">
+            CORE · PRESENTAZIONE OPERATIVA PER CONIT
+          </div>
 
-      <div className="grid gap-3 md:gap-4 md:grid-cols-2">
-        {sections.map((section) => (
-          <section
-            key={section.id}
-            className="rounded-xl border border-slate-700/80 bg-slate-900/80 px-4 py-3 shadow-sm"
-          >
-            <div className="flex items-baseline justify-between mb-1">
-              <span className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
-                Sezione {section.label}
-              </span>
+          <h1 className="text-4xl md:text-6xl xl:text-7xl font-bold leading-tight mb-6">
+            IL DATO NASCE SUL CAMPO.
+            <br />
+            <span className="text-sky-400">
+              È LÌ CHE SI VINCE O SI PERDE IL CONTROLLO.
+            </span>
+          </h1>
+
+          <p className="max-w-3xl text-base md:text-lg text-slate-300">
+            CORE non è una promessa. È una macchina operativa che intercetta il
+            dato nel momento esatto in cui nasce, prima che venga riscritto,
+            reinterpretato o perso.
+          </p>
+        </div>
+      </section>
+
+      {/* BLOCCO 1 – IL PROBLEMA */}
+      <section className="px-6 md:px-10 py-20 border-b border-slate-800">
+        <div className="max-w-7xl mx-auto grid md:grid-cols-2 gap-12">
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.32em] text-slate-500 mb-3">
+              PROBLEMA STRUTTURALE
             </div>
-            <h2 className="text-xs sm:text-[13px] font-semibold text-slate-50 mb-2">
-              {section.title}
+            <h2 className="text-3xl md:text-5xl font-bold mb-6">
+              Il controllo in ufficio è forte.
+              <br />
+              <span className="text-rose-400">Il rischio è prima.</span>
             </h2>
-            {section.body}
-          </section>
-        ))}
-      </div>
+            <p className="text-lg text-slate-300 max-w-xl mb-4">
+              Quando il dato arriva in ufficio, è già il risultato di:
+            </p>
+            <ul className="text-sm md:text-base text-slate-300 space-y-1 list-disc list-inside">
+              <li>appunti diversi tra loro,</li>
+              <li>memoria del Capo,</li>
+              <li>messaggi vocali, foto, correzioni a catena.</li>
+            </ul>
+            <p className="mt-4 text-sm text-slate-400 max-w-xl">
+              Il controllo finale resta forte, ma deve continuamente ricostruire
+              qualcosa che non nasce mai uniforme.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-6">
+            <div className="rounded-2xl bg-slate-900 border border-slate-800 p-6">
+              <div className="text-4xl font-bold text-rose-400 mb-2">+30%</div>
+              <div className="text-xs uppercase tracking-widest text-slate-400 mb-2">
+                TEMPO PERSO IN RICOSTRUZIONI
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Settimana dopo settimana, il tempo di chi controlla viene
+                mangiato da ricostruzioni a posteriori.
+              </p>
+            </div>
+            <div className="rounded-2xl bg-slate-900 border border-slate-800 p-6">
+              <div className="text-4xl font-bold text-rose-400 mb-2">∞</div>
+              <div className="text-xs uppercase tracking-widest text-slate-400 mb-2">
+                CORREZIONI CAPO ⇄ UFFICIO
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Correzioni continue via telefono, messaggi e fogli Excel
+                modificati all’ultimo minuto.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* BLOCCO 2 – POSIZIONE DI CORE */}
+      <section className="px-6 md:px-10 py-20 border-b border-slate-800 bg-slate-900/40">
+        <div className="max-w-7xl mx-auto text-center">
+          <div className="text-[11px] uppercase tracking-[0.32em] text-slate-500 mb-3">
+            POSIZIONE STRATEGICA
+          </div>
+          <h2 className="text-3xl md:text-5xl font-bold mb-6">
+            CORE SI INSERISCE IN UN SOLO PUNTO:
+          </h2>
+          <h3 className="text-2xl md:text-3xl font-semibold text-sky-300 mb-10">
+            CAPO → <span className="text-sky-400">CORE</span> → UFFICIO →
+            NAVEMASTER → DIREZIONE
+          </h3>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6">
+              <h3 className="text-2xl font-semibold mb-3 text-sky-400">
+                1 SOLO INSERIMENTO
+              </h3>
+              <p className="text-slate-300 text-sm">
+                Il Capo inserisce attività, ore e note in modo guidato, senza
+                dover riscrivere o improvvisare a fine giornata.
+              </p>
+            </div>
+
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6">
+              <h3 className="text-2xl font-semibold mb-3 text-sky-400">
+                0 RISCRITTURE
+              </h3>
+              <p className="text-slate-300 text-sm">
+                L’Ufficio vede il dato così com’è nato, lo controlla e lo
+                valida. Non deve più riscriverlo da zero.
+              </p>
+            </div>
+
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6">
+              <h3 className="text-2xl font-semibold mb-3 text-sky-400">
+                NUMERI PULITI
+              </h3>
+              <p className="text-slate-300 text-sm">
+                La Direzione riceve numeri coerenti con il cantiere reale,
+                senza dover interpretare mille versioni diverse.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* BLOCCO 3 – COSA FA OGGI */}
+      <section className="px-6 md:px-10 py-20 border-b border-slate-800">
+        <div className="max-w-7xl mx-auto">
+          <h2 className="text-3xl md:text-5xl font-bold mb-10">
+            CORE È GIÀ OPERATIVO OGGI.
+          </h2>
+
+          <div className="grid md:grid-cols-4 gap-8">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+              <div className="text-5xl font-bold text-emerald-400 mb-2">✓</div>
+              <div className="uppercase text-xs tracking-widest text-slate-400 mb-1">
+                RAPPORTINI
+              </div>
+              <div className="text-slate-200 text-sm">
+                Squadre, attività, ore, note di ritorno.
+              </div>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+              <div className="text-5xl font-bold text-emerald-400 mb-2">✓</div>
+              <div className="uppercase text-xs tracking-widest text-slate-400 mb-1">
+                ARCHIVIO
+              </div>
+              <div className="text-slate-200 text-sm">
+                Storico immediato, consultabile per data, commessa, costr.
+              </div>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+              <div className="text-5xl font-bold text-emerald-400 mb-2">✓</div>
+              <div className="uppercase text-xs tracking-widest text-slate-400 mb-1">
+                INCA
+              </div>
+              <div className="text-slate-200 text-sm">
+                Tratte, metri, confronto teorico / reale (base già presente).
+              </div>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+              <div className="text-5xl font-bold text-emerald-400 mb-2">✓</div>
+              <div className="uppercase text-xs tracking-widest text-slate-400 mb-1">
+                ALLINEAMENTO
+              </div>
+              <div className="text-slate-200 text-sm">
+                Campo, Ufficio e Direzione guardano la stessa versione del
+                lavoro.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* BLOCCO 4 – COME SI TESTA */}
+      <section className="px-6 md:px-10 py-20 bg-slate-900/40 border-b border-slate-800">
+        <div className="max-w-7xl mx-auto text-center">
+          <h2 className="text-3xl md:text-5xl font-bold mb-10">
+            TEST REALE. RISCHIO ZERO.
+          </h2>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-8">
+              <div className="text-6xl font-bold text-sky-400 mb-3">1</div>
+              <p className="text-slate-200 text-sm">
+                Nave, o una parte di nave, scelta da CONIT.
+              </p>
+            </div>
+
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-8">
+              <div className="text-6xl font-bold text-sky-400 mb-3">0</div>
+              <p className="text-slate-200 text-sm">
+                Cambiamenti per le squadre sul campo: continuano a lavorare
+                come oggi.
+              </p>
+            </div>
+
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-8">
+              <div className="text-6xl font-bold text-sky-400 mb-3">14</div>
+              <p className="text-slate-200 text-sm">
+                Giorni di osservazione reale: niente teoria, solo dati concreti.
+              </p>
+            </div>
+          </div>
+
+          <p className="mt-12 text-xl text-slate-300">
+            Se{" "}
+            <span className="text-emerald-400 font-semibold">
+              non toglie lavoro dalle spalle
+            </span>
+            ,{" "}
+            <span className="text-rose-400 font-semibold">si spegne.</span>{" "}
+            Punto.
+          </p>
+        </div>
+      </section>
+
+      {/* BLOCCO 5 – RESPONSABILITÀ */}
+      <section className="px-6 md:px-10 py-16 border-b border-slate-800">
+        <div className="max-w-7xl mx-auto grid md:grid-cols-2 gap-10">
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.32em] text-slate-500 mb-3">
+              RESPONSABILITÀ
+            </div>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              CORE non è un esperimento.
+            </h2>
+            <p className="text-sm md:text-base text-slate-300">
+              Ha responsabilità chiare: tecnica, operativa e di sistema. Non è
+              un progetto appoggiato su “buona volontà”, ma uno strumento
+              che deve rispondere a standard industriali.
+            </p>
+          </div>
+
+          <div className="grid gap-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+              <div className="text-xs uppercase tracking-widest text-slate-400 mb-1">
+                RESPONSABILITÀ TECNICA
+              </div>
+              <p className="text-[13px] text-slate-200">
+                Garantire che il flusso di inserimento dati sia coerente con il
+                lavoro reale del cantiere, senza scorciatoie.
+              </p>
+            </div>
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+              <div className="text-xs uppercase tracking-widest text-slate-400 mb-1">
+                RESPONSABILITÀ OPERATIVA
+              </div>
+              <p className="text-[13px] text-slate-200">
+                Assicurare che il sistema non crei lavoro doppio, non rallenti
+                i Capi e non appesantisca l’Ufficio.
+              </p>
+            </div>
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+              <div className="text-xs uppercase tracking-widest text-slate-400 mb-1">
+                RESPONSABILITÀ DI SISTEMA
+              </div>
+              <p className="text-[13px] text-slate-200">
+                Garantire stabilità, continuità e tracciabilità dei dati nel
+                tempo, senza dipendere da una singola persona.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* BLOCCO 6 – STRUTTURA TECNICA */}
+      <section className="px-6 md:px-10 py-16 bg-slate-900/40 border-b border-slate-800">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-[11px] uppercase tracking-[0.32em] text-slate-500 mb-3">
+            STRUTTURA TECNICA
+          </div>
+          <h2 className="text-3xl md:text-4xl font-bold mb-6">
+            Non interessa la tecnologia, interessa la solidità.
+          </h2>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-5">
+              <div className="text-xs uppercase tracking-widest text-slate-400 mb-1">
+                DATI STRUTTURATI
+              </div>
+              <p className="text-[13px] text-slate-200">
+                Ogni informazione (squadra, attività, ore, nave, costr, commessa)
+                ha una posizione chiara, non esistono “campi liberi” critici.
+              </p>
+            </div>
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-5">
+              <div className="text-xs uppercase tracking-widest text-slate-400 mb-1">
+                STORICO TRACCIABILE
+              </div>
+              <p className="text-[13px] text-slate-200">
+                Le modifiche vengono registrate. Non c’è cancellazione invisibile:
+                ogni variazione lascia una traccia.
+              </p>
+            </div>
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-5">
+              <div className="text-xs uppercase tracking-widest text-slate-400 mb-1">
+                RUOLI E PERMESSI
+              </div>
+              <p className="text-[13px] text-slate-200">
+                Capo, Ufficio e Direzione non vedono né modificano le stesse
+                cose. I permessi sono separati per ruolo.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* BLOCCO 7 – LIMITI CHIARI */}
+      <section className="px-6 md:px-10 py-16 border-b border-slate-800">
+        <div className="max-w-7xl mx-auto grid md:grid-cols-2 gap-10">
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.32em] text-slate-500 mb-3">
+              LIMITI CHIARI
+            </div>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              Sapere cosa non farà mai è una garanzia.
+            </h2>
+            <p className="text-sm md:text-base text-slate-300">
+              Un sistema serio non dice solo cosa fa. Dice chiaramente cosa non
+              farà mai, per non entrare in conflitto con i ruoli esistenti.
+            </p>
+          </div>
+
+          <div className="grid gap-3">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+              <p className="text-[13px] text-slate-200">
+                CORE non sostituisce i sistemi ufficiali di CONIT o Fincantieri.
+              </p>
+            </div>
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+              <p className="text-[13px] text-slate-200">
+                CORE non decide al posto delle persone: non è un sistema di
+                valutazione, ma di supporto operativo.
+              </p>
+            </div>
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+              <p className="text-[13px] text-slate-200">
+                CORE non controlla le persone: controlla la coerenza dei dati,
+                non il comportamento individuale.
+              </p>
+            </div>
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+              <p className="text-[13px] text-slate-200">
+                CORE non entra nella parte commerciale o contabile: resta sul
+                piano operativo del cantiere.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* BLOCCO 8 – PATTO OPERATIVO */}
+      <section className="px-6 md:px-10 py-24 border-t border-slate-800 text-center">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-[11px] uppercase tracking-[0.32em] text-slate-500 mb-3">
+            PATTO OPERATIVO CON CONIT
+          </div>
+          <h2 className="text-3xl md:text-5xl font-bold mb-6">
+            CORE non chiede fiducia.
+          </h2>
+          <p className="text-lg text-slate-300 mb-4">
+            Chiede solo di essere misurato sul campo, con criteri semplici:
+          </p>
+
+          <div className="grid md:grid-cols-3 gap-6 text-left md:text-center mb-10">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+              <div className="text-xs uppercase tracking-widest text-slate-400 mb-1">
+                CRITERIO 1
+              </div>
+              <p className="text-[13px] text-slate-200">
+                Meno tempo speso in ricostruzioni e correzioni tra Capo e
+                Ufficio.
+              </p>
+            </div>
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+              <div className="text-xs uppercase tracking-widest text-slate-400 mb-1">
+                CRITERIO 2
+              </div>
+              <p className="text-[13px] text-slate-200">
+                Più chiarezza immediata su ore, costr, commesse e avanzamento.
+              </p>
+            </div>
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+              <div className="text-xs uppercase tracking-widest text-slate-400 mb-1">
+                CRITERIO 3
+              </div>
+              <p className="text-[13px] text-slate-200">
+                Nessun aumento di carico per le squadre e per l’Ufficio.
+              </p>
+            </div>
+          </div>
+
+          <p className="text-xl text-slate-300">
+            Se questi tre criteri non migliorano, CORE non ha motivo di
+            esistere. Se migliorano, diventa una base stabile su cui
+            costruire il resto.
+          </p>
+        </div>
+      </section>
     </div>
   );
 }
