@@ -2,7 +2,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
-
 /**
  * Cockpit INCA fullscreen
  *
@@ -20,21 +19,21 @@ export default function IncaCockpit({ file, onClose, initialRole = "UFFICO" }) {
 
   // Filtres
   const [search, setSearch] = useState("");
-  const [situazione, setSituazione] = useState("ALL"); // T / P / R / B
+  const [situazione, setSituazione] = useState("ALL"); // T / P / R / B / E
   const [statoInca, setStatoInca] = useState("ALL"); // M / P / E / V / ...
   const [tipoCavo, setTipoCavo] = useState("ALL");
   const [livello, setLivello] = useState("ALL");
   const [zona, setZona] = useState("ALL");
   const [lunghezzaMax, setLunghezzaMax] = useState(0); // 0 = no limit
 
-  // Pour stats
+  // Stats
   const [stats, setStats] = useState({
     total: 0,
     bySituazione: {},
     byStatoInca: {},
   });
 
-  // Charger les câbles du fichier INCA
+  // Charger les câbles de ce file INCA
   useEffect(() => {
     let isCancelled = false;
 
@@ -54,7 +53,7 @@ export default function IncaCockpit({ file, onClose, initialRole = "UFFICO" }) {
 
         setCables(data || []);
 
-        // Stats de base
+        // Stats
         const bySitu = {};
         const byStato = {};
         for (const c of data || []) {
@@ -76,7 +75,7 @@ export default function IncaCockpit({ file, onClose, initialRole = "UFFICO" }) {
         );
         setLunghezzaMax(maxTeo || 0);
 
-        // Pré-sélectionner le premier câble
+        // Sélectionner premier câble
         if (data && data.length > 0) {
           setSelectedCable(data[0]);
         }
@@ -94,7 +93,7 @@ export default function IncaCockpit({ file, onClose, initialRole = "UFFICO" }) {
     };
   }, [file.id]);
 
-  // Options dérivées depuis les données (pour les <select>)
+  // Options dérivées pour les filtres
   const filterOptions = useMemo(() => {
     const setTipo = new Set();
     const setLivello = new Set();
@@ -103,7 +102,6 @@ export default function IncaCockpit({ file, onClose, initialRole = "UFFICO" }) {
     for (const c of cables) {
       if (c.tipo) setTipo.add(c.tipo);
       if (c.livello_disturbo) setLivello.add(c.livello_disturbo);
-      // on utilise la description du locale d'arrivée comme "zona" principale
       if (c.descrizione_a) setZona.add(c.descrizione_a);
       else if (c.descrizione) setZona.add(c.descrizione);
     }
@@ -372,7 +370,7 @@ export default function IncaCockpit({ file, onClose, initialRole = "UFFICO" }) {
               <span className="text-slate-200 font-medium">{roleLabel}</span>
             </span>
             <span className="hidden sm:inline">
-              Filtri: ricerca globale, situazione (T/P/R/B), stato INCA, tipo
+              Filtri: ricerca globale, situazione (T/P/R/B/E), stato INCA, tipo
               cavo, livello disturbo, zona, lunghezza.
             </span>
           </div>
@@ -420,15 +418,9 @@ function CableRow({ cable, isSelected, onSelect }) {
         <SituazioneBadge value={situ} />
       </Td>
       <Td className="text-[11px] text-slate-300">{stato}</Td>
-      <Td className="text-right">
-        {formatMeters(cable.metri_teo)}
-      </Td>
-      <Td className="text-right">
-        {formatMeters(cable.metri_totali)}
-      </Td>
-      <Td className="text-right">
-        {formatMeters(cable.metri_previsti)}
-      </Td>
+      <Td className="text-right">{formatMeters(cable.metri_teo)}</Td>
+      <Td className="text-right">{formatMeters(cable.metri_totali)}</Td>
+      <Td className="text-right">{formatMeters(cable.metri_previsti)}</Td>
       <Td className="max-w-[260px] truncate">
         {cable.descrizione_a ||
           cable.descrizione ||
@@ -455,20 +447,24 @@ function SituazioneBadge({ value }) {
 
   switch (value) {
     case "T":
-      label = "Teorico";
+      label = "Tagliato / Teorico";
       cls += " bg-slate-900/80 border-slate-700 text-slate-200";
       break;
     case "P":
-      label = "Programmato";
+      label = "Posato / Programmato";
       cls += " bg-sky-900/60 border-sky-500/60 text-sky-200";
       break;
     case "R":
-      label = "Ritardo";
+      label = "Richiesto";
       cls += " bg-amber-900/60 border-amber-500/70 text-amber-200";
       break;
     case "B":
       label = "Bloccato";
       cls += " bg-rose-900/60 border-rose-500/70 text-rose-100";
+      break;
+    case "E":
+      label = "Eliminato";
+      cls += " bg-slate-900/80 border-slate-500/80 text-slate-300 line-through";
       break;
     default:
       label = value || "—";
@@ -549,6 +545,7 @@ function FilterBar({
             { value: "P", label: "P" },
             { value: "R", label: "R" },
             { value: "B", label: "B" },
+            { value: "E", label: "E" },
           ]}
         />
 
@@ -672,14 +669,8 @@ function CableDetails({ cable }) {
           Lunghezze
         </div>
         <div className="grid grid-cols-3 gap-2">
-          <DetailField
-            label="Disegno"
-            value={formatMeters(cable.metri_teo)}
-          />
-          <DetailField
-            label="Posa"
-            value={formatMeters(cable.metri_totali)}
-          />
+          <DetailField label="Disegno" value={formatMeters(cable.metri_teo)} />
+          <DetailField label="Posa" value={formatMeters(cable.metri_totali)} />
           <DetailField
             label="Calcolo"
             value={formatMeters(cable.metri_previsti)}
@@ -719,7 +710,7 @@ function CableDetails({ cable }) {
         </div>
       </div>
 
-      {/* Métadonnées file */}
+      {/* Métadonnées */}
       <div className="border-t border-slate-800 pt-3 mt-1 text-[11px] text-slate-500">
         <div>
           ID cavo:{" "}

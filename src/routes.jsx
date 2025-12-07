@@ -21,7 +21,7 @@ import IncaCapoCockpit from './capo/IncaCapoCockpit';
 // UFFICIO – contenu
 import UfficioRapportiniList from './ufficio/UfficioRapportiniList';
 import UfficioRapportinoDetail from './ufficio/UfficioRapportinoDetail';
-import IncaRoot from './inca/IncaRoot';
+import IncaFilesPanel from './inca/IncaFilesPanel'; // ⬅️ ICI : notre super cockpit côté ufficio
 
 // ARCHIVE central
 import ArchivePage from './pages/Archive';
@@ -80,9 +80,22 @@ export default function AppRoutes() {
           </RequireRole>
         }
       >
+        {/* Liste rapportini par défaut */}
         <Route index element={<UfficioRapportiniList />} />
-        <Route path="rapportini/:id" element={<UfficioRapportinoDetail />} />
-        <Route path="inca/*" element={<IncaRoot />} />
+
+        {/* Détail rapportino */}
+        <Route
+          path="rapportini/:id"
+          element={<UfficioRapportinoDetail />}
+        />
+
+        {/* 🔥 INCA UFFICIO = notre super FilesPanel + Cockpit fullscreen */}
+        <Route
+          path="inca"
+          element={<IncaFilesPanel />}
+        />
+
+        {/* ARCHIVE */}
         <Route path="archive" element={<ArchivePage />} />
       </Route>
 
