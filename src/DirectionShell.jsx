@@ -1,32 +1,34 @@
 // src/DirectionShell.jsx
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Link,
   useNavigate,
   useLocation,
   Routes,
   Route,
-} from 'react-router-dom';
-import { useAuth } from './auth/AuthProvider';
-import ConnectionIndicator from './components/ConnectionIndicator';
-import DirectionDashboard from './components/DirectionDashboard';
-import ArchivePage from './pages/Archive';
+} from "react-router-dom";
+import { useAuth } from "./auth/AuthProvider";
+import ConnectionIndicator from "./components/ConnectionIndicator";
+import DirectionDashboard from "./components/DirectionDashboard";
+import ArchivePage from "./pages/Archive";
+import CorePresentation from "./pages/CorePresentation";
+import CorePresentationModal from "./components/CorePresentationModal";
 
 function getInitialTheme() {
-  if (typeof window === 'undefined') return 'dark';
+  if (typeof window === "undefined") return "dark";
   try {
-    const stored = window.localStorage.getItem('core-theme');
-    if (stored === 'dark' || stored === 'light') return stored;
+    const stored = window.localStorage.getItem("core-theme");
+    if (stored === "dark" || stored === "light") return stored;
     if (
       window.matchMedia &&
-      window.matchMedia('(prefers-color-scheme: dark)').matches
+      window.matchMedia("(prefers-color-scheme: dark)").matches
     ) {
-      return 'dark';
+      return "dark";
     }
   } catch {
     // ignore
   }
-  return 'dark';
+  return "dark";
 }
 
 export default function DirectionShell() {
@@ -35,11 +37,11 @@ export default function DirectionShell() {
   const location = useLocation();
 
   const [theme, setTheme] = useState(getInitialTheme);
-  const isDark = theme === 'dark';
+  const isDark = theme === "dark";
 
   useEffect(() => {
     try {
-      window.localStorage.setItem('core-theme', theme);
+      window.localStorage.setItem("core-theme", theme);
     } catch {
       // ignore
     }
@@ -49,9 +51,9 @@ export default function DirectionShell() {
     try {
       await signOut();
     } catch (err) {
-      console.error('Errore logout direzione:', err);
+      console.error("Errore logout direzione:", err);
     } finally {
-      navigate('/login');
+      navigate("/login");
     }
   };
 
@@ -60,25 +62,25 @@ export default function DirectionShell() {
       profile?.display_name ||
       profile?.full_name ||
       profile?.email ||
-      'Direzione',
-    [profile],
+      "Direzione",
+    [profile]
   );
 
   const toggleTheme = () => {
-    setTheme((current) => (current === 'dark' ? 'light' : 'dark'));
+    setTheme((current) => (current === "dark" ? "light" : "dark"));
   };
 
   const navItemClasses = (active) =>
     [
-      'block px-2.5 py-1.5 rounded-lg text-sm transition-colors border',
+      "block px-2.5 py-1.5 rounded-lg text-sm transition-colors border",
       active
         ? isDark
-          ? 'bg-sky-500/15 text-sky-100 border-sky-500/60'
-          : 'bg-sky-50 text-sky-800 border-sky-400'
+          ? "bg-sky-500/15 text-sky-100 border-sky-500/60"
+          : "bg-sky-50 text-sky-800 border-sky-400"
         : isDark
-        ? 'text-slate-300 border-transparent hover:bg-slate-900 hover:border-slate-700'
-        : 'text-slate-700 border-transparent hover:bg-slate-50 hover:border-slate-300',
-    ].join(' ');
+        ? "text-slate-300 border-transparent hover:bg-slate-900 hover:border-slate-700"
+        : "text-slate-700 border-transparent hover:bg-slate-50 hover:border-slate-300",
+    ].join(" ");
 
   const isActive = (prefix) => location.pathname.startsWith(prefix);
 
@@ -93,18 +95,21 @@ export default function DirectionShell() {
   return (
     <div
       className={[
-        'min-h-screen flex flex-col',
-        isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900',
-      ].join(' ')}
+        "min-h-screen flex flex-col",
+        isDark ? "bg-slate-950 text-slate-100" : "bg-slate-100 text-slate-900",
+      ].join(" ")}
     >
+      {/* 🔹 Popup spécial CONIT (temporaire) */}
+      <CorePresentationModal />
+
       {/* HEADER HARMONISÉ */}
       <header
         className={[
-          'no-print sticky top-0 z-20 border-b backdrop-blur',
+          "no-print sticky top-0 z-20 border-b backdrop-blur",
           isDark
-            ? 'bg-slate-950/95 border-slate-800'
-            : 'bg-white/95 border-slate-200 shadow-sm',
-        ].join(' ')}
+            ? "bg-slate-950/95 border-slate-800"
+            : "bg-white/95 border-slate-200 shadow-sm",
+        ].join(" ")}
       >
         <div className="max-w-6xl mx-auto px-3 sm:px-4 py-2 flex items-center justify-between gap-3">
           {/* Bloc gauche : brand + contexte */}
@@ -113,7 +118,7 @@ export default function DirectionShell() {
               CORE · Sistema centrale di cantiere
             </div>
             <div className="text-xs text-slate-400">
-              Modulo Direzione ·{' '}
+              Modulo Direzione ·{" "}
               <span className="font-semibold">
                 Presenze · produzione · archivio
               </span>
@@ -127,22 +132,22 @@ export default function DirectionShell() {
               type="button"
               onClick={toggleTheme}
               className={[
-                'inline-flex items-center gap-1 rounded-full border px-2 py-0.5',
+                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5",
                 isDark
-                  ? 'border-slate-600 bg-slate-900/70 text-slate-200'
-                  : 'border-slate-300 bg-slate-50 text-slate-700',
-              ].join(' ')}
+                  ? "border-slate-600 bg-slate-900/70 text-slate-200"
+                  : "border-slate-300 bg-slate-50 text-slate-700",
+              ].join(" ")}
             >
               <span
                 className={[
-                  'inline-flex h-3 w-3 items-center justify-center rounded-full text-[9px]',
-                  isDark ? 'bg-slate-800' : 'bg-amber-200',
-                ].join(' ')}
+                  "inline-flex h-3 w-3 items-center justify-center rounded-full text-[9px]",
+                  isDark ? "bg-slate-800" : "bg-amber-200",
+                ].join(" ")}
               >
-                {isDark ? '🌑' : '☀️'}
+                {isDark ? "🌑" : "☀️"}
               </span>
               <span className="uppercase tracking-[0.16em]">
-                {isDark ? 'Dark' : 'Light'}
+                {isDark ? "Dark" : "Light"}
               </span>
             </button>
 
@@ -156,11 +161,11 @@ export default function DirectionShell() {
             <button
               onClick={handleLogout}
               className={[
-                'px-3 py-1.5 rounded-full border text-xs font-medium',
+                "px-3 py-1.5 rounded-full border text-xs font-medium",
                 isDark
-                  ? 'border-rose-500 text-rose-100 hover:bg-rose-600/20'
-                  : 'border-rose-400 text-rose-700 hover:bg-rose-50',
-              ].join(' ')}
+                  ? "border-rose-500 text-rose-100 hover:bg-rose-600/20"
+                  : "border-rose-400 text-rose-700 hover:bg-rose-50",
+              ].join(" ")}
             >
               Logout
             </button>
@@ -173,11 +178,11 @@ export default function DirectionShell() {
         {/* SIDEBAR */}
         <aside
           className={[
-            'no-print w-60 border-r px-3 py-4 flex flex-col gap-5',
+            "no-print w-60 border-r px-3 py-4 flex flex-col gap-5",
             isDark
-              ? 'bg-slate-950 border-slate-800'
-              : 'bg-slate-50 border-slate-200',
-          ].join(' ')}
+              ? "bg-slate-950 border-slate-800"
+              : "bg-slate-50 border-slate-200",
+          ].join(" ")}
         >
           {/* Blocco principale */}
           <div>
@@ -187,13 +192,13 @@ export default function DirectionShell() {
             <nav className="space-y-1.5">
               <Link
                 to="/direction"
-                className={navItemClasses(isActive('/direction'))}
+                className={navItemClasses(isActive("/direction"))}
               >
                 Panoramica &amp; Presenze
               </Link>
               <Link
                 to="/ufficio"
-                className={navItemClasses(isActive('/ufficio'))}
+                className={navItemClasses(isActive("/ufficio"))}
               >
                 Area Ufficio · Rapportini
               </Link>
@@ -208,7 +213,7 @@ export default function DirectionShell() {
             <nav className="space-y-1.5">
               <Link
                 to="/direction/archive"
-                className={navItemClasses(isActive('/direction/archive'))}
+                className={navItemClasses("/direction/archive")}
               >
                 Rapportini v1 · Archivio
               </Link>
@@ -223,7 +228,7 @@ export default function DirectionShell() {
             <nav className="space-y-1.5">
               <Link
                 to="/ufficio/inca"
-                className={navItemClasses(isActive('/ufficio/inca'))}
+                className={navItemClasses(isActive("/ufficio/inca"))}
               >
                 Modulo INCA
               </Link>
@@ -242,19 +247,21 @@ export default function DirectionShell() {
         {/* CONTENT – routes internes Direzione */}
         <main
           className={[
-            'flex-1 min-h-0 overflow-y-auto p-4 md:p-6',
-            isDark ? 'bg-slate-950' : 'bg-slate-100',
-          ].join(' ')}
+            "flex-1 min-h-0 overflow-y-auto p-4 md:p-6",
+            isDark ? "bg-slate-950" : "bg-slate-100",
+          ].join(" ")}
         >
           <div className="max-w-6xl mx-auto space-y-4">
             <Routes>
               {/* /direction */}
               <Route
-                path="/"
+                index
                 element={<DirectionDashboard isDark={isDark} />}
               />
               {/* /direction/archive */}
               <Route path="archive" element={<ArchivePage />} />
+              {/* /direction/presentazione */}
+              <Route path="presentazione" element={<CorePresentation />} />
             </Routes>
           </div>
         </main>

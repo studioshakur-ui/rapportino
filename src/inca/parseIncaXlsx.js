@@ -6,20 +6,18 @@ import * as XLSX from 'xlsx';
  *
  * Il retourne un tableau d'objets déjà au format proche de la table inca_cavi :
  * {
- *   marca_cavo,          // MARCA CAVO  → ex: "1-1 N AH163"
- *   codice,              // = MARCA CAVO (ID univoco del cavo in CORE)
- *   codice_materiale,    // CODICE CAVO (2816...) se serve
+ *   marca_cavo,
+ *   codice,               // CODICE CAVO (2816...)
  *   livello_disturbo,
  *   tipo,
  *   sezione,
  *   wbs,
  *   descrizione,
- *   metri_teo,           // LUNGHEZZA DI DISEGNO
- *   metri_totali,        // LUNGHEZZA DI POSA
- *   metri_previsti,      // LUNGHEZZA DI CALCOLO
- *   stato_inca,          // SITUAZIONE CAVO brut (M, P, E, V, …)
- *   situazione,          // T / P / R / B (se compatibile con il check), altrimenti null
- *   rev_inca             // REVISIONE (string)
+ *   metri_teo,            // LUNGHEZZA DI DISEGNO
+ *   metri_totali,         // LUNGHEZZA DI POSA
+ *   metri_previsti,       // LUNGHEZZA DI CALCOLO
+ *   stato_inca,           // brute (T/P/R/B/E ou autres)
+ *   situazione            // T / P / R / B / E (si compatible avec le check), sinon null
  * }
  */
 
@@ -43,7 +41,7 @@ export async function parseIncaXlsx(file) {
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
 
-        // Lecture brute en matrice
+        // On lit la feuille en mode "matrix"
         const rows = XLSX.utils.sheet_to_json(sheet, {
           header: 1,
           defval: null,
@@ -85,33 +83,38 @@ export async function parseIncaXlsx(file) {
           headerRow
         );
 
-        // 2) Mapping colonnes → champs
+        // 2) Mapping colonne → champ
         const colIndex = {
           marca: null,
-          codiceArt: null,
+          codice: null,
           livello: null,
           tipo: null,
           sezione: null,
           wbs: null,
-          situazioneCavo: null,
+          situazioneCavo: null,      // SITUAZIONE CAVO / STATO CANTIERE
           lungDisegno: null,
           lungPosa: null,
           lungCalc: null,
           descrizioneArrivo: null,
-          revInca: null,
         };
 
         headerRow.forEach((cell, idx) => {
           const norm = normalizeHeader(cell);
 
           if (norm === 'MARCA CAVO') colIndex.marca = idx;
-          else if (norm === 'CODICE CAVO') colIndex.codiceArt = idx;
+          else if (norm === 'CODICE CAVO') colIndex.codice = idx;
           else if (norm === 'LIVELLO DISTURBO') colIndex.livello = idx;
           else if (norm === 'TIPO CAVO') colIndex.tipo = idx;
           else if (norm === 'SEZIONE') colIndex.sezione = idx;
           else if (norm === 'WBS') colIndex.wbs = idx;
-          else if (norm === 'SITUAZIONE CAVO') colIndex.situazioneCavo = idx;
-          else if (norm === 'LUNGHEZZA DI DISEGNO')
+          // ⬇️ ICI : on prend aussi STATO CANTIERE / STATO CAVO
+          else if (
+            norm === 'SITUAZIONE CAVO' ||
+            norm === 'STATO CANTIERE' ||
+            norm === 'STATO CAVO'
+          ) {
+            colIndex.situazioneCavo = idx;
+          } else if (norm === 'LUNGHEZZA DI DISEGNO')
             colIndex.lungDisegno = idx;
           else if (norm === 'LUNGHEZZA DI POSA') colIndex.lungPosa = idx;
           else if (norm === 'LUNGHEZZA DI CALCOLO') colIndex.lungCalc = idx;
@@ -120,9 +123,6 @@ export async function parseIncaXlsx(file) {
             norm.includes('DESCRIZIONE')
           ) {
             colIndex.descrizioneArrivo = idx;
-          } else if (norm === 'REVISIONE') {
-            // colonne "REVISIONE" (rev INCA principale)
-            colIndex.revInca = idx;
           }
         });
 
@@ -137,7 +137,7 @@ export async function parseIncaXlsx(file) {
 
         const cables = [];
 
-        // 3) Lignes de données
+        // 3) Parcourir les lignes de données (après l’entête)
         for (let i = headerRowIndex + 1; i < rows.length; i++) {
           const row = rows[i];
           if (!row) continue;
@@ -147,12 +147,12 @@ export async function parseIncaXlsx(file) {
           const marca = marcaCell != null ? String(marcaCell).trim() : '';
 
           if (!marca) {
-            // ligne vide ou sans cable → skip
+            // Ligne complètement vide → on ignore
             continue;
           }
 
-          const codiceArtCell =
-            colIndex.codiceArt != null ? row[colIndex.codiceArt] : null;
+          const codiceCell =
+            colIndex.codice != null ? row[colIndex.codice] : null;
           const livelloCell =
             colIndex.livello != null ? row[colIndex.livello] : null;
           const tipoCell =
@@ -180,41 +180,30 @@ export async function parseIncaXlsx(file) {
               ? row[colIndex.descrizioneArrivo]
               : null;
 
-          const revIncaCell =
-            colIndex.revInca != null ? row[colIndex.revInca] : null;
-
           const situazioneRaw =
-            situazioneCell != null
-              ? String(situazioneCell).trim()
-              : null;
+            situazioneCell != null ? String(situazioneCell).trim() : null;
 
           const lungDisegno = Number(lungDisegnoCell || 0) || 0;
           const lungPosa = Number(lungPosaCell || 0) || 0;
           const lungCalc = Number(lungCalcCell || 0) || 0;
 
-          // SITUAZIONE filtrée pour respecter le CHECK (T/P/R/B)
-          const allowedSitu = ['T', 'P', 'R', 'B'];
+          // Nettoyage SITUAZIONE : valeurs acceptées par le check DB
+          const allowedSitu = ['T', 'P', 'R', 'B', 'E'];
           const situazione =
             situazioneRaw && allowedSitu.includes(situazioneRaw)
               ? situazioneRaw
               : null;
 
           cables.push({
-            // clé métier du cavo = MARCA CAVO
             marca_cavo: marca,
-            codice: marca, // utilisé pour la PK/logique CORE + index (codice, rev_inca)
-            codice_materiale:
-              codiceArtCell != null
-                ? String(codiceArtCell).trim()
-                : null,
-
+            codice:
+              codiceCell != null ? String(codiceCell).trim() : null,
             livello_disturbo:
               livelloCell != null ? String(livelloCell).trim() : null,
             tipo: tipoCell != null ? String(tipoCell).trim() : null,
             sezione:
               sezioneCell != null ? String(sezioneCell).trim() : null,
             wbs: wbsCell != null ? String(wbsCell).trim() : null,
-
             descrizione:
               descrArrivoCell != null
                 ? String(descrArrivoCell).trim()
@@ -224,15 +213,13 @@ export async function parseIncaXlsx(file) {
             metri_totali: lungPosa || null,
             metri_previsti: lungCalc || null,
 
-            stato_inca: situazioneRaw, // valeur brute Excel
-            situazione,                // valeur filtrée compatible CHECK
-
-            rev_inca:
-              revIncaCell != null ? String(revIncaCell).trim() : null,
+            // on garde la valeur brute et la version "propre"
+            stato_inca: situazioneRaw,
+            situazione,
           });
         }
 
-        // 4) Dédoublonnage sur MARCA CAVO (un cavo physique)
+        // 4) Dédoublonnage sur MARCA CAVO
         const seen = new Set();
         const unique = [];
 
