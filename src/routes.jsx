@@ -13,25 +13,28 @@ import DirectionShell from './DirectionShell';
 
 // CAPO – contenu
 import RapportinoPage from './components/RapportinoPage';
+import ShipSelector from './pages/ShipSelector';
+import CapoModuleSelector from './pages/CapoModuleSelector';
+import CapoRoleSelector from './pages/CapoRoleSelector';
+import IncaCapoCockpit from './capo/IncaCapoCockpit';
 
 // UFFICIO – contenu
 import UfficioRapportiniList from './ufficio/UfficioRapportiniList';
 import UfficioRapportinoDetail from './ufficio/UfficioRapportinoDetail';
 import IncaRoot from './inca/IncaRoot';
 
-// ARCHIVE central (même composant partout)
+// ARCHIVE central
 import ArchivePage from './pages/Archive';
 
 export default function AppRoutes() {
   return (
     <Routes>
-      {/* PUBLIC – Landing marketing */}
-      <Route path="/" element={<Landing />} />
 
-      {/* PUBLIC – Login */}
+      {/* PUBLIC */}
+      <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
 
-      {/* CAPO – Rapportino + Archivio */}
+      {/* ===== CAPO ===== */}
       <Route
         path="/app/*"
         element={
@@ -40,13 +43,35 @@ export default function AppRoutes() {
           </RequireRole>
         }
       >
-        {/* /app → rapportino capo */}
-        <Route index element={<RapportinoPage />} />
-        {/* /app/archive → archive v1 (même module que ufficio/direzione) */}
+        {/* 1️⃣ Choix bateau */}
+        <Route index element={<ShipSelector />} />
+
+        {/* 2️⃣ Choix module */}
+        <Route path="ship/:shipId" element={<CapoModuleSelector />} />
+
+        {/* 3️⃣ Choix rôle pour le rapportino */}
+        <Route
+          path="ship/:shipId/rapportino/role"
+          element={<CapoRoleSelector />}
+        />
+
+        {/* 4️⃣ RAPPORTINO */}
+        <Route
+          path="ship/:shipId/rapportino"
+          element={<RapportinoPage />}
+        />
+
+        {/* 5️⃣ INCA CAPO */}
+        <Route
+          path="ship/:shipId/inca"
+          element={<IncaCapoCockpit />}
+        />
+
+        {/* ARCHIVE */}
         <Route path="archive" element={<ArchivePage />} />
       </Route>
 
-      {/* UFFICIO – Contrôle rapportini + INCA + ARCHIVE */}
+      {/* ===== UFFICIO ===== */}
       <Route
         path="/ufficio/*"
         element={
@@ -56,15 +81,12 @@ export default function AppRoutes() {
         }
       >
         <Route index element={<UfficioRapportiniList />} />
-        <Route
-          path="rapportini/:id"
-          element={<UfficioRapportinoDetail />}
-        />
+        <Route path="rapportini/:id" element={<UfficioRapportinoDetail />} />
         <Route path="inca/*" element={<IncaRoot />} />
         <Route path="archive" element={<ArchivePage />} />
       </Route>
 
-      {/* DIREZIONE – zone direction */}
+      {/* ===== DIREZIONE ===== */}
       <Route
         path="/direction/*"
         element={
@@ -74,8 +96,9 @@ export default function AppRoutes() {
         }
       />
 
-      {/* Fallback : toute autre route renvoie vers la landing */}
+      {/* Fallback */}
       <Route path="/*" element={<Landing />} />
+
     </Routes>
   );
 }

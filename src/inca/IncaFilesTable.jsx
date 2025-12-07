@@ -1,147 +1,190 @@
 // src/inca/IncaFilesTable.jsx
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 
-function formatDateTime(value) {
-  if (!value) return '-';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return String(value);
-  return d.toLocaleString('it-IT', {
-    year: '2-digit',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+function formatDate(iso) {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString('it-IT', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  } catch {
+    return iso;
+  }
 }
 
 export default function IncaFilesTable({
   files,
   loading,
   refreshing,
-  error,
   selectedFileId,
   onSelectFile,
+  onRefresh,
 }) {
-  const count = files?.length || 0;
+  const [search, setSearch] = useState('');
+  const [costrFilter, setCostrFilter] = useState('');
+
+  const { filtered, distinctCostr } = useMemo(() => {
+    if (!files || files.length === 0) {
+      return { filtered: [], distinctCostr: [] };
+    }
+
+    const norm = (v) => (v || '').toString().toLowerCase();
+
+    const distinctCostrSet = new Set(
+      files
+        .map((f) => (f.costr || '').trim())
+        .filter((v) => v && v !== '-')
+    );
+
+    const distinctCostr = Array.from(distinctCostrSet).sort((a, b) =>
+      a.localeCompare(b, 'it-IT')
+    );
+
+    const s = norm(search);
+
+    const filtered = files.filter((f) => {
+      if (costrFilter && (f.costr || '').trim() !== costrFilter) {
+        return false;
+      }
+
+      if (!s) return true;
+
+      return (
+        norm(f.costr).includes(s) ||
+        norm(f.commessa).includes(s) ||
+        norm(f.project_code).includes(s) ||
+        norm(f.file_name).includes(s) ||
+        norm(f.note).includes(s)
+      );
+    });
+
+    return { filtered, distinctCostr };
+  }, [files, search, costrFilter]);
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3 h-full flex flex-col">
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <div className="flex flex-col">
-          <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
-            Archivio file INCA
+    <div className="rounded-xl border border-slate-800 bg-slate-950/80 overflow-hidden">
+      <div className="px-3 py-2 border-b border-slate-800 flex items-center justify-between gap-2">
+        <div>
+          <div className="text-[12px] font-semibold text-slate-100">
+            File INCA caricati
           </div>
-          <div className="text-xs text-slate-300">
-            Elenco dei file INCA importati (base teorica per Direzione / Ufficio).
+          <div className="text-[11px] text-slate-500">
+            {loading
+              ? 'Caricamento in corso…'
+              : `${filtered.length} file su ${files?.length || 0}`}
           </div>
         </div>
-        <div className="text-[11px] text-slate-500">
-          {loading
-            ? 'Caricamento…'
-            : refreshing
-            ? 'Aggiornamento…'
-            : `${count} file`}
+
+        <div className="flex items-center gap-2">
+          {/* Filtre COSTR */}
+          <select
+            value={costrFilter}
+            onChange={(e) => setCostrFilter(e.target.value)}
+            className="text-[11px] rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+          >
+            <option value="">Tutti i COSTR</option>
+            {distinctCostr.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+
+          {/* Search */}
+          <input
+            type="text"
+            placeholder="Cerca per file, commessa, project…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="text-[11px] rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 w-40 lg:w-52"
+          />
+
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="text-[11px] px-2 py-1 rounded-md border border-slate-600 bg-slate-900 text-slate-100 hover:bg-slate-800"
+          >
+            {refreshing ? 'Aggiorno…' : 'Aggiorna'}
+          </button>
         </div>
       </div>
 
-      {error && (
-        <div className="mb-2 text-[11px] text-amber-200 bg-amber-900/40 border border-amber-700/70 rounded px-3 py-2">
-          {error}
-        </div>
-      )}
-
-      <div className="border border-slate-800 rounded-lg overflow-hidden flex-1 min-h-0">
-        <table className="w-full border-collapse text-[12px]">
-          <thead className="bg-slate-900/80 border-b border-slate-800">
-            <tr className="text-left text-slate-300">
-              <th className="px-2 py-2 border-r border-slate-800 w-[40%]">
-                File
-              </th>
-              <th className="px-2 py-2 border-r border-slate-800 w-[10%]">
-                Costr
-              </th>
-              <th className="px-2 py-2 border-r border-slate-800 w-[10%]">
-                Commessa
-              </th>
-              <th className="px-2 py-2 border-r border-slate-800 w-[25%]">
-                Caricato il
-              </th>
-              <th className="px-2 py-2 w-[15%]">Note</th>
+      <div className="max-h-[360px] overflow-auto text-[11px]">
+        <table className="w-full border-collapse">
+          <thead className="bg-slate-900 sticky top-0 z-10 border-b border-slate-800">
+            <tr className="text-slate-400">
+              <th className="px-3 py-2 text-left font-normal">COSTR</th>
+              <th className="px-3 py-2 text-left font-normal">Commessa</th>
+              <th className="px-3 py-2 text-left font-normal">Progetto</th>
+              <th className="px-3 py-2 text-left font-normal">Nome file</th>
+              <th className="px-3 py-2 text-left font-normal">Tipo</th>
+              <th className="px-3 py-2 text-right font-normal">Cavi</th>
+              <th className="px-3 py-2 text-right font-normal">Importato il</th>
             </tr>
           </thead>
           <tbody>
+            {!loading && filtered.length === 0 && (
+              <tr>
+                <td
+                  colSpan={7}
+                  className="px-3 py-4 text-center text-slate-500"
+                >
+                  Nessun file INCA trovato con questi filtri.
+                </td>
+              </tr>
+            )}
+
+            {filtered.map((f) => {
+              const active = f.id === selectedFileId;
+              return (
+                <tr
+                  key={f.id}
+                  onClick={() => onSelectFile && onSelectFile(f.id)}
+                  className={[
+                    'border-t border-slate-900 cursor-pointer',
+                    active ? 'bg-sky-950/60' : 'hover:bg-slate-900/60',
+                  ].join(' ')}
+                >
+                  <td className="px-3 py-2 text-slate-100 font-medium">
+                    {(f.costr || '').trim() || '—'}
+                  </td>
+                  <td className="px-3 py-2 text-slate-300">
+                    {(f.commessa || '').trim() || '—'}
+                  </td>
+                  <td className="px-3 py-2 text-slate-300">
+                    {(f.project_code || '').trim() || '—'}
+                  </td>
+                  <td className="px-3 py-2 text-slate-100">
+                    {f.file_name || '—'}
+                  </td>
+                  <td className="px-3 py-2 text-slate-400">
+                    {(f.file_type || '').toUpperCase() || '—'}
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-300">
+                    {f.cavi_count != null ? f.cavi_count : '—'}
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-400">
+                    {formatDate(f.uploaded_at)}
+                  </td>
+                </tr>
+              );
+            })}
+
             {loading && (
               <tr>
                 <td
-                  colSpan={5}
-                  className="px-3 py-4 text-center text-[12px] text-slate-400"
+                  colSpan={7}
+                  className="px-3 py-4 text-center text-slate-500"
                 >
                   Caricamento file INCA…
                 </td>
               </tr>
             )}
-
-            {!loading && (!files || files.length === 0) && (
-              <tr>
-                <td
-                  colSpan={5}
-                  className="px-3 py-4 text-center text-[12px] text-slate-500"
-                >
-                  Nessun file INCA importato al momento. Usa il pulsante
-                  &quot;Importa file INCA&quot; per iniziare.
-                </td>
-              </tr>
-            )}
-
-            {!loading &&
-              files &&
-              files.length > 0 &&
-              files.map((f) => {
-                const active = f.id === selectedFileId;
-                return (
-                  <tr
-                    key={f.id}
-                    className={[
-                      'border-t border-slate-800/70 cursor-pointer',
-                      active
-                        ? 'bg-slate-900/90 hover:bg-slate-900'
-                        : 'hover:bg-slate-900/80',
-                    ].join(' ')}
-                    onClick={() => onSelectFile && onSelectFile(f.id)}
-                  >
-                    <td className="px-2 py-1.5 text-slate-100 truncate max-w-xs">
-                      <div className="flex flex-col">
-                        <span className="font-medium truncate">
-                          {f.file_name || '(senza nome)'}
-                        </span>
-                        <span className="text-[11px] text-slate-500">
-                          {f.file_type || '-'}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-2 py-1.5 text-slate-100">
-                      {f.costr || '-'}
-                    </td>
-                    <td className="px-2 py-1.5 text-slate-100">
-                      {f.commessa || '-'}
-                    </td>
-                    <td className="px-2 py-1.5 text-slate-200">
-                      {formatDateTime(f.uploaded_at)}
-                    </td>
-                    <td className="px-2 py-1.5 text-slate-400 text-[11px]">
-                      {/* Placeholder: plus tard % copertura dalla vista direzione_inca_teorico */}
-                      Teorico: pronto per analisi
-                    </td>
-                  </tr>
-                );
-              })}
           </tbody>
         </table>
-      </div>
-
-      <div className="mt-2 text-[11px] text-slate-500">
-        In una fase successiva, qui compariranno le metriche di copertura
-        teorica e il confronto con i rapportini (Direzione).
       </div>
     </div>
   );

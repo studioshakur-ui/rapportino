@@ -1,94 +1,142 @@
-// ------------------------------------------------------------
-// DESIGN SYSTEM · CORE
-// Style industriel, sobre, cohérent, utilisable partout
-// ------------------------------------------------------------
+// src/ui/designSystem.js
+//
+// Design System CORE – High-tech Tesla / Blueprint DNA
+// SHAKUR ENGINEERING · 2025
 
-// Palette principale
-export const colors = {
-  accent: {
-    main: "text-emerald-400",
-    bg: "bg-emerald-500/10",
-    border: "border-emerald-500/40",
-  },
-  surface: "bg-slate-950",
-  surfaceSubtle: "bg-slate-900/70",
-  border: "border-slate-800",
-  textPrimary: "text-slate-100",
-  textSecondary: "text-slate-400",
-};
+// ------------------------------
+// 1. Gestion du thème
+// ------------------------------
+export function getInitialTheme() {
+  if (typeof window === "undefined") return "dark";
+  try {
+    const stored = window.localStorage.getItem("core-theme");
+    if (stored === "dark" || stored === "light") return stored;
 
-// ------------------------------------------------------------
-// CARTES / SURFACES
-// ------------------------------------------------------------
+    if (
+      window.matchMedia &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches
+    ) {
+      return "dark";
+    }
+  } catch {
+    // ignore
+  }
+  return "dark";
+}
 
-export const cardSurface =
-  "rounded-2xl border border-slate-800 bg-slate-950/80 shadow-[0_0_15px_rgba(0,0,0,0.35)] p-4";
+// ------------------------------
+// 2. Fond de page global
+// ------------------------------
+export function pageBg(isDark) {
+  return isDark
+    ? "bg-slate-950 text-slate-100"
+    : "bg-slate-100 text-slate-900";
+}
 
-export const sectionBlock =
-  "rounded-xl border border-slate-800 bg-slate-950/80 p-3 md:p-4 shadow-sm";
+// ------------------------------
+// 3. Header Pill (petits labels supérieurs)
+// ------------------------------
+export function headerPill(isDark) {
+  return [
+    "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] uppercase tracking-[0.18em] border",
+    isDark
+      ? "bg-slate-900 border-slate-700 text-slate-400"
+      : "bg-slate-50 border-slate-300 text-slate-600",
+  ].join(" ");
+}
 
-export const surfaceSubtle =
-  "rounded-xl border border-slate-800 bg-slate-900/70 backdrop-blur-sm";
+// ------------------------------
+// 4. Carte / Surface
+// ------------------------------
+export function cardSurface(isDark, extra = "") {
+  return [
+    "rounded-2xl border backdrop-blur",
+    isDark
+      ? "bg-slate-900/70 border-slate-800 text-slate-100 shadow-[0_0_32px_rgba(0,0,0,0.45)]"
+      : "bg-white/80 border-slate-200 text-slate-900 shadow-sm",
+    extra,
+  ].join(" ");
+}
 
-export const sectionHeader =
-  "text-[11px] uppercase tracking-[0.16em] text-slate-400 mb-2";
+// ------------------------------
+// 5. Bouton primaire
+// ------------------------------
+export function buttonPrimary(isDark, extra = "") {
+  return [
+    "inline-flex items-center justify-center rounded-xl px-3 py-2 text-[14px] font-medium transition-all border",
+    isDark
+      ? "bg-sky-600 border-sky-500 text-white hover:bg-sky-500"
+      : "bg-sky-500 border-sky-400 text-white hover:bg-sky-600",
+    extra,
+  ].join(" ");
+}
 
-// ------------------------------------------------------------
-// TYPO
-// ------------------------------------------------------------
+// ==========================================================
+// 6. corePills  (⭐ NOUVEAU – éléments de navigation / tags)
+// ==========================================================
+//
+// Usage :
+// <div className={corePills(isDark, "emerald")}>INCA</div>
+//
+// "tone" options : neutral | sky | emerald | amber | rose | violet
+//
+export function corePills(isDark, tone = "neutral", extra = "") {
+  const base =
+    "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-all";
 
-export const cockpitSubtitle =
-  "text-[11px] uppercase tracking-[0.18em] text-slate-400";
+  const tones = {
+    neutral: isDark
+      ? "bg-slate-900 border-slate-700 text-slate-300"
+      : "bg-slate-100 border-slate-300 text-slate-700",
 
-export const mutedText = "text-slate-400 text-[11px]";
+    sky: isDark
+      ? "bg-sky-900/30 border-sky-600/50 text-sky-300"
+      : "bg-sky-100 border-sky-300 text-sky-700",
 
-// ------------------------------------------------------------
-// INPUTS
-// ------------------------------------------------------------
+    emerald: isDark
+      ? "bg-emerald-900/30 border-emerald-600/50 text-emerald-300"
+      : "bg-emerald-100 border-emerald-300 text-emerald-700",
 
-export const inputStyle =
-  "w-full rounded-md border border-slate-700 bg-slate-900/60 px-3 py-2 text-[12px] text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500";
+    amber: isDark
+      ? "bg-amber-900/30 border-amber-600/50 text-amber-300"
+      : "bg-amber-100 border-amber-300 text-amber-700",
 
-export const inputLabel =
-  "block text-[11px] font-medium text-slate-200 mb-1";
+    rose: isDark
+      ? "bg-rose-900/30 border-rose-600/50 text-rose-300"
+      : "bg-rose-100 border-rose-300 text-rose-700",
 
-// ------------------------------------------------------------
-// BOUTONS
-// ------------------------------------------------------------
+    violet: isDark
+      ? "bg-violet-900/30 border-violet-600/50 text-violet-300"
+      : "bg-violet-100 border-violet-300 text-violet-700",
+  };
 
-export const btnPrimary =
-  "inline-flex items-center justify-center rounded-md bg-emerald-600 hover:bg-emerald-700 border border-emerald-500 text-[12px] font-medium px-3 py-1.5 text-slate-50 transition";
+  return [base, tones[tone] || tones.neutral, extra].join(" ");
+}
 
-export const btnSecondary =
-  "inline-flex items-center justify-center rounded-md border border-slate-600 bg-slate-900/70 hover:bg-slate-800 text-[12px] text-slate-200 px-3 py-1.5 transition";
+// ======================================================================
+// 7. themeIconBg  (⭐ NOUVEAU – bulles pour icônes de thème et de statut)
+// ======================================================================
+//
+// Usage :
+// <span className={themeIconBg(isDark)}>🌑</span>
+//
+export function themeIconBg(isDark, tone = "neutral", extra = "") {
+  const base =
+    "inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] border transition-all";
 
-export const btnGhost =
-  "inline-flex items-center justify-center rounded-md px-3 py-1.5 text-[12px] text-slate-300 hover:bg-slate-800/40 transition";
+  const tones = {
+    neutral: isDark
+      ? "bg-slate-800 border-slate-700 text-slate-300"
+      : "bg-slate-200 border-slate-300 text-slate-700",
 
-export const btnDanger =
-  "inline-flex items-center justify-center rounded-md px-3 py-1.5 bg-rose-600 hover:bg-rose-700 border border-rose-500 text-[12px] text-slate-50 transition";
+    sky: isDark
+      ? "bg-sky-900/40 border-sky-700 text-sky-300"
+      : "bg-sky-100 border-sky-300 text-sky-700",
 
-// ✅ AJOUT : petit bouton cockpit (utilisé dans AppShell)
-export const btnSmall =
-  "inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-slate-600 bg-slate-900/80 text-[11px] text-slate-200 hover:bg-slate-800 hover:text-slate-50 transition";
+    emerald: isDark
+      ? "bg-emerald-900/40 border-emerald-700 text-emerald-300"
+      : "bg-emerald-100 border-emerald-300 text-emerald-700",
+  };
 
-// ✅ AJOUT : alias pour compatibilité éventuelle
-export const buttonPrimary = btnPrimary;
-
-// ------------------------------------------------------------
-// BADGES / PILLS
-// ------------------------------------------------------------
-
-export const pillBadge =
-  "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border border-slate-700 bg-slate-900/70 text-slate-300";
-
-// ------------------------------------------------------------
-// ANIMATIONS / UTILS
-// ------------------------------------------------------------
-
-export const fadeIn =
-  "animate-[fadeIn_0.3s_ease-out]";
-
-// Pour Tailwind config si besoin :
-// @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
-// ------------------------------------------------------------
+  return [base, tones[tone] || tones.neutral, extra].join(" ");
+}

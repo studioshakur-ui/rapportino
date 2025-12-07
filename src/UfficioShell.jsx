@@ -7,6 +7,9 @@ import {
   Outlet,
 } from 'react-router-dom';
 import { useAuth } from './auth/AuthProvider';
+import { coreLayout } from "./ui/coreLayout";
+import { corePills, themeIconBg } from "./ui/designSystem";
+
 
 function getInitialTheme() {
   if (typeof window === 'undefined') return 'dark';
@@ -114,16 +117,14 @@ export default function UfficioShell() {
     <div
       className={[
         'min-h-screen flex flex-col',
-        isDark ? 'bg-slate-950 text-slate-50' : 'bg-slate-100 text-slate-900',
+        coreLayout.pageShell(isDark),
       ].join(' ')}
     >
       {/* HEADER HARMONISÉ CORE */}
       <header
         className={[
           'no-print border-b backdrop-blur flex items-center justify-between px-4 md:px-6 py-2',
-          isDark
-            ? 'bg-slate-950/95 border-slate-900'
-            : 'bg-white/95 border-slate-200 shadow-sm',
+          coreLayout.header(isDark),
         ].join(' ')}
       >
         <div className="flex flex-col gap-0.5">
@@ -141,19 +142,18 @@ export default function UfficioShell() {
         <div className="flex items-center gap-3 text-[11px]">
           {/* Switch Dark/Light */}
           <button
-            type="button"
-            onClick={toggleTheme}
-            className={[
-              'inline-flex items-center gap-1 rounded-full border px-2 py-0.5',
-              isDark
-                ? 'border-slate-600 bg-slate-900/70 text-slate-200'
-                : 'border-slate-300 bg-slate-50 text-slate-700',
-            ].join(' ')}
-          >
+  type="button"
+  onClick={toggleTheme}
+  className={[
+    'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px]',
+    coreLayout.themeToggle(isDark),
+  ].join(' ')}
+>
+
             <span
               className={[
                 'inline-flex h-3 w-3 items-center justify-center rounded-full text-[9px]',
-                isDark ? 'bg-slate-800' : 'bg-amber-200',
+                themeIconBg(isDark),
               ].join(' ')}
             >
               {isDark ? '🌑' : '☀️'}
@@ -165,13 +165,13 @@ export default function UfficioShell() {
 
           {/* Archivio synchronisé */}
           <span
-            className={[
-              'hidden sm:inline-flex items-center gap-1 rounded-full border px-2 py-0.5',
-              isDark
-                ? 'border-sky-500/60 bg-sky-500/10 text-sky-200'
-                : 'border-sky-400/60 bg-sky-50 text-slate-700',
-            ].join(' ')}
-          >
+  className={corePills(
+    isDark,
+    'sky',
+    'hidden sm:inline-flex items-center gap-1 px-2 py-0.5'
+  )}
+>
+
             <span className="h-1.5 w-1.5 rounded-full bg-sky-400 shadow-[0_0_6px_rgba(56,189,248,0.9)]" />
             <span className="uppercase tracking-[0.16em] text-[9px]">
               Archivio sincronizzato
@@ -213,9 +213,7 @@ export default function UfficioShell() {
         <aside
           className={[
             'no-print hidden md:flex md:flex-col w-64 border-r px-3 py-4',
-            isDark
-              ? 'bg-slate-950 border-slate-900'
-              : 'bg-slate-50 border-slate-200',
+            coreLayout.sidebar(isDark),
           ].join(' ')}
         >
           {/* Pannello di controllo */}
@@ -241,7 +239,9 @@ export default function UfficioShell() {
 
             <NavLink
               to="/ufficio/inca"
-              className={({ isActive }) => navItemClasses(isActive, 'inca')}
+              className={({ isActive }) =>
+                navItemClasses(isActive, 'inca')
+              }
             >
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
               <span>Percorso cavi · INCA</span>
@@ -249,7 +249,9 @@ export default function UfficioShell() {
 
             <NavLink
               to="/ufficio/archive"
-              className={({ isActive }) => navItemClasses(isActive, 'archive')}
+              className={({ isActive }) =>
+                navItemClasses(isActive, 'archive')
+              }
             >
               <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
               <span>Archivio · Rapportini v1</span>
@@ -269,7 +271,7 @@ export default function UfficioShell() {
         <main
           className={[
             'flex-1 min-h-0 overflow-y-auto',
-            isDark ? 'bg-slate-950' : 'bg-slate-100',
+            coreLayout.mainBg(isDark),
           ].join(' ')}
         >
           <section className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
@@ -293,8 +295,13 @@ export default function UfficioShell() {
               </div>
             </div>
 
-            {/* Ici on laisse React Router rendre la page courante */}
-            <div className="border border-slate-800/60 rounded-2xl bg-slate-950/90 shadow-xl overflow-hidden">
+            {/* Panneau principal */}
+            <div
+              className={[
+                'border rounded-2xl overflow-hidden',
+                coreLayout.primaryPanel(isDark),
+              ].join(' ')}
+            >
               <Outlet />
             </div>
           </section>

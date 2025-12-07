@@ -1,10 +1,26 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import App from './App';
-import './index.css';
+// src/main.jsx
+import React from "react";
+import { createRoot } from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
 
-ReactDOM.createRoot(document.getElementById('root')).render(
+import { AuthProvider } from "./auth/AuthProvider";
+import { ShipProvider } from "./context/ShipContext";
+import App from "./App";
+
+import "./index.css";
+
+const container = document.getElementById("root");
+
+const root = createRoot(container);
+
+root.render(
   <React.StrictMode>
-    <App />
+    <AuthProvider>
+      <BrowserRouter>
+        <ShipProvider>
+          <App />
+        </ShipProvider>
+      </BrowserRouter>
+    </AuthProvider>
   </React.StrictMode>
 );
