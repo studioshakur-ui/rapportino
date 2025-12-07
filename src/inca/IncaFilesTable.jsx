@@ -22,6 +22,7 @@ export default function IncaFilesTable({
   selectedFileId,
   onSelectFile,
   onRefresh,
+  onOpenCockpit, // ⬅️ nouveau (optionnel)
 }) {
   const [search, setSearch] = useState('');
   const [costrFilter, setCostrFilter] = useState('');
@@ -143,10 +144,14 @@ export default function IncaFilesTable({
                 <tr
                   key={f.id}
                   onClick={() => onSelectFile && onSelectFile(f.id)}
+                  onDoubleClick={() =>
+                    onOpenCockpit && onOpenCockpit(f)
+                  }
                   className={[
                     'border-t border-slate-900 cursor-pointer',
                     active ? 'bg-sky-950/60' : 'hover:bg-slate-900/60',
                   ].join(' ')}
+                  title="Doppio clic per aprire il cockpit INCA"
                 >
                   <td className="px-3 py-2 text-slate-100 font-medium">
                     {(f.costr || '').trim() || '—'}

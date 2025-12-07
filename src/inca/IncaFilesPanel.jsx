@@ -1,241 +1,253 @@
 // src/inca/IncaFilesPanel.jsx
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-import { supabase } from "../lib/supabaseClient";
+import React, { useEffect, useMemo, useState } from 'react';
+import { supabase } from '../lib/supabaseClient';
 
-import IncaUploadPanel from "./IncaUploadPanel";
-import IncaFilesTable from "./IncaFilesTable";
-import IncaCockpit from "./IncaCockpit";
+import IncaUploadPanel from './IncaUploadPanel';
+import IncaFilesTable from './IncaFilesTable';
+import IncaCockpit from './IncaCockpit';
 
+/**
+ * Dashboard INCA côté UFFICIO
+ * - Upload PDF/XLSX
+ * - Liste des fichiers INCA
+ * - Map synthétique des chantiers
+ * - Cockpit INCA fullscreen (popup) pour un fichier
+ */
 export default function IncaFilesPanel() {
-  console.log("[INCA FilesPanel] MONTATO");
-
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedFileId, setSelectedFileId] = useState(null);
   const [error, setError] = useState(null);
 
-  // cockpit fullscreen
+  const [selectedFileId, setSelectedFileId] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
+
+  // Fichier actuellement ouvert dans le cockpit fullscreen
   const [cockpitFile, setCockpitFile] = useState(null);
 
-  // ───────────────── load files INCA ─────────────────
-  const loadFiles = useCallback(async () => {
-    try {
-      setError(null);
-      setLoading(true);
+  useEffect(() => {
+    console.log('[INCA FilesPanel] MONTATO');
+    loadFiles();
+  }, []);
 
+  async function loadFiles() {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // On charge les fichiers INCA
       const { data, error: dbError } = await supabase
-        .from("inca_files")
-        .select("*")
-        .order("uploaded_at", { ascending: false });
+        .from('inca_files')
+        .select('*')
+        .order('uploaded_at', { ascending: false });
 
       if (dbError) throw dbError;
 
       setFiles(data || []);
 
+      // Si aucun fichier sélectionné, on prend le premier
       if (data && data.length > 0 && !selectedFileId) {
         setSelectedFileId(data[0].id);
+        setSelectedFile(data[0]);
       }
     } catch (e) {
-      console.error("[INCA] Errore caricamento inca_files:", e);
+      console.error('[INCA FilesPanel] Errore loadFiles:', e);
       setError(e.message || String(e));
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
-  }, [selectedFileId]);
+  }
 
-  useEffect(() => {
-    loadFiles();
-  }, [loadFiles]);
-
-  const handleRefresh = async () => {
+  async function handleRefresh() {
     setRefreshing(true);
     await loadFiles();
-  };
+    setRefreshing(false);
+  }
 
-  const handleImported = async () => {
-    await handleRefresh();
-  };
+  function handleImported() {
+    // callback depuis IncaUploadPanel
+    handleRefresh();
+  }
 
-  const handleSelectFile = (fileId) => {
+  function handleSelectFile(fileId) {
     setSelectedFileId(fileId);
-  };
+    const f = files.find((x) => x.id === fileId) || null;
+    setSelectedFile(f);
+  }
 
-  const handleOpenCockpit = (file) => {
+  function handleOpenCockpit(file) {
     if (!file) return;
     setCockpitFile(file);
-  };
+  }
 
-  const handleCloseCockpit = () => {
-    setCockpitFile(null);
-  };
-
-  // ───────────────── map cantieri / navi ─────────────────
-  const projectSummary = useMemo(() => {
-    const byKey = new Map(); // COSTR+COMMESSA
-
-    for (const f of files || []) {
-      const costr = (f.costr || "—").trim();
-      const commessa = (f.commessa || "—").trim();
-      const key = `${costr}::${commessa}`;
-
-      if (!byKey.has(key)) {
-        byKey.set(key, {
-          costr,
-          commessa,
-          files: 0,
+  const projects = useMemo(() => {
+    // regroupe par (costr + commessa) pour la "map"
+    const map = new Map();
+    for (const f of files) {
+      const key = `${(f.costr || '—').trim()} · ${(f.commessa || '—').trim()}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          label: key,
+          costr: (f.costr || '—').trim(),
+          commessa: (f.commessa || '—').trim(),
+          fileCount: 0,
         });
       }
-      byKey.get(key).files += 1;
+      map.get(key).fileCount += 1;
     }
-
-    return Array.from(byKey.values()).sort((a, b) => {
-      if (a.costr === b.costr) {
-        return a.commessa.localeCompare(b.commessa, "it-IT");
-      }
-      return a.costr.localeCompare(b.costr, "it-IT");
-    });
+    return Array.from(map.values());
   }, [files]);
 
-  const selectedFile = useMemo(
-    () => files.find((f) => f.id === selectedFileId) || null,
-    [files, selectedFileId]
-  );
+  const selectedProject = useMemo(() => {
+    if (!selectedFile) return null;
+    return {
+      label: `${(selectedFile.costr || '—').trim()} · ${(selectedFile.commessa || '—').trim()}`,
+      costr: (selectedFile.costr || '—').trim(),
+      commessa: (selectedFile.commessa || '—').trim(),
+    };
+  }, [selectedFile]);
 
-  // ───────────────── RENDER ─────────────────
   return (
     <div className="flex flex-col gap-4">
-      {/* HEADER BLOC INCA */}
-      <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-5 py-4">
-        <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500">
+      {/* HEADER global INCA */}
+      <header className="flex flex-col gap-1">
+        <div className="text-[11px] uppercase tracking-[0.28em] text-slate-500">
           Tracciamento INCA
         </div>
-        <div className="mt-1 text-sm text-slate-100">
+        <div className="text-sm font-semibold text-slate-50">
           Confronto INCA · percorsi · avanzamento cavi
         </div>
-        <div className="mt-1 text-[11px] text-slate-400 max-w-2xl">
+        <div className="text-[11px] text-slate-400 max-w-2xl">
           Importazione PDF INCA e foglio dati XLSX, analisi dei cavi e
           collegamento con i rapportini giornalieri.
         </div>
-      </div>
+      </header>
 
-      {/* IMPORT PDF / XLSX */}
+      {/* Upload */}
       <IncaUploadPanel onImported={handleImported} />
 
-      {/* TABLE FILE + MAP COCKPIT LATERALE */}
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1.35fr)] gap-4">
-        {/* LISTE DES FICHIERS INCA */}
-        <IncaFilesTable
-          files={files}
-          loading={loading}
-          refreshing={refreshing}
-          selectedFileId={selectedFileId}
-          onSelectFile={handleSelectFile}
-          onRefresh={handleRefresh}
-          onOpenCockpit={handleOpenCockpit}
-        />
+      {/* Contenu 2 colonnes */}
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Colonne gauche : files */}
+        <div className="flex flex-col gap-2">
+          <div className="text-[12px] font-semibold text-slate-200">
+            File INCA caricati
+          </div>
 
-        {/* RECTANGLE DROITE = MAP DES CHANTIERS */}
-        <div className="rounded-xl border border-slate-800 bg-slate-950/80 flex flex-col overflow-hidden">
+          <IncaFilesTable
+            files={files}
+            loading={loading}
+            refreshing={refreshing}
+            selectedFileId={selectedFileId}
+            onSelectFile={handleSelectFile}
+            onRefresh={handleRefresh}
+            onOpenCockpit={(file) => handleOpenCockpit(file)}
+          />
+
+          {error && (
+            <div className="mt-1 text-[11px] text-rose-400">
+              Errore caricamento file INCA: {error}
+            </div>
+          )}
+        </div>
+
+        {/* Colonne droite : "map / cockpit navire" */}
+        <div className="rounded-xl border border-slate-800 bg-slate-950/80 flex flex-col">
           <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
-            <div>
+            <div className="flex flex-col gap-0.5">
               <div className="text-[12px] font-semibold text-slate-100">
                 Cantieri / Navi attive
               </div>
-              <div className="text-[11px] text-slate-500">
+              <div className="text-[11px] text-slate-400">
                 Vista globale dei progetti coperti dai file INCA caricati.
               </div>
             </div>
 
             {selectedFile && (
-              <div className="hidden md:flex flex-col items-end text-[11px] text-slate-400">
-                <span>File selezionato</span>
-                <span className="text-slate-200 font-medium truncate max-w-[240px]">
+              <div className="text-right text-[11px] text-slate-400">
+                <div>File selezionato</div>
+                <div className="text-slate-100">
                   {selectedFile.file_name}
-                </span>
-                <span className="text-slate-500">
-                  {selectedFile.costr || "COSTR ?"} ·{" "}
-                  {selectedFile.commessa || "COMMESSA ?"}
-                </span>
+                </div>
+                <div className="text-slate-500">
+                  {(selectedFile.costr || '—').trim()} ·{' '}
+                  {(selectedFile.commessa || '—').trim()}
+                </div>
               </div>
             )}
           </div>
 
-          <div className="flex-1 p-4 flex flex-col gap-3">
-            {/* “Slide de map” pour l’instant en mode liste intelligente */}
-            <div className="flex-1 rounded-2xl bg-slate-900/80 border border-slate-800/80 p-4 flex flex-col gap-3">
-              <div className="flex items-center justify-between text-[11px] text-slate-400">
-                <span>Mappa sintetica cantieri</span>
-                <span className="text-sky-400">
-                  {projectSummary.length} progetti attivi
-                </span>
+          {/* "Map" synthétique */}
+          <div className="flex-1 px-4 py-3 flex flex-col gap-3">
+            <div className="rounded-lg border border-slate-800 bg-slate-950/90 px-3 py-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-[11px] font-semibold text-slate-300">
+                  Mappa sintetica cantieri
+                </div>
+                <div className="text-[11px] text-slate-500">
+                  {projects.length} progetti attivi
+                </div>
               </div>
 
-              <div className="flex-1 overflow-auto">
-                {projectSummary.length === 0 && (
-                  <div className="h-full flex items-center justify-center text-[11px] text-slate-500">
-                    Carica almeno un file INCA per vedere la distribuzione
-                    dei cantieri / navi.
+              <div className="flex flex-col gap-1 max-h-40 overflow-auto text-[11px]">
+                {projects.map((p) => (
+                  <div
+                    key={p.label}
+                    className="flex items-center justify-between px-2 py-1 rounded-md bg-slate-900/70 border border-slate-800"
+                  >
+                    <div className="text-slate-100">{p.label}</div>
+                    <div className="text-slate-500">
+                      {p.fileCount} file INCA collegati
+                    </div>
+                  </div>
+                ))}
+
+                {projects.length === 0 && (
+                  <div className="text-slate-500">
+                    Nessun progetto ancora collegato. Importa almeno un file
+                    INCA per vedere la mappa.
                   </div>
                 )}
+              </div>
 
-                {projectSummary.length > 0 && (
-                  <ul className="space-y-2 text-[11px]">
-                    {projectSummary.map((p, idx) => (
-                      <li
-                        key={`${p.costr}::${p.commessa}::${idx}`}
-                        className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2"
-                      >
-                        <div className="flex flex-col">
-                          <span className="text-slate-100 font-medium">
-                            {p.costr}
-                            <span className="text-slate-500"> · </span>
-                            {p.commessa}
-                          </span>
-                          <span className="text-slate-500">
-                            {p.files} file INCA collegati
-                          </span>
-                        </div>
-                        <div className="text-right text-[10px] text-slate-400">
-                          {/* futur mini radar / heatmap */}
-                          <span>Radar percorso · soon</span>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+              <div className="mt-3 text-[11px] text-slate-500">
+                Questa area diventerà il{' '}
+                <span className="text-sky-300 font-medium">
+                  cockpit mappa nave
+                </span>{' '}
+                sincronizzato con INCA e Rapportini (zoom per cantiere, ponte,
+                zona…).
               </div>
             </div>
 
-            <div className="text-[10px] text-slate-500">
-              Questa area diventerà il{" "}
-              <span className="text-sky-400">cockpit mappa nave</span>{" "}
-              sincronizzato con INCA e Rapportini (zoom per cantiere, ponte,
-              zona…).
+            {/* Bloc info + bouton cockpit */}
+            <div className="mt-auto flex items-center justify-between gap-3 text-[11px]">
+              <div className="text-slate-500 max-w-xs">
+                Apri la vista dettagliata dei cavi INCA per il file
+                selezionato. Il cockpit è fullscreen e multi-filtro (situazione,
+                stato INCA, tipo cavo, zona…).
+              </div>
+
+              <button
+                type="button"
+                disabled={!selectedFile}
+                onClick={() => selectedFile && handleOpenCockpit(selectedFile)}
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-sky-500/70 bg-sky-500/15 text-[11px] font-medium text-sky-100 hover:bg-sky-500/25 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Apri cockpit INCA
+              </button>
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* POPUP FULLSCREEN COCKPIT INCA */}
+      {/* Popup cockpit fullscreen */}
       {cockpitFile && (
         <IncaCockpit
           file={cockpitFile}
-          onClose={handleCloseCockpit}
-          initialRole="UFFICO"
+          onClose={() => setCockpitFile(null)}
+          initialRole="UFFICIO"
         />
-      )}
-
-      {error && (
-        <div className="text-[11px] text-rose-400">
-          Errore caricamento INCA: {error}
-        </div>
       )}
     </div>
   );
