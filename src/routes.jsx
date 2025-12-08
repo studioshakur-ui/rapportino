@@ -21,18 +21,23 @@ import IncaCapoCockpit from './capo/IncaCapoCockpit';
 // UFFICIO – contenu
 import UfficioRapportiniList from './ufficio/UfficioRapportiniList';
 import UfficioRapportinoDetail from './ufficio/UfficioRapportinoDetail';
-import IncaFilesPanel from './inca/IncaFilesPanel'; // ⬅️ ICI : notre super cockpit côté ufficio
+import IncaFilesPanel from './inca/IncaFilesPanel';
 
 // ARCHIVE central
 import ArchivePage from './pages/Archive';
 
+// PRINT rapportino (A4)
+import RapportinoSheet from './components/RapportinoSheet';
+
 export default function AppRoutes() {
   return (
     <Routes>
-
       {/* PUBLIC */}
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
+
+      {/* PAGE PRINT (hors shell) */}
+      <Route path="/print/rapportino" element={<RapportinoSheet />} />
 
       {/* ===== CAPO ===== */}
       <Route
@@ -56,16 +61,10 @@ export default function AppRoutes() {
         />
 
         {/* 4️⃣ RAPPORTINO */}
-        <Route
-          path="ship/:shipId/rapportino"
-          element={<RapportinoPage />}
-        />
+        <Route path="ship/:shipId/rapportino" element={<RapportinoPage />} />
 
         {/* 5️⃣ INCA CAPO */}
-        <Route
-          path="ship/:shipId/inca"
-          element={<IncaCapoCockpit />}
-        />
+        <Route path="ship/:shipId/inca" element={<IncaCapoCockpit />} />
 
         {/* ARCHIVE */}
         <Route path="archive" element={<ArchivePage />} />
@@ -80,22 +79,9 @@ export default function AppRoutes() {
           </RequireRole>
         }
       >
-        {/* Liste rapportini par défaut */}
         <Route index element={<UfficioRapportiniList />} />
-
-        {/* Détail rapportino */}
-        <Route
-          path="rapportini/:id"
-          element={<UfficioRapportinoDetail />}
-        />
-
-        {/* 🔥 INCA UFFICIO = notre super FilesPanel + Cockpit fullscreen */}
-        <Route
-          path="inca"
-          element={<IncaFilesPanel />}
-        />
-
-        {/* ARCHIVE */}
+        <Route path="rapportini/:id" element={<UfficioRapportinoDetail />} />
+        <Route path="inca" element={<IncaFilesPanel />} />
         <Route path="archive" element={<ArchivePage />} />
       </Route>
 
@@ -111,7 +97,6 @@ export default function AppRoutes() {
 
       {/* Fallback */}
       <Route path="/*" element={<Landing />} />
-
     </Routes>
   );
 }

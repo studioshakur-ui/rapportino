@@ -1,4 +1,4 @@
-// src/rapportino/rapportinoUtils.js
+// src/rapportinoUtils.js
 
 // Date du jour au format YYYY-MM-DD
 export function getTodayISO() {
@@ -20,12 +20,12 @@ export function parseNumeric(value) {
 /**
  * Lignes de base selon le rôle de l'équipe.
  *
- * ⚠️ Phase 2 CAPO – Chantier A :
- * Pour ELETTRICISTA, on applique directement le template 6358 (DE-ICING)
- * que tu utilises à Riva :
- *   - 5 lignes
- *   - prévisti adaptés
- *   - dernière ligne = VARI STESURA (GESTIONE E VARIE)
+ * ⚠️ Version 6368 · SDC (ELETTRICISTA)
+ *
+ * Pour ELETTRICISTA, on applique le template chantier 6368 :
+ *   - 4 lignes
+ *   - STESURA / FASCETTATURA / RIPRESA / VARI STESURA CAVI
+ *   - PREVISTI : 150 / 600 / 150 / 0,2
  */
 export function getBaseRows(crewRole) {
   if (crewRole === 'ELETTRICISTA') {
@@ -34,7 +34,7 @@ export function getBaseRows(crewRole) {
         id: null,
         row_index: 0,
         categoria: 'STESURA',
-        descrizione: 'STESURA CAVI (3X6)',
+        descrizione: 'STESURA',
         operatori: '',
         tempo: '',
         previsto: '150,0',
@@ -67,18 +67,7 @@ export function getBaseRows(crewRole) {
         id: null,
         row_index: 3,
         categoria: 'STESURA',
-        descrizione: 'SISTEMAZIONE CAVI (3X6)',
-        operatori: '',
-        tempo: '',
-        previsto: '10,0',
-        prodotto: '',
-        note: '',
-      },
-      {
-        id: null,
-        row_index: 4,
-        categoria: 'GESTIONE E VARIE',
-        descrizione: 'VARI STESURA',
+        descrizione: 'VARI STESURA CAVI',
         operatori: '',
         tempo: '',
         previsto: '0,2',

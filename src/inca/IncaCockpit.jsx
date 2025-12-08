@@ -1,6 +1,16 @@
 // src/inca/IncaCockpit.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Cell,
+} from "recharts";
 
 /**
  * Cockpit INCA fullscreen
@@ -26,14 +36,14 @@ export default function IncaCockpit({ file, onClose, initialRole = "UFFICO" }) {
   const [zona, setZona] = useState("ALL");
   const [lunghezzaMax, setLunghezzaMax] = useState(0); // 0 = no limit
 
-  // Stats
+  // Pour stats simples
   const [stats, setStats] = useState({
     total: 0,
     bySituazione: {},
     byStatoInca: {},
   });
 
-  // Charger les câbles de ce file INCA
+  // Charger les câbles du fichier INCA
   useEffect(() => {
     let isCancelled = false;
 
@@ -53,7 +63,7 @@ export default function IncaCockpit({ file, onClose, initialRole = "UFFICO" }) {
 
         setCables(data || []);
 
-        // Stats
+        // Stats de base
         const bySitu = {};
         const byStato = {};
         for (const c of data || []) {
@@ -75,7 +85,7 @@ export default function IncaCockpit({ file, onClose, initialRole = "UFFICO" }) {
         );
         setLunghezzaMax(maxTeo || 0);
 
-        // Sélectionner premier câble
+        // Pré-sélectionner le premier câble
         if (data && data.length > 0) {
           setSelectedCable(data[0]);
         }
@@ -93,7 +103,7 @@ export default function IncaCockpit({ file, onClose, initialRole = "UFFICO" }) {
     };
   }, [file.id]);
 
-  // Options dérivées pour les filtres
+  // Options dérivées depuis les données (pour les <select>)
   const filterOptions = useMemo(() => {
     const setTipo = new Set();
     const setLivello = new Set();
@@ -102,6 +112,7 @@ export default function IncaCockpit({ file, onClose, initialRole = "UFFICO" }) {
     for (const c of cables) {
       if (c.tipo) setTipo.add(c.tipo);
       if (c.livello_disturbo) setLivello.add(c.livello_disturbo);
+      // on utilise la description du locale d'arrivée comme "zona" principale
       if (c.descrizione_a) setZona.add(c.descrizione_a);
       else if (c.descrizione) setZona.add(c.descrizione);
     }
@@ -180,6 +191,80 @@ export default function IncaCockpit({ file, onClose, initialRole = "UFFICO" }) {
   ]);
 
   const visibleCount = filteredCables.length;
+
+  // Analytics pour le panneau droit (baromètre + graphe)
+  const analytics = useMemo(() => {
+    const bySitu = {
+      T: 0,
+      P: 0,
+      R: 0,
+      B: 0,
+      E: 0,
+      OTHER: 0,
+    };
+    let totalCavi = 0;
+    let totalMetri = 0;
+
+    for (const c of cables) {
+      totalCavi += 1;
+      totalMetri += Number(c.metri_teo || 0);
+
+      const s = c.situazione || null;
+      if (s === "T" || s === "P" || s === "R" || s === "B" || s === "E") {
+        bySitu[s] = (bySitu[s] || 0) + 1;
+      } else {
+        bySitu.OTHER = (bySitu.OTHER || 0) + 1;
+      }
+    }
+
+    const labelByCode = {
+      P: "Posato",
+      T: "Tagliato",
+      R: "Richiesto",
+      B: "Bloccato",
+      E: "Eliminato",
+      NP: "Non posati",
+    };
+
+    const done = bySitu.P || 0;
+    const nonPosati = totalCavi - done;
+
+    let distribData = Object.entries(bySitu)
+      .filter(([code, count]) => code !== "OTHER" && count > 0)
+      .map(([code, count]) => ({
+        code,
+        label: labelByCode[code] || code,
+        count,
+      }));
+
+    // Ajouter la barre agrégée "NP" (Non posati)
+    if (nonPosati > 0) {
+      distribData.push({
+        code: "NP",
+        label: labelByCode.NP,
+        count: nonPosati,
+      });
+    }
+
+    // Garder NP à la fin visuellement
+    distribData.sort((a, b) => {
+      if (a.code === "NP" && b.code !== "NP") return 1;
+      if (b.code === "NP" && a.code !== "NP") return -1;
+      return a.code.localeCompare(b.code);
+    });
+
+    const prodPercent =
+      totalCavi > 0 ? (done / totalCavi) * 100 : 0;
+
+    return {
+      totalCavi,
+      totalMetri,
+      distribData,
+      prodPercent,
+      nonPosati,
+      done,
+    };
+  }, [cables]);
 
   const roleLabel = {
     CAPO: "Capo Squadra",
@@ -304,16 +389,14 @@ export default function IncaCockpit({ file, onClose, initialRole = "UFFICO" }) {
               <table className="min-w-full text-xs text-left border-collapse">
                 <thead className="sticky top-0 bg-slate-950/95 border-b border-slate-800 z-10">
                   <tr className="text-[10px] uppercase tracking-wide text-slate-400">
-                    <Th>Marca</Th>
+                    <Th className="w-[260px]">Marca</Th>
                     <Th>Livello</Th>
                     <Th>Tipo</Th>
                     <Th>Sezione</Th>
                     <Th>Situaz.</Th>
                     <Th>Stato</Th>
                     <Th>Metri dis.</Th>
-                    <Th>Metri posa</Th>
-                    <Th>Metri calc.</Th>
-                    <Th>Zona / locale arrivo</Th>
+                    <Th className="w-[260px]">Zona / locale arrivo</Th>
                   </tr>
                 </thead>
                 <tbody>
@@ -328,7 +411,7 @@ export default function IncaCockpit({ file, onClose, initialRole = "UFFICO" }) {
                   {!loading && filteredCables.length === 0 && (
                     <tr>
                       <td
-                        colSpan={10}
+                        colSpan={8}
                         className="px-4 py-6 text-center text-slate-500"
                       >
                         Nessun cavo corrisponde ai filtri attuali.
@@ -343,21 +426,24 @@ export default function IncaCockpit({ file, onClose, initialRole = "UFFICO" }) {
           {/* PANNEAU DROIT */}
           <aside className="w-[360px] max-w-[40%] bg-slate-950/80 flex flex-col">
             <div className="px-4 py-3 border-b border-slate-800 text-xs text-slate-400 flex items-center justify-between">
-              <span>Dettagli cavo</span>
+              <span>Analytics & dettagli cavo</span>
               {selectedCable && (
                 <span className="text-[11px] text-slate-500">
                   ID: {selectedCable.id?.slice(0, 8)}
                 </span>
               )}
             </div>
-            <div className="flex-1 overflow-auto p-4">
-              {selectedCable ? (
-                <CableDetails cable={selectedCable} />
-              ) : (
-                <div className="text-xs text-slate-500">
-                  Seleziona un cavo a sinistra per vedere i dettagli.
-                </div>
-              )}
+            <div className="flex-1 overflow-hidden p-4 flex flex-col gap-3">
+              <IncaAnalyticsPanel analytics={analytics} />
+              <div className="flex-1 overflow-auto">
+                {selectedCable ? (
+                  <CableDetails cable={selectedCable} />
+                ) : (
+                  <div className="text-xs text-slate-500">
+                    Seleziona un cavo a sinistra per vedere i dettagli.
+                  </div>
+                )}
+              </div>
             </div>
           </aside>
         </main>
@@ -387,11 +473,40 @@ export default function IncaCockpit({ file, onClose, initialRole = "UFFICO" }) {
   );
 }
 
+/* ----------------- helpers palette ----------------- */
+
+function colorForSituazione(code) {
+  switch (code) {
+    case "P":
+      // vert
+      return "#22c55e"; // emerald-500
+    case "T":
+      // bleu
+      return "#38bdf8"; // sky-400
+    case "R":
+      // jaune/orange
+      return "#fbbf24"; // amber-400
+    case "B":
+      // rouge
+      return "#fb7185"; // rose-400
+    case "E":
+      // gris
+      return "#64748b"; // slate-500
+    case "NP":
+      // non posati → violet
+      return "#a855f7"; // purple-500
+    default:
+      return "#94a3b8"; // slate-400
+  }
+}
+
 /* ----------------- sous-composants ----------------- */
 
-function Th({ children }) {
+function Th({ children, className = "" }) {
   return (
-    <th className="px-3 py-2 border-b border-slate-800/80 font-medium">
+    <th
+      className={`px-3 py-2 border-b border-slate-800/80 font-medium ${className}`}
+    >
       {children}
     </th>
   );
@@ -408,7 +523,7 @@ function CableRow({ cable, isSelected, onSelect }) {
         isSelected ? "bg-sky-900/50" : ""
       }`}
     >
-      <Td className="font-medium text-slate-50">
+      <Td className="font-medium text-slate-50 w-[260px] max-w-[260px] truncate">
         {cable.marca_cavo || "—"}
       </Td>
       <Td>{cable.livello_disturbo || "—"}</Td>
@@ -418,9 +533,9 @@ function CableRow({ cable, isSelected, onSelect }) {
         <SituazioneBadge value={situ} />
       </Td>
       <Td className="text-[11px] text-slate-300">{stato}</Td>
-      <Td className="text-right">{formatMeters(cable.metri_teo)}</Td>
-      <Td className="text-right">{formatMeters(cable.metri_totali)}</Td>
-      <Td className="text-right">{formatMeters(cable.metri_previsti)}</Td>
+      <Td className="text-right">
+        {formatMeters(cable.metri_teo)}
+      </Td>
       <Td className="max-w-[260px] truncate">
         {cable.descrizione_a ||
           cable.descrizione ||
@@ -447,12 +562,12 @@ function SituazioneBadge({ value }) {
 
   switch (value) {
     case "T":
-      label = "Tagliato / Teorico";
+      label = "Tagliato";
       cls += " bg-slate-900/80 border-slate-700 text-slate-200";
       break;
     case "P":
-      label = "Posato / Programmato";
-      cls += " bg-sky-900/60 border-sky-500/60 text-sky-200";
+      label = "Posato";
+      cls += " bg-emerald-900/60 border-emerald-500/60 text-emerald-200";
       break;
     case "R":
       label = "Richiesto";
@@ -464,7 +579,7 @@ function SituazioneBadge({ value }) {
       break;
     case "E":
       label = "Eliminato";
-      cls += " bg-slate-900/80 border-slate-500/80 text-slate-300 line-through";
+      cls += " bg-slate-900/80 border-slate-600 text-slate-300";
       break;
     default:
       label = value || "—";
@@ -632,6 +747,145 @@ function SelectSmall({ label, value, onChange, options }) {
   );
 }
 
+function IncaAnalyticsPanel({ analytics }) {
+  const {
+    totalCavi,
+    totalMetri,
+    distribData,
+    prodPercent,
+    nonPosati,
+    done,
+  } = analytics;
+
+  if (!totalCavi) {
+    return (
+      <div className="border border-slate-800 rounded-xl px-3 py-2 text-[11px] text-slate-500">
+        Nessun cavo INCA caricato per questo file.
+      </div>
+    );
+  }
+
+  return (
+    <div className="border border-slate-800 rounded-xl px-3 py-2 bg-slate-950/80 flex flex-col gap-2">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+            Panorama INCA
+          </div>
+          <div className="text-[11px] text-slate-400">
+            Distribuzione T / P / R / B / E / NP.
+          </div>
+        </div>
+        <div className="text-right text-[11px]">
+          <div className="text-slate-400">
+            Cavi totali:{" "}
+            <span className="text-slate-100 font-semibold">
+              {totalCavi}
+            </span>
+          </div>
+          <div className="text-slate-400">
+            Posati (P):{" "}
+            <span className="text-emerald-300 font-semibold">
+              {done}
+            </span>
+          </div>
+          <div className="text-slate-400">
+            Non posati (NP):{" "}
+            <span className="text-purple-300 font-semibold">
+              {nonPosati}
+            </span>
+          </div>
+          <div className="text-slate-400">
+            Tot. metri dis.:{" "}
+            <span className="text-slate-100 font-semibold">
+              {formatMeters(totalMetri)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Baromètre de production */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1">
+          <div className="flex items-center justify-between text-[10px] text-slate-500 mb-1">
+            <span>Produzione globale (P / tutti)</span>
+            <span className="text-sky-300 font-semibold">
+              {prodPercent.toFixed(1)}%
+            </span>
+          </div>
+          <div className="h-2 rounded-full bg-slate-900 overflow-hidden">
+            <div
+              className="h-full rounded-full"
+              style={{
+                width: `${Math.min(100, prodPercent)}%`,
+                backgroundColor: colorForSituazione("P"),
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Graphe barres T/P/R/B/E/NP */}
+      {distribData.length > 0 && (
+        <div className="h-28 mt-1">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={distribData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+              <XAxis
+                dataKey="code"
+                tick={{ fontSize: 10, fill: "#64748b" }}
+              />
+              <YAxis
+                tick={{ fontSize: 10, fill: "#64748b" }}
+                allowDecimals={false}
+              />
+              <Tooltip
+                contentStyle={{
+                  fontSize: 11,
+                  backgroundColor: "#020617",
+                  borderColor: "#1e293b",
+                }}
+                formatter={(value, name, props) => [
+                  value,
+                  props.payload?.label || "Situazione",
+                ]}
+              />
+              <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                {distribData.map((d) => (
+                  <Cell
+                    key={d.code}
+                    fill={colorForSituazione(d.code)}
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Légende détaillée */}
+      <div className="flex flex-wrap gap-1.5 mt-1">
+        {distribData.map((d) => (
+          <span
+            key={d.code}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-900/80 border border-slate-800 text-[10px] text-slate-200"
+          >
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ backgroundColor: colorForSituazione(d.code) }}
+            />
+            <span className="font-semibold">{d.code}</span>
+            <span className="text-slate-400">{d.label}</span>
+            <span className="text-sky-300 font-semibold">
+              {d.count}
+            </span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function CableDetails({ cable }) {
   return (
     <div className="flex flex-col gap-4 text-xs text-slate-200">
@@ -669,8 +923,14 @@ function CableDetails({ cable }) {
           Lunghezze
         </div>
         <div className="grid grid-cols-3 gap-2">
-          <DetailField label="Disegno" value={formatMeters(cable.metri_teo)} />
-          <DetailField label="Posa" value={formatMeters(cable.metri_totali)} />
+          <DetailField
+            label="Disegno"
+            value={formatMeters(cable.metri_teo)}
+          />
+          <DetailField
+            label="Posa"
+            value={formatMeters(cable.metri_totali)}
+          />
           <DetailField
             label="Calcolo"
             value={formatMeters(cable.metri_previsti)}
@@ -710,7 +970,7 @@ function CableDetails({ cable }) {
         </div>
       </div>
 
-      {/* Métadonnées */}
+      {/* Métadonnées file */}
       <div className="border-t border-slate-800 pt-3 mt-1 text-[11px] text-slate-500">
         <div>
           ID cavo:{" "}

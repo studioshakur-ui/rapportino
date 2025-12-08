@@ -14,20 +14,9 @@ import { parseIncaXlsx } from './parseIncaXlsx';
  *  3) Parsing du fichier :
  *     - PDF → parseIncaPdf
  *     - XLSX → parseIncaXlsx
- *  4) Dé-doublonnage local des cavi (codice + rev_inca)
+ *  4) Dé-doublonnage local des cavi (codice + rev_inca ou marca_cavo)
  *  5) UPSERT dans inca_cavi (onConflict: "codice,rev_inca")
- *  6) (plus tard) insert percorsi dans inca_percorsi à partir du PDF
  */
-
-// Normalisation "situazione" côté CORE pour respecter le CHECK Postgres
-// P = Posato, T = Tagliato, R = Richiesto, B = Bloccato
-// E = Eliminato → seulement dans stato_inca (audit), pas dans "situazione".
-function mapSituazioneCore(raw) {
-  if (!raw) return null;
-  const v = String(raw).trim().toUpperCase();
-  const allowed = ['P', 'T', 'R', 'B'];
-  return allowed.includes(v) ? v : null;
-}
 
 export default function IncaUploadPanel({ onImported }) {
   const { profile } = useAuth();
@@ -44,7 +33,7 @@ export default function IncaUploadPanel({ onImported }) {
     }
   };
 
-  // Tentative simple pour extraire costr / commessa depuis le nom du fichier
+  // Détection simple costr / commessa depuis le nom du fichier
   const inferCostrCommessa = (fileName) => {
     if (!fileName) return { costr: null, commessa: null };
 
@@ -82,7 +71,7 @@ export default function IncaUploadPanel({ onImported }) {
         );
       }
 
-      // Extension et type de fichier
+      // Type fichier
       const ext = file.name.split('.').pop()?.toLowerCase() || '';
       let fileType;
       if (ext === 'pdf') fileType = 'PDF';
@@ -118,7 +107,7 @@ export default function IncaUploadPanel({ onImported }) {
         .from('inca_files')
         .insert({
           file_name: file.name,
-          file_type: fileType, // 'PDF' | 'XLSX'
+          file_type: fileType,
           file_path: path,
           uploaded_by: profile.id,
           uploaded_at: new Date().toISOString(),
@@ -141,7 +130,6 @@ export default function IncaUploadPanel({ onImported }) {
         if (fileType === 'PDF') {
           cablesRaw = await parseIncaPdf(file);
         } else {
-          // XLSX
           cablesRaw = await parseIncaXlsx(file);
         }
       } catch (parseErr) {
@@ -157,7 +145,7 @@ export default function IncaUploadPanel({ onImported }) {
         return;
       }
 
-      // 4) Dédoublonnage local par (codice, rev_inca)
+      // 4) Dédoublonnage local (codice + rev_inca)
       const uniqueMap = new Map();
       for (const c of cablesRaw) {
         const codiceInca =
@@ -178,7 +166,7 @@ export default function IncaUploadPanel({ onImported }) {
         `[INCA ${fileType}] Cavi letti (grezzi): ${cablesRaw.length} → righe uniche: ${cables.length}`
       );
 
-      // 5) Préparation des lignes pour inca_cavi
+      // 5) Mapping vers inca_cavi
       const rowsToUpsert = cables.map((c) => {
         const codiceInca =
           c.codice_cavo ||
@@ -215,31 +203,17 @@ export default function IncaUploadPanel({ onImported }) {
             ? c.metri_posati_teorici
             : null;
 
-        // Normalisation stato/situazione
-        const rawSituazione =
-          c.situazione ||
-          c.situazione_cavo ||
-          c.stato_inca ||
-          c.stato_cantiere ||
-          null;
-
-        const situazioneCore = mapSituazioneCore(rawSituazione);
-
         return {
-          // Fichier
           from_file_id: fileId,
           inca_file_id: fileId,
 
-          // Contexte navire
           costr: fileRow.costr || costr || null,
           commessa: fileRow.commessa || commessa || null,
 
-          // Identité câble
           marca_cavo: c.marca_cavo || null,
           codice: codiceInca,
           livello_disturbo: c.livello_disturbo || null,
 
-          // Caractéristiques
           tipo: c.tipo_cavo || c.tipo || null,
           sezione: c.sezione || null,
           wbs: c.wbs || null,
@@ -250,18 +224,14 @@ export default function IncaUploadPanel({ onImported }) {
             c.app_arrivo_descrizione ||
             null,
 
-          // Métriques principales
           metri_teo: metriTeo,
           metri_totali: metriTotali,
           metri_previsti: metriPrevisti,
 
-          // Stato / situazione
-          // stato_inca garde la valeur brute (P/T/R/B/E…),
-          // situazione ne garde que P/T/R/B pour respecter le CHECK.
-          stato_inca: rawSituazione,
-          situazione: situazioneCore,
+          // États normalisés
+          stato_inca: c.stato_inca || c.stato_tec || null,
+          situazione: c.situazione ?? c.situazione_cavo ?? null,
 
-          // Structure & localisation (optionnel pour l’instant)
           impianto: c.impianto || null,
           zona_da: c.zona_da || c.app_partenza_zona || null,
           zona_a: c.zona_a || c.app_arrivo_zona || null,
@@ -290,7 +260,7 @@ export default function IncaUploadPanel({ onImported }) {
         };
       });
 
-      // 6) UPSERT dans inca_cavi → évite l’erreur de contrainte unique
+      // 6) UPSERT inca_cavi
       const { data: upsertedCavi, error: caviError } = await supabase
         .from('inca_cavi')
         .upsert(rowsToUpsert, {

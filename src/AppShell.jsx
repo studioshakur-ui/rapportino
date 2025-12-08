@@ -54,9 +54,11 @@ export default function AppShell() {
     setTheme((current) => (current === "dark" ? "light" : "dark"));
   };
 
+  // Contexte route
+  const pathname = location.pathname;
   const isRapportino =
-    location.pathname === "/app" ||
-    location.pathname.startsWith("/app/");
+    pathname === "/app" || pathname.startsWith("/app/rapportino");
+  const isArchivio = pathname.startsWith("/app/archive");
 
   if (!profile) {
     return (
@@ -87,7 +89,9 @@ export default function AppShell() {
           <div className="text-xs text-slate-400">
             Modulo Capo ·{" "}
             <span className="font-semibold">
-              Compilazione rapportino digitale
+              {isArchivio
+                ? "Archivio rapportini certificato"
+                : "Compilazione rapportino digitale"}
             </span>
           </div>
         </div>
@@ -128,7 +132,9 @@ export default function AppShell() {
               </span>
             </span>
             <span className="text-slate-500">
-              Area Capo · Rapportino giornaliero
+              {isArchivio
+                ? "Area Capo · Archivio rapportini"
+                : "Area Capo · Rapportino giornaliero"}
             </span>
           </div>
 
@@ -167,8 +173,9 @@ export default function AppShell() {
             </div>
           </div>
 
-          {/* Navigation (pour l’instant 1 seul item, prêt pour l’extension) */}
+          {/* Navigation */}
           <nav className="px-1 py-3 space-y-1.5">
+            {/* Rapportino di oggi */}
             <NavLink
               to="/app"
               end
@@ -189,6 +196,28 @@ export default function AppShell() {
             >
               <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
               <span>Rapportino di oggi</span>
+            </NavLink>
+
+            {/* Archivio Capo */}
+            <NavLink
+              to="/app/archive"
+              className={({ isActive }) =>
+                [
+                  corePills(
+                    isDark,
+                    "violet",
+                    "w-full flex items-center gap-2 justify-start"
+                  ),
+                  isActive
+                    ? ""
+                    : isDark
+                    ? "opacity-75 hover:opacity-100"
+                    : "opacity-80 hover:opacity-100",
+                ].join(" ")
+              }
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
+              <span>Archivio · Rapportini v1</span>
             </NavLink>
           </nav>
 
@@ -213,9 +242,9 @@ export default function AppShell() {
             <div className="mb-4 flex items-center justify-between gap-3">
               <div className="flex flex-col">
                 <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                  {isRapportino
-                    ? "Compilazione rapportino"
-                    : "Modulo Capo"}
+                  {isArchivio
+                    ? "Archivio · rapportini certificati"
+                    : "Compilazione rapportino"}
                 </span>
                 <span className="text-xs text-slate-400">
                   Dati strutturati, pronti per l&apos;Ufficio e la
@@ -224,7 +253,7 @@ export default function AppShell() {
               </div>
             </div>
 
-            {/* Panneau principal : Outlet injecte RapportinoPage (ou autres) */}
+            {/* Panneau principal : Rapportino ou Archivio via Outlet */}
             <div
               className={[
                 "border rounded-2xl overflow-hidden",
