@@ -5,7 +5,8 @@ import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../auth/AuthProvider';
 
 import LoadingScreen from './LoadingScreen';
-import ListaCaviPanel from './ListaCaviPanel';
+// ⛔ Plus de ListaCaviPanel ici
+// import ListaCaviPanel from './ListaCaviPanel';
 
 import RapportinoHeader from './rapportino/RapportinoHeader';
 import RapportinoTable from './rapportino/RapportinoTable';
@@ -16,6 +17,9 @@ import {
   getBaseRows,
   adjustOperatorTempoHeights,
 } from '../rapportinoUtils';
+
+import RapportinoIncaCaviSection from './RapportinoIncaCaviSection';
+import { applyRapportinoToInca } from '../inca/incaRapportinoLinkApi';
 
 const STATUS_LABELS = {
   DRAFT: 'Bozza',
@@ -35,9 +39,7 @@ export default function RapportinoPage() {
   const navigate = useNavigate();
   const { shipId } = useParams();
 
-  // ---------------------------------------------------------------------------
   // Rôle de l’équipe
-  // ---------------------------------------------------------------------------
   const [crewRole, setCrewRole] = useState(() => {
     try {
       const stored = window.localStorage.getItem('core-current-role');
@@ -49,7 +51,7 @@ export default function RapportinoPage() {
         return stored;
       }
     } catch {
-      // ignore
+      //
     }
     return 'ELETTRICISTA';
   });
@@ -63,9 +65,7 @@ export default function RapportinoPage() {
 
   const crewLabel = CREW_LABELS[normalizedCrewRole] || normalizedCrewRole;
 
-  // ---------------------------------------------------------------------------
-  // Header / état du rapportino
-  // ---------------------------------------------------------------------------
+  // Header
   const [costr, setCostr] = useState('6368');
   const [commessa, setCommessa] = useState('SDC');
   const [rapportinoId, setRapportinoId] = useState(null);
@@ -83,10 +83,9 @@ export default function RapportinoPage() {
   const [errorDetails, setErrorDetails] = useState(null);
   const [showErrorDetails, setShowErrorDetails] = useState(false);
   const [successMessage, setSuccessMessage] = useState(null);
+  // ⛔ Plus de showListaCavi
+  // const [showListaCavi, setShowListaCavi] = useState(false);
 
-  const [showListaCavi, setShowListaCavi] = useState(false);
-
-  // Nom du capo pour l’affichage
   const capoName = useMemo(
     () =>
       (profile?.display_name ||
@@ -110,9 +109,7 @@ export default function RapportinoPage() {
     [rows]
   );
 
-  // ---------------------------------------------------------------------------
-  // Chargement du rapportino existant (clé capo + crewRole + reportDate)
-  // ---------------------------------------------------------------------------
+  // Chargement rapportino existant
   useEffect(() => {
     let active = true;
 
@@ -130,7 +127,7 @@ export default function RapportinoPage() {
         setShowErrorDetails(false);
         setSuccessMessage(null);
 
-        const { data: rapData, error: rapError } = await supabase
+        const { data: rap, error: rapError } = await supabase
           .from('rapportini')
           .select('*')
           .eq('capo_id', profile.id)
@@ -146,26 +143,25 @@ export default function RapportinoPage() {
 
         if (!active) return;
 
-        if (!rapData) {
-          // Nouveau rapportino → defaults 6368 / SDC
+        if (!rap) {
           setRapportinoId(null);
           setCostr('6368');
           setCommessa('SDC');
           setStatus('DRAFT');
           setRows(getBaseRows(normalizedCrewRole));
         } else {
-          setRapportinoId(rapData.id);
-          setCostr(rapData.costr || rapData.cost || '6368');
-          setCommessa(rapData.commessa || 'SDC');
-          setStatus(rapData.status || 'DRAFT');
+          setRapportinoId(rap.id);
+          setCostr(rap.costr || rap.cost || '6368');
+          setCommessa(rap.commessa || 'SDC');
+          setStatus(rap.status || 'DRAFT');
 
-          const { data: righe, error: righeError } = await supabase
+          const { data: righe, error: rowsError } = await supabase
             .from('rapportino_rows')
             .select('*')
-            .eq('rapportino_id', rapData.id)
+            .eq('rapportino_id', rap.id)
             .order('row_index', { ascending: true });
 
-          if (righeError) throw righeError;
+          if (rowsError) throw rowsError;
           if (!active) return;
 
           if (!righe || righe.length === 0) {
@@ -204,15 +200,12 @@ export default function RapportinoPage() {
     }
 
     loadRapportino();
-
     return () => {
       active = false;
     };
   }, [profile?.id, normalizedCrewRole, reportDate]);
 
-  // ---------------------------------------------------------------------------
   // Édition des lignes
-  // ---------------------------------------------------------------------------
   const handleRowChange = (index, field, value, targetForHeight) => {
     setRows((prev) => {
       const copy = [...prev];
@@ -257,7 +250,6 @@ export default function RapportinoPage() {
   const handleRemoveRow = (index) => {
     setRows((prev) => {
       if (prev.length === 1) {
-        // on ne supprime jamais la dernière, on remet le modèle de base
         return getBaseRows(normalizedCrewRole);
       }
       const copy = [...prev];
@@ -266,11 +258,9 @@ export default function RapportinoPage() {
     });
   };
 
-  // ---------------------------------------------------------------------------
-  // Sauvegarde
-  // ---------------------------------------------------------------------------
+  // Sauvegarde → renvoie { success, id }
   const handleSave = async (forcedStatus) => {
-    if (!profile?.id) return;
+    if (!profile?.id) return { success: false, id: null };
 
     setSaving(true);
     setError(null);
@@ -295,14 +285,13 @@ export default function RapportinoPage() {
       let newId = rapportinoId;
 
       if (!newId) {
-        // INSERT → on renseigne "data" ET "report_date"
         const { data: inserted, error: insertError } = await supabase
           .from('rapportini')
           .insert({
             capo_id: profile.id,
             crew_role: normalizedCrewRole,
             report_date: reportDate,
-            data: reportDate, // colonne NOT NULL
+            data: reportDate,
             costr,
             commessa,
             status: newStatus,
@@ -315,7 +304,6 @@ export default function RapportinoPage() {
         newId = inserted.id;
         setRapportinoId(inserted.id);
       } else {
-        // UPDATE
         const { error: updateError } = await supabase
           .from('rapportini')
           .update({
@@ -330,7 +318,6 @@ export default function RapportinoPage() {
 
         if (updateError) throw updateError;
 
-        // Nettoyage des anciennes lignes
         const { error: deleteError } = await supabase
           .from('rapportino_rows')
           .delete()
@@ -339,7 +326,6 @@ export default function RapportinoPage() {
         if (deleteError) throw deleteError;
       }
 
-      // Réinsertion des lignes
       if (cleanRows.length > 0) {
         const rowsToInsert = cleanRows.map((r) => ({
           ...r,
@@ -355,33 +341,59 @@ export default function RapportinoPage() {
 
       setStatus(newStatus);
       setSuccessMessage('Salvataggio riuscito.');
-      return true;
+      return { success: true, id: newId };
     } catch (err) {
       console.error('Errore salvataggio rapportino:', err);
       setError('Errore durante il salvataggio del rapportino.');
       setErrorDetails(err?.message || String(err));
-      return false;
+      return { success: false, id: null };
     } finally {
       setSaving(false);
     }
   };
 
   const handleValidate = async () => {
-    await handleSave('VALIDATED_CAPO');
+    // 1) Sauvegarde + passage en VALIDATED_CAPO
+    const { success, id } = await handleSave('VALIDATED_CAPO');
+    if (!success || !id) return;
+
+    // 2) Appliquer la production INCA seulement pour ELETTRICISTA
+    if (normalizedCrewRole === 'ELETTRICISTA') {
+      try {
+        const result = await applyRapportinoToInca({ rapportinoId: id });
+        console.log('[Rapportino] applyRapportinoToInca result', result);
+        setSuccessMessage(
+          `Rapportino validato. Cavi INCA aggiornati per COSTR ${costr}.`
+        );
+      } catch (incaErr) {
+        console.error('[Rapportino] applyRapportinoToInca error', incaErr);
+        setError(
+          'Rapportino validato, ma errore durante aggiornamento cavi INCA.'
+        );
+        setErrorDetails(incaErr?.message || String(incaErr));
+        setShowErrorDetails(true);
+      }
+    }
   };
 
+  // ➜ Export PDF : sauvegarde, récupère l'ID, puis va sur la page de print
   const handleExportPdf = async () => {
-    const ok = await handleSave(status);
-    if (!ok) return;
+    const { success, id } = await handleSave(status);
+    if (!success || !id) return;
 
-    const url = `/print/rapportino?date=${encodeURIComponent(
-      reportDate
-    )}&role=${encodeURIComponent(normalizedCrewRole)}`;
-    window.open(url, '_blank', 'noopener,noreferrer');
+    navigate(`/print/rapportino?id=${encodeURIComponent(id)}`);
   };
 
+  // ➜ Archivio : page Archive Capo
   const handleOpenArchivio = () => {
-    console.log('Archivio non ancora implementato lato CAPO');
+    navigate('/archive');
+  };
+
+  // ➜ Cockpit INCA plein écran
+  const handleOpenIncaCockpit = () => {
+    // On utilise en priorité shipId (contexte route), sinon le COSTR courant
+    const targetShip = shipId || costr || '0000';
+    navigate(`/app/ship/${encodeURIComponent(targetShip)}/inca`);
   };
 
   const handleChangeRole = () => {
@@ -399,44 +411,47 @@ export default function RapportinoPage() {
     }
   };
 
-  // ---------------------------------------------------------------------------
-  // Rendu
-  // ---------------------------------------------------------------------------
+  const incaSectionDisabled =
+    status !== 'DRAFT' && status !== 'RETURNED';
+
   if (initialLoading || loading) {
     return <LoadingScreen message="Caricamento del rapportino in corso." />;
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col">
+    <div
+      className="min-h-screen flex flex-col bg-slate-900/80"
+      style={{ opacity: 1, filter: 'none' }}
+    >
       {/* Bandeau haut */}
-      <header className="border-b border-slate-300 bg-white sticky top-0 z-20">
+      <header className="border-b border-slate-700 bg-slate-900 text-slate-50 sticky top-0 z-20">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex flex-col">
-            <span className="text-[11px] uppercase tracking-[0.25em] text-slate-500">
+            <span className="text-[11px] uppercase tracking-[0.25em] text-slate-400">
               CORE · MODULO RAPPORTINO
             </span>
-            <span className="text-sm font-semibold text-slate-900">
+            <span className="text-sm font-semibold text-slate-50">
               COSTR {costr} · {crewLabel}
             </span>
           </div>
-          <div className="flex items-center gap-2 text-[11px]">
-            <span className="px-3 py-1 rounded-full bg-slate-900 text-slate-50 font-semibold">
+          <div className="flex items-center gap-2 text-[11px] text-slate-50">
+            <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-900 font-semibold">
               Stato: {statusLabel}
             </span>
-            <span className="px-3 py-1 rounded-full bg-slate-100 border border-slate-400 text-slate-900">
+            <span className="px-3 py-1 rounded-full bg-slate-800 border border-slate-400">
               Prodotto totale: {prodottoTotale.toFixed(2)}
             </span>
             <button
               type="button"
               onClick={handleChangeRole}
-              className="px-3 py-1.5 rounded-md border border-slate-500 text-slate-800 bg-white hover:bg-slate-100"
+              className="px-3 py-1.5 rounded-md border border-slate-400 text-slate-50 bg-slate-800 hover:bg-slate-700"
             >
               Cambia squadra
             </button>
             <button
               type="button"
               onClick={handleLogout}
-              className="px-3 py-1.5 rounded-md border border-slate-500 text-slate-800 bg-white hover:bg-slate-100"
+              className="px-3 py-1.5 rounded-md border border-rose-400 text-rose-50 bg-rose-600/90 hover:bg-rose-600"
             >
               Logout
             </button>
@@ -445,9 +460,11 @@ export default function RapportinoPage() {
       </header>
 
       {/* Contenu */}
-      <main className="flex-1 max-w-6xl mx-auto px-4 py-4">
-        <div className="bg-white border border-slate-400 rounded-xl shadow-sm p-4">
-          {/* En-tête au format papier */}
+      <main className="flex-1 max-w-6xl mx-auto px-4 py-6">
+        <div
+          className="bg-white text-slate-900 border border-slate-400 rounded-xl shadow-[0_18px_45px_rgba(0,0,0,0.35)] p-4 print:shadow-none print:border-black"
+          style={{ opacity: 1, filter: 'none' }}
+        >
           <RapportinoHeader
             costr={costr}
             commessa={commessa}
@@ -458,36 +475,53 @@ export default function RapportinoPage() {
             onChangeDate={setReportDate}
           />
 
-          {/* Tableau principal */}
           <RapportinoTable
             rows={rows}
             onRowChange={handleRowChange}
             onRemoveRow={handleRemoveRow}
           />
 
-          {/* Actions bas de page */}
+          {/* Section INCA : choix des cavi + metri posati */}
+          {normalizedCrewRole === 'ELETTRICISTA' && rapportinoId && (
+            <div className="mt-4">
+              <RapportinoIncaCaviSection
+                rapportinoId={rapportinoId}
+                shipCostr={costr}
+                disabled={incaSectionDisabled}
+              />
+            </div>
+          )}
+
+          {/* Actions */}
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-[11px]">
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={handleAddRow}
-                className="px-3 py-1.5 rounded-md border border-slate-500 bg-white hover:bg-slate-100"
+                className="px-3 py-1.5 rounded-md border border-slate-500 bg-white hover:bg-slate-100 text-slate-900"
               >
                 + Aggiungi riga
               </button>
+
               {normalizedCrewRole === 'ELETTRICISTA' && (
                 <button
                   type="button"
-                  onClick={() => setShowListaCavi(true)}
-                  className="px-3 py-1.5 rounded-md border border-emerald-600 bg-emerald-50 text-emerald-900 hover:bg-emerald-100"
+                  onClick={handleOpenIncaCockpit}
+                  className="relative overflow-hidden px-3 py-1.5 rounded-md border border-emerald-500 bg-slate-950 text-emerald-200 hover:text-emerald-100 hover:bg-slate-900 transition-colors duration-200 shadow-[0_0_0_1px_rgba(16,185,129,0.4)]
+                  before:absolute before:inset-0 before:bg-gradient-to-r before:from-emerald-500/20 before:via-cyan-500/10 before:to-emerald-500/20 before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-300"
                 >
-                  Lista Cavi / INCA
+                  <span className="relative inline-flex items-center gap-1.5 uppercase tracking-[0.18em] text-[10px] font-semibold">
+                    {/* pastille lumineuse */}
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]" />
+                    Cockpit&nbsp;INCA
+                  </span>
                 </button>
               )}
+
               <button
                 type="button"
                 onClick={handleOpenArchivio}
-                className="px-3 py-1.5 rounded-md border border-slate-400 bg-slate-50 hover:bg-slate-100"
+                className="px-3 py-1.5 rounded-md border border-slate-400 bg-slate-50 hover:bg-slate-100 text-slate-900"
               >
                 Apri Archivio
               </button>
@@ -545,10 +579,7 @@ export default function RapportinoPage() {
         </div>
       </main>
 
-      {/* Panel Lista Cavi (ELETTRICISTA) */}
-      {normalizedCrewRole === 'ELETTRICISTA' && showListaCavi && (
-        <ListaCaviPanel onClose={() => setShowListaCavi(false)} />
-      )}
+      {/* ⛔ Plus de ListaCaviPanel : le Capo passe par la section INCA + Cockpit */}
     </div>
   );
 }

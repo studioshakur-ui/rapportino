@@ -11,7 +11,7 @@ const EMPTY_ROWS_BY_CREW = {
       descrizione: 'STESURA',
       operatori: '',
       tempo: '',
-      previsto: '150',
+      previsto: '150,0',
       prodotto: '',
       note: '',
     },
@@ -20,7 +20,7 @@ const EMPTY_ROWS_BY_CREW = {
       descrizione: 'FASCETTATURA CAVI',
       operatori: '',
       tempo: '',
-      previsto: '600',
+      previsto: '600,0',
       prodotto: '',
       note: '',
     },
@@ -29,7 +29,7 @@ const EMPTY_ROWS_BY_CREW = {
       descrizione: 'RIPRESA CAVI',
       operatori: '',
       tempo: '',
-      previsto: '150',
+      previsto: '150,0',
       prodotto: '',
       note: '',
     },
@@ -102,9 +102,25 @@ function MultiLineCell({ value }) {
   );
 }
 
+const IT_MONTHS = [
+  'gennaio',
+  'febbraio',
+  'marzo',
+  'aprile',
+  'maggio',
+  'giugno',
+  'luglio',
+  'agosto',
+  'settembre',
+  'ottobre',
+  'novembre',
+  'dicembre',
+];
+
 export default function RapportinoSheet() {
   const { profile } = useAuth();
 
+  const [rapportinoId, setRapportinoId] = useState(null);
   const [crewRole, setCrewRole] = useState('ELETTRICISTA');
   const [reportDate, setReportDate] = useState('');
   const [costr, setCostr] = useState('6368');
@@ -122,21 +138,21 @@ export default function RapportinoSheet() {
     [rows]
   );
 
-  // Lecture des paramètres d'URL : date / role
+  // Lecture du paramètre d'URL : id
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const dateParam = params.get('date');
-    const roleParam = params.get('role');
-
-    if (dateParam) setReportDate(dateParam);
-    if (roleParam) setCrewRole(roleParam);
+    const idParam = params.get('id');
+    if (idParam) {
+      setRapportinoId(idParam);
+    } else {
+      setLoading(false);
+    }
   }, []);
 
-  // Chargement des données depuis Supabase
+  // Chargement des données depuis Supabase par ID
   useEffect(() => {
     async function loadData() {
-      if (!profile?.id || !reportDate) {
-        setLoading(false);
+      if (!rapportinoId) {
         return;
       }
 
@@ -147,11 +163,7 @@ export default function RapportinoSheet() {
         const { data: rap, error: rapError } = await supabase
           .from('rapportini')
           .select('*')
-          .eq('capo_id', profile.id)
-          .eq('crew_role', crewRole)
-          .eq('report_date', reportDate)
-          .order('created_at', { ascending: false })
-          .limit(1)
+          .eq('id', rapportinoId)
           .maybeSingle();
 
         if (rapError && rapError.code !== 'PGRST116') {
@@ -159,18 +171,18 @@ export default function RapportinoSheet() {
         }
 
         if (!rap) {
-          // Aucun rapport → gabarit brut 6368/SDC
           setCostr('6368');
           setCommessa('SDC');
-          setRows(
-            EMPTY_ROWS_BY_CREW[crewRole] || EMPTY_ROWS_BY_CREW.ELETTRICISTA
-          );
+          setCrewRole('ELETTRICISTA');
+          setRows(EMPTY_ROWS_BY_CREW.ELETTRICISTA);
           setLoading(false);
           return;
         }
 
         setCostr(rap.costr || rap.cost || '6368');
         setCommessa(rap.commessa || 'SDC');
+        setCrewRole(rap.crew_role || 'ELETTRICISTA');
+        setReportDate(rap.report_date || rap.data || '');
 
         const { data: righe, error: rowsError } = await supabase
           .from('rapportino_rows')
@@ -182,7 +194,8 @@ export default function RapportinoSheet() {
 
         if (!righe || righe.length === 0) {
           setRows(
-            EMPTY_ROWS_BY_CREW[crewRole] || EMPTY_ROWS_BY_CREW.ELETTRICISTA
+            EMPTY_ROWS_BY_CREW[rap.crew_role] ||
+              EMPTY_ROWS_BY_CREW.ELETTRICISTA
           );
         } else {
           const mapped = righe.map((r) => ({
@@ -205,7 +218,7 @@ export default function RapportinoSheet() {
 
         setLoading(false);
 
-        // Lancer l'impression quand tout est peint
+        // Lancer la boîte de dialogue d'impression
         setTimeout(() => {
           try {
             window.print();
@@ -221,24 +234,24 @@ export default function RapportinoSheet() {
     }
 
     loadData();
-  }, [profile?.id, crewRole, reportDate]);
+  }, [rapportinoId]);
 
   const capoName =
     (profile?.display_name || profile?.full_name || profile?.email || '')
       .toUpperCase()
       .trim() || '';
 
-  // Date imprimée : 08 dicembre 2025 → pour l’instant simple DD-MM-YYYY
-  let formattedDate = reportDate;
+  // Date en italien : 08 dicembre 2025
+  let formattedDate = '';
   if (reportDate) {
     try {
       const d = new Date(reportDate);
       const dd = String(d.getDate()).padStart(2, '0');
-      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const monthName = IT_MONTHS[d.getMonth()] || '';
       const yyyy = d.getFullYear();
-      formattedDate = `${dd}-${mm}-${yyyy}`;
+      formattedDate = `${dd} ${monthName} ${yyyy}`;
     } catch {
-      // on garde ce qu'on a
+      formattedDate = reportDate;
     }
   }
 
@@ -260,20 +273,19 @@ export default function RapportinoSheet() {
 
   return (
     <div className="min-h-screen bg-white text-black print:bg-white print:text-black">
-      {/* Conteneur format A4 : peu de marges, look "feuille pleine" */}
       <div className="mx-auto px-8 pt-10 pb-8 max-w-[900px]">
-        {/* 🔴 Ligne 1 : titre centré, seul sur la ligne */}
+        {/* Ligne 1 : titre centré */}
         <div className="text-center text-[16px] font-semibold mb-4 tracking-wide">
           RAPPORTINO GIORNALIERO
         </div>
 
-        {/* 🟠 Ligne 2 : COSTR à gauche */}
+        {/* Ligne 2 : COSTR */}
         <div className="mb-2 text-[11px]">
           <span className="font-semibold mr-2">COSTR.:</span>
           <span>{costr}</span>
         </div>
 
-        {/* 🟢 Ligne 3 : Commessa | Capo Squadra | Data sur une seule ligne */}
+        {/* Ligne 3 : Commessa / Capo / Data */}
         <div className="mb-4 text-[11px] grid grid-cols-[1.1fr_1.2fr_0.9fr] items-center">
           <div>
             <span className="font-semibold mr-2">Commessa:</span>
@@ -289,7 +301,7 @@ export default function RapportinoSheet() {
           </div>
         </div>
 
-        {/* Tableau principal, aligné au modèle papier */}
+        {/* Tableau principal */}
         <table className="w-full border border-black border-collapse text-[10px]">
           <thead>
             <tr>
@@ -345,7 +357,7 @@ export default function RapportinoSheet() {
           </tbody>
         </table>
 
-        {/* Totale prodotto en bas à droite */}
+        {/* Prodotto totale */}
         <div className="mt-3 text-right text-[11px]">
           <span className="font-semibold mr-2">PRODOTTO TOTALE:</span>
           <span>{prodottoTotale.toFixed(2)}</span>
