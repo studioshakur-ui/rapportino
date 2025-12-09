@@ -5,8 +5,6 @@ import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../auth/AuthProvider';
 
 import LoadingScreen from './LoadingScreen';
-// ⛔ Plus de ListaCaviPanel ici
-// import ListaCaviPanel from './ListaCaviPanel';
 
 import RapportinoHeader from './rapportino/RapportinoHeader';
 import RapportinoTable from './rapportino/RapportinoTable';
@@ -83,16 +81,13 @@ export default function RapportinoPage() {
   const [errorDetails, setErrorDetails] = useState(null);
   const [showErrorDetails, setShowErrorDetails] = useState(false);
   const [successMessage, setSuccessMessage] = useState(null);
-  // ⛔ Plus de showListaCavi
-  // const [showListaCavi, setShowListaCavi] = useState(false);
 
   const capoName = useMemo(
     () =>
       (profile?.display_name ||
         profile?.full_name ||
         profile?.email ||
-        'Capo Squadra'
-      )
+        'Capo Squadra')
         .toUpperCase()
         .trim(),
     [profile]
@@ -144,14 +139,15 @@ export default function RapportinoPage() {
         if (!active) return;
 
         if (!rap) {
+          // Aucun rapportino → on initialise avec le navire de la route si dispo
           setRapportinoId(null);
-          setCostr('6368');
+          setCostr(shipId || '6368');
           setCommessa('SDC');
           setStatus('DRAFT');
           setRows(getBaseRows(normalizedCrewRole));
         } else {
           setRapportinoId(rap.id);
-          setCostr(rap.costr || rap.cost || '6368');
+          setCostr(rap.costr || rap.cost || shipId || '6368');
           setCommessa(rap.commessa || 'SDC');
           setStatus(rap.status || 'DRAFT');
 
@@ -203,7 +199,7 @@ export default function RapportinoPage() {
     return () => {
       active = false;
     };
-  }, [profile?.id, normalizedCrewRole, reportDate]);
+  }, [profile?.id, normalizedCrewRole, reportDate, shipId]);
 
   // Édition des lignes
   const handleRowChange = (index, field, value, targetForHeight) => {
@@ -376,7 +372,7 @@ export default function RapportinoPage() {
     }
   };
 
-  // ➜ Export PDF : sauvegarde, récupère l'ID, puis va sur la page de print
+  // Export PDF
   const handleExportPdf = async () => {
     const { success, id } = await handleSave(status);
     if (!success || !id) return;
@@ -384,14 +380,14 @@ export default function RapportinoPage() {
     navigate(`/print/rapportino?id=${encodeURIComponent(id)}`);
   };
 
-  // ➜ Archivio : page Archive Capo
+  // Archivio CAPO
   const handleOpenArchivio = () => {
-    navigate('/archive');
+    navigate('/app/archive');
   };
 
-  // ➜ Cockpit INCA plein écran
+  // Cockpit INCA plein écran (connexion confirmée)
   const handleOpenIncaCockpit = () => {
-    // On utilise en priorité shipId (contexte route), sinon le COSTR courant
+    // On utilise en priorité shipId (route), sinon le COSTR courant
     const targetShip = shipId || costr || '0000';
     navigate(`/app/ship/${encodeURIComponent(targetShip)}/inca`);
   };
@@ -481,12 +477,12 @@ export default function RapportinoPage() {
             onRemoveRow={handleRemoveRow}
           />
 
-          {/* Section INCA : choix des cavi + metri posati */}
+          {/* Section INCA : choix des cavi + metri/%, reliée à INCA_CAPO */}
           {normalizedCrewRole === 'ELETTRICISTA' && rapportinoId && (
             <div className="mt-4">
               <RapportinoIncaCaviSection
                 rapportinoId={rapportinoId}
-                shipCostr={costr}
+                shipCostr={shipId || costr}
                 disabled={incaSectionDisabled}
               />
             </div>
@@ -511,7 +507,6 @@ export default function RapportinoPage() {
                   before:absolute before:inset-0 before:bg-gradient-to-r before:from-emerald-500/20 before:via-cyan-500/10 before:to-emerald-500/20 before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-300"
                 >
                   <span className="relative inline-flex items-center gap-1.5 uppercase tracking-[0.18em] text-[10px] font-semibold">
-                    {/* pastille lumineuse */}
                     <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]" />
                     Cockpit&nbsp;INCA
                   </span>
@@ -578,8 +573,6 @@ export default function RapportinoPage() {
           )}
         </div>
       </main>
-
-      {/* ⛔ Plus de ListaCaviPanel : le Capo passe par la section INCA + Cockpit */}
     </div>
   );
 }
