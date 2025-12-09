@@ -11,8 +11,9 @@ import { useAuth } from './auth/AuthProvider';
 import ConnectionIndicator from './components/ConnectionIndicator';
 import DirectionDashboard from './components/DirectionDashboard';
 import ArchivePage from './pages/Archive';
-import CorePresentationPopup from "./components/CorePresentationPopup";
+import CorePresentationPopup from './components/CorePresentationPopup';
 import CorePresentation from './pages/CorePresentation';
+
 function getInitialTheme() {
   if (typeof window === 'undefined') return 'dark';
   try {
@@ -49,7 +50,7 @@ export default function DirectionShell() {
     }
   }, [theme]);
 
-  // Afficher le popup une fois tant qu'il n'a pas été explicitement fermé
+  // Afficher le popup une seule fois par navigateur tant qu'il n'a pas été explicitement fermé
   useEffect(() => {
     if (!profile) return;
     try {
@@ -313,105 +314,12 @@ export default function DirectionShell() {
           </div>
         </main>
 
-        {/* POPUP PRESENTATION CORE PREMIUM */}
+        {/* POPUP PRESENTATION CORE PREMIUM (simple) */}
         {showPresentationModal && (
-          <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
-            <div className="relative w-full max-w-3xl mx-4 rounded-3xl border border-sky-500/40 bg-slate-950/95 shadow-2xl shadow-sky-900/50">
-              {/* Bandeau top */}
-              <div className="flex items-center justify-between px-5 pt-4 pb-2 border-b border-slate-800/80">
-                <div className="flex flex-col gap-0.5">
-                  <div className="text-[10px] uppercase tracking-[0.22em] text-sky-400">
-                    CORE · Direzione
-                  </div>
-                  <div className="text-sm font-semibold text-slate-100">
-                    Presentazione silenziosa del flusso reale
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleDismissPresentation}
-                  className="text-[11px] px-2 py-1 rounded-full border border-slate-700 text-slate-400 hover:bg-slate-900"
-                >
-                  Chiudi
-                </button>
-              </div>
-
-              {/* Contenu */}
-              <div className="px-5 pt-4 pb-5 space-y-4">
-                <div>
-                  <p className="text-xs text-slate-400">
-                    Abbiamo preparato una pagina dedicata per la Direzione che
-                    mostra, senza marketing, la differenza tra il flusso
-                    operativo attuale e il flusso con CORE.
-                  </p>
-                  <p className="mt-2 text-xs text-slate-400">
-                    Non è una demo commerciale. È una radiografia di sistema:
-                    cantiere → ufficio → INCA → decisione.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-[11px]">
-                  <div className="rounded-2xl border border-red-900/60 bg-red-950/30 px-3 py-2">
-                    <div className="text-[10px] uppercase tracking-[0.18em] text-red-300 mb-1">
-                      Flusso attuale
-                    </div>
-                    <ul className="space-y-1 text-slate-200">
-                      <li>WhatsApp · messaggi · foto</li>
-                      <li>Riscritture e interpretazioni</li>
-                      <li>Decisioni in ritardo</li>
-                    </ul>
-                  </div>
-                  <div className="rounded-2xl border border-sky-800 bg-slate-950/60 px-3 py-2">
-                    <div className="text-[10px] uppercase tracking-[0.18em] text-sky-300 mb-1">
-                      Flusso CORE
-                    </div>
-                    <ul className="space-y-1 text-slate-200">
-                      <li>Inserimento unico dal cantiere</li>
-                      <li>Dati strutturati e tracciabili</li>
-                      <li>Stessa informazione per tutti</li>
-                    </ul>
-                  </div>
-                  <div className="rounded-2xl border border-emerald-800 bg-emerald-950/20 px-3 py-2">
-                    <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-300 mb-1">
-                      Scopo della pagina
-                    </div>
-                    <ul className="space-y-1 text-slate-200">
-                      <li>Nessun giudizio sulle persone</li>
-                      <li>Nessuna richiesta immediata</li>
-                      <li>Solo una lettura per la Direzione</li>
-                    </ul>
-                  </div>
-                </div>
-
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                  <p className="text-[11px] text-slate-500">
-                    Quando avrà 5 minuti, la Direzione può aprire la pagina e
-                    vedere il confronto tra i due flussi.  
-                    <span className="block sm:inline text-slate-300">
-                      Se non toglie lavoro e pressione reale, si spegne. E non
-                      succede nulla.
-                    </span>
-                  </p>
-                  <div className="flex flex-col sm:flex-row gap-2 sm:items-center justify-end">
-                    <button
-                      type="button"
-                      onClick={handleOpenPresentation}
-                      className="px-4 py-2 rounded-full border border-sky-500 bg-sky-600/20 text-[12px] font-medium text-sky-100 hover:bg-sky-500/30"
-                    >
-                      Apri presentazione CORE
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleDismissPresentation}
-                      className="px-3 py-1.5 rounded-full border border-slate-700 text-[11px] text-slate-400 hover:bg-slate-900"
-                    >
-                      Magari dopo
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <CorePresentationPopup
+            onOpen={handleOpenPresentation}
+            onClose={handleDismissPresentation}
+          />
         )}
       </div>
     </div>
