@@ -22,16 +22,6 @@ function formatMeters(v) {
  *  - rapportinoId: uuid
  *  - shipCostr: string (ex: "6368")
  *  - disabled?: boolean (quand rapportino VALIDATO / INVIATO)
- *
- * ⚠️ VERSION POURCENTAGE
- * On ne saisit plus des mètres, mais un pourcentage par tour :
- *  - 0   → aucun avancement saisi
- *  - 0.5 → 50% du cavo
- *  - 0.7 → 70%
- *  - 1.0 → 100%
- *
- * Les mètres sont calculés comme :
- *   metri_teorici_turno = ratio * metri_previsti
  */
 export default function RapportinoIncaCaviSection({
   rapportinoId,
@@ -52,16 +42,13 @@ export default function RapportinoIncaCaviSection({
     let cancelled = false;
 
     async function load() {
-      if (!rapportinoId) {
-        setLoading(false);
-        return;
-      }
+      if (!rapportinoId) return;
       try {
         setLoading(true);
         setError(null);
         const data = await fetchRapportinoIncaCavi(rapportinoId);
         if (cancelled) return;
-        setRows(data || []);
+        setRows(data);
       } catch (e) {
         if (!cancelled) setError(e.message || String(e));
       } finally {
@@ -75,15 +62,6 @@ export default function RapportinoIncaCaviSection({
     };
   }, [rapportinoId]);
 
-  // Somme des mètres théoriques posés sur ce tour
-  const totalMetriPosati = useMemo(() => {
-    return rows.reduce((sum, r) => {
-      const ratio = Number(r.metri_posati || 0) || 0; // 0.5 / 0.7 / 1.0
-      const base = Number(r.inca_cavo?.metri_previsti || 0) || 0;
-      return sum + ratio * base;
-    }, 0);
-  }, [rows]);
-
   const totalCavi = rows.length;
 
   const excludeIds = useMemo(
@@ -95,48 +73,21 @@ export default function RapportinoIncaCaviSection({
   /*                         GESTION DES LIGNES LOCALES                     */
   /* ---------------------------------------------------------------------- */
 
-  /**
-   * value = "0", "50", "70", "100"
-   * En base on stocke 0, 0.5, 0.7, 1.0
-   */
-  async function handleChangeMetri(rowId, value) {
+  async function handleChangeProgress(rowId, value) {
     if (disabled) return;
 
-    const raw = Number(value);
-    if (Number.isNaN(raw) || raw <= 0) {
-      // On considère 0 → aucun avancement
-      try {
-        setSavingRowId(rowId);
-        const updated = await updateRapportinoCavoRow(rowId, {
-          metri_posati: 0,
-        });
-        setRows((prev) => prev.map((r) => (r.id === rowId ? updated : r)));
-      } catch (e) {
-        console.error("[RapportinoIncaSection] update metri error", e);
-        setError(e.message || String(e));
-      } finally {
-        setSavingRowId(null);
-      }
-      return;
-    }
-
-    // Clamp sur nos valeurs "officielles"
-    let pct = raw;
-    if (pct < 50) pct = 50;
-    else if (pct > 100) pct = 100;
-    else if (pct > 50 && pct < 70) pct = 70;
-    else if (pct > 70 && pct < 100) pct = 100;
-
-    const ratio = pct / 100;
+    const num = Number(value);
+    const safe =
+      Number.isNaN(num) || num <= 0 ? null : Math.min(Math.max(num, 0), 100);
 
     setSavingRowId(rowId);
     try {
       const updated = await updateRapportinoCavoRow(rowId, {
-        metri_posati: ratio,
+        progress_percent: safe,
       });
       setRows((prev) => prev.map((r) => (r.id === rowId ? updated : r)));
     } catch (e) {
-      console.error("[RapportinoIncaSection] update metri error", e);
+      console.error("[RapportinoIncaSection] update progress error", e);
       setError(e.message || String(e));
     } finally {
       setSavingRowId(null);
@@ -199,8 +150,8 @@ export default function RapportinoIncaCaviSection({
   async function handleSelectCavo(cavo) {
     if (!rapportinoId || !cavo?.id) return;
     try {
-      // on commence à 0% pour ce tour
-      const newRow = await addRapportinoCavoRow(rapportinoId, cavo.id, 0);
+      // Avancement du tour initial : null (non encore déclaré)
+      const newRow = await addRapportinoCavoRow(rapportinoId, cavo.id, null);
       setRows((prev) => [...prev, newRow]);
       setPickerOpen(false);
     } catch (e) {
@@ -220,8 +171,8 @@ export default function RapportinoIncaCaviSection({
           </div>
           <div className="text-xs text-slate-400 mt-1">
             Seleziona i cavi da INCA e indica l&apos;avanzamento di questo turno
-            (50%, 70% o 100%). La produzione viene poi applicata ai cavi INCA
-            in fase di validazione del rapportino.
+            (50%, 70% o 100%). La produzione viene poi applicata ai cavi INCA in
+            fase di validazione del rapportino.
           </div>
         </div>
 
@@ -231,12 +182,6 @@ export default function RapportinoIncaCaviSection({
               Cavi:{" "}
               <span className="text-emerald-300 font-semibold">
                 {totalCavi}
-              </span>
-            </span>
-            <span className="hidden sm:inline">
-              Metri teorici del turno:{" "}
-              <span className="text-emerald-300 font-semibold">
-                {totalMetriPosati.toFixed(1)} m
               </span>
             </span>
           </div>
@@ -294,7 +239,7 @@ export default function RapportinoIncaCaviSection({
                   row={row}
                   disabled={disabled}
                   saving={savingRowId === row.id}
-                  onChangeMetri={handleChangeMetri}
+                  onChangeProgress={handleChangeProgress}
                   onDelete={handleDeleteRow}
                 />
               ))}
@@ -306,7 +251,7 @@ export default function RapportinoIncaCaviSection({
       {/* PICKER MODAL */}
       {pickerOpen && (
         <div className="fixed inset-0 z-[90] bg-black/70 backdrop-blur-sm flex items-center justify-center">
-          <div className="w-full max-w-4xl max-height-[80vh] max-h-[80vh] rounded-2xl border border-slate-800 bg-slate-950/95 shadow-2xl flex flex-col overflow-hidden">
+          <div className="w-full max-w-4xl max-h-[80vh] rounded-2xl border border-slate-800 bg-slate-950/95 shadow-2xl flex flex-col overflow-hidden">
             <header className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
               <div className="flex flex-col gap-1">
                 <div className="text-[11px] uppercase tracking-[0.2em] text-sky-400">
@@ -474,16 +419,11 @@ function RapportinoIncaRow({
   row,
   disabled,
   saving,
-  onChangeMetri,
+  onChangeProgress,
   onDelete,
 }) {
   const c = row.inca_cavo || {};
-  const ratio = Number(row.metri_posati || 0) || 0;
-  const percentValue = ratio > 0 ? String(Math.round(ratio * 100)) : "";
-
-  // Pour affichage des mètres du tour (théoriques)
-  const base = Number(c.metri_previsti || 0) || 0;
-  const metriTurno = ratio * base;
+  const percent = row.progress_percent ?? "";
 
   return (
     <tr className="border-t border-slate-900 hover:bg-slate-900/60">
@@ -507,24 +447,17 @@ function RapportinoIncaRow({
       </Td>
       <Td className="text-right">{formatMeters(c.metri_teo)}</Td>
       <Td className="text-right">
-        <div className="flex items-center justify-end gap-2">
-          <select
-            value={percentValue}
-            disabled={disabled || saving}
-            onChange={(e) => onChangeMetri(row.id, e.target.value)}
-            className="w-24 text-right text-[11px] rounded-md bg-slate-900/80 border border-slate-700 px-2 py-1 text-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-60"
-          >
-            <option value="">—</option>
-            <option value="50">50%</option>
-            <option value="70">70%</option>
-            <option value="100">100%</option>
-          </select>
-          {ratio > 0 && (
-            <span className="text-[10px] text-slate-400 whitespace-nowrap">
-              ≈ {metriTurno.toFixed(1)} m
-            </span>
-          )}
-        </div>
+        <select
+          value={percent === null ? "" : percent}
+          disabled={disabled || saving}
+          onChange={(e) => onChangeProgress(row.id, e.target.value)}
+          className="w-24 text-right text-[11px] rounded-md bg-slate-900/80 border border-slate-700 px-2 py-1 text-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-60"
+        >
+          <option value="">—</option>
+          <option value="50">50%</option>
+          <option value="70">70%</option>
+          <option value="100">100%</option>
+        </select>
       </Td>
       <Td>
         <SituazioneBadge value={c.situazione} />
