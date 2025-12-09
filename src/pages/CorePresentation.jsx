@@ -53,7 +53,8 @@ export default function CorePresentation() {
                 1 · Processi manuali
               </div>
               <div className="text-slate-200">
-                Dati frammentati, forte interpretazione locale, poca tracciabilità.
+                Dati frammentati, forte interpretazione locale, poca
+                tracciabilità.
               </div>
             </div>
 
@@ -62,7 +63,8 @@ export default function CorePresentation() {
                 2 · Digitalizzazione parziale
               </div>
               <div className="text-slate-200">
-                Excel, file locali, inserimenti ripetuti per ufficio e decisione.
+                Excel, file locali, inserimenti ripetuti per ufficio e
+                decisione.
               </div>
             </div>
 
@@ -71,10 +73,12 @@ export default function CorePresentation() {
                 3 · Digitale strutturato
               </div>
               <div className="text-slate-50">
-                Ufficio tecnico centrale, sistemi interni strutturati, dati consolidati.
+                Ufficio tecnico centrale, sistemi interni strutturati, dati
+                consolidati.
               </div>
               <div className="mt-2 text-[11px] text-slate-500">
-                Livello raggiunto dall’azienda: struttura già presente e funzionante.
+                Livello raggiunto dall’azienda: struttura già presente e
+                funzionante.
               </div>
             </div>
 
@@ -83,16 +87,16 @@ export default function CorePresentation() {
                 4 · CORE come organo operativo
               </div>
               <div className="text-slate-50">
-                Colonna centrale che collega cantiere, ufficio, sistemi tecnici e
-                Direzione sullo stesso dato nativo.
+                Colonna centrale che collega cantiere, ufficio, sistemi tecnici
+                e Direzione sullo stesso dato nativo.
               </div>
             </div>
           </div>
 
           <p className="text-slate-400 text-xs sm:text-sm max-w-4xl">
-            CORE non sostituisce i sistemi esistenti. Rende continua la struttura
-            digitale che oggi è già presente, riducendo trasformazioni e
-            riletture dello stesso dato.
+            CORE non sostituisce i sistemi esistenti. Rende continua la
+            struttura digitale che oggi è già presente, riducendo
+            trasformazioni e riletture dello stesso dato.
           </p>
         </section>
 
@@ -105,9 +109,9 @@ export default function CorePresentation() {
           </h2>
 
           <p className="text-xs sm:text-sm text-slate-400 max-w-3xl">
-            CORE non è un singolo programma, ma un sistema di moduli che lavorano
-            sullo stesso dato operativo: dal cantiere, all’ufficio, fino alla
-            Direzione.
+            CORE non è un singolo programma, ma un sistema di moduli che
+            lavorano sullo stesso dato operativo: dal cantiere, all’ufficio,
+            fino alla Direzione.
           </p>
 
           <div className="grid md:grid-cols-4 gap-4 md:gap-5 text-sm">
@@ -134,8 +138,8 @@ export default function CorePresentation() {
                 Allineamento esecuzione ↔ lista cavi
               </div>
               <p className="text-slate-400 text-xs">
-                Il reale viene messo davanti al teorico: stato cavi, avanzamento,
-                coerenza con le liste INCA.
+                Il reale viene messo davanti al teorico: stato cavi,
+                avanzamento, coerenza con le liste INCA.
               </p>
             </div>
 
@@ -175,7 +179,7 @@ export default function CorePresentation() {
         </section>
 
         {/* ========================= */}
-        {/* GRAFICO MODULI (RECHARTS) */}
+        {/* GRAFICO MODULI (RECHARTS + ANIMATION) */}
         {/* ========================= */}
         <section className="space-y-6">
           <h2 className="text-2xl sm:text-3xl font-semibold">
@@ -224,6 +228,11 @@ export default function CorePresentation() {
                   radius={[6, 6, 0, 0]}
                   fill="#22c55e"
                   barSize={32}
+                  // 🎬 Animation A/B : visible, propre, une seule fois
+                  isAnimationActive={true}
+                  animationDuration={800}
+                  animationBegin={250}
+                  animationEasing="ease-out"
                 />
               </BarChart>
             </ResponsiveContainer>
@@ -265,7 +274,9 @@ export default function CorePresentation() {
               <div>CAPO</div>
               <div className="ml-4 text-emerald-400">→ CORE</div>
               <div className="ml-8 text-emerald-400">→ INCA</div>
-              <div className="ml-12 text-emerald-400">→ Sistemi / Decisione</div>
+              <div className="ml-12 text-emerald-400">
+                → Sistemi / Decisione
+              </div>
             </div>
 
             <div className="space-y-1.5 text-[11px] text-emerald-400">
@@ -291,8 +302,8 @@ export default function CorePresentation() {
                 Interfaccia
               </div>
               <p className="text-slate-200">
-                Applicazione web industriale, utilizzabile da ufficio e cantiere
-                senza installazioni locali dedicate.
+                Applicazione web industriale, utilizzabile da ufficio e
+                cantiere senza installazioni locali dedicate.
               </p>
             </div>
 
@@ -313,8 +324,8 @@ export default function CorePresentation() {
                 Sicurezza &amp; ruoli
               </div>
               <p className="text-slate-200">
-                Accessi separati per CAPO, UFFICIO e DIREZIONE. Ogni profilo vede
-                solo ciò che gli compete, con storico delle modifiche.
+                Accessi separati per CAPO, UFFICIO e DIREZIONE. Ogni profilo
+                vede solo ciò che gli compete, con storico delle modifiche.
               </p>
             </div>
 
@@ -324,15 +335,15 @@ export default function CorePresentation() {
                 Evoluzione
               </div>
               <p className="text-slate-200">
-                Sistema modulare: si può partire da un solo modulo, gli altri si
-                innestano senza rifare l’impianto esistente.
+                Sistema modulare: si può partire da un solo modulo, gli altri
+                si innestano senza rifare l’impianto esistente.
               </p>
             </div>
           </div>
 
           <p className="text-[11px] text-slate-500">
-            CORE può crescere senza dover essere rifatto. L’architettura è pensata
-            per vivere anche oltre le persone che l’hanno avviata.
+            CORE può crescere senza dover essere rifatto. L’architettura è
+            pensata per vivere anche oltre le persone che l’hanno avviata.
           </p>
         </section>
 
