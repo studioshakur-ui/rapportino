@@ -140,26 +140,40 @@ export function getBaseRows(crewRole) {
  * Ajuste automatiquement la hauteur des zones OPERATORE / TEMPO
  * pour qu’elles restent parfaitement alignées sur la même ligne.
  */
-export function adjustOperatorTempoHeights(textareaEl) {
-  if (!textareaEl) return;
+// src/rapportinoUtils.js
 
-  const tr = textareaEl.closest('tr');
-  if (!tr) return;
+export function adjustOperatorTempoHeights(target) {
+  if (!target || typeof window === 'undefined') return;
 
-  const tAreas = tr.querySelectorAll('textarea[data-optempo="1"]');
-  if (!tAreas.length) return;
+  // on remonte à la ligne du tableau
+  const rowEl = target.closest('[data-rapportino-row]');
+  if (!rowEl) return;
 
+  // les 3 zones à synchroniser : OPERATORE, TEMPO, PRODOTTO
+  const areas = [
+    rowEl.querySelector('textarea[data-field="operatori"]'),
+    rowEl.querySelector('textarea[data-field="tempo"]'),
+    rowEl.querySelector('textarea[data-field="prodotto"]'),
+  ].filter(Boolean);
+
+  if (areas.length === 0) return;
+
+  // reset pour recalculer proprement
+  areas.forEach((el) => {
+    el.style.height = 'auto';
+  });
+
+  // on cherche la hauteur max
   let max = 0;
-
-  // On calcule la hauteur max
-  tAreas.forEach((ta) => {
-    ta.style.height = 'auto';
-    const h = ta.scrollHeight;
+  areas.forEach((el) => {
+    const h = el.scrollHeight;
     if (h > max) max = h;
   });
 
-  // On applique la même hauteur à toutes les textarea de la ligne
-  tAreas.forEach((ta) => {
-    ta.style.height = max + 'px';
+  // hauteur minimale pour garder l’effet “feuille papier”
+  const finalHeight = Math.max(max, 32); // 32px ≈ une ligne et demie
+
+  areas.forEach((el) => {
+    el.style.height = `${finalHeight}px`;
   });
 }

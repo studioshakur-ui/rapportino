@@ -62,13 +62,6 @@ export default function RapportinoIncaCaviSection({
     };
   }, [rapportinoId]);
 
-  const totalMetriPosati = useMemo(() => {
-    return rows.reduce(
-      (sum, r) => sum + (Number(r.metri_posati || 0) || 0),
-      0
-    );
-  }, [rows]);
-
   const totalCavi = rows.length;
 
   const excludeIds = useMemo(
@@ -80,19 +73,21 @@ export default function RapportinoIncaCaviSection({
   /*                         GESTION DES LIGNES LOCALES                     */
   /* ---------------------------------------------------------------------- */
 
-  async function handleChangeMetri(rowId, value) {
+  async function handleChangeProgress(rowId, value) {
     if (disabled) return;
+
     const num = Number(value);
-    const safe = Number.isNaN(num) ? 0 : Math.max(0, num);
+    const safe =
+      Number.isNaN(num) || num <= 0 ? null : Math.min(Math.max(num, 0), 100);
 
     setSavingRowId(rowId);
     try {
       const updated = await updateRapportinoCavoRow(rowId, {
-        metri_posati: safe,
+        progress_percent: safe,
       });
       setRows((prev) => prev.map((r) => (r.id === rowId ? updated : r)));
     } catch (e) {
-      console.error("[RapportinoIncaSection] update metri error", e);
+      console.error("[RapportinoIncaSection] update progress error", e);
       setError(e.message || String(e));
     } finally {
       setSavingRowId(null);
@@ -155,7 +150,8 @@ export default function RapportinoIncaCaviSection({
   async function handleSelectCavo(cavo) {
     if (!rapportinoId || !cavo?.id) return;
     try {
-      const newRow = await addRapportinoCavoRow(rapportinoId, cavo.id, 0);
+      // Avancement du tour initial : null (non encore déclaré)
+      const newRow = await addRapportinoCavoRow(rapportinoId, cavo.id, null);
       setRows((prev) => [...prev, newRow]);
       setPickerOpen(false);
     } catch (e) {
@@ -174,9 +170,9 @@ export default function RapportinoIncaCaviSection({
             Cavi INCA collegati al rapportino
           </div>
           <div className="text-xs text-slate-400 mt-1">
-            Seleziona i cavi da INCA e indica i metri posati in questo turno.
-            La produzione sarà applicata ai cavi INCA in fase di validazione del
-            rapportino.
+            Seleziona i cavi da INCA e indica l&apos;avanzamento di questo turno
+            (50%, 70% o 100%). La produzione viene poi applicata ai cavi INCA in
+            fase di validazione del rapportino.
           </div>
         </div>
 
@@ -186,12 +182,6 @@ export default function RapportinoIncaCaviSection({
               Cavi:{" "}
               <span className="text-emerald-300 font-semibold">
                 {totalCavi}
-              </span>
-            </span>
-            <span className="hidden sm:inline">
-              Metri totali turni:{" "}
-              <span className="text-emerald-300 font-semibold">
-                {totalMetriPosati.toFixed(1)} m
               </span>
             </span>
           </div>
@@ -221,7 +211,7 @@ export default function RapportinoIncaCaviSection({
                 <Th className="w-[220px]">Marca / codice</Th>
                 <Th>Arrivo</Th>
                 <Th className="text-right">Lung. disegno</Th>
-                <Th className="text-right">Metri posati (turno)</Th>
+                <Th className="text-right">Avanzamento turno (%)</Th>
                 <Th>Situazione</Th>
                 <Th className="w-[40px] text-right">Azioni</Th>
               </tr>
@@ -238,7 +228,7 @@ export default function RapportinoIncaCaviSection({
               {!loading && rows.length === 0 && (
                 <tr>
                   <Td colSpan={6} className="py-4 text-center text-slate-500">
-                    Nessun cavo collegato. Usa "Aggiungi cavo da INCA".
+                    Nessun cavo collegato. Usa &quot;Aggiungi cavo da INCA&quot;.
                   </Td>
                 </tr>
               )}
@@ -249,7 +239,7 @@ export default function RapportinoIncaCaviSection({
                   row={row}
                   disabled={disabled}
                   saving={savingRowId === row.id}
-                  onChangeMetri={handleChangeMetri}
+                  onChangeProgress={handleChangeProgress}
                   onDelete={handleDeleteRow}
                 />
               ))}
@@ -429,11 +419,11 @@ function RapportinoIncaRow({
   row,
   disabled,
   saving,
-  onChangeMetri,
+  onChangeProgress,
   onDelete,
 }) {
   const c = row.inca_cavo || {};
-  const metriValue = row.metri_posati ?? "";
+  const percent = row.progress_percent ?? "";
 
   return (
     <tr className="border-t border-slate-900 hover:bg-slate-900/60">
@@ -457,15 +447,17 @@ function RapportinoIncaRow({
       </Td>
       <Td className="text-right">{formatMeters(c.metri_teo)}</Td>
       <Td className="text-right">
-        <input
-          type="number"
-          min={0}
-          step="0.1"
-          value={metriValue}
+        <select
+          value={percent === null ? "" : percent}
           disabled={disabled || saving}
-          onChange={(e) => onChangeMetri(row.id, e.target.value)}
+          onChange={(e) => onChangeProgress(row.id, e.target.value)}
           className="w-24 text-right text-[11px] rounded-md bg-slate-900/80 border border-slate-700 px-2 py-1 text-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-60"
-        />
+        >
+          <option value="">—</option>
+          <option value="50">50%</option>
+          <option value="70">70%</option>
+          <option value="100">100%</option>
+        </select>
       </Td>
       <Td>
         <SituazioneBadge value={c.situazione} />

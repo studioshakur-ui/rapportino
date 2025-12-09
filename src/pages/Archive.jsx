@@ -2,22 +2,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
-import {
-  LineChart,
-  Line,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-  BarChart,
-  Bar,
-} from "recharts";
 
-function formatDate(dateString) {
-  if (!dateString) return "";
-  const d = new Date(dateString);
+function formatDate(value) {
+  if (!value) return "";
+  const d = new Date(value);
   if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleDateString("it-IT");
 }
@@ -44,13 +32,7 @@ const STATUS_BADGE = {
 };
 
 function buildCsv(rows, isCapoView) {
-  const headers = [
-    "data",
-    "commessa",
-    "costr",
-    "status",
-    "totale_prodotto",
-  ];
+  const headers = ["data", "commessa", "costr", "status", "totale_prodotto"];
   if (!isCapoView) {
     headers.splice(1, 0, "capo_name");
   }
@@ -108,7 +90,7 @@ export default function ArchivePage() {
   const [rapportini, setRapportini] = useState([]);
   const [error, setError] = useState(null);
 
-  // Filtres
+  // Filtres cockpit
   const [searchText, setSearchText] = useState("");
   const [filterCapo, setFilterCapo] = useState("");
   const [filterCommessa, setFilterCommessa] = useState("");
@@ -122,16 +104,20 @@ export default function ArchivePage() {
 
   // Comparaison
   const [comparisonMode, setComparisonMode] = useState(
-    isCapoView ? "COMMESSA" : "CAPO"
-  ); // "CAPO" | "COMMESSA"
+    isCapoView ? "COMMESSA" : "CAPO" // "CAPO" | "COMMESSA"
+  );
   const [comparisonRange, setComparisonRange] = useState("ALL"); // "ALL" | "90" | "365"
+
+  // Détail / boîte noire
+  const [selected, setSelected] = useState(null);
 
   // Chargement base
   useEffect(() => {
+    if (!profile) return;
+
     const loadArchive = async () => {
       setLoading(true);
       setError(null);
-
       try {
         let query = supabase
           .from("archive_rapportini_v1")
@@ -144,7 +130,6 @@ export default function ArchivePage() {
         }
 
         const { data, error: dbError } = await query;
-
         if (dbError) throw dbError;
 
         setRapportini(data || []);
@@ -158,11 +143,10 @@ export default function ArchivePage() {
       }
     };
 
-    if (!profile) return;
     loadArchive();
   }, [profile, isCapoView, capoId]);
 
-  // Facettes pour selects rapides
+  // Facettes pour selects
   const facets = useMemo(() => {
     const capi = new Set();
     const commesse = new Set();
@@ -317,6 +301,24 @@ export default function ArchivePage() {
     }));
   }, [filtered]);
 
+  const maxRapportiniTimeline = useMemo(
+    () =>
+      timelineData.reduce(
+        (max, d) => Math.max(max, d.rapportini || 0),
+        0
+      ) || 0,
+    [timelineData]
+  );
+
+  const maxProdottoTimeline = useMemo(
+    () =>
+      timelineData.reduce(
+        (max, d) => Math.max(max, d.prodotto || 0),
+        0
+      ) || 0,
+    [timelineData]
+  );
+
   // Comparaison CAPO / COMMESSA
   const comparisonData = useMemo(() => {
     if (!filtered.length) return [];
@@ -362,6 +364,15 @@ export default function ArchivePage() {
     );
   }, [filtered, comparisonMode, comparisonRange]);
 
+  const maxProdottoComparison = useMemo(
+    () =>
+      comparisonData.reduce(
+        (max, d) => Math.max(max, d.prodotto || 0),
+        0
+      ) || 0,
+    [comparisonData]
+  );
+
   const handleExportCsv = () => {
     if (!filtered.length) return;
     const csv = buildCsv(filtered, isCapoView);
@@ -371,32 +382,55 @@ export default function ArchivePage() {
     downloadCsv(csv, filename);
   };
 
+  const handleRowClick = (row) => {
+    setSelected(row);
+  };
+
+  const handleCloseDetail = () => {
+    setSelected(null);
+  };
+
+  const handleOpenUfficioDetail = () => {
+    if (!selected) return;
+    const rapportinoId = selected.rapportino_id || selected.id;
+    if (!rapportinoId) return;
+    // On laisse le routage au shell (Direction/Ufficio)
+    window.open(`/ufficio/rapportini/${rapportinoId}`, "_blank");
+  };
+
+  if (!profile) {
+    return (
+      <div className="text-sm text-slate-400">
+        Caricamento profilo in corso…
+      </div>
+    );
+  }
+
   // ───────────────────── RENDER ─────────────────────
   return (
-    <div className="space-y-5">
-      {/* En-tête / hero archive perso */}
+    <div className="relative space-y-5">
+      {/* En-tête / hero archive v2 */}
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-1">
-            Archivio storico rapportini v1
+            ARCHIVE v2 · CNCS · Sistema storico certificato
           </div>
           <h1 className="text-2xl sm:text-3xl font-semibold text-slate-100">
-            ARCHIVE · Storico personale
+            ARCHIVE · Memoria lunga del cantiere
           </h1>
           <p className="text-[12px] text-slate-400 mt-1 max-w-xl">
-            Memoria storica certificata dei rapportini di versione 1.
-            Dati in sola lettura, pensati per consultazione personale e
-            confronto operativo.
+            Registro storico in sola lettura dei rapportini v1. Una “scatola
+            nera” navale: se non è qui, non è successo.
           </p>
         </div>
 
         <div className="flex flex-col items-end gap-2 text-[11px]">
           <div className="inline-flex items-center gap-2">
             <span className="px-2 py-0.5 rounded-full border border-violet-500/70 bg-violet-900/40 text-violet-100">
-              v1 LEGACY
+              v1 LEGACY · Read only
             </span>
             <span className="px-2 py-0.5 rounded-full border border-emerald-500/70 bg-emerald-900/40 text-emerald-100">
-              Sola lettura · dati certificati
+              Dati certificati · No modifiche
             </span>
           </div>
           <div className="inline-flex gap-2">
@@ -413,7 +447,6 @@ export default function ArchivePage() {
             >
               Export CSV
             </button>
-            {/* Le print PDF reste à implémenter si tu veux plus tard */}
           </div>
         </div>
       </header>
@@ -459,7 +492,7 @@ export default function ArchivePage() {
             )}
           </div>
           <div className="mt-1 text-[11px] text-slate-500">
-            I filtri data sotto permettono di restringere il periodo.
+            Usa i filtri data per restringere il periodo di analisi.
           </div>
         </div>
       </section>
@@ -469,7 +502,7 @@ export default function ArchivePage() {
         <div className="flex flex-col sm:flex-row gap-2">
           <input
             type="text"
-            placeholder="Cerca nei tuoi rapportini: commessa, costr, note…"
+            placeholder="Cerca nei rapportini: commessa, costr, note…"
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
             className="flex-1 rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-sky-500"
@@ -561,7 +594,7 @@ export default function ArchivePage() {
         </div>
       </section>
 
-      {/* Layout principal : gauche = table/timeline, droite = memoire + comparatif */}
+      {/* Layout principal : gauche = table/timeline, droite = mémoire + comparatif */}
       <section className="grid grid-cols-1 lg:grid-cols-[minmax(0,2.2fr)_minmax(0,1.2fr)] gap-4">
         {/* Colonne gauche */}
         <div className="space-y-3">
@@ -597,7 +630,7 @@ export default function ArchivePage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-800 bg-slate-950/70 min-h-[260px]">
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/70 min-h-[260px] overflow-hidden">
             {loading ? (
               <div className="flex h-52 items-center justify-center text-sm text-slate-400">
                 Caricamento archivio…
@@ -629,7 +662,8 @@ export default function ArchivePage() {
                     {filtered.slice(0, 200).map((r) => (
                       <tr
                         key={r.id}
-                        className="border-b border-slate-850/60 last:border-0 hover:bg-slate-900/60"
+                        onClick={() => handleRowClick(r)}
+                        className="cursor-pointer border-b border-slate-800/60 last:border-0 hover:bg-slate-900/60"
                       >
                         <td className="px-3 py-1.5 text-slate-200">
                           {formatDate(r.data)}
@@ -676,57 +710,83 @@ export default function ArchivePage() {
                 </table>
               </div>
             ) : (
-              <div className="h-64 w-full px-3 py-2">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={timelineData}>
-                    <CartesianGrid
-                      stroke="#1f2937"
-                      strokeDasharray="3 3"
-                      vertical={false}
-                    />
-                    <XAxis
-                      dataKey="label"
-                      tick={{ fontSize: 10, fill: "#9ca3af" }}
-                    />
-                    <YAxis
-                      yAxisId="left"
-                      tick={{ fontSize: 10, fill: "#9ca3af" }}
-                    />
-                    <YAxis
-                      yAxisId="right"
-                      orientation="right"
-                      tick={{ fontSize: 10, fill: "#9ca3af" }}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "#020617",
-                        borderColor: "#1e293b",
-                        fontSize: 11,
-                      }}
-                    />
-                    <Legend
-                      wrapperStyle={{ fontSize: 11, color: "#e5e7eb" }}
-                    />
-                    <Line
-                      yAxisId="left"
-                      type="monotone"
-                      dataKey="rapportini"
-                      name="Rapportini"
-                      stroke="#38bdf8"
-                      dot={false}
-                      strokeWidth={2}
-                    />
-                    <Line
-                      yAxisId="right"
-                      type="monotone"
-                      dataKey="prodotto"
-                      name="Prodotto"
-                      stroke="#22c55e"
-                      dot={false}
-                      strokeWidth={2}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+              <div className="h-64 w-full px-4 py-3 flex flex-col">
+                {timelineData.length === 0 ? (
+                  <div className="flex h-full items-center justify-center text-[11px] text-slate-500">
+                    Nessun dato per la timeline.
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
+                      <span>Timeline: giornate attive</span>
+                      <span>
+                        Barre = prodotto · Puntini = numero rapportini
+                      </span>
+                    </div>
+                    <div className="flex-1 flex items-end gap-[3px] overflow-x-auto border-t border-slate-800 pt-2">
+                      {timelineData.map((d) => {
+                        const hProd =
+                          maxProdottoTimeline > 0
+                            ? Math.max(
+                                6,
+                                (d.prodotto / maxProdottoTimeline) * 100
+                              )
+                            : 0;
+                        const hRap =
+                          maxRapportiniTimeline > 0
+                            ? Math.max(
+                                4,
+                                (d.rapportini / maxRapportiniTimeline) * 100
+                              )
+                            : 0;
+
+                        return (
+                          <div
+                            key={d.date}
+                            className="group flex flex-col items-center justify-end min-w-[14px]"
+                          >
+                            <div className="relative flex items-end h-40">
+                              {/* Barre produit */}
+                              <div
+                                style={{ height: `${hProd}%` }}
+                                className="w-[7px] rounded-t bg-sky-500/80 group-hover:bg-sky-400 transition-colors"
+                              />
+                              {/* Dot rapportini */}
+                              <div
+                                style={{ height: `${hRap}%` }}
+                                className="w-[7px] flex items-start justify-center -ml-[7px]"
+                              >
+                                <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)]" />
+                              </div>
+
+                              {/* Tooltip */}
+                              <div className="pointer-events-none absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                                <div className="rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-[10px] text-slate-100 whitespace-nowrap shadow-lg">
+                                  <div>{d.label}</div>
+                                  <div>
+                                    Prod:{" "}
+                                    <span className="font-mono">
+                                      {formatNumber(d.prodotto)}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    Rapportini:{" "}
+                                    <span className="font-mono">
+                                      {d.rapportini}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="mt-1 text-[9px] text-slate-500 rotate-[-50deg] origin-top">
+                              {d.label}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -734,6 +794,7 @@ export default function ArchivePage() {
 
         {/* Colonne droite : mémoire + comparatif */}
         <div className="space-y-3">
+          {/* Carte mémoire / boîte noire */}
           <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-[12px]">
             <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-1">
               Archive · CNCS
@@ -742,17 +803,15 @@ export default function ArchivePage() {
               Memoria lunga del tuo cantiere
             </h2>
             <p className="text-slate-400 mb-2">
-              Qui trovi la storia completa dei rapportini v1. I dati sono in
-              sola lettura e ti permettono di rivedere il lavoro fatto nel
-              tempo, anche dopo il passaggio al nuovo sistema digitale.
+              Tutti i rapportini v1 sono conservati qui in sola lettura.
+              È la “scatola nera” operativa: utile per confronti, audit,
+              discussioni con cliente e Direzione.
             </p>
 
             <div className="mt-2 space-y-1 text-[11px] text-slate-400">
               <div className="flex justify-between">
                 <span>Rapportini filtrati</span>
-                <span className="text-slate-200">
-                  {summary.count}
-                </span>
+                <span className="text-slate-200">{summary.count}</span>
               </div>
               <div className="flex justify-between">
                 <span>Prodotto totale</span>
@@ -768,20 +827,21 @@ export default function ArchivePage() {
               </div>
               <ul className="space-y-1 text-[11px] text-slate-400 list-disc list-inside">
                 <li>
-                  Usa i filtri data per rivedere periodi specifici di lavoro.
+                  Usa i filtri data per rivedere periodi critici di lavoro.
                 </li>
                 <li>
-                  Cerca per commessa per confrontare il lavoro fra navi
-                  diverse.
+                  Confronta commesse e costruttori per capire dove hai
+                  lavorato di più.
                 </li>
                 <li>
-                  L’archivio è in sola lettura: le modifiche si fanno sempre
-                  tramite i nuovi rapportini digitali.
+                  L’archivio è in sola lettura: le correzioni si fanno sempre
+                  nei nuovi rapportini digitali.
                 </li>
               </ul>
             </div>
           </div>
 
+          {/* Comparatif “super méchant” */}
           <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-[12px]">
             <div className="flex items-center justify-between mb-2">
               <div>
@@ -815,32 +875,38 @@ export default function ArchivePage() {
               </div>
             </div>
 
-            <div className="h-52 w-full">
+            <div className="mt-2 space-y-1">
               {comparisonData.length ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={comparisonData.slice(0, 8)}>
-                    <CartesianGrid
-                      stroke="#1f2937"
-                      strokeDasharray="3 3"
-                      vertical={false}
-                    />
-                    <XAxis
-                      dataKey="label"
-                      tick={{ fontSize: 9, fill: "#9ca3af" }}
-                    />
-                    <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "#020617",
-                        borderColor: "#1e293b",
-                        fontSize: 11,
-                      }}
-                    />
-                    <Bar dataKey="prodotto" name="Prodotto" fill="#38bdf8" />
-                  </BarChart>
-                </ResponsiveContainer>
+                comparisonData.slice(0, 8).map((row) => {
+                  const width =
+                    maxProdottoComparison > 0
+                      ? Math.max(
+                          4,
+                          (row.prodotto / maxProdottoComparison) * 100
+                        )
+                      : 0;
+
+                  return (
+                    <div key={row.label} className="space-y-0.5">
+                      <div className="flex justify-between text-[11px] text-slate-300">
+                        <span className="truncate max-w-[60%]">
+                          {row.label}
+                        </span>
+                        <span className="font-mono text-slate-400">
+                          {formatNumber(row.prodotto)}
+                        </span>
+                      </div>
+                      <div className="h-2 rounded-full bg-slate-900 border border-slate-800 overflow-hidden">
+                        <div
+                          style={{ width: `${width}%` }}
+                          className="h-full rounded-full bg-gradient-to-r from-sky-500 via-emerald-400 to-emerald-300"
+                        />
+                      </div>
+                    </div>
+                  );
+                })
               ) : (
-                <div className="flex h-full items-center justify-center text-[11px] text-slate-500">
+                <div className="flex h-24 items-center justify-center text-[11px] text-slate-500">
                   Nessun dato sufficiente per il confronto.
                 </div>
               )}
@@ -848,6 +914,145 @@ export default function ArchivePage() {
           </div>
         </div>
       </section>
+
+      {/* Panneau détail “boîte noire” */}
+      {selected && (
+        <div className="fixed inset-0 z-40 flex items-center justify-end bg-slate-950/60 backdrop-blur-sm">
+          <div className="w-full max-w-md h-full bg-slate-950 border-l border-slate-800 shadow-[0_0_40px_rgba(15,23,42,1)] flex flex-col">
+            <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                  Dettaglio rapportino v1
+                </div>
+                <div className="text-sm text-slate-100">
+                  {formatDate(selected.data)} ·{" "}
+                  {selected.commessa || "Senza commessa"}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseDetail}
+                className="text-slate-400 hover:text-slate-100 text-sm font-medium"
+              >
+                ✕ Chiudi
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-4 py-3 text-[12px] space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="text-[11px] text-slate-500 uppercase tracking-[0.16em]">
+                    Data
+                  </div>
+                  <div className="text-slate-100">
+                    {formatDate(selected.data)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-slate-500 uppercase tracking-[0.16em]">
+                    Capo
+                  </div>
+                  <div className="text-slate-100">
+                    {selected.capo_name || "—"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-slate-500 uppercase tracking-[0.16em]">
+                    Commessa
+                  </div>
+                  <div className="text-slate-100">
+                    {selected.commessa || "—"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-slate-500 uppercase tracking-[0.16em]">
+                    Costr
+                  </div>
+                  <div className="text-slate-100">
+                    {selected.costr || "—"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="text-[11px] text-slate-500 uppercase tracking-[0.16em]">
+                    Status
+                  </div>
+                  <div className="mt-0.5">
+                    <span
+                      className={[
+                        "inline-flex items-center px-2 py-0.5 rounded-full border text-[11px]",
+                        STATUS_BADGE[selected.status] ||
+                          "bg-slate-800 text-slate-200 border-slate-700",
+                      ].join(" ")}
+                    >
+                      {STATUS_LABELS[selected.status] ||
+                        selected.status ||
+                        "—"}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-slate-500 uppercase tracking-[0.16em]">
+                    Prodotto
+                  </div>
+                  <div className="text-slate-100 font-mono">
+                    {formatNumber(selected.totale_prodotto)}
+                  </div>
+                </div>
+              </div>
+
+              {selected.note && (
+                <div>
+                  <div className="text-[11px] text-slate-500 uppercase tracking-[0.16em] mb-1">
+                    Note operative
+                  </div>
+                  <div className="text-slate-200 whitespace-pre-wrap border border-slate-800 rounded-md bg-slate-950/60 px-3 py-2">
+                    {selected.note}
+                  </div>
+                </div>
+              )}
+
+              <div className="border-t border-slate-800 pt-3">
+                <div className="text-[11px] text-slate-500 uppercase tracking-[0.16em] mb-1">
+                  Traccia operativa
+                </div>
+                <ul className="space-y-1 text-[11px] text-slate-400 list-disc list-inside">
+                  <li>
+                    Questo rapportino fa parte dello storico v1. Le
+                    eventuali correzioni vengono gestite nel nuovo sistema.
+                  </li>
+                  <li>
+                    I dettagli puntuali (ore, attività, cavi) sono
+                    consultabili nella vista Ufficio, se disponibili.
+                  </li>
+                  <li>
+                    Usa questo pannello per discussioni con cliente, HSE o
+                    Direzione.
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            {!isCapoView && (
+              <div className="border-t border-slate-800 px-4 py-3 flex items-center justify-between text-[11px]">
+                <div className="text-slate-500">
+                  Apri il rapportino nella vista Ufficio per dettaglio
+                  completo.
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenUfficioDetail}
+                  className="px-3 py-1.5 rounded-full border border-sky-500 text-sky-100 hover:bg-sky-600/10"
+                >
+                  Apri in Ufficio →
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

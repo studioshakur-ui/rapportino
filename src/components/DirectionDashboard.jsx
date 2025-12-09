@@ -1,656 +1,794 @@
 // src/components/DirectionDashboard.jsx
-import React, { useEffect, useMemo, useState } from "react";
-import { coreLayout } from "../ui/coreLayout";
-import { supabase } from "../lib/supabaseClient";
+import React, { useEffect, useMemo, useState } from 'react';
+import { supabase } from '../lib/supabaseClient';
+import { useAuth } from '../auth/AuthProvider';
+
+// Recharts – timeline & bar "operativi"
 import {
+  ResponsiveContainer,
   LineChart,
   Line,
+  BarChart,
+  Bar,
   CartesianGrid,
   XAxis,
   YAxis,
   Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-} from "recharts";
+  Legend,
+} from 'recharts';
 
-// Helpers format
+// ECharts – vue INCA premium
+import ReactECharts from 'echarts-for-react';
+
+// Utils dates / format
+function toISODate(d) {
+  if (!(d instanceof Date)) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const da = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${da}`;
+}
+
+function formatDateLabel(dateString) {
+  if (!dateString) return '';
+  const d = new Date(dateString);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('it-IT');
+}
+
 function formatNumber(value) {
-  if (value == null || isNaN(value)) return "0";
-  return new Intl.NumberFormat("it-IT", {
-    maximumFractionDigits: 1,
+  if (value == null || Number.isNaN(value)) return '0';
+  return new Intl.NumberFormat('it-IT', {
+    maximumFractionDigits: 2,
   }).format(Number(value));
 }
 
-function formatPercent(delta) {
-  if (delta == null || isNaN(delta)) return "0%";
-  const v = Number(delta);
-  return `${v > 0 ? "+" : ""}${v.toFixed(1)}%`;
-}
+export default function DirectionDashboard() {
+  const { profile } = useAuth();
 
-function computeDateKey(d) {
-  const date = d instanceof Date ? d : new Date(d);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toISOString().slice(0, 10);
-}
+  // Filtres globaux
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [costrFilter, setCostrFilter] = useState('');
+  const [commessaFilter, setCommessaFilter] = useState('');
 
-// Petite pastille ▲ / ▼
-function DeltaBadge({ value }) {
-  if (value == null || isNaN(value)) return null;
-
-  const n = Number(value);
-  const positive = n > 0;
-  const negative = n < 0;
-  const label = n === 0 ? "0%" : formatPercent(n);
-
-  let color =
-    "text-slate-300 border-slate-600 bg-slate-900/60";
-  if (positive) {
-    color =
-      "text-emerald-300 border-emerald-500/60 bg-emerald-500/10";
-  } else if (negative) {
-    color = "text-rose-300 border-rose-500/60 bg-rose-500/10";
-  }
-
-  const arrow = positive ? "▲" : negative ? "▼" : "·";
-
-  return (
-    <span
-      className={[
-        "inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px]",
-        color,
-      ].join(" ")}
-    >
-      <span className="text-[10px]">{arrow}</span>
-      <span>{label}</span>
-    </span>
-  );
-}
-
-// Carte KPI standardisée
-function KpiCard({
-  isDark,
-  tone = "neutral",
-  label,
-  value,
-  hint,
-  deltaLabel,
-  deltaValue,
-}) {
-  return (
-    <div className={coreLayout.kpiCard(isDark, tone)}>
-      {/* Glow top */}
-      <div className="pointer-events-none absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-sky-400/80 to-transparent" />
-
-      <div className="relative flex items-start justify-between gap-2">
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400 mb-1">
-            {label}
-          </div>
-          <div className="text-2xl font-semibold leading-tight">
-            {value}
-          </div>
-          {hint && (
-            <div className="mt-1 text-[11px] text-slate-400">
-              {hint}
-            </div>
-          )}
-        </div>
-
-        {deltaValue != null && (
-          <div className="flex flex-col items-end gap-1">
-            {deltaLabel && (
-              <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400">
-                {deltaLabel}
-              </span>
-            )}
-            <DeltaBadge value={deltaValue} />
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-export default function DirectionDashboard({ isDark = true }) {
+  // État data
   const [loading, setLoading] = useState(true);
-  const [rows, setRows] = useState([]);
   const [error, setError] = useState(null);
 
-  // Chargement des données sur 30 jours glissants depuis ARCHIVE v1
+  const [rapportiniCurrent, setRapportiniCurrent] = useState([]);
+  const [rapportiniPrevious, setRapportiniPrevious] = useState([]);
+  const [incaTeorico, setIncaTeorico] = useState([]);
+
+  // ─────────────────────────────
+  // INIT : dernière semaine glissante
+  // ─────────────────────────────
   useEffect(() => {
-    const load = async () => {
+    if (dateFrom || dateTo) return;
+
+    const today = new Date();
+    const start = new Date();
+    start.setDate(today.getDate() - 6);
+
+    setDateFrom(toISODate(start));
+    setDateTo(toISODate(today));
+  }, [dateFrom, dateTo]);
+
+  // ─────────────────────────────
+  // CHARGEMENT des données
+  // ─────────────────────────────
+  useEffect(() => {
+    if (!profile) return;
+    if (!dateFrom || !dateTo) return;
+
+    let cancelled = false;
+
+    async function load() {
       setLoading(true);
       setError(null);
 
       try {
-        const now = new Date();
-        const todayKey = computeDateKey(now);
-        const cutoff = new Date(
-          now.getTime() - 29 * 24 * 60 * 60 * 1000
-        );
-        const cutoffKey = computeDateKey(cutoff);
+        // 1) Fenêtre actuelle
+        let qNow = supabase
+          .from('rapportini')
+          .select('*')
+          .gte('report_date', dateFrom)
+          .lte('report_date', dateTo)
+          .order('report_date', { ascending: true });
 
-        const { data, error: qError } = await supabase
-          .from("archive_rapportini_v1")
-          .select("id, data, totale_prodotto, capo_name, commessa, costr")
-          .gte("data", cutoffKey)
-          .lte("data", todayKey);
+        if (costrFilter.trim()) {
+          // Dans rapportini on a costr + cost, on filtre sur costr si présent
+          qNow = qNow.eq('costr', costrFilter.trim());
+        }
+        if (commessaFilter.trim()) {
+          qNow = qNow.eq('commessa', commessaFilter.trim());
+        }
 
-        if (qError) throw qError;
+        const { data: rapNow, error: rapNowErr } = await qNow;
+        if (rapNowErr) throw rapNowErr;
 
-        setRows(data || []);
+        // 2) Fenêtre précédente (même durée juste avant) pour le Δ
+        const fromDateObj = new Date(dateFrom);
+        const toDateObj = new Date(dateTo);
+        const diffMs = toDateObj.getTime() - fromDateObj.getTime();
+
+        const prevTo = new Date(fromDateObj.getTime() - 24 * 60 * 60 * 1000);
+        const prevFrom = new Date(prevTo.getTime() - diffMs);
+
+        let qPrev = supabase
+          .from('rapportini')
+          .select('*')
+          .gte('report_date', toISODate(prevFrom))
+          .lte('report_date', toISODate(prevTo));
+
+        if (costrFilter.trim()) {
+          qPrev = qPrev.eq('costr', costrFilter.trim());
+        }
+        if (commessaFilter.trim()) {
+          qPrev = qPrev.eq('commessa', commessaFilter.trim());
+        }
+
+        const { data: rapPrev, error: rapPrevErr } = await qPrev;
+        if (rapPrevErr) throw rapPrevErr;
+
+        // 3) INCA teorico – vue dédiée Direction
+        let incaQ = supabase.from('direzione_inca_teorico').select('*');
+        if (costrFilter.trim()) {
+          incaQ = incaQ.eq('costr', costrFilter.trim());
+        }
+        if (commessaFilter.trim()) {
+          incaQ = incaQ.eq('commessa', commessaFilter.trim());
+        }
+        const { data: incaRows, error: incaErr } = await incaQ;
+        if (incaErr) throw incaErr;
+
+        if (!cancelled) {
+          setRapportiniCurrent(rapNow || []);
+          setRapportiniPrevious(rapPrev || []);
+          setIncaTeorico(incaRows || []);
+        }
       } catch (err) {
-        console.error("[DirectionDashboard] Errore load KPI", err);
-        setError(
-          "Errore nel caricamento delle metriche per la Direzione."
-        );
+        console.error('[DirectionDashboard] Errore caricamento dati:', err);
+        if (!cancelled) {
+          setError(
+            "Errore nel caricamento dei dati Direzione. Riprova o contatta l’Ufficio."
+          );
+          setRapportiniCurrent([]);
+          setRapportiniPrevious([]);
+          setIncaTeorico([]);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
-    };
+    }
 
     load();
-  }, []);
 
-  // Agrégation par date
-  const {
-    todayStats,
-    yesterdayStats,
-    last7Stats,
-    last30Stats,
-    timelineData,
-    topCommesse,
-  } = useMemo(() => {
-    if (!rows.length) {
+    return () => {
+      cancelled = true;
+    };
+  }, [profile, dateFrom, dateTo, costrFilter, commessaFilter]);
+
+  // ───────────────────────────
+  // KPI PRINCIPAUX
+  // ───────────────────────────
+  const kpi = useMemo(() => {
+    const currCount = rapportiniCurrent.length;
+    const prevCount = rapportiniPrevious.length;
+
+    const sumProd = (rows) =>
+      rows.reduce((sum, r) => {
+        const v =
+          typeof r.prodotto_totale === 'number'
+            ? r.prodotto_totale
+            : typeof r.prodotto_totale === 'string'
+            ? Number.parseFloat(r.prodotto_totale) || 0
+            : 0;
+        return sum + v;
+      }, 0);
+
+    const currProd = sumProd(rapportiniCurrent);
+    const prevProd = sumProd(rapportiniPrevious);
+
+    const currAvg = currCount ? currProd / currCount : 0;
+    const prevAvg = prevCount ? prevProd / prevCount : 0;
+
+    let incaPrevisti = 0;
+    let incaRealizzati = 0;
+    let incaPosati = 0;
+
+    incaTeorico.forEach((row) => {
+      if (typeof row.metri_previsti_totali === 'number') {
+        incaPrevisti += row.metri_previsti_totali;
+      }
+      if (typeof row.metri_realizzati === 'number') {
+        incaRealizzati += row.metri_realizzati;
+      }
+      if (typeof row.metri_posati === 'number') {
+        incaPosati += row.metri_posati;
+      }
+    });
+
+    const incaCover =
+      incaPrevisti > 0 ? Math.min(100, (incaRealizzati / incaPrevisti) * 100) : 0;
+
+    const deltaProd = currProd - prevProd;
+    const deltaProdPerc = prevProd > 0 ? (deltaProd / prevProd) * 100 : null;
+
+    return {
+      currCount,
+      prevCount,
+      currProd,
+      prevProd,
+      currAvg,
+      prevAvg,
+      incaPrevisti,
+      incaRealizzati,
+      incaPosati,
+      incaCover,
+      deltaProd,
+      deltaProdPerc,
+    };
+  }, [rapportiniCurrent, rapportiniPrevious, incaTeorico]);
+
+  // ───────────────────────────
+  // TIMELINE – Recharts
+  // ───────────────────────────
+  const timelineData = useMemo(() => {
+    if (!rapportiniCurrent.length) return [];
+
+    const map = new Map();
+
+    rapportiniCurrent.forEach((r) => {
+      const key = r.report_date || r.data || r.created_at?.slice(0, 10);
+      if (!key) return;
+      if (!map.has(key)) {
+        map.set(key, {
+          date: key,
+          label: formatDateLabel(key),
+          rapportini: 0,
+          prodotto: 0,
+        });
+      }
+      const entry = map.get(key);
+      entry.rapportini += 1;
+
+      const prod =
+        typeof r.prodotto_totale === 'number'
+          ? r.prodotto_totale
+          : typeof r.prodotto_totale === 'string'
+          ? Number.parseFloat(r.prodotto_totale) || 0
+          : 0;
+
+      entry.prodotto += prod;
+    });
+
+    return Array.from(map.values()).sort(
+      (a, b) => new Date(a.date) - new Date(b.date)
+    );
+  }, [rapportiniCurrent]);
+
+  // ───────────────────────────
+  // INCA – ECharts
+  // ───────────────────────────
+  const incaOption = useMemo(() => {
+    if (!incaTeorico.length) {
       return {
-        todayStats: null,
-        yesterdayStats: null,
-        last7Stats: null,
-        last30Stats: null,
-        timelineData: [],
-        topCommesse: [],
+        title: {
+          text: 'INCA · nessun dato disponibile',
+          textStyle: { color: '#9ca3af', fontSize: 12 },
+        },
+        grid: { left: 40, right: 10, top: 30, bottom: 30 },
+        xAxis: { type: 'category', data: [] },
+        yAxis: { type: 'value' },
+        series: [],
+        backgroundColor: 'transparent',
       };
     }
 
-    const now = new Date();
-    const todayKey = computeDateKey(now);
-    const yesterday = new Date(
-      now.getTime() - 1 * 24 * 60 * 60 * 1000
+    const sorted = [...incaTeorico].sort(
+      (a, b) => (b.metri_previsti_totali || 0) - (a.metri_previsti_totali || 0)
     );
-    const yesterdayKey = computeDateKey(yesterday);
+    const top = sorted.slice(0, 12);
 
-    const cutoff7 = new Date(
-      now.getTime() - 6 * 24 * 60 * 60 * 1000
+    const labels = top.map(
+      (row) =>
+        row.nome_file ||
+        (row.commessa && `${row.costr || ''} · ${row.commessa}`.trim()) ||
+        row.costr ||
+        (row.caricato_il ? formatDateLabel(row.caricato_il) : '')
     );
-    const cutoff7Key = computeDateKey(cutoff7);
 
-    const cutoff30 = new Date(
-      now.getTime() - 29 * 24 * 60 * 60 * 1000
-    );
-    const cutoff30Key = computeDateKey(cutoff30);
-
-    const byDate = new Map();
-
-    rows.forEach((r) => {
-      const key = computeDateKey(r.data);
-      if (!key) return;
-
-      if (!byDate.has(key)) {
-        byDate.set(key, {
-          date: key,
-          count: 0,
-          totalProd: 0,
-          capi: new Set(),
-          commesse: new Set(),
-        });
-      }
-      const bucket = byDate.get(key);
-      bucket.count += 1;
-      bucket.totalProd += Number(r.totale_prodotto || 0);
-      if (r.capo_name) bucket.capi.add(r.capo_name);
-      if (r.commessa) bucket.commesse.add(r.commessa);
-    });
-
-    const toStats = (fromKey, toKey) => {
-      let count = 0;
-      let totalProd = 0;
-      const capi = new Set();
-      const commesse = new Set();
-
-      for (const [key, bucket] of byDate.entries()) {
-        if (key < fromKey || key > toKey) continue;
-        count += bucket.count;
-        totalProd += bucket.totalProd;
-        bucket.capi.forEach((c) => capi.add(c));
-        bucket.commesse.forEach((c) => commesse.add(c));
-      }
-
-      return {
-        count,
-        totalProd,
-        capi: capi.size,
-        commesse: commesse.size,
-      };
-    };
-
-    const todayStats = byDate.has(todayKey)
-      ? (() => {
-          const b = byDate.get(todayKey);
-          return {
-            count: b.count,
-            totalProd: b.totalProd,
-            capi: b.capi.size,
-            commesse: b.commesse.size,
-          };
-        })()
-      : { count: 0, totalProd: 0, capi: 0, commesse: 0 };
-
-    const yesterdayStats = byDate.has(yesterdayKey)
-      ? (() => {
-          const b = byDate.get(yesterdayKey);
-          return {
-            count: b.count,
-            totalProd: b.totalProd,
-            capi: b.capi.size,
-            commesse: b.commesse.size,
-          };
-        })()
-      : { count: 0, totalProd: 0, capi: 0, commesse: 0 };
-
-    const last7Stats = toStats(cutoff7Key, todayKey);
-    const last30Stats = toStats(cutoff30Key, todayKey);
-
-    // Timeline pour graphique (30 jours)
-    const timelineData = Array.from(byDate.values())
-      .map((b) => ({
-        date: b.date,
-        count: b.count,
-        totalProd: b.totalProd,
-      }))
-      .sort(
-        (a, b) =>
-          new Date(a.date).getTime() -
-          new Date(b.date).getTime()
-      );
-
-    // Top commesse par prodotto sur 30 jours
-    const commessaMap = new Map();
-    rows.forEach((r) => {
-      const key = r.commessa || "Senza commessa";
-      if (!commessaMap.has(key)) {
-        commessaMap.set(key, {
-          label: key,
-          count: 0,
-          totalProd: 0,
-        });
-      }
-      const bucket = commessaMap.get(key);
-      bucket.count += 1;
-      bucket.totalProd += Number(r.totale_prodotto || 0);
-    });
-
-    const topCommesse = Array.from(commessaMap.values())
-      .sort((a, b) => b.totalProd - a.totalProd)
-      .slice(0, 8);
+    const previsti = top.map((r) => r.metri_previsti_totali || 0);
+    const realizzati = top.map((r) => r.metri_realizzati || 0);
+    const posati = top.map((r) => r.metri_posati || 0);
 
     return {
-      todayStats,
-      yesterdayStats,
-      last7Stats,
-      last30Stats,
-      timelineData,
-      topCommesse,
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'axis',
+      },
+      legend: {
+        data: ['Previsti', 'Realizzati', 'Posati'],
+        textStyle: { color: '#e5e7eb', fontSize: 11 },
+      },
+      grid: {
+        left: 40,
+        right: 10,
+        top: 40,
+        bottom: 40,
+      },
+      xAxis: {
+        type: 'category',
+        data: labels,
+        axisLabel: {
+          color: '#9ca3af',
+          fontSize: 10,
+          rotate: 30,
+        },
+        axisLine: { lineStyle: { color: '#1f2937' } },
+      },
+      yAxis: {
+        type: 'value',
+        axisLabel: { color: '#9ca3af', fontSize: 10 },
+        axisLine: { lineStyle: { color: '#1f2937' } },
+        splitLine: { lineStyle: { color: '#111827' } },
+      },
+      series: [
+        {
+          name: 'Previsti',
+          type: 'bar',
+          data: previsti,
+          emphasis: { focus: 'series' },
+        },
+        {
+          name: 'Realizzati',
+          type: 'bar',
+          data: realizzati,
+          emphasis: { focus: 'series' },
+        },
+        {
+          name: 'Posati',
+          type: 'line',
+          data: posati,
+          smooth: true,
+        },
+      ],
+      color: ['#38bdf8', '#22c55e', '#f97316'],
     };
-  }, [rows]);
+  }, [incaTeorico]);
 
-  // Deltas en pourcentage (simple ratio aujourd'hui / hier)
-  const deltaPresenze =
-    todayStats && yesterdayStats && yesterdayStats.count > 0
-      ? ((todayStats.count - yesterdayStats.count) /
-          yesterdayStats.count) *
-        100
-      : todayStats && todayStats.count > 0
-      ? 100
-      : 0;
+  // ───────────────────────────
+  // RISQUES & NEXT ACTIONS
+  // ───────────────────────────
+  const risks = useMemo(() => {
+    const out = [];
 
-  const deltaProdotto =
-    todayStats &&
-    yesterdayStats &&
-    yesterdayStats.totalProd > 0
-      ? ((todayStats.totalProd - yesterdayStats.totalProd) /
-          yesterdayStats.totalProd) *
-        100
-      : todayStats && todayStats.totalProd > 0
-      ? 100
-      : 0;
+    // 1) Baisse de production
+    if (kpi.prevProd > 0 && kpi.deltaProdPerc != null && kpi.deltaProdPerc < -10) {
+      out.push({
+        level: 'ALTA',
+        title: 'Produzione in calo',
+        detail: `~${formatNumber(Math.abs(kpi.deltaProdPerc))}% in meno rispetto alla finestra precedente.`,
+        hint: 'Verifica commesse critiche e blocchi eventuali in cantiere.',
+      });
+    }
 
-  const deltaCapi =
-    todayStats && yesterdayStats && yesterdayStats.capi > 0
-      ? ((todayStats.capi - yesterdayStats.capi) /
-          yesterdayStats.capi) *
-        100
-      : todayStats && todayStats.capi > 0
-      ? 100
-      : 0;
+    // 2) Peu de rapportini
+    if (kpi.currCount > 0 && kpi.currCount < kpi.prevCount) {
+      out.push({
+        level: 'MEDIA',
+        title: 'Meno rapportini registrati',
+        detail: `${kpi.currCount} vs ${kpi.prevCount} nella finestra precedente.`,
+        hint: 'Controlla eventuali giornate mancanti o squadre non allineate al digitale.',
+      });
+    }
 
-  const deltaCommesse =
-    todayStats &&
-    yesterdayStats &&
-    yesterdayStats.commesse > 0
-      ? ((todayStats.commesse - yesterdayStats.commesse) /
-          yesterdayStats.commesse) *
-        100
-      : todayStats && todayStats.commesse > 0
-      ? 100
-      : 0;
+    // 3) Copertura INCA basse
+    if (kpi.incaCover > 0 && kpi.incaCover < 50) {
+      out.push({
+        level: 'ALTA',
+        title: 'Copertura INCA bassa',
+        detail: `Copertura stimata ~${formatNumber(kpi.incaCover)}% rispetto ai metri previsti.`,
+        hint: 'Individua i cavi più critici in INCA Cockpit e pianifica un recupero mirato.',
+      });
+    }
 
-  const hasData = rows.length > 0;
+    if (!out.length && (rapportiniCurrent.length || incaTeorico.length)) {
+      out.push({
+        level: 'BASSA',
+        title: 'Nessun rischio evidente',
+        detail: 'Indicatori principali allineati rispetto al periodo precedente.',
+        hint: 'Usa i filtri per analizzare singole navi / commesse.',
+      });
+    }
 
+    if (!out.length) {
+      out.push({
+        level: 'INFO',
+        title: 'Nessun dato nel range selezionato',
+        detail: 'Seleziona un periodo con attività per vedere rischi e KPI.',
+        hint: 'Inizia con gli ultimi 7–30 giorni su una nave attiva.',
+      });
+    }
+
+    return out;
+  }, [kpi, rapportiniCurrent.length, incaTeorico.length]);
+
+  const nextActions = useMemo(() => {
+    const actions = [];
+
+    if (kpi.deltaProdPerc != null && kpi.deltaProdPerc < -10) {
+      actions.push(
+        'Programmare un allineamento rapido con i Capi sulle commesse con produzione in calo.'
+      );
+    }
+
+    if (kpi.incaCover > 0 && kpi.incaCover < 60) {
+      actions.push(
+        'Richiedere una review INCA–campo con Ufficio per verificare cavi scoperti / incompleti.'
+      );
+    }
+
+    if (!actions.length && rapportiniCurrent.length) {
+      actions.push(
+        'Mantenere la pianificazione attuale; monitorare solo eventuali scostamenti nei prossimi giorni.'
+      );
+    }
+
+    if (!actions.length) {
+      actions.push('Applica un filtro periodo con dati per sbloccare le raccomandazioni.');
+    }
+
+    return actions;
+  }, [kpi, rapportiniCurrent.length]);
+
+  // ───────────────────────────
+  // RENDER
+  // ───────────────────────────
   return (
     <div className="space-y-5">
-      {/* HEADER */}
-      <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      {/* HEADER + FILTRES TEMPS */}
+      <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-1">
-            Direzione · Mission Control
+            Direzione · CNCS / CORE
           </div>
-          <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
-            Panoramica &amp; presenze cantiere
+          <h1 className="text-2xl md:text-3xl font-semibold text-slate-50">
+            Dashboard Direzione
           </h1>
-          <p className="text-sm text-slate-400 max-w-2xl mt-1">
-            Vista sintetica delle presenze e del prodotto generato
-            negli ultimi 30 giorni, basata sull&apos;ARCHIVE v1 dei
-            rapportini digitali.
+          <p className="mt-1 text-[12px] text-slate-400 max-w-xl">
+            Vista sintetica di produzione, avanzamento cavi INCA e rischi operativi.
+            Filtri per periodo, nave e commessa. Tutto in sola lettura.
           </p>
         </div>
 
-        <div className="flex flex-col items-start md:items-end gap-1 text-[11px] text-slate-400">
-          <div>
-            Finestra dati:{" "}
-            <span className="font-medium text-slate-200">
-              ultimi 30 giorni
+        <div className="flex flex-col items-end gap-2 text-[11px]">
+          <div className="inline-flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded-full border border-emerald-500/70 bg-emerald-900/40 text-emerald-100">
+              Direzione · sola lettura
+            </span>
+            <span className="px-2 py-0.5 rounded-full border border-sky-500/70 bg-sky-900/40 text-sky-100">
+              Pronto per drill-down verso Ufficio / Capo
             </span>
           </div>
-          <div>
-            Fonte:{" "}
-            <span className="font-medium text-slate-200">
-              archive_rapportini_v1
-            </span>
-          </div>
-          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-emerald-500/50 bg-emerald-500/10 text-emerald-200">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(16,185,129,0.9)]" />
-            <span className="uppercase tracking-[0.16em]">
-              Read-only · dati certificati
-            </span>
+          <div className="flex items-center gap-2">
+            <span className="text-slate-500">Finestra:</span>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="rounded-lg border border-slate-700 bg-slate-950/80 px-2 py-1 text-[11px] text-slate-100"
+            />
+            <span className="text-slate-500">→</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="rounded-lg border border-slate-700 bg-slate-950/80 px-2 py-1 text-[11px] text-slate-100"
+            />
           </div>
         </div>
       </header>
 
+      {/* FILTRES NAVIRE / COMMESSA */}
+      <section className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[12px]">
+        <div className="flex items-center gap-2">
+          <span className="text-slate-400 min-w-[72px]">COSTR</span>
+          <input
+            type="text"
+            value={costrFilter}
+            onChange={(e) => setCostrFilter(e.target.value)}
+            placeholder="es. 6368"
+            className="flex-1 rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1 text-slate-100 placeholder:text-slate-600"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-slate-400 min-w-[72px]">Commessa</span>
+          <input
+            type="text"
+            value={commessaFilter}
+            onChange={(e) => setCommessaFilter(e.target.value)}
+            placeholder="es. ICING"
+            className="flex-1 rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1 text-slate-100 placeholder:text-slate-600"
+          />
+        </div>
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setCostrFilter('');
+              setCommessaFilter('');
+            }}
+            className="px-3 py-1.5 rounded-full border border-slate-700 bg-slate-950/80 text-[11px] text-slate-300 hover:bg-slate-900"
+          >
+            Reset filtri
+          </button>
+        </div>
+      </section>
+
+      {/* MESSAGES ERREUR / LOADING */}
       {error && (
-        <div className="text-xs text-rose-300 border border-rose-500/40 bg-rose-500/10 rounded-xl px-3 py-2">
+        <div className="rounded-xl border border-rose-500/60 bg-rose-900/30 px-4 py-2 text-[12px] text-rose-100">
           {error}
         </div>
       )}
+      {loading && !error && (
+        <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-4 py-2 text-[12px] text-slate-300">
+          Caricamento dati Direzione…
+        </div>
+      )}
 
-      {/* KPI STRIP */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {/* Presenze (≈ rapportini) oggi */}
-        <KpiCard
-          isDark={isDark}
-          tone="emerald"
-          label="Presenze oggi (rapportini)"
-          value={todayStats ? formatNumber(todayStats.count) : "0"}
-          hint={
-            last7Stats
-              ? `Media 7 giorni: ${formatNumber(
-                  last7Stats.count / 7 || 0
-                )} rapportini/giorno`
-              : ""
-          }
-          deltaLabel="vs ieri"
-          deltaValue={deltaPresenze}
-        />
+      {/* STRIP KPI (6 tuiles) */}
+      <section className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {/* KPI 1 – Rapportini */}
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3">
+          <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+            Rapportini
+          </div>
+          <div className="mt-1 text-2xl font-semibold text-slate-50">
+            {kpi.currCount}
+          </div>
+          <div className="mt-1 text-[11px] text-slate-500">
+            {kpi.prevCount
+              ? `${kpi.prevCount} nella finestra precedente`
+              : 'Nessun storico precedente sul range selezionato.'}
+          </div>
+        </div>
 
-        {/* Prodotto totale oggi */}
-        <KpiCard
-          isDark={isDark}
-          tone="sky"
-          label="Prodotto totale oggi"
-          value={
-            todayStats ? formatNumber(todayStats.totalProd) : "0"
-          }
-          hint={
-            last7Stats
-              ? `Media 7 giorni: ${formatNumber(
-                  (last7Stats.totalProd || 0) / 7 || 0
-                )} u/giorno`
-              : ""
-          }
-          deltaLabel="vs ieri"
-          deltaValue={deltaProdotto}
-        />
+        {/* KPI 2 – Prodotto totale */}
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3">
+          <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+            Prodotto totale
+          </div>
+          <div className="mt-1 text-2xl font-semibold text-emerald-300">
+            {formatNumber(kpi.currProd)}
+          </div>
+          <div className="mt-1 text-[11px] text-slate-500 flex items-center justify-between">
+            <span>vs periodo precedente</span>
+            {kpi.deltaProdPerc != null && (
+              <span
+                className={[
+                  'ml-1 inline-flex items-center px-2 py-0.5 rounded-full border text-[10px]',
+                  kpi.deltaProdPerc > 0
+                    ? 'border-emerald-500 text-emerald-300'
+                    : 'border-rose-500 text-rose-300',
+                ].join(' ')}
+              >
+                {kpi.deltaProdPerc > 0 ? '▲' : '▼'}{' '}
+                {formatNumber(Math.abs(kpi.deltaProdPerc))}%
+              </span>
+            )}
+          </div>
+        </div>
 
-        {/* Capi attivi oggi */}
-        <KpiCard
-          isDark={isDark}
-          tone="amber"
-          label="Capi attivi oggi"
-          value={todayStats ? formatNumber(todayStats.capi) : "0"}
-          hint={
-            last30Stats
-              ? `Capi unici 30g: ${formatNumber(
-                  last30Stats.capi
-                )}`
-              : ""
-          }
-          deltaLabel="vs ieri"
-          deltaValue={deltaCapi}
-        />
+        {/* KPI 3 – Prod moyen / rapportino */}
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3">
+          <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+            Prod. medio / rapportino
+          </div>
+          <div className="mt-1 text-2xl font-semibold text-sky-300">
+            {formatNumber(kpi.currAvg)}
+          </div>
+          <div className="mt-1 text-[11px] text-slate-500">
+            {kpi.prevAvg
+              ? `Prev: ${formatNumber(kpi.prevAvg)}`
+              : 'Nessun valore medio precedente.'}
+          </div>
+        </div>
 
-        {/* Commesse attive oggi */}
-        <KpiCard
-          isDark={isDark}
-          tone="violet"
-          label="Commesse attive oggi"
-          value={
-            todayStats ? formatNumber(todayStats.commesse) : "0"
-          }
-          hint={
-            last30Stats
-              ? `Commesse 30g: ${formatNumber(
-                  last30Stats.commesse
-                )}`
-              : ""
-          }
-          deltaLabel="vs ieri"
-          deltaValue={deltaCommesse}
-        />
+        {/* KPI 4 – INCA previsti */}
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3">
+          <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+            INCA · metri previsti
+          </div>
+          <div className="mt-1 text-2xl font-semibold text-slate-50">
+            {formatNumber(kpi.incaPrevisti)}
+          </div>
+          <div className="mt-1 text-[11px] text-slate-500">
+            Somma metri teorici sui file INCA filtrati.
+          </div>
+        </div>
+
+        {/* KPI 5 – INCA realizzati */}
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3">
+          <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+            INCA · metri realizzati
+          </div>
+          <div className="mt-1 text-2xl font-semibold text-emerald-300">
+            {formatNumber(kpi.incaRealizzati)}
+          </div>
+          <div className="mt-1 text-[11px] text-slate-500">
+            Metri marcati come completati / realizzati.
+          </div>
+        </div>
+
+        {/* KPI 6 – Copertura INCA */}
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3">
+          <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+            Copertura INCA stimata
+          </div>
+          <div className="mt-1 text-2xl font-semibold text-fuchsia-300">
+            {kpi.incaCover ? `${formatNumber(kpi.incaCover)}%` : '—'}
+          </div>
+          <div className="mt-1 text-[11px] text-slate-500">
+            Rapporto metri realizzati / previsti.
+          </div>
+        </div>
       </section>
 
-      {/* ZONE GRAPHIQUES */}
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Timeline production (2/3) */}
-        <div className="lg:col-span-2 rounded-2xl border border-slate-800 bg-slate-950/80 p-4 flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-3">
+      {/* LIGNE PRINCIPALE : Timeline + INCA */}
+      <section className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1.4fr)] gap-4">
+        {/* Timeline Recharts */}
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+          <div className="flex items-center justify-between mb-2">
             <div>
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
                 Timeline produzione
               </div>
-              <div className="text-xs text-slate-400">
-                Numero rapportini e prodotto totale per giorno
-                (ultimi 30).
+              <div className="text-xs text-slate-300">
+                Rapportini e prodotto giornaliero nel periodo selezionato.
               </div>
             </div>
-            <div className="text-[11px] text-slate-500">
-              {timelineData.length} giorni con dati
-            </div>
           </div>
-
-          {!hasData ? (
-            <div className="text-xs text-slate-500">
-              Nessun dato disponibile negli ultimi 30 giorni.
-            </div>
-          ) : (
-            <div className="h-60">
+          <div className="h-60 w-full">
+            {timelineData.length ? (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={timelineData}>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="#1e293b"
-                  />
+                  <CartesianGrid stroke="#1f2937" strokeDasharray="3 3" vertical={false} />
                   <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 10, fill: "#64748b" }}
-                    tickFormatter={(d) =>
-                      new Date(d).toLocaleDateString("it-IT", {
-                        day: "2-digit",
-                        month: "2-digit",
-                      })
-                    }
+                    dataKey="label"
+                    tick={{ fontSize: 10, fill: '#9ca3af' }}
                   />
                   <YAxis
                     yAxisId="left"
-                    tick={{ fontSize: 10, fill: "#64748b" }}
+                    tick={{ fontSize: 10, fill: '#9ca3af' }}
                   />
                   <YAxis
                     yAxisId="right"
                     orientation="right"
-                    tick={{ fontSize: 10, fill: "#64748b" }}
+                    tick={{ fontSize: 10, fill: '#9ca3af' }}
                   />
                   <Tooltip
                     contentStyle={{
+                      backgroundColor: '#020617',
+                      borderColor: '#1e293b',
                       fontSize: 11,
-                      backgroundColor: "#020617",
-                      borderColor: "#1e293b",
-                    }}
-                    labelFormatter={(d) =>
-                      new Date(d).toLocaleDateString("it-IT")
-                    }
-                    formatter={(value, name) => {
-                      if (name === "Prodotto") {
-                        return [formatNumber(value), name];
-                      }
-                      return [value, name];
                     }}
                   />
-                  <Line
+                  <Legend wrapperStyle={{ fontSize: 11, color: '#e5e7eb' }} />
+                  <Bar
                     yAxisId="left"
-                    type="monotone"
-                    dataKey="count"
-                    name="Rapportini"
-                    stroke="#38bdf8"
-                    strokeWidth={2}
-                    dot={false}
+                    dataKey="prodotto"
+                    name="Prodotto"
+                    fill="#38bdf8"
+                    barSize={18}
                   />
                   <Line
                     yAxisId="right"
                     type="monotone"
-                    dataKey="totalProd"
-                    name="Prodotto"
+                    dataKey="rapportini"
+                    name="Rapportini"
                     stroke="#22c55e"
                     strokeWidth={2}
                     dot={false}
                   />
                 </LineChart>
               </ResponsiveContainer>
-            </div>
-          )}
+            ) : (
+              <div className="flex h-full items-center justify-center text-[12px] text-slate-500">
+                Nessun dato disponibile per il periodo selezionato.
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Top commesse (1/3) */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 flex flex-col gap-3">
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-              Top commesse · 30 giorni
-            </div>
-            <div className="text-xs text-slate-400">
-              Ordinato per prodotto totale dai rapportini v1.
+        {/* INCA – ECharts */}
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+                INCA · confronto teorico / reale
+              </div>
+              <div className="text-xs text-slate-300">
+                Prime commesse / file INCA per metri previsti, realizzati e posati.
+              </div>
             </div>
           </div>
-
-          {!hasData ? (
-            <div className="text-xs text-slate-500">
-              Nessuna commessa con dati.
-            </div>
-          ) : (
-            <>
-              <div className="h-40">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={topCommesse}>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="#1e293b"
-                    />
-                    <XAxis
-                      dataKey="label"
-                      tick={{ fontSize: 10, fill: "#64748b" }}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 10, fill: "#64748b" }}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        fontSize: 11,
-                        backgroundColor: "#020617",
-                        borderColor: "#1e293b",
-                      }}
-                      formatter={(value, name) => {
-                        if (name === "Prodotto") {
-                          return [formatNumber(value), name];
-                        }
-                        return [value, name];
-                      }}
-                    />
-                    <Bar
-                      dataKey="totalProd"
-                      name="Prodotto"
-                      fill="#38bdf8"
-                      radius={[6, 6, 0, 0]}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="grid grid-cols-1 gap-2 text-xs">
-                {topCommesse.slice(0, 4).map((c) => (
-                  <div
-                    key={c.label}
-                    className="border border-slate-800 rounded-xl px-3 py-2 flex items-center justify-between gap-2"
-                  >
-                    <div>
-                      <div className="text-[11px] text-slate-400 truncate">
-                        {c.label}
-                      </div>
-                      <div className="text-[11px] text-slate-500">
-                        Rapportini:{" "}
-                        <span className="font-semibold text-slate-200">
-                          {c.count}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-[11px] text-slate-400">
-                        Prodotto
-                      </div>
-                      <div className="text-sm font-semibold text-sky-300">
-                        {formatNumber(c.totalProd)}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
+          <div className="h-60 w-full">
+            <ReactECharts
+              option={incaOption}
+              style={{ width: '100%', height: '100%' }}
+              notMerge
+              lazyUpdate
+            />
+          </div>
         </div>
       </section>
 
-      {/* STATE LOADING */}
-      {loading && (
-        <div className="text-[11px] text-slate-500">
-          Caricamento metriche direzione…
+      {/* RISCHI + NEXT ACTIONS */}
+      <section className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)] gap-4">
+        {/* Panneau Risques */}
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-[12px]">
+          <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500 mb-1">
+            Pannello rischi
+          </div>
+          <p className="text-slate-400 mb-2">
+            Elenco sintetico dei rischi principali derivati da produzione e INCA
+            nel periodo selezionato.
+          </p>
+          <ul className="space-y-2">
+            {risks.map((r, idx) => (
+              <li
+                key={idx}
+                className="rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-semibold text-slate-100">
+                    {r.title}
+                  </span>
+                  <span
+                    className={[
+                      'px-2 py-0.5 rounded-full text-[10px] border',
+                      r.level === 'ALTA'
+                        ? 'border-rose-500 text-rose-300'
+                        : r.level === 'MEDIA'
+                        ? 'border-amber-400 text-amber-200'
+                        : 'border-emerald-400 text-emerald-200',
+                    ].join(' ')}
+                  >
+                    {r.level}
+                  </span>
+                </div>
+                <div className="text-slate-300">{r.detail}</div>
+                <div className="mt-1 text-[11px] text-slate-400">
+                  Suggerimento: {r.hint}
+                </div>
+              </li>
+            ))}
+          </ul>
         </div>
-      )}
+
+        {/* Next actions */}
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-[12px]">
+          <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500 mb-1">
+            Next actions · Direzione
+          </div>
+          <p className="text-slate-400 mb-2">
+            Piccolo elenco operativo per la Direzione, basato sugli indicatori
+            attuali. Perfetto per la riunione mattutina.
+          </p>
+          <ol className="list-decimal list-inside space-y-1 text-slate-300">
+            {nextActions.map((a, idx) => (
+              <li key={idx}>{a}</li>
+            ))}
+          </ol>
+          <div className="mt-3 border-t border-slate-800 pt-2 text-[11px] text-slate-500">
+            In futuro questo pannello potrà aprire direttamente le viste Manager /
+            Ufficio filtrate (drill-down sulle commesse critiche).
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
