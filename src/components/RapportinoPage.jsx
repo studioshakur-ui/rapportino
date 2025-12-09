@@ -5,7 +5,6 @@ import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../auth/AuthProvider';
 
 import LoadingScreen from './LoadingScreen';
-
 import RapportinoHeader from './rapportino/RapportinoHeader';
 import RapportinoTable from './rapportino/RapportinoTable';
 
@@ -37,7 +36,7 @@ export default function RapportinoPage() {
   const navigate = useNavigate();
   const { shipId } = useParams();
 
-  // Rôle de l’équipe (stocké en localStorage)
+  // Rôle de l’équipe
   const [crewRole, setCrewRole] = useState(() => {
     try {
       const stored = window.localStorage.getItem('core-current-role');
@@ -49,7 +48,7 @@ export default function RapportinoPage() {
         return stored;
       }
     } catch {
-      // ignore
+      //
     }
     return 'ELETTRICISTA';
   });
@@ -64,7 +63,7 @@ export default function RapportinoPage() {
   const crewLabel = CREW_LABELS[normalizedCrewRole] || normalizedCrewRole;
 
   // Header
-  const [costr, setCostr] = useState('');
+  const [costr, setCostr] = useState(shipId || '6368');
   const [commessa, setCommessa] = useState('SDC');
   const [rapportinoId, setRapportinoId] = useState(null);
   const [reportDate, setReportDate] = useState(getTodayISO());
@@ -87,33 +86,14 @@ export default function RapportinoPage() {
       (profile?.display_name ||
         profile?.full_name ||
         profile?.email ||
-        'Capo Squadra')
+        'Capo Squadra'
+      )
         .toUpperCase()
         .trim(),
     [profile]
   );
 
   const statusLabel = STATUS_LABELS[status] || status;
-
-  // Style de la pastille de stato (codes couleur doux)
-  const statusChipClass = useMemo(() => {
-    const base =
-      'inline-flex items-center px-3 py-1 rounded-full border text-[11px] font-semibold';
-    switch (status) {
-      case 'VALIDATED_CAPO':
-        return (
-          base +
-          ' bg-emerald-100 text-emerald-900 border-emerald-300'
-        );
-      case 'APPROVED_UFFICIO':
-        return base + ' bg-sky-100 text-sky-900 border-sky-300';
-      case 'RETURNED':
-        return base + ' bg-amber-100 text-amber-900 border-amber-300';
-      case 'DRAFT':
-      default:
-        return base + ' bg-slate-100 text-slate-900 border-slate-300';
-    }
-  }, [status]);
 
   const prodottoTotale = useMemo(
     () =>
@@ -124,7 +104,10 @@ export default function RapportinoPage() {
     [rows]
   );
 
-  // Chargement rapportino existant
+  /* ------------------------------------------------------------------------ */
+  /*                       CHARGEMENT DU RAPPORTINO                           */
+  /* ------------------------------------------------------------------------ */
+
   useEffect(() => {
     let active = true;
 
@@ -159,24 +142,15 @@ export default function RapportinoPage() {
         if (!active) return;
 
         if (!rap) {
-          // Aucun rapportino pour cette journée / rôle
+          // Nouveau rapportino → on garde le COSTR de la route si présent
           setRapportinoId(null);
-
-          // COSTR : si l'utilisateur a choisi un navire,
-          // on utilise ce choix comme valeur initiale.
-          if (shipId) {
-            setCostr(shipId);
-          } else {
-            setCostr('');
-          }
-
+          setCostr(shipId || '6368');
           setCommessa('SDC');
           setStatus('DRAFT');
           setRows(getBaseRows(normalizedCrewRole));
         } else {
-          // Rapportino existant
           setRapportinoId(rap.id);
-          setCostr(rap.costr || rap.cost || shipId || '');
+          setCostr(rap.costr || rap.costr || shipId || '6368');
           setCommessa(rap.commessa || 'SDC');
           setStatus(rap.status || 'DRAFT');
 
@@ -230,7 +204,10 @@ export default function RapportinoPage() {
     };
   }, [profile?.id, normalizedCrewRole, reportDate, shipId]);
 
-  // Édition des lignes
+  /* ------------------------------------------------------------------------ */
+  /*                         ÉDITION DES LIGNES                               */
+  /* ------------------------------------------------------------------------ */
+
   const handleRowChange = (index, field, value, targetForHeight) => {
     setRows((prev) => {
       const copy = [...prev];
@@ -283,7 +260,11 @@ export default function RapportinoPage() {
     });
   };
 
-  // Sauvegarde → renvoie { success, id }
+  /* ------------------------------------------------------------------------ */
+  /*                             SAUVEGARDE                                   */
+  /* ------------------------------------------------------------------------ */
+
+  // renvoie { success, id }
   const handleSave = async (forcedStatus) => {
     if (!profile?.id) return { success: false, id: null };
 
@@ -317,7 +298,7 @@ export default function RapportinoPage() {
             crew_role: normalizedCrewRole,
             report_date: reportDate,
             data: reportDate,
-            costr: costr || shipId || null,
+            costr,
             commessa,
             status: newStatus,
             prodotto_totale: prodottoTotale,
@@ -332,7 +313,7 @@ export default function RapportinoPage() {
         const { error: updateError } = await supabase
           .from('rapportini')
           .update({
-            costr: costr || shipId || null,
+            costr,
             commessa,
             status: newStatus,
             prodotto_totale: prodottoTotale,
@@ -378,17 +359,15 @@ export default function RapportinoPage() {
   };
 
   const handleValidate = async () => {
-    // 1) Sauvegarde + passage en VALIDATED_CAPO
     const { success, id } = await handleSave('VALIDATED_CAPO');
     if (!success || !id) return;
 
-    // 2) Appliquer la production INCA seulement pour ELETTRICISTA
     if (normalizedCrewRole === 'ELETTRICISTA') {
       try {
         const result = await applyRapportinoToInca({ rapportinoId: id });
         console.log('[Rapportino] applyRapportinoToInca result', result);
         setSuccessMessage(
-          `Rapportino validato. Cavi INCA aggiornati per COSTR ${costr || shipId || ''}.`
+          `Rapportino validato. Cavi INCA aggiornati per COSTR ${costr}.`
         );
       } catch (incaErr) {
         console.error('[Rapportino] applyRapportinoToInca error', incaErr);
@@ -401,7 +380,6 @@ export default function RapportinoPage() {
     }
   };
 
-  // Export PDF : sauvegarde, récupère l'ID, puis va sur la page de print
   const handleExportPdf = async () => {
     const { success, id } = await handleSave(status);
     if (!success || !id) return;
@@ -409,12 +387,10 @@ export default function RapportinoPage() {
     navigate(`/print/rapportino?id=${encodeURIComponent(id)}`);
   };
 
-  // Archivio : page Archive Capo
   const handleOpenArchivio = () => {
     navigate('/archive');
   };
 
-  // Cockpit INCA plein écran
   const handleOpenIncaCockpit = () => {
     const targetShip = shipId || costr || '0000';
     navigate(`/app/ship/${encodeURIComponent(targetShip)}/inca`);
@@ -443,32 +419,29 @@ export default function RapportinoPage() {
   }
 
   return (
-    <div
-      className="min-h-screen flex flex-col bg-slate-900/80"
-      style={{ opacity: 1, filter: 'none' }}
-    >
+    <div className="min-h-screen flex flex-col bg-slate-900/95 text-slate-50">
       {/* Bandeau haut */}
-      <header className="border-b border-slate-800 bg-slate-900 text-slate-50 sticky top-0 z-20">
+      <header className="border-b border-slate-800 bg-slate-950/95 text-slate-50 sticky top-0 z-20">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex flex-col">
             <span className="text-[11px] uppercase tracking-[0.25em] text-slate-400">
               CORE · MODULO RAPPORTINO
             </span>
             <span className="text-sm font-semibold text-slate-50">
-              COSTR {costr || shipId || '—'} · {crewLabel}
+              COSTR {costr} · {crewLabel}
             </span>
           </div>
           <div className="flex items-center gap-2 text-[11px] text-slate-50">
-            <span className={statusChipClass}>
+            <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-900 font-semibold">
               Stato: {statusLabel}
             </span>
-            <span className="px-3 py-1 rounded-full bg-slate-800 border border-slate-400">
+            <span className="px-3 py-1 rounded-full bg-slate-900 border border-slate-500">
               Prodotto totale: {prodottoTotale.toFixed(2)}
             </span>
             <button
               type="button"
               onClick={handleChangeRole}
-              className="px-3 py-1.5 rounded-md border border-slate-400 text-slate-50 bg-slate-800 hover:bg-slate-700"
+              className="px-3 py-1.5 rounded-md border border-slate-500 text-slate-50 bg-slate-900 hover:bg-slate-800"
             >
               Cambia squadra
             </button>
@@ -484,132 +457,134 @@ export default function RapportinoPage() {
       </header>
 
       {/* Contenu */}
-      <main className="flex-1 max-w-6xl mx-auto px-4 py-6">
-        <div
-          className="bg-white text-slate-900 border border-slate-300 rounded-xl shadow-[0_18px_45px_rgba(0,0,0,0.35)] p-4 print:shadow-none print:border-black"
-          style={{ opacity: 1, filter: 'none' }}
-        >
-          <RapportinoHeader
-            costr={costr || shipId || ''}
-            commessa={commessa}
-            reportDate={reportDate}
-            capoName={capoName}
-            onChangeCostr={setCostr}
-            onChangeCommessa={setCommessa}
-            onChangeDate={setReportDate}
-          />
-
-          <RapportinoTable
-            rows={rows}
-            onRowChange={handleRowChange}
-            onRemoveRow={handleRemoveRow}
-          />
-
-          {/* Section INCA : choix des cavi + % d’avancement */}
-          {normalizedCrewRole === 'ELETTRICISTA' && rapportinoId && (
-            <div className="mt-4">
-              <RapportinoIncaCaviSection
-                rapportinoId={rapportinoId}
-                shipCostr={shipId || costr}
-                disabled={incaSectionDisabled}
+      <main className="flex-1 w-full">
+        <div className="max-w-6xl mx-auto px-2 sm:px-4 py-6">
+          {/* Wrapper scroll horizontal → feuille A4 plus large */}
+          <div className="overflow-x-auto">
+            <div
+              className="
+                bg-white text-slate-900 border border-slate-300 rounded-xl
+                shadow-[0_18px_45px_rgba(0,0,0,0.35)]
+                px-4 sm:px-6 py-4
+                print:shadow-none print:border-black
+                inline-block
+                min-w-[1100px]
+              "
+            >
+              <RapportinoHeader
+                costr={costr}
+                commessa={commessa}
+                reportDate={reportDate}
+                capoName={capoName}
+                onChangeCostr={setCostr}
+                onChangeCommessa={setCommessa}
+                onChangeDate={setReportDate}
               />
+
+              <RapportinoTable
+                rows={rows}
+                onRowChange={handleRowChange}
+                onRemoveRow={handleRemoveRow}
+              />
+
+              {/* Section INCA */}
+              {normalizedCrewRole === 'ELETTRICISTA' && rapportinoId && (
+                <div className="mt-6">
+                  <RapportinoIncaCaviSection
+                    rapportinoId={rapportinoId}
+                    shipCostr={shipId || costr}
+                    disabled={incaSectionDisabled}
+                  />
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-[11px]">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleAddRow}
+                    className="px-3 py-1.5 rounded-md border border-slate-500 bg-white hover:bg-slate-50 text-slate-900"
+                  >
+                    + Aggiungi riga
+                  </button>
+
+                  {normalizedCrewRole === 'ELETTRICISTA' && (
+                    <button
+                      type="button"
+                      onClick={handleOpenIncaCockpit}
+                      className="relative overflow-hidden px-4 py-1.5 rounded-md border border-emerald-500 bg-slate-950 text-emerald-200 hover:text-emerald-100 hover:bg-slate-900 transition-colors duration-200 shadow-[0_0_0_1px_rgba(16,185,129,0.4)]
+                        before:absolute before:inset-0 before:bg-gradient-to-r before:from-emerald-500/20 before:via-cyan-500/10 before:to-emerald-500/20 before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-300"
+                    >
+                      <span className="relative inline-flex items-center gap-1.5 uppercase tracking-[0.18em] text-[10px] font-semibold">
+                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]" />
+                        Cockpit&nbsp;INCA
+                      </span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleOpenArchivio}
+                    className="px-3 py-1.5 rounded-md border border-slate-400 bg-slate-50 hover:bg-slate-100 text-slate-900"
+                  >
+                    Apri Archivio
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {saving && (
+                    <span className="text-slate-500">Salvataggio in corso…</span>
+                  )}
+                  {successMessage && (
+                    <span className="text-emerald-700 font-semibold">
+                      {successMessage}
+                    </span>
+                  )}
+                  {error && (
+                    <button
+                      type="button"
+                      onClick={() => setShowErrorDetails((v) => !v)}
+                      className="px-2 py-1 rounded border border-red-400 text-red-700 bg-red-50 hover:bg-red-100"
+                    >
+                      Errore salvataggio
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleSave()}
+                    className="px-3 py-1.5 rounded-md border border-slate-700 bg-slate-900 text-slate-50 hover:bg-slate-800"
+                  >
+                    Salva
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleValidate}
+                    className="px-3 py-1.5 rounded-md border border-emerald-700 bg-emerald-600 text-white hover:bg-emerald-700"
+                  >
+                    Valida giornata
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportPdf}
+                    className="px-3 py-1.5 rounded-md border border-sky-700 bg-sky-600 text-white hover:bg-sky-700"
+                  >
+                    Esporta PDF
+                  </button>
+                </div>
+              </div>
+
+              {showErrorDetails && errorDetails && (
+                <pre className="mt-3 text-[10px] bg-red-50 text-red-800 p-2 rounded border border-red-200 whitespace-pre-wrap">
+                  {errorDetails}
+                </pre>
+              )}
+
+              {/* Signature CORE très discrète */}
+              <div className="mt-6 pt-3 border-t border-slate-200 text-[9px] text-slate-400 text-right">
+                CORE · Sistema centrale di cantiere – SHAKUR Engineering
+              </div>
             </div>
-          )}
-
-          {/* Actions */}
-          <div className="mt-4 border-t border-slate-200 pt-3 flex flex-col gap-3 text-[11px] md:flex-row md:items-center md:justify-between">
-            {/* Bloc gauche : gestion des lignes + cockpit + archivio */}
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={handleAddRow}
-                className="px-3 py-1.5 rounded-md border border-slate-500 bg-white hover:bg-slate-100 text-slate-900"
-              >
-                + Aggiungi riga
-              </button>
-
-              {normalizedCrewRole === 'ELETTRICISTA' && (
-                <button
-                  type="button"
-                  onClick={handleOpenIncaCockpit}
-                  className="relative overflow-hidden px-3 py-1.5 rounded-md border border-emerald-500 bg-slate-950 text-emerald-200 hover:text-emerald-100 hover:bg-slate-900 transition-colors duration-200 shadow-[0_0_0_1px_rgba(16,185,129,0.4)]
-                  before:absolute before:inset-0 before:bg-gradient-to-r before:from-emerald-500/20 before:via-cyan-500/10 before:to-emerald-500/20 before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-300"
-                >
-                  <span className="relative inline-flex items-center gap-1.5 uppercase tracking-[0.18em] text-[10px] font-semibold">
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]" />
-                    Cockpit&nbsp;INCA
-                  </span>
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={handleOpenArchivio}
-                className="px-3 py-1.5 rounded-md border border-slate-400 bg-slate-50 hover:bg-slate-100 text-slate-900"
-              >
-                Apri Archivio
-              </button>
-            </div>
-
-            {/* Bloc droit : stato / messages / actions de base */}
-            <div className="flex flex-wrap items-center gap-2 justify-end">
-              {saving && (
-                <span className="text-slate-500">
-                  Salvataggio in corso…
-                </span>
-              )}
-              {successMessage && (
-                <span className="text-emerald-700 font-semibold">
-                  {successMessage}
-                </span>
-              )}
-              {error && (
-                <button
-                  type="button"
-                  onClick={() => setShowErrorDetails((v) => !v)}
-                  className="px-2 py-1 rounded border border-red-400 text-red-700 bg-red-50 hover:bg-red-100"
-                >
-                  Errore salvataggio
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => handleSave()}
-                className="px-3 py-1.5 rounded-md border border-slate-700 bg-slate-900 text-slate-50 hover:bg-slate-800"
-              >
-                Salva
-              </button>
-
-              <button
-                type="button"
-                onClick={handleValidate}
-                className="px-3 py-1.5 rounded-md border border-emerald-700 bg-emerald-600 text-white hover:bg-emerald-700"
-              >
-                Valida giornata
-              </button>
-
-              <button
-                type="button"
-                onClick={handleExportPdf}
-                className="px-3 py-1.5 rounded-md border border-sky-700 bg-sky-600 text-white hover:bg-sky-700"
-              >
-                Esporta PDF
-              </button>
-            </div>
-          </div>
-
-          {showErrorDetails && errorDetails && (
-            <pre className="mt-3 text-[10px] bg-red-50 text-red-800 p-2 rounded border border-red-200 whitespace-pre-wrap">
-              {errorDetails}
-            </pre>
-          )}
-
-          {/* Signature CORE très discrète */}
-          <div className="mt-6 pt-3 border-t border-slate-200 flex justify-end">
-            <span className="text-[9px] tracking-[0.18em] uppercase text-slate-400">
-              CORE · Sistema centrale di cantiere · Shakur Engineering
-            </span>
           </div>
         </div>
       </main>
