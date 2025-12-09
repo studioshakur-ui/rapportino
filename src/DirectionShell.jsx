@@ -11,8 +11,8 @@ import { useAuth } from './auth/AuthProvider';
 import ConnectionIndicator from './components/ConnectionIndicator';
 import DirectionDashboard from './components/DirectionDashboard';
 import ArchivePage from './pages/Archive';
+import CorePresentationPopup from "./components/CorePresentationPopup";
 import CorePresentation from './pages/CorePresentation';
-
 function getInitialTheme() {
   if (typeof window === 'undefined') return 'dark';
   try {
