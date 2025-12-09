@@ -11,6 +11,11 @@ import { supabase } from "../lib/supabaseClient";
  *  - rapportino_id (uuid, NOT NULL)
  *  - inca_cavo_id (uuid, NOT NULL, FK → inca_cavi.id)
  *  - metri_posati (numeric)
+ *      ⚠️ Dans cette version, on interprète metri_posati comme un RATIO :
+ *        0    → aucun avancement
+ *        0.5  → 50% del cavo (per questo turno)
+ *        0.7  → 70%
+ *        1.0  → 100%
  *  - note (text, optionnel)
  *  - created_at / updated_at (optionnels)
  *
@@ -27,7 +32,7 @@ import { supabase } from "../lib/supabaseClient";
  */
 export async function fetchRapportinoIncaCavi(rapportinoId) {
   if (!rapportinoId) {
-    throw new Error("fetchRapportinoIncaCavi: rapportinoId manquant");
+    throw new Error("fetchRapportinoIncaCavi: rapportinoId mancante");
   }
 
   const { data, error } = await supabase
@@ -78,7 +83,9 @@ export async function fetchRapportinoIncaCavi(rapportinoId) {
 }
 
 /**
- * Ajoute un câble INCA au rapportino, avec éventuellement des mètres déjà posés.
+ * Ajoute un câble INCA au rapportino, avec éventuellement un ratio déjà saisi.
+ *
+ * metriPosati est un RATIO 0–1 (ex: 0.5 = 50%).
  */
 export async function addRapportinoCavoRow(
   rapportinoId,
@@ -87,16 +94,18 @@ export async function addRapportinoCavoRow(
 ) {
   if (!rapportinoId || !incaCavoId) {
     throw new Error(
-      "addRapportinoCavoRow: rapportinoId ou incaCavoId manquant"
+      "addRapportinoCavoRow: rapportinoId ou incaCavoId mancante"
     );
   }
+
+  const ratio = Number(metriPosati || 0) || 0;
 
   const { data, error } = await supabase
     .from("rapportino_inca_cavi")
     .insert({
       rapportino_id: rapportinoId,
       inca_cavo_id: incaCavoId,
-      metri_posati: metriPosati || 0,
+      metri_posati: ratio,
     })
     .select(
       `
@@ -143,16 +152,19 @@ export async function addRapportinoCavoRow(
 }
 
 /**
- * Met à jour une ligne de lien (mètres posés, note…).
+ * Met à jour une ligne de lien (ratio metri_posati, note…).
+ *
+ * patch.metri_posati = RATIO 0–1 (et non plus des mètres).
  */
 export async function updateRapportinoCavoRow(rowId, patch) {
   if (!rowId) {
-    throw new Error("updateRapportinoCavoRow: rowId manquant");
+    throw new Error("updateRapportinoCavoRow: rowId mancante");
   }
 
   const payload = {};
   if (patch.metri_posati != null) {
-    payload.metri_posati = patch.metri_posati;
+    const ratio = Number(patch.metri_posati || 0) || 0;
+    payload.metri_posati = ratio;
   }
   if (patch.note !== undefined) {
     payload.note = patch.note;
@@ -197,7 +209,10 @@ export async function updateRapportinoCavoRow(rowId, patch) {
     .single();
 
   if (error) {
-    console.error("[RapportinoIncaLink] updateRapportinoCavoRow error", error);
+    console.error(
+      "[RapportinoIncaLink] updateRapportinoCavoRow error",
+      error
+    );
     throw new Error(
       error.message || "Errore aggiornamento cavo INCA del rapportino."
     );
@@ -211,7 +226,7 @@ export async function updateRapportinoCavoRow(rowId, patch) {
  */
 export async function deleteRapportinoCavoRow(rowId) {
   if (!rowId) {
-    throw new Error("deleteRapportinoCavoRow: rowId manquant");
+    throw new Error("deleteRapportinoCavoRow: rowId mancante");
   }
 
   const { error } = await supabase
@@ -246,7 +261,7 @@ export async function searchIncaCaviForRapportino({
   limit = 100,
 }) {
   if (!shipCostr) {
-    throw new Error("searchIncaCaviForRapportino: shipCostr mancant");
+    throw new Error("searchIncaCaviForRapportino: shipCostr mancante");
   }
 
   let query = supabase
@@ -311,20 +326,26 @@ export async function searchIncaCaviForRapportino({
 /**
  * Applique la production du rapportino aux cavi INCA.
  *
- * Logique :
- *  1) Lit tutte le righe rapportino_inca_cavi per questo rapportino.
- *  2) Raggruppa per inca_cavo_id → somma metri_posati (calcolati da %).
- *  3) Per ogni cavo:
- *     - legge metri_posati_teorici & metri_previsti
- *     - aggiunge la somma a metri_posati_teorici
- *     - ⚠️ Se new_posati >= 50% di metri_previsti → situazione = 'P'
+ * Nouvelle logique (version pourcentage) :
+ *  1) Lit toutes les lignes rapportino_inca_cavi pour ce rapportino.
+ *  2) Pour chaque ligne :
+ *       - metri_posati = ratio_turno (0–1, ex 0.5 = 50%)
+ *  3) Regroupe par inca_cavo_id → somme des ratios (on peut avoir plus d'un tour
+ *     sur le même câble, même si ce ne sera pas le cas le plus fréquent).
+ *  4) Pour chaque cavo :
+ *       - lit metri_previsti, metri_posati_teorici & situazione
+ *       - calcule metriDelta = ratioTotale * metri_previsti
+ *       - newPosati = metri_posati_teorici + metriDelta
+ *       - ratioGlobale = newPosati / metri_previsti
+ *       - si ratioGlobale >= 0.5 → situazione = 'P'
  *
- * Il ciclo B → R → T → P resta guidato dal Cockpit CAPO,
- * qui ci limitiamo ad aggiornare metri_posati_teorici e, se serve, passare a P.
+ * ⚠️ Le cycle B → (vuoto) → R → T → P reste piloté
+ *    par le cockpit CAPO. Ici on ne force que le passage à P
+ *    quand on dépasse 50% de posa.
  */
 export async function applyRapportinoToInca({ rapportinoId }) {
   if (!rapportinoId) {
-    throw new Error("applyRapportinoToInca: rapportinoId mancant");
+    throw new Error("applyRapportinoToInca: rapportinoId mancante");
   }
 
   // 1) lignes de lien pour ce rapportino
@@ -357,27 +378,27 @@ export async function applyRapportinoToInca({ rapportinoId }) {
   }
 
   if (!rows || rows.length === 0) {
-    // Rien à faire
+    // Rien à faire → mais ce n'est pas une erreur.
     return { updated: 0 };
   }
 
-  // 2) Regroupement par inca_cavo_id
+  // 2) Regroupement par inca_cavo_id (somme des ratios)
   const mapByCavo = new Map();
 
   for (const row of rows) {
     if (!row.inca_cavo_id) continue;
     const key = row.inca_cavo_id;
-    const metri = Number(row.metri_posati || 0) || 0;
+    const ratio = Number(row.metri_posati || 0) || 0;
 
     if (!mapByCavo.has(key)) {
       mapByCavo.set(key, {
         cavoId: key,
-        totalMetriRapportino: 0,
+        totalRatio: 0,
         cavo: row.inca_cavo || null,
       });
     }
     const agg = mapByCavo.get(key);
-    agg.totalMetriRapportino += metri;
+    agg.totalRatio += ratio;
   }
 
   let updatedCount = 0;
@@ -386,12 +407,11 @@ export async function applyRapportinoToInca({ rapportinoId }) {
   // 3) Pour chaque cavo, appliquer la mise à jour
   for (const [, agg] of mapByCavo) {
     const cavoId = agg.cavoId;
-    const metriDelta = agg.totalMetriRapportino;
-    const cavo = agg.cavo;
+    const totalRatio = agg.totalRatio;
+    let current = agg.cavo;
 
     try {
       // Si on n'a pas les infos du câble, on les recharge
-      let current = cavo;
       if (!current) {
         const { data: cavoRow, error: cavoError } = await supabase
           .from("inca_cavi")
@@ -403,17 +423,25 @@ export async function applyRapportinoToInca({ rapportinoId }) {
         current = cavoRow;
       }
 
-      const prevPosati = Number(current.metri_posati_teorici || 0) || 0;
       const prevPrevisti = Number(current.metri_previsti || 0) || 0;
+      const prevPosati = Number(current.metri_posati_teorici || 0) || 0;
 
+      if (prevPrevisti <= 0 || totalRatio <= 0) {
+        // rien à appliquer
+        continue;
+      }
+
+      // mètres du tour = ratio * lunghezza prevista
+      const metriDelta = totalRatio * prevPrevisti;
       const newPosati = prevPosati + metriDelta;
 
+      const ratioGlobale = newPosati / prevPrevisti;
+
       let nextSituazione = current.situazione || null;
-      if (prevPrevisti > 0) {
-        // ⚠️ PASSAGE A P DES 50% DI AVANZAMENTO
-        if (newPosati >= prevPrevisti * 0.5) {
-          nextSituazione = "P";
-        }
+
+      // Passage à P dès qu'on atteint 50% de posa globale
+      if (ratioGlobale >= 0.5) {
+        nextSituazione = "P";
       }
 
       const payload = {
