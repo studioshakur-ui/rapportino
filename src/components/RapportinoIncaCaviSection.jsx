@@ -80,19 +80,30 @@ export default function RapportinoIncaCaviSection({
   /*                         GESTION DES LIGNES LOCALES                     */
   /* ---------------------------------------------------------------------- */
 
-  async function handleChangeMetri(rowId, value) {
+  /**
+   * Changement de pourcentage (0 / 50 / 70 / 100)
+   *
+   * On calcule les mètres = pourcentage * (metri_previsti ou metri_teo)
+   * et on stocke quand même des mètres dans rapportino_inca_cavi.metri_posati.
+   */
+  async function handleChangePercent(rowId, percent, cavo) {
     if (disabled) return;
-    const num = Number(value);
-    const safe = Number.isNaN(num) ? 0 : Math.max(0, num);
+    if (!cavo) return;
+
+    const base =
+      Number(cavo.metri_previsti || cavo.metri_teo || 0) || 0;
+
+    const metriPosati =
+      percent > 0 && base > 0 ? (base * percent) / 100 : 0;
 
     setSavingRowId(rowId);
     try {
       const updated = await updateRapportinoCavoRow(rowId, {
-        metri_posati: safe,
+        metri_posati: metriPosati,
       });
       setRows((prev) => prev.map((r) => (r.id === rowId ? updated : r)));
     } catch (e) {
-      console.error("[RapportinoIncaSection] update metri error", e);
+      console.error("[RapportinoIncaSection] update percent error", e);
       setError(e.message || String(e));
     } finally {
       setSavingRowId(null);
@@ -155,6 +166,7 @@ export default function RapportinoIncaCaviSection({
   async function handleSelectCavo(cavo) {
     if (!rapportinoId || !cavo?.id) return;
     try {
+      // On ajoute avec 0 m par défaut → le Capo choisira 50/70/100 ensuite
       const newRow = await addRapportinoCavoRow(rapportinoId, cavo.id, 0);
       setRows((prev) => [...prev, newRow]);
       setPickerOpen(false);
@@ -174,9 +186,9 @@ export default function RapportinoIncaCaviSection({
             Cavi INCA collegati al rapportino
           </div>
           <div className="text-xs text-slate-400 mt-1">
-            Seleziona i cavi da INCA e indica i metri posati in questo turno.
-            La produzione sarà applicata ai cavi INCA in fase di validazione del
-            rapportino.
+            Seleziona i cavi da INCA e indica l&apos;avanzamento del turno
+            (50% / 70% / 100%). La produzione viene applicata ai cavi INCA
+            in fase di validazione del rapportino.
           </div>
         </div>
 
@@ -189,7 +201,7 @@ export default function RapportinoIncaCaviSection({
               </span>
             </span>
             <span className="hidden sm:inline">
-              Metri totali turni:{" "}
+              Metri stimati turno:{" "}
               <span className="text-emerald-300 font-semibold">
                 {totalMetriPosati.toFixed(1)} m
               </span>
@@ -221,7 +233,7 @@ export default function RapportinoIncaCaviSection({
                 <Th className="w-[220px]">Marca / codice</Th>
                 <Th>Arrivo</Th>
                 <Th className="text-right">Lung. disegno</Th>
-                <Th className="text-right">Metri posati (turno)</Th>
+                <Th className="text-center">Avanzamento turno</Th>
                 <Th>Situazione</Th>
                 <Th className="w-[40px] text-right">Azioni</Th>
               </tr>
@@ -238,7 +250,7 @@ export default function RapportinoIncaCaviSection({
               {!loading && rows.length === 0 && (
                 <tr>
                   <Td colSpan={6} className="py-4 text-center text-slate-500">
-                    Nessun cavo collegato. Usa "Aggiungi cavo da INCA".
+                    Nessun cavo collegato. Usa &quot;Aggiungi cavo da INCA&quot;.
                   </Td>
                 </tr>
               )}
@@ -249,7 +261,7 @@ export default function RapportinoIncaCaviSection({
                   row={row}
                   disabled={disabled}
                   saving={savingRowId === row.id}
-                  onChangeMetri={handleChangeMetri}
+                  onChangePercent={handleChangePercent}
                   onDelete={handleDeleteRow}
                 />
               ))}
@@ -425,15 +437,31 @@ function SituazioneBadge({ value }) {
   return <span className={cls}>{label}</span>;
 }
 
+/**
+ * Ligne principale du tableau Rapportino ↔ INCA
+ * Ici on calcule automatiquement quel pourcentage est sélectionné
+ * à partir de metri_posati / metri_previsti (approx 0 / 50 / 70 / 100).
+ */
 function RapportinoIncaRow({
   row,
   disabled,
   saving,
-  onChangeMetri,
+  onChangePercent,
   onDelete,
 }) {
   const c = row.inca_cavo || {};
-  const metriValue = row.metri_posati ?? "";
+  const base = Number(c.metri_previsti || c.metri_teo || 0) || 0;
+  const metriPosati = Number(row.metri_posati || 0) || 0;
+
+  let selected = 0;
+  if (base > 0 && metriPosati > 0) {
+    const ratio = metriPosati / base;
+    if (Math.abs(ratio - 0.5) < 0.05) selected = 50;
+    else if (Math.abs(ratio - 0.7) < 0.05) selected = 70;
+    else if (ratio >= 0.95) selected = 100;
+  }
+
+  const percOptions = [0, 50, 70, 100];
 
   return (
     <tr className="border-t border-slate-900 hover:bg-slate-900/60">
@@ -456,17 +484,39 @@ function RapportinoIncaRow({
         </div>
       </Td>
       <Td className="text-right">{formatMeters(c.metri_teo)}</Td>
-      <Td className="text-right">
-        <input
-          type="number"
-          min={0}
-          step="0.1"
-          value={metriValue}
-          disabled={disabled || saving}
-          onChange={(e) => onChangeMetri(row.id, e.target.value)}
-          className="w-24 text-right text-[11px] rounded-md bg-slate-900/80 border border-slate-700 px-2 py-1 text-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-60"
-        />
+
+      {/* Avanzamento turno en pourcentage */}
+      <Td className="text-center">
+        <div className="inline-flex items-center gap-1 rounded-full bg-slate-900/70 border border-slate-700 px-1 py-0.5">
+          {percOptions.map((p) => {
+            const isActive = p === selected;
+            const label = p === 0 ? "—" : `${p}%`;
+            const baseClasses =
+              "px-2 py-0.5 rounded-full text-[10px] font-medium cursor-pointer transition-colors";
+            const activeClasses =
+              "bg-emerald-500/80 text-slate-900 shadow-[0_0_10px_rgba(16,185,129,0.7)]";
+            const inactiveClasses =
+              "bg-transparent text-slate-300 hover:bg-slate-800/80";
+
+            return (
+              <button
+                key={p}
+                type="button"
+                disabled={disabled || saving}
+                onClick={() => onChangePercent(row.id, p, c)}
+                className={
+                  baseClasses +
+                  " " +
+                  (isActive ? activeClasses : inactiveClasses)
+                }
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
       </Td>
+
       <Td>
         <SituazioneBadge value={c.situazione} />
       </Td>
