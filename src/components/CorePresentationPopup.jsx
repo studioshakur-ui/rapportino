@@ -1,49 +1,63 @@
 // src/components/CorePresentationPopup.jsx
 import React from "react";
 
-export default function CorePresentationPopup({ onOpen, onClose }) {
+export default function CorePresentationPopup({
+  onOpen,
+  onClose,
+}) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="bg-[#0f1620] border border-slate-800 rounded-2xl px-8 py-7 w-full max-w-lg space-y-5 relative shadow-2xl shadow-black/60">
-        {/* Bouton fermer */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-slate-500 hover:text-slate-200 text-sm"
-        >
-          ✕
-        </button>
+      {/* CONTENEUR PRINCIPAL */}
+      <div className="w-full max-w-2xl mx-4 rounded-3xl border border-slate-700 bg-[#0a0f14] shadow-2xl shadow-black/60 overflow-hidden">
+        
+        {/* BANDEAU HAUT */}
+        <div className="px-6 pt-5 pb-3 border-b border-slate-800 flex items-center justify-between">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[10px] uppercase tracking-[0.28em] text-sky-400">
+              CORE · Direzione
+            </span>
+            <span className="text-sm font-semibold text-slate-100">
+              Radiografia del flusso operativo
+            </span>
+          </div>
 
-        {/* Eyebrow */}
-        <div className="text-[11px] uppercase tracking-[0.28em] text-sky-400">
-          CORE · Direzione
+          <button
+            onClick={onClose}
+            className="text-[11px] px-3 py-1 rounded-full border border-slate-700 text-slate-400 hover:bg-slate-900"
+          >
+            Chiudi
+          </button>
         </div>
 
-        {/* Titre */}
-        <h2 className="text-2xl font-semibold text-slate-100">
-          Pagina dedicata alla Direzione
-        </h2>
+        {/* ZONA CENTRALE */}
+        <div className="px-8 py-10 text-center space-y-6">
+          <h1 className="text-2xl md:text-3xl font-semibold text-slate-100 leading-tight">
+            Qui non c’è una demo.
+            <br />
+            C’è un punto di vista sul sistema.
+          </h1>
 
-        {/* Phrase unique */}
-        <p className="text-sm text-slate-400">
-          È disponibile una pagina che mostra, senza marketing, il confronto
-          tra l’architettura operativa attuale e uno scenario con CORE.
-        </p>
+          <p className="text-[13px] text-slate-400 max-w-xl mx-auto leading-relaxed">
+            Accesso riservato alla Direzione.
+            <br />
+            Lettura silenziosa. Nessuna azione richiesta.
+          </p>
+        </div>
 
-        {/* Boutons */}
-        <div className="flex justify-end gap-3 pt-2">
+        {/* ZONA BOTTOM AZIONI */}
+        <div className="px-6 pb-6 flex flex-col sm:flex-row gap-3 justify-center">
           <button
-            type="button"
+            onClick={onOpen}
+            className="px-6 py-2.5 rounded-full border border-sky-600 bg-sky-600/15 text-[13px] font-medium text-sky-200 hover:bg-sky-600/25 transition"
+          >
+            Apri la visualizzazione CORE
+          </button>
+
+          <button
             onClick={onClose}
-            className="text-xs px-3 py-1.5 rounded-full border border-slate-700 text-slate-400 hover:bg-slate-900"
+            className="px-5 py-2.5 rounded-full border border-slate-700 text-[12px] text-slate-400 hover:bg-slate-900 transition"
           >
             Magari dopo
-          </button>
-          <button
-            type="button"
-            onClick={onOpen}
-            className="text-xs px-4 py-2 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black font-semibold"
-          >
-            Apri presentazione
           </button>
         </div>
       </div>
