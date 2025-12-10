@@ -258,8 +258,6 @@ export default function IncaUploadPanel({ onImported }) {
             ? c.metri_posati_teorici
             : null;
 
-        const situazioneNorm = normalizeIncaSituazione(c);
-
         return {
           from_file_id: fileId,
           inca_file_id: fileId,
@@ -285,12 +283,9 @@ export default function IncaUploadPanel({ onImported }) {
           metri_totali: metriTotali,
           metri_previsti: metriPrevisti,
 
-          // États INCA d’origine
+          // États normalisés
           stato_inca: c.stato_inca || c.stato_tec || null,
-          stato_cantiere: c.stato_cantiere || null,
-
-          // État chantier CORE (B/R/T/P/E/null)
-          situazione: situazioneNorm,
+          situazione: c.situazione ?? c.situazione_cavo ?? null,
 
           impianto: c.impianto || null,
           zona_da: c.zona_da || c.app_partenza_zona || null,
@@ -329,10 +324,16 @@ export default function IncaUploadPanel({ onImported }) {
         })
         .select();
 
-      if (caviError) {
-        console.error('[INCA] Errore insert inca_cavi (dettagli):', caviError);
+      if (insertError) {
+        console.error(
+          '[INCA] Errore insert inca_cavi:',
+          insertError.message,
+          insertError.details,
+          insertError.hint
+        );
         throw new Error(
-          'File INCA caricato, ma errore durante il salvataggio dei cavi teorici.'
+          caviError.message ||
+            'File INCA caricato, ma errore durante il salvataggio dei cavi teorici.'
         );
       }
 
