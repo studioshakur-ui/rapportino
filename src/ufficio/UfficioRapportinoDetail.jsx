@@ -1,6 +1,6 @@
 // src/ufficio/UfficioRapportinoDetail.jsx
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../auth/AuthProvider';
 
@@ -48,8 +48,12 @@ export default function UfficioRapportinoDetail() {
 
   const isElett = useMemo(
     () => header?.crew_role === 'ELETTRICISTA',
-    [header]
+    [header],
   );
+
+  const isManager = profile?.app_role === 'MANAGER';
+  const isUfficio = profile?.app_role === 'UFFICIO';
+  const isDirezione = profile?.app_role === 'DIREZIONE';
 
   useEffect(() => {
     if (authLoading) return;
@@ -60,7 +64,8 @@ export default function UfficioRapportinoDetail() {
       return;
     }
 
-    if (profile.app_role !== 'UFFICIO' && profile.app_role !== 'DIREZIONE') {
+    // UFFICIO + DIREZIONE + MANAGER peuvent accéder à la page
+    if (!isUfficio && !isDirezione && !isManager) {
       setError('Non sei autorizzato ad accedere alla sezione Ufficio.');
       setLoading(false);
       return;
@@ -113,7 +118,7 @@ export default function UfficioRapportinoDetail() {
 
       setCavi(caviData || []);
 
-      // Remplir la note de retour si déjà présente
+      // Note de retour
       const existingNote =
         headerData.ufficio_note || headerData.note_ufficio || '';
       setReturnNote(existingNote);
@@ -122,27 +127,32 @@ export default function UfficioRapportinoDetail() {
     };
 
     load();
-  }, [authLoading, profile, id]);
+  }, [authLoading, profile, id, isUfficio, isDirezione, isManager]);
 
+  // MANAGER = lecture seule -> ne peut pas approuver / renvoyer
   const canApprove =
     header &&
     header.status === 'VALIDATED_CAPO' &&
-    (profile?.app_role === 'UFFICIO' || profile?.app_role === 'DIREZIONE') &&
+    (isUfficio || isDirezione) &&
     !saving;
 
   const canReturn =
     header &&
     (header.status === 'VALIDATED_CAPO' ||
       header.status === 'APPROVED_UFFICIO') &&
-    (profile?.app_role === 'UFFICIO' || profile?.app_role === 'DIREZIONE') &&
+    (isUfficio || isDirezione) &&
     !saving;
+
+  const statusLabel = header
+    ? STATUS_LABELS[header.status] || header.status
+    : '—';
 
   const handleBack = () => {
     navigate('/ufficio');
   };
 
   const handleApprove = async () => {
-    if (!header) return;
+    if (!header || !canApprove) return;
 
     setSaving(true);
     setError(null);
@@ -154,36 +164,32 @@ export default function UfficioRapportinoDetail() {
       status: 'APPROVED_UFFICIO',
       approved_by_ufficio: profile.id,
       approved_by_ufficio_at: now,
-      // Nettoyage éventuel de retour
-      returned_by_ufficio: null,
-      returned_by_ufficio_at: null,
+      ufficio_note: returnNote || null,
+      note_ufficio: returnNote || null,
     };
 
-    const { data, error: updErr } = await supabase
+    const { error: updateErr } = await supabase
       .from('rapportini')
       .update(updatePayload)
-      .eq('id', header.id)
-      .select()
-      .single();
+      .eq('id', header.id);
 
-    setSaving(false);
-
-    if (updErr) {
-      console.error('Errore durante approvazione:', updErr);
+    if (updateErr) {
+      console.error("Errore approvazione rapportino:", updateErr);
       setError("Errore durante l'approvazione del rapportino.");
-      return;
+    } else {
+      setHeader((prev) => (prev ? { ...prev, ...updatePayload } : prev));
+      setFeedback('Rapportino approvato con successo.');
     }
 
-    setHeader(data);
-    setFeedback('Rapportino approvato con successo.');
+    setSaving(false);
   };
 
   const handleReturn = async () => {
-    if (!header) return;
+    if (!header || !canReturn) return;
 
-    if (!returnNote.trim()) {
+    if (!returnNote || !returnNote.trim()) {
       setError(
-        'Per rimandare il rapportino al Capo è obbligatorio inserire una nota.'
+        "Per rimandare il rapportino è obbligatorio compilare la nota.",
       );
       return;
     }
@@ -198,333 +204,355 @@ export default function UfficioRapportinoDetail() {
       status: 'RETURNED',
       returned_by_ufficio: profile.id,
       returned_by_ufficio_at: now,
-      ufficio_note: returnNote.trim(),
-      note_ufficio: returnNote.trim(), // compatibilité vieux champ
+      ufficio_note: returnNote,
+      note_ufficio: returnNote,
     };
 
-    const { data, error: updErr } = await supabase
+    const { error: updateErr } = await supabase
       .from('rapportini')
       .update(updatePayload)
-      .eq('id', header.id)
-      .select()
-      .single();
+      .eq('id', header.id);
 
-    setSaving(false);
-
-    if (updErr) {
-      console.error('Errore durante il rinvio:', updErr);
-      setError('Errore durante il rinvio del rapportino al Capo.');
-      return;
+    if (updateErr) {
+      console.error('Errore rimandando il rapportino:', updateErr);
+      setError('Errore durante il rinvio del rapportino.');
+    } else {
+      setHeader((prev) => (prev ? { ...prev, ...updatePayload } : prev));
+      setFeedback('Rapportino rimandato al Capo con nota.');
     }
 
-    setHeader(data);
-    setFeedback('Rapportino rimandato al Capo con successo.');
+    setSaving(false);
   };
 
-  if (authLoading || loading) {
+  if (loading) {
     return (
-      <div className="p-4 text-sm text-slate-200">
+      <div className="p-6 text-sm text-slate-300">
         Caricamento del rapportino…
       </div>
     );
   }
 
-  if (error && !header) {
+  if (error) {
     return (
-      <div className="p-4 max-w-4xl mx-auto text-sm text-red-400">
+      <div className="p-6 space-y-3">
+        <div className="px-3 py-2 rounded-md bg-red-900/40 border border-red-600 text-sm text-red-100">
+          {error}
+        </div>
         <button
           type="button"
           onClick={handleBack}
-          className="mb-3 text-xs text-sky-300 hover:underline"
+          className="text-xs underline text-slate-300"
         >
-          ← Torna alla lista
+          Torna alla lista
         </button>
-        {error}
       </div>
     );
   }
 
   if (!header) {
     return (
-      <div className="p-4 max-w-4xl mx-auto text-sm text-slate-200">
+      <div className="p-6 space-y-3">
+        <div className="px-3 py-2 rounded-md bg-slate-800 border border-slate-600 text-sm text-slate-100">
+          Nessun rapportino trovato.
+        </div>
         <button
           type="button"
           onClick={handleBack}
-          className="mb-3 text-xs text-sky-300 hover:underline"
+          className="text-xs underline text-slate-300"
         >
-          ← Torna alla lista
+          Torna alla lista
         </button>
-        Rapportino non trovato.
       </div>
     );
   }
 
-  const statusLabel = STATUS_LABELS[header.status] || header.status;
-  const badgeClass =
-    STATUS_BADGE_CLASS[header.status] || 'bg-gray-100 text-gray-700';
-  const dateToShow = header.report_date || header.data;
-
   return (
-    <div className="max-w-6xl mx-auto">
-      {/* Barre haut / retour */}
-      <div className="mb-4 flex items-center justify-between">
-        <button
-          type="button"
-          onClick={handleBack}
-          className="text-xs text-sky-300 hover:underline"
-        >
-          ← Torna alla lista rapportini
-        </button>
-        <div className="text-[11px] text-slate-300">
-          ID: <span className="font-mono opacity-80">{header.id}</span>
-        </div>
-      </div>
-
-      {/* Titre */}
-      <h1 className="text-xl font-semibold text-slate-50 mb-3">
-        Dettaglio rapportino
-      </h1>
-
-      {/* Header rapportino */}
-      <div className="mb-4 border border-slate-700 rounded-lg bg-slate-900/70 p-3 text-xs text-slate-100">
-        <div className="flex flex-wrap gap-4 justify-between items-start">
-          <div className="flex flex-wrap gap-4">
-            <div>
-              <div className="text-[11px] text-slate-400">Data</div>
-              <div className="font-semibold">{formatDate(dateToShow)}</div>
-            </div>
-            <div>
-              <div className="text-[11px] text-slate-400">Capo</div>
-              <div className="font-semibold">
-                {header.capo_name || 'CAPO SCONOSCIUTO'}
-              </div>
-            </div>
-            <div>
-              <div className="text-[11px] text-slate-400">Squadra</div>
-              <div className="font-semibold">
-                {header.crew_role || '—'}
-              </div>
-            </div>
-            <div>
-              <div className="text-[11px] text-slate-400">Commessa</div>
-              <div className="font-semibold">
-                {header.commessa || '—'}
-              </div>
-            </div>
-            <div>
-              <div className="text-[11px] text-slate-400">Costr.</div>
-              <div className="font-semibold">
-                {header.costr || header.cost || '—'}
-              </div>
-            </div>
+    <div className="p-4 md:p-5 space-y-4">
+      {/* HEADER RAPPORTINO */}
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+        <div className="space-y-1 text-sm text-slate-100">
+          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+            Dettaglio rapportino
           </div>
-
-          <div className="flex flex-col items-end gap-1">
-            <span
-              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] ${badgeClass}`}
-            >
-              {statusLabel}
+          <div className="text-base font-semibold">
+            COSTR {header.costr || '—'} · Commessa {header.commessa || '—'}
+          </div>
+          <div className="text-xs text-slate-400">
+            Data:{' '}
+            <span className="text-slate-100">
+              {formatDate(header.report_date || header.data)}
             </span>
-            <div className="text-[11px] text-slate-400 text-right space-y-0.5">
-              <div>
-                Validato Capo:{' '}
-                <span className="text-slate-200">
-                  {formatDateTime(header.validated_by_capo_at)}
-                </span>
-              </div>
-              <div>
-                Approvato Ufficio:{' '}
-                <span className="text-slate-200">
-                  {formatDateTime(header.approved_by_ufficio_at)}
-                </span>
-              </div>
-              <div>
-                Rimandato Ufficio:{' '}
-                <span className="text-slate-200">
-                  {formatDateTime(header.returned_by_ufficio_at)}
-                </span>
-              </div>
-            </div>
+          </div>
+          <div className="text-xs text-slate-400">
+            Capo squadra:{' '}
+            <span className="text-slate-100">
+              {header.capo_name || '—'}
+            </span>
+          </div>
+          <div className="text-xs text-slate-400">
+            Tipo squadra:{' '}
+            <span className="text-slate-100">
+              {header.crew_role || '—'}
+            </span>
           </div>
         </div>
+
+        <div className="flex flex-col items-end gap-2 text-xs">
+          <span
+            className={[
+              'inline-flex items-center px-2.5 py-1 rounded-full font-medium',
+              STATUS_BADGE_CLASS[header.status] ||
+                'bg-slate-700 text-slate-100',
+            ].join(' ')}
+          >
+            Stato: {statusLabel}
+          </span>
+          <div className="text-[11px] text-slate-400 space-y-0.5 text-right">
+            <div>
+              Validato Capo:{' '}
+              <span className="text-slate-100">
+                {formatDateTime(header.validated_by_capo_at)}
+              </span>
+            </div>
+            <div>
+              Approvato Ufficio:{' '}
+              <span className="text-slate-100">
+                {formatDateTime(header.approved_by_ufficio_at)}
+              </span>
+            </div>
+            <div>
+              Rimandato:{' '}
+              <span className="text-slate-100">
+                {formatDateTime(header.returned_by_ufficio_at)}
+              </span>
+            </div>
+          </div>
+
+          {/* Boutons d'action */}
+          <div className="flex flex-wrap gap-2 justify-end">
+            <button
+              type="button"
+              onClick={handleBack}
+              className="px-3 py-1.5 rounded-md border border-slate-500 text-slate-100 text-xs hover:bg-slate-800"
+            >
+              ← Torna alla lista
+            </button>
+
+            <button
+              type="button"
+              onClick={handleReturn}
+              disabled={!canReturn}
+              className={[
+                'px-3 py-1.5 rounded-md border text-xs font-medium',
+                canReturn
+                  ? 'border-amber-500 text-amber-100 bg-amber-900/40 hover:bg-amber-900/60'
+                  : 'border-slate-700 text-slate-500 bg-slate-900/60 cursor-not-allowed',
+              ].join(' ')}
+            >
+              Rimanda al Capo
+            </button>
+
+            <button
+              type="button'
+              onClick={handleApprove}
+              disabled={!canApprove}
+              className={[
+                'px-3 py-1.5 rounded-md border text-xs font-medium',
+                canApprove
+                  ? 'border-emerald-500 text-emerald-100 bg-emerald-900/40 hover:bg-emerald-900/60'
+                  : 'border-slate-700 text-slate-500 bg-slate-900/60 cursor-not-allowed',
+              ].join(' ')}
+            >
+              Approva rapportino
+            </button>
+          </div>
+
+          {isManager && (
+            <div className="text-[10px] text-slate-500">
+              Accesso Manager in sola lettura · azioni bloccate
+            </div>
+          )}
+
+          {feedback && (
+            <div className="mt-1 text-[11px] text-emerald-300">
+              {feedback}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Feedback / erreurs */}
-      {feedback && (
-        <div className="mb-3 text-xs text-emerald-300 bg-emerald-900/30 border border-emerald-700 rounded-md px-3 py-2">
-          {feedback}
-        </div>
-      )}
-      {error && (
-        <div className="mb-3 text-xs text-amber-300 bg-amber-900/30 border border-amber-700 rounded-md px-3 py-2">
-          {error}
-        </div>
-      )}
-
-      {/* Actions Ufficio + note */}
-      <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div className="flex gap-2">
-          <button
-            type="button"
-            disabled={!canApprove}
-            onClick={handleApprove}
-            className={`px-3 py-1.5 rounded-md text-xs font-medium border ${
-              canApprove
-                ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'
-                : 'bg-slate-700 text-slate-400 border-slate-600 cursor-not-allowed'
-            }`}
-          >
-            {saving && canApprove ? 'Salvataggio…' : 'Approva e chiudi'}
-          </button>
-
-          <button
-            type="button"
-            disabled={!canReturn}
-            onClick={handleReturn}
-            className={`px-3 py-1.5 rounded-md text-xs font-medium border ${
-              canReturn
-                ? 'bg-rose-600 text-white border-rose-600 hover:bg-rose-700'
-                : 'bg-slate-700 text-slate-400 border-slate-600 cursor-not-allowed'
-            }`}
-          >
-            {saving && canReturn ? 'Salvataggio…' : 'Rimanda al Capo'}
-          </button>
-        </div>
-
-        <div className="flex-1 md:max-w-xs">
-          <label className="block text-[11px] font-medium text-slate-200 mb-1">
-            Nota Ufficio (visibile al Capo)
-          </label>
-          <textarea
-            rows={3}
-            className="w-full border border-slate-600 bg-slate-900/70 rounded-md px-2 py-1 text-xs text-slate-50"
-            placeholder="Spiega al Capo cosa manca, cosa non torna, o cosa va corretto…"
-            value={returnNote}
-            onChange={(e) => setReturnNote(e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* Tabella attività */}
-      <section className="mb-5 border border-slate-700 bg-slate-900/70 rounded-lg overflow-hidden">
-        <div className="px-3 py-2 border-b border-slate-700 bg-slate-800/80 text-[11px] font-semibold text-slate-100">
-          Attività della giornata
+      {/* TABLE RIGHE */}
+      <div className="border border-slate-800 rounded-xl overflow-hidden">
+        <div className="bg-slate-900/80 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-400">
+          Attività giornaliere
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-full text-[11px]">
-            <thead>
-              <tr className="bg-slate-800 border-b border-slate-700">
-                <th className="px-2 py-1 text-left">Categoria</th>
-                <th className="px-2 py-1 text-left">Descrizione</th>
-                <th className="px-2 py-1 text-left">Operatori</th>
-                <th className="px-2 py-1 text-left">Tempo</th>
-                <th className="px-2 py-1 text-right">Previsto</th>
-                <th className="px-2 py-1 text-right">Prodotto</th>
-                <th className="px-2 py-1 text-left">Note</th>
+          <table className="min-w-full border-t border-slate-800 text-[12px]">
+            <thead className="bg-slate-900/80 text-slate-300">
+              <tr>
+                <th className="px-2 py-1 text-left border-b border-slate-800">
+                  #
+                </th>
+                <th className="px-2 py-1 text-left border-b border-slate-800">
+                  Categoria
+                </th>
+                <th className="px-2 py-1 text-left border-b border-slate-800">
+                  Descrizione
+                </th>
+                <th className="px-2 py-1 text-left border-b border-slate-800">
+                  Operatori
+                </th>
+                <th className="px-2 py-1 text-left border-b border-slate-800">
+                  Tempo
+                </th>
+                <th className="px-2 py-1 text-right border-b border-slate-800">
+                  Previsto
+                </th>
+                <th className="px-2 py-1 text-right border-b border-slate-800">
+                  Prodotto
+                </th>
+                <th className="px-2 py-1 text-left border-b border-slate-800">
+                  Note
+                </th>
               </tr>
             </thead>
-            <tbody>
-              {rows.length === 0 && (
+            <tbody className="divide-y divide-slate-800 bg-slate-950/60">
+              {rows.map((r, idx) => (
+                <tr key={r.id || idx}>
+                  <td className="px-2 py-1 text-slate-400 align-top">
+                    {idx + 1}
+                  </td>
+                  <td className="px-2 py-1 text-slate-100 align-top">
+                    {r.categoria || '—'}
+                  </td>
+                  <td className="px-2 py-1 text-slate-100 align-top">
+                    {r.descrizione || '—'}
+                  </td>
+                  <td className="px-2 py-1 text-slate-100 align-top whitespace-pre-wrap">
+                    {r.operatori || '—'}
+                  </td>
+                  <td className="px-2 py-1 text-slate-100 align-top whitespace-pre-wrap">
+                    {r.tempo || '—'}
+                  </td>
+                  <td className="px-2 py-1 text-slate-100 align-top text-right">
+                    {r.previsto ?? '—'}
+                  </td>
+                  <td className="px-2 py-1 text-slate-100 align-top text-right">
+                    {r.prodotto ?? '—'}
+                  </td>
+                  <td className="px-2 py-1 text-slate-100 align-top whitespace-pre-wrap">
+                    {r.note || '—'}
+                  </td>
+                </tr>
+              ))}
+              {!rows.length && (
                 <tr>
                   <td
-                    colSpan={7}
-                    className="px-3 py-3 text-center text-[11px] text-slate-500"
+                    colSpan={8}
+                    className="px-3 py-2 text-center text-[12px] text-slate-500"
                   >
-                    Nessuna riga attività registrata.
+                    Nessuna riga attività trovata per questo rapportino.
                   </td>
                 </tr>
               )}
-              {rows.map((row) => (
-                <tr
-                  key={row.id}
-                  className="border-b border-slate-800 hover:bg-slate-800/70"
-                >
-                  <td className="px-2 py-1 whitespace-nowrap">
-                    {row.categoria || '—'}
-                  </td>
-                  <td className="px-2 py-1">{row.descrizione || '—'}</td>
-                  <td className="px-2 py-1 whitespace-pre-wrap">
-                    {row.operatori || '—'}
-                  </td>
-                  <td className="px-2 py-1 whitespace-pre-wrap">
-                    {row.tempo || '—'}
-                  </td>
-                  <td className="px-2 py-1 text-right">
-                    {row.previsto != null ? row.previsto : '—'}
-                  </td>
-                  <td className="px-2 py-1 text-right">
-                    {row.prodotto != null ? row.prodotto : '—'}
-                  </td>
-                  <td className="px-2 py-1">{row.note || '—'}</td>
-                </tr>
-              ))}
             </tbody>
           </table>
         </div>
-      </section>
+      </div>
 
-      {/* Tabella cavi (solo Elettricista) */}
+      {/* CAVI (ELETTRICISTA) */}
       {isElett && (
-        <section className="mb-8 border border-slate-700 bg-slate-900/70 rounded-lg overflow-hidden">
-          <div className="px-3 py-2 border-b border-slate-700 bg-slate-800/80 text-[11px] font-semibold text-slate-100 flex items-center justify-between gap-2">
-            <span>Lista cavi posati (giornata)</span>
-            <Link
-              to="/ufficio/inca"
-              className="inline-flex items-center gap-1 px-2 py-1 rounded border border-emerald-400/80 text-[10px] font-medium text-emerald-100 hover:bg-emerald-500/10 hover:border-emerald-300"
-            >
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              <span>Apri vista INCA</span>
-            </Link>
+        <div className="border border-slate-800 rounded-xl overflow-hidden">
+          <div className="bg-slate-900/80 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-400">
+            Lista cavi associati (INCA)
           </div>
           <div className="overflow-x-auto">
-            <table className="min-w-full text-[11px]">
-              <thead>
-                <tr className="bg-slate-800 border-b border-slate-700">
-                  <th className="px-2 py-1 text-left">Codice</th>
-                  <th className="px-2 py-1 text-left">Descrizione</th>
-                  <th className="px-2 py-1 text-right">Metri totali</th>
-                  <th className="px-2 py-1 text-right">%</th>
-                  <th className="px-2 py-1 text-right">Metri posati</th>
-                  <th className="px-2 py-1 text-left">Note</th>
+            <table className="min-w-full border-t border-slate-800 text-[12px]">
+              <thead className="bg-slate-900/80 text-slate-300">
+                <tr>
+                  <th className="px-2 py-1 text-left border-b border-slate-800">
+                    Codice
+                  </th>
+                  <th className="px-2 py-1 text-left border-b border-slate-800">
+                    Descrizione
+                  </th>
+                  <th className="px-2 py-1 text-right border-b border-slate-800">
+                    Metri totali
+                  </th>
+                  <th className="px-2 py-1 text-right border-b border-slate-800">
+                    Metri posati
+                  </th>
+                  <th className="px-2 py-1 text-right border-b border-slate-800">
+                    %
+                  </th>
                 </tr>
               </thead>
-              <tbody>
-                {cavi.length === 0 && (
+              <tbody className="divide-y divide-slate-800 bg-slate-950/60">
+                {cavi.map((c) => (
+                  <tr key={c.id}>
+                    <td className="px-2 py-1 text-slate-100 align-top">
+                      {c.codice || '—'}
+                    </td>
+                    <td className="px-2 py-1 text-slate-100 align-top">
+                      {c.descrizione || '—'}
+                    </td>
+                    <td className="px-2 py-1 text-slate-100 align-top text-right">
+                      {c.metri_totali ?? '—'}
+                    </td>
+                    <td className="px-2 py-1 text-slate-100 align-top text-right">
+                      {c.metri_posati ?? '—'}
+                    </td>
+                    <td className="px-2 py-1 text-slate-100 align-top text-right">
+                      {c.percentuale != null ? `${c.percentuale}%` : '—'}
+                    </td>
+                  </tr>
+                ))}
+                {!cavi.length && (
                   <tr>
                     <td
-                      colSpan={6}
-                      className="px-3 py-3 text-center text-[11px] text-slate-500"
+                      colSpan={5}
+                      className="px-3 py-2 text-center text-[12px] text-slate-500"
                     >
-                      Nessun cavo registrato per questa giornata.
+                      Nessun cavo associato a questo rapportino.
                     </td>
                   </tr>
                 )}
-                {cavi.map((c) => (
-                  <tr
-                    key={c.id}
-                    className="border-b border-slate-800 hover:bg-slate-800/70"
-                  >
-                    <td className="px-2 py-1 whitespace-nowrap">
-                      {c.codice || '—'}
-                    </td>
-                    <td className="px-2 py-1">{c.descrizione || '—'}</td>
-                    <td className="px-2 py-1 text-right">
-                      {c.metri_totali != null ? c.metri_totali : '—'}
-                    </td>
-                    <td className="px-2 py-1 text-right">
-                      {c.percentuale != null ? `${c.percentuale} %` : '—'}
-                    </td>
-                    <td className="px-2 py-1 text-right">
-                      {c.metri_posati != null ? c.metri_posati : '—'}
-                    </td>
-                    <td className="px-2 py-1">{c.note || '—'}</td>
-                  </tr>
-                ))}
               </tbody>
             </table>
           </div>
-        </section>
+        </div>
       )}
+
+      {/* NOTE DI RITORNO UFFICIO */}
+      <div className="border border-slate-800 rounded-xl p-3 space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
+            Nota di ritorno Ufficio → Capo
+          </div>
+          {isManager && (
+            <span className="text-[10px] text-slate-500">
+              Manager · sola lettura
+            </span>
+          )}
+        </div>
+        <textarea
+          value={returnNote}
+          onChange={(e) => setReturnNote(e.target.value)}
+          disabled={isManager}
+          rows={4}
+          className={[
+            'w-full text-[12px] rounded-md border px-2 py-1.5 bg-slate-950/60 text-slate-100 resize-y',
+            isManager
+              ? 'border-slate-700 cursor-not-allowed'
+              : 'border-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500',
+          ].join(' ')}
+          placeholder={
+            isManager
+              ? 'Nota visibile in sola lettura (solo Ufficio/Direzione può modificarla).'
+              : 'Scrivi qui la nota che verrà inviata al Capo (obbligatoria per il rimando).'
+          }
+        />
+      </div>
     </div>
   );
 }

@@ -6,6 +6,61 @@ import { parseIncaPdf } from './parseIncaPdf';
 import { parseIncaXlsx } from './parseIncaXlsx';
 
 /**
+ * Normalise la "situazione" provenant d'INCA
+ * vers les codes CORE : B / R / T / P / E / null.
+ *
+ * On regarde :
+ *  - c.situazione_cavo
+ *  - c.situazione
+ *  - c.stato_cantiere
+ *  - c.stato_inca
+ */
+function normalizeIncaSituazione(c) {
+  if (!c) return null;
+
+  const raw =
+    (typeof c === 'string'
+      ? c
+      : c.situazione_cavo ||
+        c.situazione ||
+        c.stato_cantiere ||
+        c.stato_inca ||
+        ''
+    ) || '';
+
+  const val = raw.toUpperCase().trim();
+  if (!val) return null;
+
+  // Déjà au bon format
+  if (['B', 'R', 'T', 'P', 'E'].includes(val)) return val;
+
+  // Éliminé
+  if (val.includes('ELIMIN')) return 'E';
+
+  // Demande / Richiesta
+  if (val.includes('RICH')) return 'R';
+
+  // Taglio
+  if (val.includes('TAGLIO') || val.includes('TAGLIATO')) return 'T';
+
+  // Posé / Posato / Collegato
+  if (
+    val.includes('POSA') ||
+    val.includes('POSATO') ||
+    val.includes('COLLEGATO') ||
+    val.includes('COLLEGAMENTO')
+  ) {
+    return 'P';
+  }
+
+  // Bloqué / Non pronto, etc.
+  if (val.includes('BLOCC') || val.includes('NON PRONTO')) return 'B';
+
+  // Sinon, on reste neutre (EMPTY côté UI)
+  return null;
+}
+
+/**
  * Panneau d'import INCA (PDF / XLSX)
  *
  * Flux :
@@ -14,7 +69,7 @@ import { parseIncaXlsx } from './parseIncaXlsx';
  *  3) Parsing du fichier :
  *     - PDF → parseIncaPdf
  *     - XLSX → parseIncaXlsx
- *  4) Mapping des cavi vers inca_cavi (SANS dé-doublonnage ici)
+ *  4) Dé-doublonnage local des cavi (codice + rev_inca ou marca_cavo)
  *  5) UPSERT dans inca_cavi (onConflict: "codice,rev_inca")
  */
 
@@ -145,8 +200,29 @@ export default function IncaUploadPanel({ onImported }) {
         return;
       }
 
-      // 4) Mapping vers inca_cavi (UNE LIGNE PAR CAVO, pas de dé-doublonnage ici)
-      const rowsToUpsert = cablesRaw.map((c) => {
+      // 4) Dédoublonnage local (codice + rev_inca)
+      const uniqueMap = new Map();
+      for (const c of cablesRaw) {
+        const codiceInca =
+          c.codice_cavo ||
+          c.codice_inca ||
+          c.codice ||
+          c.marca_cavo ||
+          'UNKNOWN';
+
+        const rev = c.rev_inca || '';
+        const key = `${codiceInca}::${rev}`;
+        if (!uniqueMap.has(key)) {
+          uniqueMap.set(key, c);
+        }
+      }
+      const cables = Array.from(uniqueMap.values());
+      console.log(
+        `[INCA ${fileType}] Cavi letti (grezzi): ${cablesRaw.length} → righe uniche: ${cables.length}`
+      );
+
+      // 5) Mapping vers inca_cavi
+      const rowsToUpsert = cables.map((c) => {
         const codiceInca =
           c.codice_cavo ||
           c.codice_inca ||
@@ -182,23 +258,7 @@ export default function IncaUploadPanel({ onImported }) {
             ? c.metri_posati_teorici
             : null;
 
-        // 🔍 Normalisation de SITUAZIONE pour respecter le CHECK de la table
-        const rawSitu =
-          c.situazione ??
-          c.situazione_cavo ??
-          null;
-
-        let situazioneNorm = null;
-        if (rawSitu != null && String(rawSitu).trim() !== '') {
-          const s = String(rawSitu).trim().toUpperCase();
-          // La table n'accepte que B / R / T / P / E ou NULL
-          if (['B', 'R', 'T', 'P', 'E'].includes(s)) {
-            situazioneNorm = s;
-          } else {
-            // Tout le reste → on l’enregistre dans stato_inca, pas dans situazione
-            situazioneNorm = null;
-          }
-        }
+        const situazioneNorm = normalizeIncaSituazione(c);
 
         return {
           from_file_id: fileId,
@@ -225,14 +285,11 @@ export default function IncaUploadPanel({ onImported }) {
           metri_totali: metriTotali,
           metri_previsti: metriPrevisti,
 
-          // On met les infos textuelles complètes ici
-          stato_inca:
-            c.stato_inca ||
-            c.stato_tec ||
-            c.situazione_cavo ||
-            null,
+          // États INCA d’origine
+          stato_inca: c.stato_inca || c.stato_tec || null,
+          stato_cantiere: c.stato_cantiere || null,
 
-          // Et la colonne "situazione" respecte strictement le CHECK
+          // État chantier CORE (B/R/T/P/E/null)
           situazione: situazioneNorm,
 
           impianto: c.impianto || null,
@@ -263,7 +320,7 @@ export default function IncaUploadPanel({ onImported }) {
         };
       });
 
-      // 5) UPSERT inca_cavi
+      // 6) UPSERT inca_cavi
       const { data: upsertedCavi, error: caviError } = await supabase
         .from('inca_cavi')
         .upsert(rowsToUpsert, {
@@ -273,7 +330,7 @@ export default function IncaUploadPanel({ onImported }) {
         .select();
 
       if (caviError) {
-        console.error('[INCA] Errore insert inca_cavi:', caviError);
+        console.error('[INCA] Errore insert inca_cavi (dettagli):', caviError);
         throw new Error(
           'File INCA caricato, ma errore durante il salvataggio dei cavi teorici.'
         );

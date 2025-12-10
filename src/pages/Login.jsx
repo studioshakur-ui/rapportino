@@ -40,7 +40,7 @@ export default function Login() {
     }
   }, [theme]);
 
-  // Si déjà connecté → redirect
+  // Si déjà connecté → redirect selon app_role (CAPO / UFFICIO / MANAGER / DIREZIONE)
   useEffect(() => {
     if (!session || !profile) return;
 
@@ -53,7 +53,10 @@ export default function Login() {
       navigate("/ufficio", { replace: true });
     } else if (profile.app_role === "DIREZIONE") {
       navigate("/direction", { replace: true });
+    } else if (profile.app_role === "MANAGER") {
+      navigate("/manager", { replace: true });
     } else {
+      // CAPO o ruolo non riconosciuto → default CAPO
       navigate("/app", { replace: true });
     }
   }, [session, profile, navigate]);
@@ -141,6 +144,9 @@ export default function Login() {
       } else if (ruolo === "DIREZIONE") {
         console.log("[Login] Redirect → /direction");
         navigate("/direction", { replace: true });
+      } else if (ruolo === "MANAGER") {
+        console.log("[Login] Redirect → /manager");
+        navigate("/manager", { replace: true });
       } else {
         console.log("[Login] Redirect → /app (CAPO o profilo mancante)");
         navigate("/app", { replace: true });

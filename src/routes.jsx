@@ -1,33 +1,31 @@
 // src/routes.jsx
-import React from 'react';
-import { Routes, Route } from 'react-router-dom';
+import React from "react";
+import { Routes, Route } from "react-router-dom";
 
-import RequireRole from './auth/RequireRole';
+import RequireRole from "./auth/RequireRole";
 
-import Landing from './pages/Landing';
-import Login from './pages/Login';
+import Landing from "./pages/Landing";
+import Login from "./pages/Login";
 
-import AppShell from './AppShell';
-import UfficioShell from './UfficioShell';
-import DirectionShell from './DirectionShell';
+import AppShell from "./AppShell";
+import UfficioShell from "./UfficioShell";
+import DirectionShell from "./DirectionShell";
+import ManagerShell from "./ManagerShell";
 
 // CAPO – contenu
-import RapportinoPage from './components/RapportinoPage';
-import ShipSelector from './pages/ShipSelector';
-import CapoModuleSelector from './pages/CapoModuleSelector';
-import CapoRoleSelector from './pages/CapoRoleSelector';
-import IncaCapoCockpit from './capo/IncaCapoCockpit';
+import RapportinoPage from "./components/RapportinoPage";
+import ShipSelector from "./pages/ShipSelector";
+import CapoModuleSelector from "./pages/CapoModuleSelector";
+import CapoRoleSelector from "./pages/CapoRoleSelector";
+import IncaCapoCockpit from "./capo/IncaCapoCockpit";
 
 // UFFICIO – contenu
-import UfficioRapportiniList from './ufficio/UfficioRapportiniList';
-import UfficioRapportinoDetail from './ufficio/UfficioRapportinoDetail';
-import IncaFilesPanel from './inca/IncaFilesPanel';
+import UfficioRapportiniList from "./ufficio/UfficioRapportiniList";
+import UfficioRapportinoDetail from "./ufficio/UfficioRapportinoDetail";
+import IncaFilesPanel from "./inca/IncaFilesPanel";
 
-// ARCHIVE central
-import ArchivePage from './pages/Archive';
-
-// PRINT rapportino (A4)
-import RapportinoSheet from './components/RapportinoSheet';
+// ARCHIVE central (CORE Drive v1)
+import ArchivePage from "./pages/Archive";
 
 export default function AppRoutes() {
   return (
@@ -36,14 +34,11 @@ export default function AppRoutes() {
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
 
-      {/* PAGE PRINT (hors shell) */}
-      <Route path="/print/rapportino" element={<RapportinoSheet />} />
-
       {/* ===== CAPO ===== */}
       <Route
         path="/app/*"
         element={
-          <RequireRole allow={['CAPO']}>
+          <RequireRole allow={["CAPO"]}>
             <AppShell />
           </RequireRole>
         }
@@ -61,12 +56,18 @@ export default function AppRoutes() {
         />
 
         {/* 4️⃣ RAPPORTINO */}
-        <Route path="ship/:shipId/rapportino" element={<RapportinoPage />} />
+        <Route
+          path="ship/:shipId/rapportino"
+          element={<RapportinoPage />}
+        />
 
         {/* 5️⃣ INCA CAPO */}
-        <Route path="ship/:shipId/inca" element={<IncaCapoCockpit />} />
+        <Route
+          path="ship/:shipId/inca"
+          element={<IncaCapoCockpit />}
+        />
 
-        {/* ARCHIVE */}
+        {/* ARCHIVE CAPO – CORE Drive, filtré par capo */}
         <Route path="archive" element={<ArchivePage />} />
       </Route>
 
@@ -74,22 +75,42 @@ export default function AppRoutes() {
       <Route
         path="/ufficio/*"
         element={
-          <RequireRole allow={['UFFICIO', 'DIREZIONE']}>
+          <RequireRole allow={["UFFICIO", "DIREZIONE", "MANAGER"]}>
             <UfficioShell />
           </RequireRole>
         }
       >
+        {/* Liste rapportini par défaut */}
         <Route index element={<UfficioRapportiniList />} />
-        <Route path="rapportini/:id" element={<UfficioRapportinoDetail />} />
+
+        {/* Détail rapportino */}
+        <Route
+          path="rapportini/:id"
+          element={<UfficioRapportinoDetail />}
+        />
+
+        {/* INCA UFFICIO */}
         <Route path="inca" element={<IncaFilesPanel />} />
+
+        {/* ARCHIVE UFFICIO – CORE Drive v1 */}
         <Route path="archive" element={<ArchivePage />} />
       </Route>
+
+      {/* ===== MANAGER ===== */}
+      <Route
+        path="/manager/*"
+        element={
+          <RequireRole allow={["MANAGER"]}>
+            <ManagerShell />
+          </RequireRole>
+        }
+      />
 
       {/* ===== DIREZIONE ===== */}
       <Route
         path="/direction/*"
         element={
-          <RequireRole allow={['DIREZIONE']}>
+          <RequireRole allow={["DIREZIONE", "MANAGER"]}>
             <DirectionShell />
           </RequireRole>
         }
