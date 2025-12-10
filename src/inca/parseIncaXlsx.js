@@ -1,303 +1,201 @@
 // src/inca/parseIncaXlsx.js
-import * as XLSX from 'xlsx';
+import * as XLSX from "xlsx";
 
 /**
- * Parser XLSX INCA (foglio DATI)
+ * Parse un fichier XLSX exporté depuis INCA.
  *
- * Il retourne un tableau d'objets déjà au format proche de la table inca_cavi :
- * {
- *   marca_cavo,
- *   codice,               // CODICE CAVO
- *   livello_disturbo,
- *   tipo,
- *   sezione,
- *   wbs,
- *   descrizione,
- *   metri_teo,            // LUNGHEZZA DI DISEGNO
- *   metri_totali,         // LUNGHEZZA DI POSA (si dispo, sinon copie metri_teo)
- *   metri_previsti,       // LUNGHEZZA DI CALCOLO (si dispo, sinon copie metri_totali)
- *   stato_inca,           // STATO TEC (M, V, ecc.)
- *   situazione,           // B / R / T / P / E / null  (machine d’états chantier)
+ * Retourne un tableau d'objets "cavo" avec les champs utilisés par IncaUploadPanel :
+ *  - marca_cavo
+ *  - codice_cavo
+ *  - livello_disturbo
+ *  - tipo_cavo
+ *  - situazione_cavo
+ *  - stato_tec
+ *  - stato_cantiere
+ *  - app_partenza, app_partenza_zona, app_partenza_descrizione
+ *  - app_arrivo, app_arrivo_zona, app_arrivo_descrizione
+ *  - lunghezza_disegno, lunghezza_posa, lunghezza_calcolo
+ *  - sezione, wbs
+ *  - rev_inca
+ *  - zona
+ *  - richiesta_taglio, data_richiesta_taglio
  *
- *   // NB: on renvoie aussi quelques champs bruts pour usage futur éventuel
- *   situazione_cavo_raw,
- *   stato_cantiere_raw,
- *   stato_collegamento_raw,
- * }
+ * ⚠️ IMPORTANT : aucun dé-doublonnage ici.
  */
-
-function normalizeHeader(value) {
-  if (value == null) return '';
-  return String(value).trim().toUpperCase().replace(/\s+/g, ' ');
-}
-
 export async function parseIncaXlsx(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
+  // 1) Lire le fichier en ArrayBuffer
+  const buffer = await file.arrayBuffer();
+  const workbook = XLSX.read(buffer, { type: "array" });
 
-    reader.onload = (e) => {
-      try {
-        const data = e.target.result;
-        const workbook = XLSX.read(data, { type: 'array' });
+  const sheetName = workbook.SheetNames[0];
+  const sheet = workbook.Sheets[sheetName];
 
-        const sheetName = workbook.SheetNames[0];
-        const sheet = workbook.Sheets[sheetName];
-
-        // Lecture brute en mode matrice
-        const rows = XLSX.utils.sheet_to_json(sheet, {
-          header: 1,
-          defval: null,
-        });
-
-        if (!rows || rows.length === 0) {
-          console.warn('[INCA XLSX] Nessuna riga trovata nel foglio.');
-          return resolve([]);
-        }
-
-        // 1) Trouver la ligne d'entête (celle qui contient "MARCA CAVO")
-        let headerRowIndex = -1;
-        for (let i = 0; i < rows.length; i++) {
-          const r = rows[i];
-          if (
-            r.some(
-              (cell) =>
-                typeof cell === 'string' &&
-                normalizeHeader(cell) === 'MARCA CAVO'
-            )
-          ) {
-            headerRowIndex = i;
-            break;
-          }
-        }
-
-        if (headerRowIndex === -1) {
-          console.warn(
-            '[INCA XLSX] Impossibile trovare intestazione "MARCA CAVO" nel file.'
-          );
-          return resolve([]);
-        }
-
-        const headerRow = rows[headerRowIndex];
-        console.log(
-          '[INCA XLSX] Header row index:',
-          headerRowIndex,
-          '→',
-          headerRow
-        );
-
-        // 2) Mapping colonne → champ
-        const colIndex = {
-          marca: null,
-          codice: null,
-          livello: null,
-          tipo: null,
-          sezione: null,
-          wbs: null,
-
-          situazioneCavo: null,      // SITUAZIONE CAVO (E, …)
-          statoTec: null,            // STATO TEC (M, V, …)
-          statoCantiere: null,       // STATO CANTIERE (B, R, T, P, 5, …)
-          statoCollegamento: null,   // STATO COLLEGAMENTO
-
-          lungDisegno: null,
-          lungPosa: null,
-          lungCalc: null,
-          descrizioneArrivo: null,
-        };
-
-        headerRow.forEach((cell, idx) => {
-          const norm = normalizeHeader(cell);
-
-          if (norm === 'MARCA CAVO') colIndex.marca = idx;
-          else if (norm === 'CODICE CAVO') colIndex.codice = idx;
-          else if (norm === 'LIVELLO DISTURBO') colIndex.livello = idx;
-          else if (norm === 'TIPO CAVO') colIndex.tipo = idx;
-          else if (norm === 'SEZIONE') colIndex.sezione = idx;
-          else if (norm === 'WBS') colIndex.wbs = idx;
-
-          else if (norm === 'SITUAZIONE CAVO') colIndex.situazioneCavo = idx;
-          else if (norm === 'STATO TEC') colIndex.statoTec = idx;
-          else if (norm === 'STATO CANTIERE') colIndex.statoCantiere = idx;
-          else if (norm === 'STATO COLLEGAMENTO')
-            colIndex.statoCollegamento = idx;
-
-          else if (norm === 'LUNGHEZZA DI DISEGNO')
-            colIndex.lungDisegno = idx;
-          else if (norm === 'LUNGHEZZA DI POSA') colIndex.lungPosa = idx;
-          else if (norm === 'LUNGHEZZA DI CALCOLO') colIndex.lungCalc = idx;
-          else if (
-            norm.includes('APP ARRIVO') &&
-            norm.includes('DESCRIZIONE')
-          ) {
-            colIndex.descrizioneArrivo = idx;
-          }
-        });
-
-        console.log('[INCA XLSX] Column mapping:', colIndex);
-
-        if (colIndex.marca == null) {
-          console.warn(
-            '[INCA XLSX] La colonna "MARCA CAVO" non è stata mappata correttamente.'
-          );
-          return resolve([]);
-        }
-
-        const cables = [];
-
-        // 3) Parcours des lignes de données
-        for (let i = headerRowIndex + 1; i < rows.length; i++) {
-          const row = rows[i];
-          if (!row) continue;
-
-          // MARCA CAVO obligatoire : sinon ligne ignorée
-          const marcaCell =
-            colIndex.marca != null ? row[colIndex.marca] : null;
-          const marca = marcaCell != null ? String(marcaCell).trim() : '';
-
-          if (!marca) continue;
-
-          const codiceCell =
-            colIndex.codice != null ? row[colIndex.codice] : null;
-          const livelloCell =
-            colIndex.livello != null ? row[colIndex.livello] : null;
-          const tipoCell =
-            colIndex.tipo != null ? row[colIndex.tipo] : null;
-          const sezioneCell =
-            colIndex.sezione != null ? row[colIndex.sezione] : null;
-          const wbsCell =
-            colIndex.wbs != null ? row[colIndex.wbs] : null;
-
-          // États / situazione
-          const situazioneCavoCell =
-            colIndex.situazioneCavo != null
-              ? row[colIndex.situazioneCavo]
-              : null;
-          const statoTecCell =
-            colIndex.statoTec != null ? row[colIndex.statoTec] : null;
-          const statoCantiereCell =
-            colIndex.statoCantiere != null
-              ? row[colIndex.statoCantiere]
-              : null;
-          const statoCollegamentoCell =
-            colIndex.statoCollegamento != null
-              ? row[colIndex.statoCollegamento]
-              : null;
-
-          const lungDisegnoCell =
-            colIndex.lungDisegno != null
-              ? row[colIndex.lungDisegno]
-              : null;
-          const lungPosaCell =
-            colIndex.lungPosa != null ? row[colIndex.lungPosa] : null;
-          const lungCalcCell =
-            colIndex.lungCalc != null ? row[colIndex.lungCalc] : null;
-
-          const descrArrivoCell =
-            colIndex.descrizioneArrivo != null
-              ? row[colIndex.descrizioneArrivo]
-              : null;
-
-          // Normalisation des états
-          const situazioneCavoRaw =
-            situazioneCavoCell != null
-              ? String(situazioneCavoCell).trim().toUpperCase()
-              : null;
-
-          const statoTecRaw =
-            statoTecCell != null
-              ? String(statoTecCell).trim().toUpperCase()
-              : null;
-
-          const statoCantiereRaw =
-            statoCantiereCell != null
-              ? String(statoCantiereCell).trim().toUpperCase()
-              : null;
-
-          const statoCollRaw =
-            statoCollegamentoCell != null
-              ? String(statoCollegamentoCell).trim().toUpperCase()
-              : null;
-
-          const lungDisegno = Number(lungDisegnoCell || 0) || 0;
-          const lungPosa = Number(lungPosaCell || 0) || 0;
-          const lungCalc = Number(lungCalcCell || 0) || 0;
-
-          // Machine d’états chantier :
-          // B → (null) → R → T → P  (+ E = Eliminato)
-          const allowedSitu = ['T', 'P', 'R', 'B', 'E'];
-          let situazione = null;
-
-          // 1) STATO CANTIERE prioritaire (B, R, T, P)
-          if (
-            statoCantiereRaw &&
-            allowedSitu.includes(statoCantiereRaw)
-          ) {
-            situazione = statoCantiereRaw;
-          }
-          // 2) Sinon on regarde SITUAZIONE CAVO (souvent E)
-          else if (
-            situazioneCavoRaw &&
-            allowedSitu.includes(situazioneCavoRaw)
-          ) {
-            situazione = situazioneCavoRaw;
-          }
-          // 3) Sinon null (débloqué sans demande, neutre)
-
-          cables.push({
-            marca_cavo: marca,
-            codice:
-              codiceCell != null ? String(codiceCell).trim() : null,
-            livello_disturbo:
-              livelloCell != null ? String(livelloCell).trim() : null,
-            tipo: tipoCell != null ? String(tipoCell).trim() : null,
-            sezione:
-              sezioneCell != null ? String(sezioneCell).trim() : null,
-            wbs: wbsCell != null ? String(wbsCell).trim() : null,
-            descrizione:
-              descrArrivoCell != null
-                ? String(descrArrivoCell).trim()
-                : null,
-
-            metri_teo: lungDisegno || null,
-            metri_totali: lungPosa || null,
-            metri_previsti: lungCalc || null,
-
-            // États normalisés
-            stato_inca: statoTecRaw || null, // STATO TEC
-            situazione, // B / R / T / P / E / null
-
-            // Bruts en bonus (pas insérés dans la DB actuellement)
-            situazione_cavo_raw: situazioneCavoRaw,
-            stato_cantiere_raw: statoCantiereRaw,
-            stato_collegamento_raw: statoCollRaw,
-          });
-        }
-
-        // 4) Dédoublonnage sur MARCA CAVO ou CODICE (à ton choix)
-        const seen = new Set();
-        const unique = [];
-
-        for (const c of cables) {
-          const key = c.codice || c.marca_cavo;
-          if (!key) continue;
-          if (seen.has(key)) continue;
-          seen.add(key);
-          unique.push(c);
-        }
-
-        console.log(
-          `[INCA XLSX] Cavi letti (grezzi): ${cables.length} → righe uniche: ${unique.length}`
-        );
-        resolve(unique);
-      } catch (err) {
-        reject(err);
-      }
-    };
-
-    reader.onerror = (e) => {
-      reject(e);
-    };
-
-    reader.readAsArrayBuffer(file);
+  // On récupère toutes les lignes brutes : tableau de tableaux
+  const rows = XLSX.utils.sheet_to_json(sheet, {
+    header: 1,
+    raw: true,
+    defval: null,
   });
+
+  if (!rows || rows.length === 0) {
+    console.warn("[INCA XLSX] Fichier vide ou non lisible.");
+    return [];
+  }
+
+  // 2) Trouver la ligne d'entête (celle qui contient "MARCA CAVO" + "CODICE CAVO")
+  let headerRowIndex = -1;
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    if (!Array.isArray(row)) continue;
+
+    const hasMarca = row.some(
+      (cell) =>
+        typeof cell === "string" &&
+        cell.toUpperCase().includes("MARCA CAVO")
+    );
+    const hasCodice = row.some(
+      (cell) =>
+        typeof cell === "string" &&
+        cell.toUpperCase().includes("CODICE CAVO")
+    );
+
+    if (hasMarca && hasCodice) {
+      headerRowIndex = i;
+      break;
+    }
+  }
+
+  if (headerRowIndex === -1) {
+    console.warn(
+      "[INCA XLSX] Impossible de trouver la ligne d'entête (MARCA CAVO / CODICE CAVO)."
+    );
+    return [];
+  }
+
+  const header = rows[headerRowIndex].map((c) =>
+    typeof c === "string" ? c.trim() : c
+  );
+  console.log("[INCA XLSX] Header row index:", headerRowIndex, "→", header);
+
+  // 3) Mapping des colonnes importantes
+  const indexOf = (label) =>
+    header.findIndex(
+      (h) => typeof h === "string" && h.toUpperCase() === label.toUpperCase()
+    );
+
+  const colMap = {
+    marca: indexOf("MARCA CAVO"),
+    codice: indexOf("CODICE CAVO"),
+    livello: indexOf("LIVELLO DISTURBO"),
+    tipo: indexOf("TIPO CAVO"),
+    situazione: indexOf("SITUAZIONE CAVO"),
+    stato_tec: indexOf("STATO TEC"),
+    stato_cantiere: indexOf("STATO CANTIERE"),
+
+    app_da: indexOf("APP PARTENZA"),
+    app_da_locale: indexOf("APP PARTENZA - LOCALE"),
+    app_da_descr: indexOf("APP PARTENZA - DESCRIZIONE"),
+
+    app_a: indexOf("APP ARRIVO"),
+    app_a_locale: indexOf("APP ARRIVO - LOCALE"),
+    app_a_descr: indexOf("APP ARRIVO- DESCRIZIONE"),
+
+    lung_dis: indexOf("LUNGHEZZA DI DISEGNO"),
+    lung_posa: indexOf("LUNGHEZZA DI POSA"),
+    sezione: indexOf("SEZIONE"),
+    wbs: indexOf("WBS"),
+    lung_calc: indexOf("LUNGHEZZA DI CALCOLO"),
+
+    rev_inca: indexOf("REVISIONE"),
+    zona: indexOf("ZONA"),
+
+    richiesta_taglio: indexOf("Richiesta Taglio"),
+    data_richiesta_taglio: indexOf("Data Richiesta Taglio"),
+  };
+
+  console.log("[INCA XLSX] Column mapping:", colMap);
+
+  const num = (v) => {
+    if (v == null || v === "") return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  // 4) Construire les objets cavo (une ligne XLSX = un cavo)
+  const rawDataRows = rows.slice(headerRowIndex + 1);
+  const result = [];
+
+  for (const row of rawDataRows) {
+    if (!Array.isArray(row)) continue;
+
+    const marca = colMap.marca >= 0 ? row[colMap.marca] : null;
+    const codice = colMap.codice >= 0 ? row[colMap.codice] : null;
+
+    // Si ni MARCA ni CODICE → ligne vide, on saute
+    if (
+      (marca == null || String(marca).trim() === "") &&
+      (codice == null || String(codice).trim() === "")
+    ) {
+      continue;
+    }
+
+    const cavo = {
+      marca_cavo: marca != null ? String(marca).trim() : null,
+      codice_cavo: codice != null ? String(codice).trim() : null,
+
+      livello_disturbo:
+        colMap.livello >= 0 ? row[colMap.livello] ?? null : null,
+      tipo_cavo: colMap.tipo >= 0 ? row[colMap.tipo] ?? null : null,
+      situazione_cavo:
+        colMap.situazione >= 0 ? row[colMap.situazione] ?? null : null,
+      stato_tec:
+        colMap.stato_tec >= 0 ? row[colMap.stato_tec] ?? null : null,
+      stato_cantiere:
+        colMap.stato_cantiere >= 0 ? row[colMap.stato_cantiere] ?? null : null,
+
+      app_partenza: colMap.app_da >= 0 ? row[colMap.app_da] ?? null : null,
+      app_partenza_zona:
+        colMap.app_da_locale >= 0 ? row[colMap.app_da_locale] ?? null : null,
+      app_partenza_descrizione:
+        colMap.app_da_descr >= 0 ? row[colMap.app_da_descr] ?? null : null,
+
+      app_arrivo: colMap.app_a >= 0 ? row[colMap.app_a] ?? null : null,
+      app_arrivo_zona:
+        colMap.app_a_locale >= 0 ? row[colMap.app_a_locale] ?? null : null,
+      app_arrivo_descrizione:
+        colMap.app_a_descr >= 0 ? row[colMap.app_a_descr] ?? null : null,
+
+      lunghezza_disegno:
+        colMap.lung_dis >= 0 ? num(row[colMap.lung_dis]) : null,
+      lunghezza_posa:
+        colMap.lung_posa >= 0 ? num(row[colMap.lung_posa]) : null,
+      lunghezza_calcolo:
+        colMap.lung_calc >= 0 ? num(row[colMap.lung_calc]) : null,
+
+      sezione: colMap.sezione >= 0 ? row[colMap.sezione] ?? null : null,
+      wbs: colMap.wbs >= 0 ? row[colMap.wbs] ?? null : null,
+
+      rev_inca:
+        colMap.rev_inca >= 0 ? String(row[colMap.rev_inca] ?? "").trim() : null,
+
+      zona: colMap.zona >= 0 ? row[colMap.zona] ?? null : null,
+
+      richiesta_taglio:
+        colMap.richiesta_taglio >= 0
+          ? row[colMap.richiesta_taglio] ?? null
+          : null,
+      data_richiesta_taglio:
+        colMap.data_richiesta_taglio >= 0
+          ? row[colMap.data_richiesta_taglio] ?? null
+          : null,
+    };
+
+    result.push(cavo);
+  }
+
+  console.log(
+    `[INCA XLSX] Cavi letti (grezzi): ${rawDataRows.length} → righe valide: ${result.length}`
+  );
+
+  return result;
 }

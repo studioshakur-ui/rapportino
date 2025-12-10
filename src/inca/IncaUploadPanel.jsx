@@ -15,7 +15,9 @@ import { parseIncaXlsx } from './parseIncaXlsx';
  *     - PDF → parseIncaPdf
  *     - XLSX → parseIncaXlsx
  *  4) Dé-doublonnage local des cavi (codice + rev_inca ou marca_cavo)
- *  5) UPSERT dans inca_cavi (onConflict: "codice,rev_inca")
+ *  5) Sync dans inca_cavi :
+ *     - delete des cavi de ce file (inca_file_id)
+ *     - insert des nouveaux cavi
  */
 
 export default function IncaUploadPanel({ onImported }) {
@@ -167,7 +169,7 @@ export default function IncaUploadPanel({ onImported }) {
       );
 
       // 5) Mapping vers inca_cavi
-      const rowsToUpsert = cables.map((c) => {
+      const rowsToInsert = cables.map((c) => {
         const codiceInca =
           c.codice_cavo ||
           c.codice_inca ||
@@ -260,24 +262,49 @@ export default function IncaUploadPanel({ onImported }) {
         };
       });
 
-      // 6) UPSERT inca_cavi
-      const { data: upsertedCavi, error: caviError } = await supabase
+      // 6) Sync inca_cavi : delete + insert pour ce file
+      // 6.1) On supprime les cavi déjà liés à ce fichier (re-import propre)
+      if (fileId) {
+        const { error: deleteError } = await supabase
+          .from('inca_cavi')
+          .delete()
+          .eq('inca_file_id', fileId);
+
+        if (deleteError) {
+          console.error(
+            '[INCA] Errore delete cavi esistenti:',
+            deleteError.message,
+            deleteError.details,
+            deleteError.hint
+          );
+          throw new Error(
+            'File INCA caricato, ma errore durante la pulizia dei cavi precedenti.'
+          );
+        }
+      }
+
+      // 6.2) On insère les nouveaux cavi
+      const { data: insertedCavi, error: insertError } = await supabase
         .from('inca_cavi')
-        .upsert(rowsToUpsert, {
-          onConflict: 'codice,rev_inca',
-          ignoreDuplicates: false,
-        })
+        .insert(rowsToInsert)
         .select();
 
-      if (caviError) {
-        console.error('[INCA] Errore insert/upsert inca_cavi:', caviError);
+      if (insertError) {
+        console.error(
+          '[INCA] Errore insert inca_cavi:',
+          insertError.message,
+          insertError.details,
+          insertError.hint
+        );
         throw new Error(
           'File INCA caricato, ma errore durante il salvataggio dei cavi teorici.'
         );
       }
 
+      const count = insertedCavi ? insertedCavi.length : rowsToInsert.length;
+
       setMessage(
-        `File INCA caricato correttamente. Cavi teorici registrati/aggiornati: ${upsertedCavi.length}.`
+        `File INCA caricato correttamente. Cavi teorici registrati: ${count}.`
       );
       setMessageKind('success');
 
