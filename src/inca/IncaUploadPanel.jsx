@@ -14,10 +14,8 @@ import { parseIncaXlsx } from './parseIncaXlsx';
  *  3) Parsing du fichier :
  *     - PDF → parseIncaPdf
  *     - XLSX → parseIncaXlsx
- *  4) Dé-doublonnage local des cavi (codice + rev_inca ou marca_cavo)
- *  5) Sync dans inca_cavi :
- *     - delete des cavi de ce file (inca_file_id)
- *     - insert des nouveaux cavi
+ *  4) Mapping des cavi vers inca_cavi (SANS dé-doublonnage ici)
+ *  5) UPSERT dans inca_cavi (onConflict: "codice,rev_inca")
  */
 
 export default function IncaUploadPanel({ onImported }) {
@@ -147,29 +145,8 @@ export default function IncaUploadPanel({ onImported }) {
         return;
       }
 
-      // 4) Dédoublonnage local (codice + rev_inca)
-      const uniqueMap = new Map();
-      for (const c of cablesRaw) {
-        const codiceInca =
-          c.codice_cavo ||
-          c.codice_inca ||
-          c.codice ||
-          c.marca_cavo ||
-          'UNKNOWN';
-
-        const rev = c.rev_inca || '';
-        const key = `${codiceInca}::${rev}`;
-        if (!uniqueMap.has(key)) {
-          uniqueMap.set(key, c);
-        }
-      }
-      const cables = Array.from(uniqueMap.values());
-      console.log(
-        `[INCA ${fileType}] Cavi letti (grezzi): ${cablesRaw.length} → righe uniche: ${cables.length}`
-      );
-
-      // 5) Mapping vers inca_cavi
-      const rowsToInsert = cables.map((c) => {
+      // 4) Mapping vers inca_cavi (UNE LIGNE PAR CAVO, pas de dé-doublonnage ici)
+      const rowsToUpsert = cablesRaw.map((c) => {
         const codiceInca =
           c.codice_cavo ||
           c.codice_inca ||
@@ -205,6 +182,24 @@ export default function IncaUploadPanel({ onImported }) {
             ? c.metri_posati_teorici
             : null;
 
+        // 🔍 Normalisation de SITUAZIONE pour respecter le CHECK de la table
+        const rawSitu =
+          c.situazione ??
+          c.situazione_cavo ??
+          null;
+
+        let situazioneNorm = null;
+        if (rawSitu != null && String(rawSitu).trim() !== '') {
+          const s = String(rawSitu).trim().toUpperCase();
+          // La table n'accepte que B / R / T / P / E ou NULL
+          if (['B', 'R', 'T', 'P', 'E'].includes(s)) {
+            situazioneNorm = s;
+          } else {
+            // Tout le reste → on l’enregistre dans stato_inca, pas dans situazione
+            situazioneNorm = null;
+          }
+        }
+
         return {
           from_file_id: fileId,
           inca_file_id: fileId,
@@ -230,9 +225,15 @@ export default function IncaUploadPanel({ onImported }) {
           metri_totali: metriTotali,
           metri_previsti: metriPrevisti,
 
-          // États normalisés
-          stato_inca: c.stato_inca || c.stato_tec || null,
-          situazione: c.situazione ?? c.situazione_cavo ?? null,
+          // On met les infos textuelles complètes ici
+          stato_inca:
+            c.stato_inca ||
+            c.stato_tec ||
+            c.situazione_cavo ||
+            null,
+
+          // Et la colonne "situazione" respecte strictement le CHECK
+          situazione: situazioneNorm,
 
           impianto: c.impianto || null,
           zona_da: c.zona_da || c.app_partenza_zona || null,
@@ -262,49 +263,24 @@ export default function IncaUploadPanel({ onImported }) {
         };
       });
 
-      // 6) Sync inca_cavi : delete + insert pour ce file
-      // 6.1) On supprime les cavi déjà liés à ce fichier (re-import propre)
-      if (fileId) {
-        const { error: deleteError } = await supabase
-          .from('inca_cavi')
-          .delete()
-          .eq('inca_file_id', fileId);
-
-        if (deleteError) {
-          console.error(
-            '[INCA] Errore delete cavi esistenti:',
-            deleteError.message,
-            deleteError.details,
-            deleteError.hint
-          );
-          throw new Error(
-            'File INCA caricato, ma errore durante la pulizia dei cavi precedenti.'
-          );
-        }
-      }
-
-      // 6.2) On insère les nouveaux cavi
-      const { data: insertedCavi, error: insertError } = await supabase
+      // 5) UPSERT inca_cavi
+      const { data: upsertedCavi, error: caviError } = await supabase
         .from('inca_cavi')
-        .insert(rowsToInsert)
+        .upsert(rowsToUpsert, {
+          onConflict: 'codice,rev_inca',
+          ignoreDuplicates: false,
+        })
         .select();
 
-      if (insertError) {
-        console.error(
-          '[INCA] Errore insert inca_cavi:',
-          insertError.message,
-          insertError.details,
-          insertError.hint
-        );
+      if (caviError) {
+        console.error('[INCA] Errore insert inca_cavi:', caviError);
         throw new Error(
           'File INCA caricato, ma errore durante il salvataggio dei cavi teorici.'
         );
       }
 
-      const count = insertedCavi ? insertedCavi.length : rowsToInsert.length;
-
       setMessage(
-        `File INCA caricato correttamente. Cavi teorici registrati: ${count}.`
+        `File INCA caricato correttamente. Cavi teorici registrati/aggiornati: ${upsertedCavi.length}.`
       );
       setMessageKind('success');
 
