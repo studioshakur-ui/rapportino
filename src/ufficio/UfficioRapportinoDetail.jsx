@@ -353,7 +353,7 @@ export default function UfficioRapportinoDetail() {
             </button>
 
             <button
-              type="button'
+              type="button"
               onClick={handleApprove}
               disabled={!canApprove}
               className={[
@@ -556,3 +556,4 @@ export default function UfficioRapportinoDetail() {
     </div>
   );
 }
+
