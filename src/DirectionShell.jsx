@@ -50,7 +50,7 @@ export default function DirectionShell() {
     }
   }, [theme]);
 
-  // Afficher le popup une seule fois par navigateur tant qu'il n'a pas été explicitement fermé
+  // Afficher le popup une seule fois par navigateur
   useEffect(() => {
     if (!profile) return;
     try {
@@ -154,7 +154,7 @@ export default function DirectionShell() {
             <div className="text-xs text-slate-400">
               Modulo Direzione ·{' '}
               <span className="font-semibold">
-                Presenze · produzione · archivio
+                Presenze · produzione · CORE Drive
               </span>
             </div>
           </div>
@@ -250,17 +250,17 @@ export default function DirectionShell() {
             </nav>
           </div>
 
-          {/* Sezione ARCHIVE */}
+          {/* Sezione CORE Drive · Storico */}
           <div className="mt-1">
             <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-2">
-              Archive · Storico
+              CORE Drive · Storico
             </div>
             <nav className="space-y-1.5">
               <Link
                 to="/direction/archive"
                 className={navItemClasses(isActive('/direction/archive'))}
               >
-                Rapportini v1 · Archivio
+                CORE Drive · rapportini v1
               </Link>
             </nav>
           </div>
@@ -308,19 +308,19 @@ export default function DirectionShell() {
                 path="presentazione"
                 element={<CorePresentation />}
               />
-              {/* /direction/archive */}
+              {/* /direction/archive → CORE Drive moteur actuel */}
               <Route path="archive" element={<ArchivePage />} />
             </Routes>
           </div>
-        </main>
 
-        {/* POPUP PRESENTATION CORE PREMIUM (simple) */}
-        {showPresentationModal && (
-          <CorePresentationPopup
-            onOpen={handleOpenPresentation}
-            onClose={handleDismissPresentation}
-          />
-        )}
+          {/* POPUP PRESENTATION CORE PREMIUM (simple) */}
+          {showPresentationModal && (
+            <CorePresentationPopup
+              onOpen={handleOpenPresentation}
+              onClose={handleDismissPresentation}
+            />
+          )}
+        </main>
       </div>
     </div>
   );

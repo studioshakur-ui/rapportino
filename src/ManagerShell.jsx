@@ -197,13 +197,13 @@ export default function ManagerShell() {
                 to="/manager"
                 className={navItemClasses(isOnRootManager)}
               >
-                Stato cantieri &amp; presenze
+                Stato cantieri &amp; sintesi
               </Link>
               <Link
                 to="/manager/assegnazioni"
                 className={navItemClasses(isActive("/manager/assegnazioni"))}
               >
-                Utenti &amp; cantieri
+                Assegnazioni &amp; squadre
               </Link>
               <Link
                 to="/manager/analytics"
@@ -236,7 +236,7 @@ export default function ManagerShell() {
                 to="/ufficio/archive"
                 className={navItemClasses(isActive("/ufficio/archive"))}
               >
-                CORE Drive · Archivio tecnico
+                CORE Drive · storico tecnico
               </Link>
               <Link
                 to="/direction"

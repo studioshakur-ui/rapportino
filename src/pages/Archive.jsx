@@ -111,7 +111,7 @@ export default function ArchivePage() {
   // Détail / boîte noire
   const [selected, setSelected] = useState(null);
 
-  // Chargement base
+  // Chargement base : pour l’instant, CORE Drive s’appuie sur archive_rapportini_v1 (v1 legacy)
   useEffect(() => {
     if (!profile) return;
 
@@ -136,7 +136,7 @@ export default function ArchivePage() {
       } catch (err) {
         console.error("Error loading archive_rapportini_v1", err);
         setError(
-          "Errore nel caricamento dell’archivio storico. Riprova o contatta l’Ufficio."
+          "Errore nel caricamento di CORE Drive (storico rapportini v1). Riprova o contatta l’Ufficio."
         );
       } finally {
         setLoading(false);
@@ -377,8 +377,8 @@ export default function ArchivePage() {
     if (!filtered.length) return;
     const csv = buildCsv(filtered, isCapoView);
     const filename = isCapoView
-      ? "archive_rapportini_personale.csv"
-      : "archive_rapportini_cantiere.csv";
+      ? "core-drive_personale.csv"
+      : "core-drive_cantiere.csv";
     downloadCsv(csv, filename);
   };
 
@@ -394,7 +394,6 @@ export default function ArchivePage() {
     if (!selected) return;
     const rapportinoId = selected.rapportino_id || selected.id;
     if (!rapportinoId) return;
-    // On laisse le routage au shell (Direction/Ufficio)
     window.open(`/ufficio/rapportini/${rapportinoId}`, "_blank");
   };
 
@@ -409,25 +408,25 @@ export default function ArchivePage() {
   // ───────────────────── RENDER ─────────────────────
   return (
     <div className="relative space-y-5">
-      {/* En-tête / hero archive v2 */}
+      {/* En-tête / hero CORE Drive */}
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-1">
-            ARCHIVE v2 · CNCS · Sistema storico certificato
+            CORE Drive · CNCS · Storico tecnico certificato
           </div>
           <h1 className="text-2xl sm:text-3xl font-semibold text-slate-100">
-            ARCHIVE · Memoria lunga del cantiere
+            CORE Drive · Memoria lunga del cantiere
           </h1>
           <p className="text-[12px] text-slate-400 mt-1 max-w-xl">
-            Registro storico in sola lettura dei rapportini v1. Una “scatola
-            nera” navale: se non è qui, non è successo.
+            Registro storico in sola lettura dei rapportini v1 digitalizzati.
+            È la “scatola nera” navale di CORE: se non è qui, non è successo.
           </p>
         </div>
 
         <div className="flex flex-col items-end gap-2 text-[11px]">
           <div className="inline-flex items-center gap-2">
             <span className="px-2 py-0.5 rounded-full border border-violet-500/70 bg-violet-900/40 text-violet-100">
-              v1 LEGACY · Read only
+              CORE Drive v1 · Read only
             </span>
             <span className="px-2 py-0.5 rounded-full border border-emerald-500/70 bg-emerald-900/40 text-emerald-100">
               Dati certificati · No modifiche
@@ -445,7 +444,7 @@ export default function ArchivePage() {
                   : "border-slate-700 text-slate-500 cursor-not-allowed",
               ].join(" ")}
             >
-              Export CSV
+              Export CSV CORE Drive
             </button>
           </div>
         </div>
@@ -455,19 +454,19 @@ export default function ArchivePage() {
       <section className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="rounded-2xl border border-slate-800 bg-slate-950/60 px-4 py-3">
           <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-            Rapportini filtrati
+            Rapportini in CORE Drive
           </div>
           <div className="mt-1 text-2xl font-semibold text-slate-50">
             {summary.count}
           </div>
           <div className="mt-1 text-[11px] text-slate-500">
-            Su {rapportini.length} totali importati.
+            Su {rapportini.length} totali presenti nello storico.
           </div>
         </div>
 
         <div className="rounded-2xl border border-slate-800 bg-slate-950/60 px-4 py-3">
           <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-            Totale prodotto
+            Totale prodotto registrato
           </div>
           <div className="mt-1 text-2xl font-semibold text-emerald-300">
             {formatNumber(summary.totaleProdotto)}
@@ -492,7 +491,8 @@ export default function ArchivePage() {
             )}
           </div>
           <div className="mt-1 text-[11px] text-slate-500">
-            Usa i filtri data per restringere il periodo di analisi.
+            Usa i filtri data per restringere il periodo di analisi in CORE
+            Drive.
           </div>
         </div>
       </section>
@@ -600,7 +600,7 @@ export default function ArchivePage() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-              Vista principale
+              Vista principale CORE Drive
             </div>
             <div className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-950/70 p-0.5 text-[11px]">
               <button
@@ -633,7 +633,7 @@ export default function ArchivePage() {
           <div className="rounded-2xl border border-slate-800 bg-slate-950/70 min-h-[260px] overflow-hidden">
             {loading ? (
               <div className="flex h-52 items-center justify-center text-sm text-slate-400">
-                Caricamento archivio…
+                Caricamento CORE Drive…
               </div>
             ) : error ? (
               <div className="p-4 text-sm text-rose-300">{error}</div>
@@ -702,7 +702,7 @@ export default function ArchivePage() {
                           className="px-3 py-2 text-[11px] text-slate-500"
                         >
                           Mostrati i primi 200 rapportini. Usa l’export CSV
-                          per l’elenco completo.
+                          di CORE Drive per l’elenco completo.
                         </td>
                       </tr>
                     )}
@@ -718,7 +718,7 @@ export default function ArchivePage() {
                 ) : (
                   <>
                     <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
-                      <span>Timeline: giornate attive</span>
+                      <span>Timeline: giornate attive in CORE Drive</span>
                       <span>
                         Barre = prodotto · Puntini = numero rapportini
                       </span>
@@ -765,7 +765,7 @@ export default function ArchivePage() {
                                   <div>{d.label}</div>
                                   <div>
                                     Prod:{" "}
-                                    <span className="font-mono">
+                                      <span className="font-mono">
                                       {formatNumber(d.prodotto)}
                                     </span>
                                   </div>
@@ -794,18 +794,18 @@ export default function ArchivePage() {
 
         {/* Colonne droite : mémoire + comparatif */}
         <div className="space-y-3">
-          {/* Carte mémoire / boîte noire */}
+          {/* Carte mémoire / CORE Drive */}
           <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-[12px]">
             <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-1">
-              Archive · CNCS
+              CORE Drive · CNCS
             </div>
             <h2 className="text-sm font-semibold text-slate-100 mb-1.5">
               Memoria lunga del tuo cantiere
             </h2>
             <p className="text-slate-400 mb-2">
-              Tutti i rapportini v1 sono conservati qui in sola lettura.
-              È la “scatola nera” operativa: utile per confronti, audit,
-              discussioni con cliente e Direzione.
+              Tutti i rapportini v1 digitali sono conservati qui in sola
+              lettura. È la “scatola nera” operativa di CORE: utile per
+              confronti, audit, discussioni con cliente e Direzione.
             </p>
 
             <div className="mt-2 space-y-1 text-[11px] text-slate-400">
@@ -823,18 +823,19 @@ export default function ArchivePage() {
 
             <div className="mt-3 border-t border-slate-800 pt-2">
               <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500 mb-1">
-                Suggerimenti
+                Suggerimenti CORE Drive
               </div>
               <ul className="space-y-1 text-[11px] text-slate-400 list-disc list-inside">
                 <li>
-                  Usa i filtri data per rivedere periodi critici di lavoro.
+                  Usa i filtri data per rivedere periodi critici di lavoro e
+                  discussioni con il cliente.
                 </li>
                 <li>
                   Confronta commesse e costruttori per capire dove hai
-                  lavorato di più.
+                  concentrato più produzione.
                 </li>
                 <li>
-                  L’archivio è in sola lettura: le correzioni si fanno sempre
+                  CORE Drive è in sola lettura: le correzioni si fanno sempre
                   nei nuovi rapportini digitali.
                 </li>
               </ul>
@@ -846,7 +847,7 @@ export default function ArchivePage() {
             <div className="flex items-center justify-between mb-2">
               <div>
                 <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                  Confronto storico
+                  Confronto storico CORE Drive
                 </div>
                 <div className="text-xs text-slate-300">
                   {comparisonMode === "CAPO"
@@ -922,7 +923,7 @@ export default function ArchivePage() {
             <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
               <div>
                 <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                  Dettaglio rapportino v1
+                  Dettaglio rapportino v1 (CORE Drive)
                 </div>
                 <div className="text-sm text-slate-100">
                   {formatDate(selected.data)} ·{" "}
@@ -1020,8 +1021,8 @@ export default function ArchivePage() {
                 </div>
                 <ul className="space-y-1 text-[11px] text-slate-400 list-disc list-inside">
                   <li>
-                    Questo rapportino fa parte dello storico v1. Le
-                    eventuali correzioni vengono gestite nel nuovo sistema.
+                    Questo rapportino fa parte dello storico v1 in CORE Drive.
+                    Le eventuali correzioni vengono gestite nel nuovo sistema.
                   </li>
                   <li>
                     I dettagli puntuali (ore, attività, cavi) sono

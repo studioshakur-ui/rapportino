@@ -1,48 +1,45 @@
 // src/lib/supabaseClient.js
 import { createClient } from "@supabase/supabase-js";
 
-// Le URL e la chiave anonima arrivano dalle variabili d’ambiente Vite
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Piccolo controllo in console per debug se manca qualcosa
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error(
-    "Supabase non è configurato correttamente. " +
-      "Controlla VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY nelle variabili d'ambiente."
-  );
-}
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// 🔧 Helper: pulizia delle chiavi di sessione Supabase nel browser
-// Utile quando, dopo tanti login/logout nello stesso browser, il client si "incastra".
-export function resetSupabaseAuthStorage() {
-  if (typeof window === "undefined") return;
-
+function getProjectRefFromUrl(url) {
   try {
-    const ls = window.localStorage;
-    const keys = Object.keys(ls);
-
-    const supabaseKeys = keys.filter(
-      (k) => k.startsWith("sb-") || k.toLowerCase().includes("supabase")
-    );
-
-    if (supabaseKeys.length > 0) {
-      console.warn("[Supabase] Reset auth storage:", supabaseKeys);
-      supabaseKeys.forEach((k) => ls.removeItem(k));
-    }
-  } catch (err) {
-    console.error("[Supabase] Errore nel reset dello storage auth:", err);
+    const u = new URL(url);
+    // ex: https://<ref>.supabase.co
+    const host = u.hostname || "";
+    const ref = host.split(".")[0];
+    return ref || null;
+  } catch {
+    return null;
   }
 }
 
-// Client Supabase usato in tutta l’app
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    // On force explicitement l'utilisation du localStorage du navigateur
-    storage:
-      typeof window !== "undefined" ? window.localStorage : undefined,
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-  },
-});
+// Reset ciblé (projet courant) pour éviter de casser d'autres apps Supabase du navigateur.
+export function resetSupabaseAuthStorage() {
+  try {
+    const ref = getProjectRefFromUrl(supabaseUrl);
+    const keys = Object.keys(window.localStorage || {});
+
+    const toRemove = keys.filter((k) => {
+      if (!k) return false;
+
+      // Clés Supabase v2: sb-<projectRef>-auth-token (+ variantes)
+      if (ref && k.startsWith(`sb-${ref}-`)) return true;
+
+      // Fallback (anciens patterns / extensions) mais on reste prudent
+      if (k === "supabase.auth.token") return true;
+
+      return false;
+    });
+
+    toRemove.forEach((k) => window.localStorage.removeItem(k));
+
+    console.warn("[Supabase] Reset auth storage (scoped):", toRemove);
+  } catch (e) {
+    console.warn("[Supabase] Reset auth storage failed:", e);
+  }
+}

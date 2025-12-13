@@ -1,25 +1,26 @@
 // src/main.jsx
 import React from "react";
-import { createRoot } from "react-dom/client";
+import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
+import { QueryClientProvider } from "@tanstack/react-query";
+
+import App from "./App.jsx";
+import { queryClient } from "./lib/queryClient";
 
 import { AuthProvider } from "./auth/AuthProvider";
 import { ShipProvider } from "./context/ShipContext";
-import App from "./App";
 
 import "./index.css";
 
-const container = document.getElementById("root");
-
-const root = createRoot(container);
-
-root.render(
+ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <AuthProvider>
       <BrowserRouter>
-        <ShipProvider>
-          <App />
-        </ShipProvider>
+        <QueryClientProvider client={queryClient}>
+          <ShipProvider>
+            <App />
+          </ShipProvider>
+        </QueryClientProvider>
       </BrowserRouter>
     </AuthProvider>
   </React.StrictMode>

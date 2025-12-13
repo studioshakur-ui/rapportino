@@ -58,7 +58,7 @@ export default function AppShell() {
   const pathname = location.pathname;
   const isRapportino =
     pathname === "/app" || pathname.startsWith("/app/rapportino");
-  const isArchivio = pathname.startsWith("/app/archive");
+  const isCoreDrive = pathname.startsWith("/app/archive"); // route technique inchangée
 
   if (!profile) {
     return (
@@ -89,8 +89,8 @@ export default function AppShell() {
           <div className="text-xs text-slate-400">
             Modulo Capo ·{" "}
             <span className="font-semibold">
-              {isArchivio
-                ? "Archivio rapportini certificato"
+              {isCoreDrive
+                ? "CORE Drive · storico tecnico"
                 : "Compilazione rapportino digitale"}
             </span>
           </div>
@@ -132,8 +132,8 @@ export default function AppShell() {
               </span>
             </span>
             <span className="text-slate-500">
-              {isArchivio
-                ? "Area Capo · Archivio rapportini"
+              {isCoreDrive
+                ? "Area Capo · CORE Drive"
                 : "Area Capo · Rapportino giornaliero"}
             </span>
           </div>
@@ -154,12 +154,12 @@ export default function AppShell() {
         </div>
       </header>
 
-      {/* LAYOUT PRINCIPAL */}
+      {/* LAYOUT */}
       <div className="flex flex-1 min-h-0">
-        {/* SIDEBAR CAPO */}
+        {/* SIDEBAR */}
         <aside
           className={[
-            "no-print hidden md:flex md:flex-col w-60 border-r px-3 py-4",
+            "no-print w-64 border-r px-3 py-4 flex flex-col gap-5",
             coreLayout.sidebar(isDark),
           ].join(" ")}
         >
@@ -198,7 +198,7 @@ export default function AppShell() {
               <span>Rapportino di oggi</span>
             </NavLink>
 
-            {/* Archivio Capo */}
+            {/* CORE Drive Capo (route technique /app/archive) */}
             <NavLink
               to="/app/archive"
               className={({ isActive }) =>
@@ -217,7 +217,7 @@ export default function AppShell() {
               }
             >
               <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
-              <span>Archivio · Rapportini v1</span>
+              <span>CORE Drive · storico tecnico</span>
             </NavLink>
           </nav>
 
@@ -242,18 +242,19 @@ export default function AppShell() {
             <div className="mb-4 flex items-center justify-between gap-3">
               <div className="flex flex-col">
                 <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                  {isArchivio
-                    ? "Archivio · rapportini certificati"
+                  {isCoreDrive
+                    ? "CORE Drive · storico certificato"
                     : "Compilazione rapportino"}
                 </span>
                 <span className="text-xs text-slate-400">
-                  Dati strutturati, pronti per l&apos;Ufficio e la
-                  Direzione.
+                  {isCoreDrive
+                    ? "Memoria lunga del cantiere · rapportini v1 garantiti"
+                    : "Dati strutturati, pronti per l’Ufficio e la Direzione."}
                 </span>
               </div>
             </div>
 
-            {/* Panneau principal : Rapportino ou Archivio via Outlet */}
+            {/* Panneau principal : Rapportino ou CORE Drive via Outlet */}
             <div
               className={[
                 "border rounded-2xl overflow-hidden",

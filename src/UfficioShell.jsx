@@ -10,7 +10,6 @@ import { useAuth } from './auth/AuthProvider';
 import { coreLayout } from "./ui/coreLayout";
 import { corePills, themeIconBg } from "./ui/designSystem";
 
-
 function getInitialTheme() {
   if (typeof window === 'undefined') return 'dark';
   try {
@@ -79,7 +78,7 @@ export default function UfficioShell() {
             : 'bg-emerald-50 border-emerald-400 text-emerald-800',
         ].join(' ');
       }
-      if (section === 'archive') {
+      if (section === 'core-drive') {
         return [
           base,
           isDark
@@ -103,7 +102,7 @@ export default function UfficioShell() {
   };
 
   const isInca = location.pathname.startsWith('/ufficio/inca');
-  const isArchive = location.pathname.startsWith('/ufficio/archive');
+  const isCoreDrive = location.pathname.startsWith('/ufficio/archive'); // route technique
 
   if (!profile) {
     return (
@@ -134,7 +133,7 @@ export default function UfficioShell() {
           <div className="text-xs text-slate-400">
             Modulo Ufficio ·{' '}
             <span className="font-semibold">
-              Controllo rapportini &amp; INCA &amp; Archivio
+              Controllo rapportini · INCA · CORE Drive
             </span>
           </div>
         </div>
@@ -142,14 +141,13 @@ export default function UfficioShell() {
         <div className="flex items-center gap-3 text-[11px]">
           {/* Switch Dark/Light */}
           <button
-  type="button"
-  onClick={toggleTheme}
-  className={[
-    'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px]',
-    coreLayout.themeToggle(isDark),
-  ].join(' ')}
->
-
+            type="button"
+            onClick={toggleTheme}
+            className={[
+              'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px]',
+              coreLayout.themeToggle(isDark),
+            ].join(' ')}
+          >
             <span
               className={[
                 'inline-flex h-3 w-3 items-center justify-center rounded-full text-[9px]',
@@ -163,18 +161,17 @@ export default function UfficioShell() {
             </span>
           </button>
 
-          {/* Archivio synchronisé */}
+          {/* CORE Drive synchronisé */}
           <span
-  className={corePills(
-    isDark,
-    'sky',
-    'hidden sm:inline-flex items-center gap-1 px-2 py-0.5'
-  )}
->
-
+            className={corePills(
+              isDark,
+              'sky',
+              'hidden sm:inline-flex items-center gap-1 px-2 py-0.5'
+            )}
+          >
             <span className="h-1.5 w-1.5 rounded-full bg-sky-400 shadow-[0_0_6px_rgba(56,189,248,0.9)]" />
             <span className="uppercase tracking-[0.16em] text-[9px]">
-              Archivio sincronizzato
+              CORE Drive online
             </span>
           </span>
 
@@ -222,7 +219,7 @@ export default function UfficioShell() {
               Pannello di controllo
             </div>
             <div className="text-xs text-slate-300">
-              Rapportini · stati · INCA · archivio certificato
+              Rapportini · stati · INCA · CORE Drive tecnico
             </div>
           </div>
 
@@ -250,11 +247,11 @@ export default function UfficioShell() {
             <NavLink
               to="/ufficio/archive"
               className={({ isActive }) =>
-                navItemClasses(isActive, 'archive')
+                navItemClasses(isActive, 'core-drive')
               }
             >
               <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
-              <span>Archivio · Rapportini v1</span>
+              <span>CORE Drive · storico tecnico</span>
             </NavLink>
           </nav>
 
@@ -281,14 +278,14 @@ export default function UfficioShell() {
                 <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
                   {isInca
                     ? 'Tracciamento INCA'
-                    : isArchive
-                    ? 'Archivio storico rapportini v1'
+                    : isCoreDrive
+                    ? 'CORE Drive · storico certificato'
                     : 'Gestione rapportini'}
                 </span>
                 <span className="text-xs text-slate-400">
                   {isInca
                     ? 'Confronto INCA · percorsi · avanzamento cavi'
-                    : isArchive
+                    : isCoreDrive
                     ? 'Consultazione in sola lettura · memoria certificata · audit'
                     : 'Validazione, note di ritorno e archivio digitale'}
                 </span>

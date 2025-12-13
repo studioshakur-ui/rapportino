@@ -74,16 +74,16 @@ export default function Login() {
     console.log("[Login] Verifica supabase.auth:", supabase && supabase.auth);
 
     if (!supabase || !supabase.auth || !supabase.auth.signInWithPassword) {
-      console.error(
-        "[Login] supabase.auth.signInWithPassword è undefined!"
-      );
+      console.error("[Login] supabase.auth.signInWithPassword è undefined!");
       setError("Configurazione autenticazione non valida (supabase).");
       setSubmitting(false);
       return;
     }
 
-    // 🧹 Avant chaque login, on nettoie les sessions Supabase du navigateur
-    resetSupabaseAuthStorage();
+    // IMPORTANT:
+    // On n'efface PLUS automatiquement le stockage auth ici.
+    // Dans certains navigateurs / extensions, un reset systématique peut créer des états incohérents.
+    // Un bouton "Nettoyer" est disponible en bas si besoin.
 
     // Timeout SOFT : message après 10s, mais on ne coupe PAS la requête
     const softTimeoutId = setTimeout(() => {
@@ -110,9 +110,7 @@ export default function Login() {
       if (signInError) {
         console.error("[Login] Errore login Supabase:", signInError);
         if (signInError.message?.includes("Failed to fetch")) {
-          setError(
-            "Impossibile contattare il server di autenticazione (rete)."
-          );
+          setError("Impossibile contattare il server di autenticazione (rete).");
         } else {
           setError("Credenziali non valide o account non autorizzato.");
         }
@@ -229,9 +227,7 @@ export default function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-[13px] mb-1">
-                Email aziendale
-              </label>
+              <label className="block text-[13px] mb-1">Email aziendale</label>
               <input
                 type="email"
                 required
@@ -275,7 +271,7 @@ export default function Login() {
             </button>
           </form>
 
-          {/* Lien retour landing */}
+          {/* Footer actions */}
           <div className="mt-4 text-[12px] text-slate-500 flex justify-between items-center">
             <span>CORE · Sistema centrale di cantiere</span>
             <Link
@@ -284,6 +280,24 @@ export default function Login() {
             >
               Torna alla panoramica
             </Link>
+          </div>
+
+          <div className="mt-3 text-[12px] text-slate-500 flex justify-between items-center">
+            <span className="opacity-80">
+              Problemi di accesso dopo cambio scheda?
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                resetSupabaseAuthStorage();
+                setError(
+                  "Cache autenticazione pulita. Riprova ad accedere."
+                );
+              }}
+              className="underline underline-offset-2 hover:text-sky-400"
+            >
+              Nettoyer cache auth
+            </button>
           </div>
         </div>
       </div>

@@ -2,105 +2,64 @@
 import { supabase } from "../lib/supabaseClient";
 
 /**
- * API de lien Rapportino ↔ INCA
+ * API lien Rapportino ↔ INCA (version % + RIPRESA)
  *
- * Table attendue : rapportino_inca_cavi
+ * Tables:
+ * - rapportino_inca_cavi:
+ *    id, rapportino_id, inca_cavo_id,
+ *    progress_percent, step_type,
+ *    note,
+ *    costr_cache, commessa_cache, codice_cache, report_date_cache,
+ *    created_at
  *
- * Colonnes minimales :
- *  - id (uuid, PK)
- *  - rapportino_id (uuid, NOT NULL)
- *  - inca_cavo_id (uuid, NOT NULL, FK → inca_cavi.id)
- *  - metri_posati (numeric)
- *  - note (text, optionnel)
- *  - created_at / updated_at (optionnels)
+ * - inca_cavi: id, costr, commessa, codice, situazione, ...
+ * - rapportini: id, status, costr, commessa, report_date/data, ...
  */
 
-/* ... toutes les fonctions fetch/add/update/delete/search restent IDENTIQUES ... */
-
-/* -------------------------------------------------------------------------- */
-/*                    APPLICATION DU RAPPORTINO SUR INCA_CAVI                 */
-/* -------------------------------------------------------------------------- */
-
-/**
- * Récupère toutes les lignes de lien pour un rapportino,
- * avec les détails du câble INCA.
- */
-export async function fetchRapportinoIncaCavi(rapportinoId) {
-  if (!rapportinoId) {
-    throw new Error("fetchRapportinoIncaCavi: rapportinoId manquant");
-  }
-
-  // 1) lignes de lien pour ce rapportino
-  const { data: rows, error: rowsError } = await supabase
-    .from("rapportino_inca_cavi")
-    .select(
-      `
-      id,
-      inca_cavo_id,
-      metri_posati,
-      note,
-      created_at,
-      inca_cavo:inca_cavi(
-        id,
-        metri_previsti,
-        metri_posati_teorici,
-        situazione,
-        stato_inca,
-        stato_cantiere,
-        zona_da,
-        zona_a,
-        descrizione_da,
-        descrizione_a,
-        rev_inca
-      )
-    `
-    )
-    .eq("rapportino_id", rapportinoId)
-    .order("created_at", { ascending: true });
-
-  if (error) {
-    console.error("[RapportinoIncaLink] fetchRapportinoIncaCavi error", error);
-    throw new Error(error.message || "Errore caricamento cavi INCA del rapportino.");
-  }
-
-  return data || [];
+// ------------------------------------------------------------
+// Helpers
+// ------------------------------------------------------------
+function toSafePercent(v) {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  if (n <= 0) return null;
+  const p = Math.round(n);
+  // valeurs autorisées
+  if (![50, 70, 100].includes(p)) return null;
+  return p;
 }
 
-/**
- * Ajoute un câble INCA au rapportino, avec éventuellement un pourcentage.
- */
-export async function addRapportinoCavoRow(
-  rapportinoId,
-  incaCavoId,
-  progressPercent = null
-) {
-  if (!rapportinoId || !incaCavoId) {
-    throw new Error("addRapportinoCavoRow: rapportinoId o incaCavoId mancante");
+function normalizeStepType(t) {
+  const v = String(t || "POSA").toUpperCase().trim();
+  return v === "RIPRESA" ? "RIPRESA" : "POSA";
+}
+
+// ------------------------------------------------------------
+// FETCH
+// ------------------------------------------------------------
+export async function fetchRapportinoIncaCavi(rapportinoId) {
+  if (!rapportinoId) {
+    throw new Error("fetchRapportinoIncaCavi: rapportinoId mancante");
   }
 
   const { data, error } = await supabase
     .from("rapportino_inca_cavi")
-    .insert({
-      rapportino_id: rapportinoId,
-      inca_cavo_id: incaCavoId,
-      progress_percent: progressPercent,
-    })
     .select(
       `
       id,
       rapportino_id,
       inca_cavo_id,
       progress_percent,
+      step_type,
       note,
       created_at,
       inca_cavo:inca_cavi(
         id,
+        costr,
+        commessa,
         marca_cavo,
         codice,
-        livello_disturbo,
-        tipo,
-        sezione,
-        wbs,
         descrizione,
         metri_teo,
         metri_totali,
@@ -113,7 +72,90 @@ export async function addRapportinoCavoRow(
         zona_a,
         descrizione_da,
         descrizione_a,
-        rev_inca
+        apparato_da,
+        apparato_a,
+        rev_inca,
+        wbs,
+        tipo,
+        sezione,
+        livello,
+        impianto
+      )
+    `
+    )
+    .eq("rapportino_id", rapportinoId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.error("[RapportinoIncaLink] fetchRapportinoIncaCavi error", error);
+    throw new Error(
+      error.message || "Errore caricamento cavi INCA del rapportino."
+    );
+  }
+
+  return data || [];
+}
+
+// ------------------------------------------------------------
+// ADD
+// ------------------------------------------------------------
+export async function addRapportinoCavoRow(
+  rapportinoId,
+  incaCavoId,
+  progressPercent = null,
+  stepType = "POSA"
+) {
+  if (!rapportinoId || !incaCavoId) {
+    throw new Error("addRapportinoCavoRow: rapportinoId o incaCavoId mancante");
+  }
+
+  const step_type = normalizeStepType(stepType);
+  const progress_percent =
+    step_type === "RIPRESA" ? 100 : toSafePercent(progressPercent);
+
+  const { data, error } = await supabase
+    .from("rapportino_inca_cavi")
+    .insert({
+      rapportino_id: rapportinoId,
+      inca_cavo_id: incaCavoId,
+      progress_percent,
+      step_type,
+    })
+    .select(
+      `
+      id,
+      rapportino_id,
+      inca_cavo_id,
+      progress_percent,
+      step_type,
+      note,
+      created_at,
+      inca_cavo:inca_cavi(
+        id,
+        costr,
+        commessa,
+        marca_cavo,
+        codice,
+        descrizione,
+        metri_teo,
+        metri_totali,
+        metri_previsti,
+        metri_posati_teorici,
+        situazione,
+        stato_inca,
+        stato_cantiere,
+        zona_da,
+        zona_a,
+        descrizione_da,
+        descrizione_a,
+        apparato_da,
+        apparato_a,
+        rev_inca,
+        wbs,
+        tipo,
+        sezione,
+        livello,
+        impianto
       )
     `
     )
@@ -121,26 +163,51 @@ export async function addRapportinoCavoRow(
 
   if (error) {
     console.error("[RapportinoIncaLink] addRapportinoCavoRow error", error);
-    throw new Error(
-      error.message || "Errore aggiunta cavo INCA al rapportino."
-    );
+
+    // ripresa unique (index) => message clair
+    if (String(error.message || "").toLowerCase().includes("unique")) {
+      throw new Error(
+        "Ripresa già registrata per questo cavo (codice). Ripresa è unica e può essere fatta una sola volta."
+      );
+    }
+
+    throw new Error(error.message || "Errore aggiunta cavo INCA al rapportino.");
   }
 
   return data;
 }
 
-/**
- * Met à jour une ligne de lien (pourcentage, note…).
- */
+// ------------------------------------------------------------
+// UPDATE
+// ------------------------------------------------------------
 export async function updateRapportinoCavoRow(rowId, patch) {
   if (!rowId) {
     throw new Error("updateRapportinoCavoRow: rowId mancante");
   }
 
   const payload = {};
-  if (patch.progress_percent !== undefined) {
-    payload.progress_percent = patch.progress_percent;
+
+  // step_type
+  if (patch.step_type !== undefined) {
+    payload.step_type = normalizeStepType(patch.step_type);
+
+    // Hard rule: RIPRESA => 100
+    if (payload.step_type === "RIPRESA") {
+      payload.progress_percent = 100;
+    }
   }
+
+  // percent (si fourni)
+  if (patch.progress_percent !== undefined) {
+    // si le step est RIPRESA, on force 100
+    const st = payload.step_type || normalizeStepType(patch.step_type);
+    if (st === "RIPRESA") {
+      payload.progress_percent = 100;
+    } else {
+      payload.progress_percent = toSafePercent(patch.progress_percent);
+    }
+  }
+
   if (patch.note !== undefined) {
     payload.note = patch.note;
   }
@@ -155,16 +222,15 @@ export async function updateRapportinoCavoRow(rowId, patch) {
       rapportino_id,
       inca_cavo_id,
       progress_percent,
+      step_type,
       note,
       created_at,
       inca_cavo:inca_cavi(
         id,
+        costr,
+        commessa,
         marca_cavo,
         codice,
-        livello_disturbo,
-        tipo,
-        sezione,
-        wbs,
         descrizione,
         metri_teo,
         metri_totali,
@@ -177,7 +243,14 @@ export async function updateRapportinoCavoRow(rowId, patch) {
         zona_a,
         descrizione_da,
         descrizione_a,
-        rev_inca
+        apparato_da,
+        apparato_a,
+        rev_inca,
+        wbs,
+        tipo,
+        sezione,
+        livello,
+        impianto
       )
     `
     )
@@ -185,6 +258,13 @@ export async function updateRapportinoCavoRow(rowId, patch) {
 
   if (error) {
     console.error("[RapportinoIncaLink] updateRapportinoCavoRow error", error);
+
+    if (String(error.message || "").toLowerCase().includes("unique")) {
+      throw new Error(
+        "Ripresa già registrata per questo cavo (codice). Ripresa è unica e può essere fatta una sola volta."
+      );
+    }
+
     throw new Error(
       error.message || "Errore aggiornamento cavo INCA del rapportino."
     );
@@ -193,9 +273,9 @@ export async function updateRapportinoCavoRow(rowId, patch) {
   return data;
 }
 
-/**
- * Supprime une ligne de lien.
- */
+// ------------------------------------------------------------
+// DELETE
+// ------------------------------------------------------------
 export async function deleteRapportinoCavoRow(rowId) {
   if (!rowId) {
     throw new Error("deleteRapportinoCavoRow: rowId mancante");
@@ -216,15 +296,14 @@ export async function deleteRapportinoCavoRow(rowId) {
   return true;
 }
 
-/* -------------------------------------------------------------------------- */
-/*                          RECHERCHE CAVI DISPONIBILI                        */
-/* -------------------------------------------------------------------------- */
-
+// ------------------------------------------------------------
+// SEARCH (picker)
+// ------------------------------------------------------------
 export async function searchIncaCaviForRapportino({
   shipCostr,
   search = "",
   excludeIncaIds = [],
-  limit = 100,
+  limit = 120,
 }) {
   if (!shipCostr) {
     throw new Error("searchIncaCaviForRapportino: shipCostr mancante");
@@ -235,6 +314,8 @@ export async function searchIncaCaviForRapportino({
     .select(
       `
       id,
+      costr,
+      commessa,
       marca_cavo,
       codice,
       descrizione,
@@ -254,7 +335,7 @@ export async function searchIncaCaviForRapportino({
     .limit(limit);
 
   if (excludeIncaIds.length > 0) {
-    query = query.not("id", "in", excludeIncaIds);
+    query = query.not("id", "in", `(${excludeIncaIds.join(",")})`);
   }
 
   const s = search.trim();
@@ -285,27 +366,83 @@ export async function searchIncaCaviForRapportino({
   return data || [];
 }
 
-/* -------------------------------------------------------------------------- */
-/*                    APPLICATION DU RAPPORTINO SUR INCA_CAVI                 */
-/* -------------------------------------------------------------------------- */
+// ------------------------------------------------------------
+// HISTORIQUE (par codice) — utile pour la modal RIPRESA
+// ------------------------------------------------------------
+export async function getCodiceHistorySummary({
+  costr,
+  commessa,
+  codice,
+  excludeRowId,
+}) {
+  if (!costr || !codice) {
+    return { hasPartialPosa: false, hasRipresa: false, maxPosaPercent: 0 };
+  }
 
-/**
- * Applique la production du rapportino aux cavi INCA.
- *
- * Logique (version %):
- *  1) Lit toutes les lignes rapportino_inca_cavi pour ce rapportino.
- *  2) Regroupe par inca_cavo_id → max(progress_percent) pour ce tour.
- *  3) Pour chaque cavo :
- *     - si maxPercent >= 50 → situazione = 'P'
- *
- * ⚠️ Le cycle B → R → T reste géré par le cockpit CAPO.
- */
+  let q = supabase
+    .from("rapportino_inca_cavi")
+    .select(
+      "id, step_type, progress_percent, report_date_cache, costr_cache, commessa_cache, codice_cache"
+    )
+    .eq("costr_cache", costr)
+    .eq("codice_cache", codice);
+
+  if (commessa) q = q.eq("commessa_cache", commessa);
+  if (excludeRowId) q = q.neq("id", excludeRowId);
+
+  const { data, error } = await q;
+  if (error) throw error;
+
+  const rows = data || [];
+  let maxPosaPercent = 0;
+  let hasPartialPosa = false;
+  let hasRipresa = false;
+
+  for (const r of rows) {
+    if (r.step_type === "RIPRESA") hasRipresa = true;
+    if (r.step_type === "POSA") {
+      const p = Number(r.progress_percent || 0);
+      if (p > maxPosaPercent) maxPosaPercent = p;
+      if (p === 50 || p === 70) hasPartialPosa = true;
+    }
+  }
+
+  return { hasPartialPosa, hasRipresa, maxPosaPercent };
+}
+
+// ------------------------------------------------------------
+// APPLY rapportino -> INCA (export ufficio)
+// Règle: INCA situation = 'P' dès POSA >= 50 ou RIPRESA 100
+// MAIS seulement si rapportino VALIDATED_CAPO / APPROVED_UFFICIO
+// ------------------------------------------------------------
 export async function applyRapportinoToInca({ rapportinoId }) {
   if (!rapportinoId) {
     throw new Error("applyRapportinoToInca: rapportinoId mancante");
   }
 
-  // 1) lignes de lien pour ce rapportino
+  // 0) vérifier statut rapportino
+  const { data: rap, error: rapError } = await supabase
+    .from("rapportini")
+    .select("id, status")
+    .eq("id", rapportinoId)
+    .maybeSingle();
+
+  if (rapError) {
+    console.error("[RapportinoIncaLink] applyRapportinoToInca rap error", rapError);
+    throw new Error(rapError.message || "Errore lettura rapportino.");
+  }
+
+  const status = rap?.status || "DRAFT";
+  const allowed = status === "VALIDATED_CAPO" || status === "APPROVED_UFFICIO";
+  if (!allowed) {
+    return {
+      updated: 0,
+      skipped: true,
+      reason: `Rapportino status=${status} (apply consentito solo dopo validazione/approvazione).`,
+    };
+  }
+
+  // 1) lignes de lien
   const { data: rows, error: rowsError } = await supabase
     .from("rapportino_inca_cavi")
     .select(
@@ -313,6 +450,7 @@ export async function applyRapportinoToInca({ rapportinoId }) {
       id,
       inca_cavo_id,
       progress_percent,
+      step_type,
       inca_cavo:inca_cavi(
         id,
         situazione
@@ -327,8 +465,7 @@ export async function applyRapportinoToInca({ rapportinoId }) {
       rowsError
     );
     throw new Error(
-      rowsError.message ||
-        "Errore lettura cavi INCA collegati al rapportino."
+      rowsError.message || "Errore lettura cavi INCA collegati al rapportino."
     );
   }
 
@@ -336,52 +473,36 @@ export async function applyRapportinoToInca({ rapportinoId }) {
     return { updated: 0 };
   }
 
-  // 2) Regroupement par cavo → max(progress_percent)
-  const mapByCavo = new Map();
+  // 2) Regroupement par cavo: si une POSA >= 50 OU RIPRESA 100 => mark P
+  const markP = new Set();
 
   for (const row of rows) {
     if (!row.inca_cavo_id) continue;
-    const key = row.inca_cavo_id;
-    const perc = Number(row.progress_percent || 0) || 0;
+    const st = normalizeStepType(row.step_type);
+    const p = Number(row.progress_percent || 0) || 0;
 
-    if (!mapByCavo.has(key)) {
-      mapByCavo.set(key, {
-        cavoId: key,
-        maxPercent: 0,
-        cavo: row.inca_cavo || null,
-      });
+    if (st === "RIPRESA" && p === 100) {
+      markP.add(row.inca_cavo_id);
+      continue;
     }
-    const agg = mapByCavo.get(key);
-    if (perc > agg.maxPercent) agg.maxPercent = perc;
+    if (st === "POSA" && p >= 50) {
+      markP.add(row.inca_cavo_id);
+      continue;
+    }
+  }
+
+  if (markP.size === 0) {
+    return { updated: 0 };
   }
 
   let updatedCount = 0;
   const errors = [];
 
-  // 3) Pour chaque cavo, si maxPercent ≥ 50 → situazione = 'P'
-  for (const [, agg] of mapByCavo) {
-    const cavoId = agg.cavoId;
-    const maxPercent = agg.maxPercent;
-    const cavo = agg.cavo;
-
-    if (maxPercent < 50) continue; // pas encore assez pour P
-
+  for (const cavoId of markP) {
     try {
-      let current = cavo;
-      if (!current) {
-        const { data: cavoRow, error: cavoError } = await supabase
-          .from("inca_cavi")
-          .select("id, situazione")
-          .eq("id", cavoId)
-          .single();
-
-        if (cavoError) throw cavoError;
-        current = cavoRow;
-      }
-
-      if (current.situazione === "P") {
-        continue; // déjà posé
-      }
+      // si déjà P => skip
+      const current = rows.find((r) => r.inca_cavo_id === cavoId)?.inca_cavo;
+      if (current?.situazione === "P") continue;
 
       const { error: updError } = await supabase
         .from("inca_cavi")
@@ -389,7 +510,6 @@ export async function applyRapportinoToInca({ rapportinoId }) {
         .eq("id", cavoId);
 
       if (updError) throw updError;
-
       updatedCount++;
     } catch (e) {
       console.error("[RapportinoIncaLink] apply single cavo error", e);
