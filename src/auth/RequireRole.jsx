@@ -1,61 +1,41 @@
 // src/auth/RequireRole.jsx
-import React, { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import React from "react";
+import { Navigate } from "react-router-dom";
 import { useAuth } from "./AuthProvider";
 import LoadingScreen from "../components/LoadingScreen";
 
 /**
- * Guard routes by app_role.
- * allow: array of accepted roles, e.g. ['CAPO'] or ['UFFICIO','DIREZIONE']
+ * Compatible:
+ *  - <RequireRole allow={["CAPO"]} />
+ *  - <RequireRole allowed={["CAPO"]} />
  */
-export default function RequireRole({ allow, children }) {
-  const { session, profile, loading, authReady } = useAuth();
-  const navigate = useNavigate();
+export default function RequireRole({ allow, allowed, children }) {
+  const { session, profile, loading, authReady, isReady } = useAuth();
 
-  useEffect(() => {
-    if (!authReady || loading) return;
+  // Support ancien flag (isReady) + nouveau (authReady)
+  const ready = typeof authReady === "boolean" ? authReady : !!isReady;
 
-    // No session -> login
-    if (!session) {
-      navigate("/login", { replace: true });
-      return;
-    }
-
-    // Wait profile (RLS + query)
-    if (!profile) return;
-
-    // Role mismatch -> redirect to their home
-    if (Array.isArray(allow) && allow.length > 0 && !allow.includes(profile.app_role)) {
-      switch (profile.app_role) {
-        case "UFFICIO":
-          navigate("/ufficio", { replace: true });
-          break;
-        case "DIREZIONE":
-          navigate("/direction", { replace: true });
-          break;
-        case "MANAGER":
-          navigate("/manager", { replace: true });
-          break;
-        default:
-          navigate("/app", { replace: true });
-      }
-    }
-  }, [authReady, loading, session, profile, allow, navigate]);
-
-  if (!authReady || loading) {
+  if (!ready || loading) {
     return <LoadingScreen message="Inizializzazione sicurezza CORE…" />;
   }
 
+  // Si pas de session, on va login (sinon /unauthorized est trompeur)
   if (!session) {
-    return <LoadingScreen message="Sessione non attiva… Reindirizzamento" />;
+    return <Navigate to="/login" replace />;
   }
 
-  if (!profile) {
-    return <LoadingScreen message="Caricamento profilo…" />;
+  const roles = Array.isArray(allowed)
+    ? allowed
+    : Array.isArray(allow)
+    ? allow
+    : [];
+
+  if (!profile?.app_role || roles.length === 0) {
+    return <Navigate to="/unauthorized" replace />;
   }
 
-  if (Array.isArray(allow) && allow.length > 0 && !allow.includes(profile.app_role)) {
-    return <LoadingScreen message="Reindirizzamento…" />;
+  if (!roles.includes(profile.app_role)) {
+    return <Navigate to="/unauthorized" replace />;
   }
 
   return <>{children}</>;

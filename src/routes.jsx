@@ -6,25 +6,30 @@ import RequireRole from "./auth/RequireRole";
 
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
+import Unauthorized from "./pages/Unauthorized";
 
 import AppShell from "./AppShell";
 import UfficioShell from "./UfficioShell";
 import DirectionShell from "./DirectionShell";
 import ManagerShell from "./ManagerShell";
 
-// CAPO – contenu
+// ADMIN (tu dis que ces fichiers existent déjà)
+import AdminShell from "./admin/AdminShell";
+import AdminUsersPage from "./admin/AdminUsersPage";
+
+// CAPO
 import RapportinoPage from "./components/RapportinoPage";
 import ShipSelector from "./pages/ShipSelector";
 import CapoModuleSelector from "./pages/CapoModuleSelector";
 import CapoRoleSelector from "./pages/CapoRoleSelector";
 import IncaCapoCockpit from "./capo/IncaCapoCockpit";
 
-// UFFICIO – contenu
+// UFFICIO
 import UfficioRapportiniList from "./ufficio/UfficioRapportiniList";
 import UfficioRapportinoDetail from "./ufficio/UfficioRapportinoDetail";
 import IncaFilesPanel from "./inca/IncaFilesPanel";
 
-// ARCHIVE central (CORE Drive v1)
+// ARCHIVE
 import ArchivePage from "./pages/Archive";
 
 export default function AppRoutes() {
@@ -33,6 +38,20 @@ export default function AppRoutes() {
       {/* PUBLIC */}
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/unauthorized" element={<Unauthorized />} />
+
+      {/* ===== ADMIN ===== */}
+      <Route
+        path="/admin/*"
+        element={
+          <RequireRole allow={["ADMIN"]}>
+            <AdminShell />
+          </RequireRole>
+        }
+      >
+        <Route index element={<AdminUsersPage />} />
+        <Route path="users" element={<AdminUsersPage />} />
+      </Route>
 
       {/* ===== CAPO ===== */}
       <Route
@@ -43,31 +62,11 @@ export default function AppRoutes() {
           </RequireRole>
         }
       >
-        {/* 1️⃣ Choix bateau */}
         <Route index element={<ShipSelector />} />
-
-        {/* 2️⃣ Choix module */}
         <Route path="ship/:shipId" element={<CapoModuleSelector />} />
-
-        {/* 3️⃣ Choix rôle pour le rapportino */}
-        <Route
-          path="ship/:shipId/rapportino/role"
-          element={<CapoRoleSelector />}
-        />
-
-        {/* 4️⃣ RAPPORTINO */}
-        <Route
-          path="ship/:shipId/rapportino"
-          element={<RapportinoPage />}
-        />
-
-        {/* 5️⃣ INCA CAPO */}
-        <Route
-          path="ship/:shipId/inca"
-          element={<IncaCapoCockpit />}
-        />
-
-        {/* ARCHIVE CAPO – CORE Drive, filtré par capo */}
+        <Route path="ship/:shipId/rapportino/role" element={<CapoRoleSelector />} />
+        <Route path="ship/:shipId/rapportino" element={<RapportinoPage />} />
+        <Route path="ship/:shipId/inca" element={<IncaCapoCockpit />} />
         <Route path="archive" element={<ArchivePage />} />
       </Route>
 
@@ -75,24 +74,14 @@ export default function AppRoutes() {
       <Route
         path="/ufficio/*"
         element={
-          <RequireRole allow={["UFFICIO", "DIREZIONE", "MANAGER"]}>
+          <RequireRole allow={["UFFICIO", "DIREZIONE", "MANAGER", "ADMIN"]}>
             <UfficioShell />
           </RequireRole>
         }
       >
-        {/* Liste rapportini par défaut */}
         <Route index element={<UfficioRapportiniList />} />
-
-        {/* Détail rapportino */}
-        <Route
-          path="rapportini/:id"
-          element={<UfficioRapportinoDetail />}
-        />
-
-        {/* INCA UFFICIO */}
+        <Route path="rapportini/:id" element={<UfficioRapportinoDetail />} />
         <Route path="inca" element={<IncaFilesPanel />} />
-
-        {/* ARCHIVE UFFICIO – CORE Drive v1 */}
         <Route path="archive" element={<ArchivePage />} />
       </Route>
 

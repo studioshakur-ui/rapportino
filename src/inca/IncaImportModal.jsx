@@ -1,184 +1,306 @@
-
 // src/inca/IncaImportModal.jsx
-// Fenêtre modale pour importer un fichier INCA (UFFICIO).
-import React, { useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { useIncaImporter } from "./useIncaImporter";
 
-export default function IncaImportModal({ open, onClose, defaultCostr, defaultCommessa, onImported }) {
+export default function IncaImportModal({
+  open,
+  onClose,
+  defaultCostr,
+  defaultCommessa,
+  onImported,
+}) {
   const fileInputRef = useRef(null);
+
+  const [step, setStep] = useState(1); // 1=File, 2=Dry-run OK, 3=Commit OK
   const [file, setFile] = useState(null);
   const [costr, setCostr] = useState(defaultCostr || "");
   const [commessa, setCommessa] = useState(defaultCommessa || "");
   const [projectCode, setProjectCode] = useState("");
   const [note, setNote] = useState("");
 
-  const { importInca, loading, error, result } = useIncaImporter();
+  const { dryRun, commit, loading, error, result } = useIncaImporter();
+
+  const canCommit = useMemo(() => {
+    return !!file && !!String(costr || "").trim() && !!String(commessa || "").trim();
+  }, [file, costr, commessa]);
 
   if (!open) return null;
 
   const handleFileChange = (e) => {
     const f = e.target.files?.[0] || null;
     setFile(f);
+    setStep(1);
   };
 
-  const handleImport = async () => {
+  const handleDryRun = async () => {
     try {
-      const dataset = await importInca({
+      const r = await dryRun({
         file,
         costr,
         commessa,
         projectCode,
         note,
       });
-      if (onImported) {
-        onImported(dataset);
-      }
-    } catch (err) {
-      // error déjà géré dans le hook
+      if (r?.ok) setStep(2);
+    } catch {
+      // error géré dans hook
+    }
+  };
+
+  const handleCommit = async () => {
+    try {
+      const dataset = await commit({
+        file,
+        costr,
+        commessa,
+        projectCode,
+        note,
+      });
+      setStep(3);
+      if (onImported) onImported(dataset);
+    } catch {
+      // error géré dans hook
     }
   };
 
   const handleClose = () => {
     if (loading) return;
+    setStep(1);
+    setFile(null);
     if (onClose) onClose();
   };
 
+  const isDryRun = result?.ok && result?.mode === "dry-run";
+  const isCommit = result?.ok && result?.mode === "commit";
+
+  const stats = result?.stats || null; // { total, P, B, T, E, R, NP, metri_teo_tot }
+  const totalCavi = result?.found ?? stats?.total ?? null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-xl p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-semibold text-slate-900">
-            Importa INCA · Lista Cavi
-          </h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="w-full max-w-3xl rounded-2xl border border-slate-800 bg-slate-950 text-slate-100 shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
+          <div className="flex flex-col">
+            <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">
+              Wizard import INCA · UFFICIO
+            </div>
+            <div className="text-sm font-semibold">
+              XLSX → Analisi (dry-run) → Import (commit)
+            </div>
+          </div>
+
           <button
             type="button"
             onClick={handleClose}
-            className="text-slate-500 hover:text-slate-800 text-sm"
+            disabled={loading}
+            className="h-9 w-9 rounded-full border border-slate-700 hover:bg-slate-900/60 disabled:opacity-60"
+            aria-label="Chiudi"
           >
             ✕
           </button>
         </div>
 
-        <div className="space-y-3 text-sm">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-slate-600">
-                Nave / Costruttore
-              </label>
+        {/* Steps */}
+        <div className="px-5 py-3 border-b border-slate-800">
+          <div className="flex items-center gap-2 text-[12px]">
+            <StepPill active={step === 1} label="1 · File" />
+            <span className="text-slate-600">→</span>
+            <StepPill active={step === 2} label="2 · Dry-run" />
+            <span className="text-slate-600">→</span>
+            <StepPill active={step === 3} label="3 · Commit" />
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-5 space-y-4">
+          {/* Inputs */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <Field label="Nave / COSTR (obbligatorio)">
               <input
-                type="text"
                 value={costr}
                 onChange={(e) => setCostr(e.target.value)}
-                className="mt-1 w-full border border-slate-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-sky-500"
+                className="w-full rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm outline-none focus:border-sky-500/70"
                 placeholder="6368"
               />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600">
-                Commessa
-              </label>
+            </Field>
+
+            <Field label="Commessa (obbligatorio)">
               <input
-                type="text"
                 value={commessa}
                 onChange={(e) => setCommessa(e.target.value)}
-                className="mt-1 w-full border border-slate-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-sky-500"
+                className="w-full rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm outline-none focus:border-sky-500/70"
                 placeholder="SDC"
               />
+            </Field>
+
+            <Field label="Project code (opzionale)">
+              <input
+                value={projectCode}
+                onChange={(e) => setProjectCode(e.target.value)}
+                className="w-full rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm outline-none focus:border-sky-500/70"
+                placeholder="es. 6368-SDC-INCA-01"
+              />
+            </Field>
+
+            <Field label="Note (opzionale)">
+              <input
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                className="w-full rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm outline-none focus:border-sky-500/70"
+                placeholder="Revisione, note interne..."
+              />
+            </Field>
+          </div>
+
+          {/* File */}
+          <div className="space-y-2">
+            <div className="text-[12px] font-semibold text-slate-200">
+              File INCA (XLSX consigliato)
+            </div>
+            <div className="flex items-center gap-3">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                onChange={handleFileChange}
+                className="block w-full text-sm text-slate-200"
+              />
+            </div>
+            <div className="text-[11px] text-slate-500">
+              Procedura: <span className="text-slate-200 font-medium">Analizza (dry-run)</span> per vedere P/B/T/E e metri, poi <span className="text-slate-200 font-medium">Importa (commit)</span>.
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-slate-600">
-              Codice progetto (opzionale)
-            </label>
-            <input
-              type="text"
-              value={projectCode}
-              onChange={(e) => setProjectCode(e.target.value)}
-              className="mt-1 w-full border border-slate-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-sky-500"
-              placeholder="es. 6368-SDC-INCA-01"
-            />
-          </div>
+          {/* Dry-run results */}
+          {isDryRun && (
+            <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-[12px] font-semibold text-slate-100">
+                  Risultato analisi (dry-run)
+                </div>
+                <div className="text-[11px] text-slate-400 text-right">
+                  <div>
+                    Totale cavi:{" "}
+                    <span className="text-slate-100 font-semibold">
+                      {totalCavi ?? "—"}
+                    </span>
+                  </div>
+                  {typeof stats?.metri_teo_tot === "number" && (
+                    <div>
+                      Metri (disegno):{" "}
+                      <span className="text-slate-100 font-semibold">
+                        {Math.round(stats.metri_teo_tot * 100) / 100}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
 
-          <div>
-            <label className="block text-xs font-medium text-slate-600">
-              File INCA (Excel/CSV)
-            </label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".xlsx,.xls,.csv"
-              onChange={handleFileChange}
-              className="mt-1 block w-full text-sm text-slate-700"
-            />
-            <p className="mt-1 text-[11px] text-slate-500">
-              Per ora sono supportati solo file Excel (.xlsx) o CSV esportati da INCA.
-            </p>
-          </div>
+              {stats && (
+                <div className="mt-3 grid grid-cols-2 md:grid-cols-6 gap-2 text-[11px]">
+                  <StatPill label="P" value={stats.P ?? 0} />
+                  <StatPill label="T" value={stats.T ?? 0} />
+                  <StatPill label="R" value={stats.R ?? 0} />
+                  <StatPill label="B" value={stats.B ?? 0} />
+                  <StatPill label="E" value={stats.E ?? 0} />
+                  <StatPill label="NP" value={stats.NP ?? 0} />
+                </div>
+              )}
 
-          <div>
-            <label className="block text-xs font-medium text-slate-600">
-              Note (opzionale)
-            </label>
-            <textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              className="mt-1 w-full border border-slate-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-sky-500 resize-none"
-              rows={2}
-              placeholder="Note interne per l'ufficio (es. revisione INCA, fornitore disegni, ecc.)"
-            />
-          </div>
-
-          {error && (
-            <div className="text-xs text-rose-800 bg-rose-50 border border-rose-200 rounded px-3 py-2">
-              <div className="font-semibold mb-1">Errore importazione</div>
-              <div>{error.message || String(error)}</div>
+              <div className="mt-3 text-[11px] text-slate-500">
+                Campione (prime 10 righe) disponibile in <span className="text-slate-200">result.sample</span>.
+              </div>
             </div>
           )}
 
-          {result && (
-            <div className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded px-3 py-2">
-              <div className="font-semibold mb-0.5">
-                Import completato
+          {/* Commit results */}
+          {isCommit && (
+            <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-[12px]">
+              <div className="font-semibold text-emerald-200">Import completato</div>
+              <div className="text-emerald-100 mt-1">
+                Inseriti/aggiornati:{" "}
+                <span className="font-semibold">{result.inserted ?? "—"}</span>{" "}
+                cavi · inca_file_id:{" "}
+                <span className="font-mono">{result.inca_file_id ?? "—"}</span>
               </div>
-              <div>
-                File: <span className="font-mono">{result.file.file_name}</span>
-              </div>
-              <div>
-                Cavi inseriti:{" "}
-                <span className="font-semibold">
-                  {result.cavi?.length ?? 0}
-                </span>
-              </div>
-              <div>
-                Percorsi inseriti:{" "}
-                <span className="font-semibold">
-                  {result.percorsiCount ?? 0}
-                </span>
-              </div>
+            </div>
+          )}
+
+          {/* Errors */}
+          {error && (
+            <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-4 text-[12px]">
+              <div className="font-semibold text-rose-200">Errore</div>
+              <div className="text-rose-100 mt-1">{error.message || String(error)}</div>
             </div>
           )}
         </div>
 
-        <div className="mt-4 flex items-center justify-end gap-2 text-sm">
+        {/* Footer buttons */}
+        <div className="px-5 py-4 border-t border-slate-800 flex items-center justify-end gap-2">
           <button
             type="button"
             onClick={handleClose}
             disabled={loading}
-            className="px-3 py-1.5 rounded border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-60"
+            className="px-4 py-2 rounded-full border border-slate-700 bg-slate-950 hover:bg-slate-900/60 text-sm disabled:opacity-60"
           >
             Chiudi
           </button>
+
           <button
             type="button"
-            onClick={handleImport}
-            disabled={loading || !file}
-            className="px-3 py-1.5 rounded border border-sky-600 bg-sky-500 text-white hover:bg-sky-600 disabled:opacity-60"
+            onClick={handleDryRun}
+            disabled={loading || !file || !String(costr || "").trim() || !String(commessa || "").trim()}
+            className="px-4 py-2 rounded-full border border-sky-500/60 bg-sky-500/15 hover:bg-sky-500/25 text-sm disabled:opacity-60"
+            title="Serve file + COSTR + Commessa"
           >
-            {loading ? "Importo…" : "Importa file INCA"}
+            {loading ? "Analisi…" : "Analizza (dry-run)"}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleCommit}
+            disabled={loading || !canCommit}
+            className="px-4 py-2 rounded-full border border-emerald-500/60 bg-emerald-500/15 hover:bg-emerald-500/25 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            title={!canCommit ? "Serve COSTR + Commessa + file" : ""}
+          >
+            {loading ? "Importo…" : "Importa (commit)"}
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function StepPill({ active, label }) {
+  return (
+    <span
+      className={[
+        "px-3 py-1 rounded-full border text-[12px]",
+        active
+          ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-100"
+          : "border-slate-800 bg-slate-900/40 text-slate-400",
+      ].join(" ")}
+    >
+      {label}
+    </span>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="text-[12px] text-slate-400">{label}</div>
+      {children}
+    </div>
+  );
+}
+
+function StatPill({ label, value }) {
+  return (
+    <div className="rounded-full border border-slate-800 bg-slate-950/40 px-3 py-1 flex items-center justify-between gap-2">
+      <span className="text-slate-300">{label}</span>
+      <span className="text-slate-100 font-semibold">{value}</span>
     </div>
   );
 }

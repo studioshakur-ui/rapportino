@@ -1,46 +1,42 @@
 // src/manager/ManagerUsersPage.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
-function generateTempPassword() {
-  // Password temporaire simple (à améliorer si besoin)
-  const chars =
-    "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*";
-  let pwd = "";
-  for (let i = 0; i < 14; i++) {
-    pwd += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return pwd;
-}
-
+/**
+ * MANAGER DIRECTORY (READ-ONLY)
+ * - AUCUNE création de compte
+ * - AUCUNE assignation/modification de rôle
+ * - AUCUN reset password
+ *
+ * Objectif: annuaire opérationnel (si RLS l'autorise).
+ * Tout ce qui est IAM (Identity & Access Management) est ADMIN-only.
+ */
 export default function ManagerUsersPage() {
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
   const [users, setUsers] = useState([]);
   const [error, setError] = useState("");
 
-  const [email, setEmail] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState("CAPO");
-  const [cantieriRaw, setCantieriRaw] = useState("");
+  const [q, setQ] = useState("");
+  const [roleFilter, setRoleFilter] = useState("ALL");
 
   const loadUsers = async () => {
     setLoading(true);
     setError("");
     try {
-      // ⚠️ Adapter les colonnes en fonction de ta table "profiles"
       const { data, error: err } = await supabase
         .from("profiles")
-        .select(
-          "id, email, full_name, display_name, app_role, allowed_cantieri"
-        )
+        .select("id, email, full_name, display_name, app_role, allowed_cantieri, created_at")
         .order("created_at", { ascending: true });
 
       if (err) throw err;
       setUsers(data || []);
-    } catch (err) {
-      console.error("[ManagerUsersPage] Errore caricando utenti:", err);
-      setError("Errore nel caricamento degli utenti.");
+    } catch (e) {
+      console.error("[ManagerUsersPage] loadUsers error:", e);
+      setUsers([]);
+      setError(
+        e?.message ||
+          "Accesso negato o errore nel caricamento utenti (RLS/policy)."
+      );
     } finally {
       setLoading(false);
     }
@@ -50,210 +46,98 @@ export default function ManagerUsersPage() {
     loadUsers();
   }, []);
 
-  const handleCreateUser = async (e) => {
-    e.preventDefault();
-    setError("");
+  const filtered = useMemo(() => {
+    const query = (q || "").trim().toLowerCase();
 
-    if (!email || !fullName) {
-      setError("Email e nome completo sono obbligatori.");
-      return;
-    }
+    return (users || []).filter((u) => {
+      const name = (u.display_name || u.full_name || "").toLowerCase();
+      const email = (u.email || "").toLowerCase();
+      const role = (u.app_role || "").toUpperCase();
 
-    setCreating(true);
-    try {
-      const tempPassword = generateTempPassword();
+      const cantieri = Array.isArray(u.allowed_cantieri) ? u.allowed_cantieri : [];
+      const cantieriStr = cantieri.join(" ").toLowerCase();
 
-      // 1) Creazione utente auth
-      const { data: signUpData, error: signUpError } =
-        await supabase.auth.signUp({
-          email,
-          password: tempPassword,
-        });
+      const matchQ =
+        !query ||
+        name.includes(query) ||
+        email.includes(query) ||
+        cantieriStr.includes(query);
 
-      if (signUpError) {
-        throw signUpError;
-      }
+      const matchRole = roleFilter === "ALL" ? true : role === roleFilter;
 
-      const user = signUpData?.user;
-      if (!user) {
-        throw new Error("Nessun utente restituito dalla signUp.");
-      }
-
-      // 2) Parsing cantieri
-      const cantieriList = cantieriRaw
-        .split(",")
-        .map((c) => c.trim())
-        .filter(Boolean);
-
-      // 3) Inserimento riga profilo
-      const { error: profileError } = await supabase.from("profiles").insert({
-        id: user.id, // ⚠️ id = user.id (supabase auth)
-        email,
-        full_name: fullName,
-        display_name: fullName,
-        app_role: role, // CAPO / UFFICIO / MANAGER / DIREZIONE
-        allowed_cantieri: cantieriList, // jsonb[] en DB conseillé
-      });
-
-      if (profileError) {
-        throw profileError;
-      }
-
-      // 4) Reset form + reload
-      setEmail("");
-      setFullName("");
-      setRole("CAPO");
-      setCantieriRaw("");
-      await loadUsers();
-    } catch (err) {
-      console.error("[ManagerUsersPage] Errore creazione utente:", err);
-      setError(
-        err?.message ||
-          "Errore durante la creazione dell'utente. Controlla i log."
-      );
-    } finally {
-      setCreating(false);
-    }
-  };
+      return matchQ && matchRole;
+    });
+  }, [users, q, roleFilter]);
 
   return (
-    <div className="border rounded-2xl border-slate-800 bg-slate-950/40 p-4 sm:p-6">
-      {/* En-tête */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+    <div className="border border-slate-800 rounded-2xl p-4 sm:p-6 bg-slate-950/60">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-4">
         <div>
-          <h1 className="text-base sm:text-lg font-semibold text-slate-100">
-            Gestione utenti &amp; cantieri
+          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-1">
+            Directory (read-only)
+          </div>
+          <h1 className="text-base sm:text-lg font-semibold text-slate-50">
+            Utenti visibili al Manager
           </h1>
-          <p className="text-xs sm:text-sm text-slate-400 max-w-xl">
-            Il Manager crea e mantiene gli accessi a CORE.  
-            Ogni utente ha un ruolo chiaro e un insieme di cantieri autorizzati.
+          <p className="text-xs text-slate-400 max-w-2xl mt-1">
+            Annuaire operativo. Nessuna gestione account o ruoli qui:
+            <span className="text-slate-300"> ADMIN only</span>.
           </p>
         </div>
-        <div className="text-[11px] text-slate-500 text-right">
-          <div className="uppercase tracking-[0.18em] text-slate-600">
-            Ruoli disponibili
-          </div>
-          <div>CAPO · UFFICIO · MANAGER · DIREZIONE</div>
-        </div>
-      </div>
 
-      {/* Bloc création utilisateur */}
-      <div className="mb-5 rounded-2xl border border-sky-800/70 bg-slate-950/70 p-4">
-        <div className="flex items-center justify-between gap-2 mb-3">
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-sky-300">
-              Nuovo utente
-            </div>
-            <div className="text-xs text-slate-400">
-              Creazione di un utente CORE con ruolo e cantieri autorizzati.
-            </div>
+        <div className="flex flex-col sm:items-end gap-2">
+          <div className="text-[11px] text-slate-500">
+            Totale visibile:{" "}
+            <span className="font-semibold text-slate-200">{filtered.length}</span>
           </div>
-          <div className="text-[11px] text-slate-500 text-right">
-            La password iniziale viene generata in modo sicuro e inviata via
-            email da Supabase.
-          </div>
-        </div>
-
-        <form
-          onSubmit={handleCreateUser}
-          className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs"
-        >
-          <div className="flex flex-col gap-1">
-            <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
-              Email
-            </label>
+          <div className="flex items-center gap-2">
             <input
-              type="email"
-              className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="es. capo.6368@azienda.it"
-              required
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Cerca: nome, email, cantiere…"
+              className="w-56 sm:w-64 rounded-full border px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500 bg-slate-900 border-slate-700 text-slate-50"
             />
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
-              Nome completo
-            </label>
-            <input
-              type="text"
-              className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="Nome e cognome"
-              required
-            />
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
-              Ruolo
-            </label>
             <select
-              className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              className="rounded-full border px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500 bg-slate-900 border-slate-700 text-slate-50"
             >
+              <option value="ALL">Tutti i ruoli</option>
               <option value="CAPO">CAPO</option>
               <option value="UFFICIO">UFFICIO</option>
               <option value="MANAGER">MANAGER</option>
               <option value="DIREZIONE">DIREZIONE</option>
             </select>
-          </div>
 
-          <div className="flex flex-col gap-1">
-            <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
-              Cantieri autorizzati
-            </label>
-            <input
-              type="text"
-              className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
-              value={cantieriRaw}
-              onChange={(e) => setCantieriRaw(e.target.value)}
-              placeholder="es. 6368, 6358"
-            />
-          </div>
-
-          <div className="md:col-span-4 flex items-center justify-between mt-1">
-            {error && (
-              <div className="text-[11px] text-rose-400">{error}</div>
-            )}
             <button
-              type="submit"
-              disabled={creating}
-              className={[
-                "ml-auto inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-medium border",
-                creating
-                  ? "border-slate-600 text-slate-400 bg-slate-800 cursor-wait"
-                  : "border-sky-500 text-sky-100 bg-sky-600/20 hover:bg-sky-500/30",
-              ].join(" ")}
+              type="button"
+              onClick={loadUsers}
+              className="text-[11px] px-3 py-1.5 rounded-full border border-slate-700 text-slate-200 hover:bg-slate-900/50"
             >
-              {creating ? "Creazione in corso…" : "Crea utente"}
+              Ricarica
             </button>
           </div>
-        </form>
+        </div>
       </div>
 
-      {/* Liste des utilisateurs */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-            Utenti registrati
-          </div>
-          <div className="text-[11px] text-slate-500">
-            Totale:{" "}
-            <span className="font-semibold text-slate-200">
-              {users.length}
-            </span>
+      {error && (
+        <div className="mb-4 rounded-xl border border-amber-700 bg-amber-900/20 px-3 py-2 text-[12px] text-amber-200">
+          <div className="font-semibold mb-0.5">Accesso limitato</div>
+          <div className="text-amber-200/90">
+            {error}
+            <div className="mt-1 text-[11px] text-amber-200/70">
+              Normale se RLS limita la visibilità del Manager al suo perimetro.
+            </div>
           </div>
         </div>
+      )}
 
+      <div className="rounded-2xl border border-slate-800 p-3 sm:p-4 bg-slate-950/40">
         {loading ? (
-          <div className="text-xs text-slate-400">Caricamento utenti…</div>
-        ) : users.length === 0 ? (
+          <div className="text-xs text-slate-400">Caricamento…</div>
+        ) : filtered.length === 0 ? (
           <div className="text-xs text-slate-400">
-            Nessun utente presente. Crea il primo utente con il form sopra.
+            Nessun utente visibile con i filtri attuali (o RLS restringe l’accesso).
           </div>
         ) : (
           <div className="overflow-x-auto text-xs">
@@ -262,24 +146,18 @@ export default function ManagerUsersPage() {
                 <tr className="border-b border-slate-800 text-[11px] text-slate-400">
                   <th className="text-left py-1.5 pr-3">Nome</th>
                   <th className="text-left py-1.5 pr-3">Email</th>
-                  <th className="text-left py-1.5 pr-3">Ruolo</th>
-                  <th className="text-left py-1.5 pr-3">Cantieri autorizzati</th>
+                  <th className="text-left py-1.5 pr-3">Ruolo (read-only)</th>
+                  <th className="text-left py-1.5 pr-3">Cantieri visibili</th>
                 </tr>
               </thead>
-              <tbody>
-                {users.map((u) => {
-                  const name =
-                    u.display_name || u.full_name || "(senza nome)";
-                  const roleLabel = u.app_role || "N/D";
-                  const cantieri = Array.isArray(u.allowed_cantieri)
-                    ? u.allowed_cantieri
-                    : [];
+              <tbody className="divide-y divide-slate-900/80">
+                {filtered.map((u) => {
+                  const name = u.display_name || u.full_name || "(senza nome)";
+                  const roleLabel = (u.app_role || "N/D").toUpperCase();
+                  const cantieri = Array.isArray(u.allowed_cantieri) ? u.allowed_cantieri : [];
 
                   return (
-                    <tr
-                      key={u.id}
-                      className="border-b border-slate-900/80 hover:bg-slate-900/60"
-                    >
+                    <tr key={u.id} className="hover:bg-slate-900/50">
                       <td className="py-1.5 pr-3 text-slate-100">{name}</td>
                       <td className="py-1.5 pr-3 text-slate-300">{u.email}</td>
                       <td className="py-1.5 pr-3">
@@ -290,7 +168,7 @@ export default function ManagerUsersPage() {
                       <td className="py-1.5 pr-3">
                         {cantieri.length === 0 ? (
                           <span className="text-slate-500 text-[11px]">
-                            Nessun cantiere assegnato
+                            Nessun cantiere (o non esposto da RLS)
                           </span>
                         ) : (
                           <div className="flex flex-wrap gap-1">
@@ -312,6 +190,10 @@ export default function ManagerUsersPage() {
             </table>
           </div>
         )}
+
+        <div className="mt-3 text-[11px] text-slate-500">
+          Nota: questa pagina è volutamente senza azioni “admin”.
+        </div>
       </div>
     </div>
   );

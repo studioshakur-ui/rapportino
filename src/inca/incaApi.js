@@ -1,20 +1,12 @@
-
 // src/inca/incaApi.js
-// API utilitaires pour le module INCA (accès Supabase)
 import { supabase } from "../lib/supabaseClient";
 
 /**
- * Crée un enregistrement inca_files + insère les câbles / percorsi associés.
- *
- * @param {Object} params
- * @param {string} params.costr      - Code nave / costruttore (ex: "6368")
- * @param {string} params.commessa   - Commessa (ex: "SDC")
- * @param {string} [params.projectCode]
- * @param {string} params.fileName
- * @param {string} params.fileType   - "XLSX" | "CSV" | "PDF" | "IMAGE"
- * @param {string} [params.note]
- * @param {Array<Object>} params.cavi - Liste des câbles parsés
- * @param {Object<string, Array<string>>} [params.percorsiByCodice] - Map codice -> [support1, support2, ...]
+ * Crée inca_files + insère inca_cavi + inca_percorsi.
+ * IMPORTANT:
+ * - XLSX: c.codice = MARCA CAVO (unique) => inca_cavi.codice
+ * - XLSX: c.codice_inca = CODICE CAVO => inca_cavi.codice_inca
+ * - PDF: c.codice = vrai code INCA, et c.codice_inca aussi
  */
 export async function createIncaDataset({
   costr,
@@ -30,7 +22,7 @@ export async function createIncaDataset({
     throw new Error("Nessun cavo trovato nel file INCA.");
   }
 
-  // 1) Création du fichier INCA (meta)
+  // 1) inca_files
   const { data: fileRow, error: fileError } = await supabase
     .from("inca_files")
     .insert({
@@ -51,12 +43,21 @@ export async function createIncaDataset({
 
   const incaFileId = fileRow.id;
 
-  // 2) Préparation des lignes inca_cavi
+  // 2) inca_cavi payload
   const caviPayload = cavi.map((c) => ({
     inca_file_id: incaFileId,
     costr: costr || null,
     commessa: commessa || null,
+
+    // identifiant principal (XLSX = MARCA CAVO, PDF = codice INCA)
     codice: c.codice,
+
+    // vrai code INCA si présent (XLSX = CODICE CAVO; PDF = même)
+    codice_inca: c.codice_inca || null,
+
+    // marque lisible atelier si présent
+    marca_cavo: c.marca_cavo || null,
+
     descrizione: c.descrizione || null,
     impianto: c.impianto || null,
     tipo: c.tipo || null,
@@ -73,6 +74,8 @@ export async function createIncaDataset({
     metri_sit_tec: safeNumeric(c.metri_sit_tec),
     pagina_pdf: c.pagina_pdf ?? null,
     rev_inca: c.rev_inca ?? null,
+
+    // Doit contenir P/B/T/R/E si dispo (normalisé dans incaParser)
     stato_inca: c.stato_inca ?? null,
   }));
 
@@ -86,12 +89,10 @@ export async function createIncaDataset({
     throw caviError;
   }
 
-  // 3) Insertion des percorsi (si fournis)
+  // 3) percorsi (PDF surtout)
   const percorsiPayload = [];
   if (insertedCavi && insertedCavi.length > 0) {
-    const byCodice = new Map(
-      insertedCavi.map((c) => [c.codice, c])
-    );
+    const byCodice = new Map(insertedCavi.map((c) => [c.codice, c]));
 
     for (const [codice, supports] of Object.entries(percorsiByCodice)) {
       const cavo = byCodice.get(codice);
@@ -136,9 +137,6 @@ function safeNumeric(value) {
   return n;
 }
 
-/**
- * Liste tous les fichiers INCA (les plus récents d'abord)
- */
 export async function listIncaFiles({ costr, commessa } = {}) {
   let query = supabase
     .from("inca_files")
@@ -153,9 +151,6 @@ export async function listIncaFiles({ costr, commessa } = {}) {
   return data || [];
 }
 
-/**
- * Liste des câbles INCA, avec filtrage optionnel.
- */
 export async function listIncaCavi({
   fileId,
   search,
@@ -176,7 +171,7 @@ export async function listIncaCavi({
   if (search && search.trim() !== "") {
     const s = search.trim();
     query = query.or(
-      `codice.ilike.%${s}%,descrizione.ilike.%${s}%,impianto.ilike.%${s}%`
+      `codice.ilike.%${s}%,marca_cavo.ilike.%${s}%,codice_inca.ilike.%${s}%,descrizione.ilike.%${s}%`
     );
   }
 
@@ -185,9 +180,6 @@ export async function listIncaCavi({
   return data || [];
 }
 
-/**
- * Récupère le percorso complet d'un câble à partir de la vue helper.
- */
 export async function getIncaCavoWithPath(cavoId) {
   const { data, error } = await supabase
     .from("inca_cavi_with_path")

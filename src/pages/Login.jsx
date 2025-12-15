@@ -1,227 +1,116 @@
 // src/pages/Login.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase, resetSupabaseAuthStorage } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
-import {
-  getInitialTheme,
-  pageBg,
-  headerPill,
-  cardSurface,
-  buttonPrimary,
-} from "../ui/designSystem";
+import { pageBg, headerPill, cardSurface, buttonPrimary } from "../ui/designSystem";
 
 export default function Login() {
   const navigate = useNavigate();
-  const { session, profile } = useAuth();
+
+  // ✅ maintenant ces champs existent vraiment (alias fournis par AuthProvider)
+  const { session, profile, loading, authReady, error: authError } = useAuth();
+
+  // Dark-only
+  const isDark = true;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
-  const [theme, setTheme] = useState(getInitialTheme);
-  const isDark = theme === "dark";
+  // Détermine la home selon le rôle (source: profile hydraté par AuthProvider)
+  const roleHome = useMemo(() => {
+  const r = profile?.app_role;
+  if (r === "ADMIN") return "/admin";
+  if (r === "UFFICIO") return "/ufficio";
+  if (r === "DIREZIONE") return "/direction";
+  if (r === "MANAGER") return "/manager";
+  return "/app";
+}, [profile]);
 
   useEffect(() => {
-    console.log(
-      "%cCORE AUTH — SHAKUR Engineering",
-      "color:#22c55e;font-weight:bold;font-size:14px;"
-    );
-    console.log("[Login] Supabase client:", supabase);
+    console.log("%cCORE AUTH", "color:#22c55e;font-weight:bold;");
+    console.log("[Login] supabaseUrl:", import.meta.env.VITE_SUPABASE_URL);
   }, []);
 
-  // Persistance du thème
+  // Si déjà connecté + profil prêt => redirection immédiate
   useEffect(() => {
-    try {
-      window.localStorage.setItem("core-theme", theme);
-    } catch {
-      // ignore
-    }
-  }, [theme]);
-
-  // Si déjà connecté → redirect selon app_role (CAPO / UFFICIO / MANAGER / DIREZIONE)
-  useEffect(() => {
-    if (!session || !profile) return;
-
-    console.log(
-      "[Login] Session già attiva, redirect con app_role:",
-      profile.app_role
-    );
-
-    if (profile.app_role === "UFFICIO") {
-      navigate("/ufficio", { replace: true });
-    } else if (profile.app_role === "DIREZIONE") {
-      navigate("/direction", { replace: true });
-    } else if (profile.app_role === "MANAGER") {
-      navigate("/manager", { replace: true });
-    } else {
-      // CAPO o ruolo non riconosciuto → default CAPO
-      navigate("/app", { replace: true });
-    }
-  }, [session, profile, navigate]);
-
-  const toggleTheme = () => {
-    setTheme((current) => (current === "dark" ? "light" : "dark"));
-  };
+    if (!authReady) return;
+    if (!session) return;
+    if (!profile) return;
+    navigate(roleHome, { replace: true });
+  }, [authReady, session, profile, roleHome, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
 
-    console.log("[Login] Submit start per", email);
-    console.log("[Login] Verifica supabase.auth:", supabase && supabase.auth);
-
-    if (!supabase || !supabase.auth || !supabase.auth.signInWithPassword) {
-      console.error("[Login] supabase.auth.signInWithPassword è undefined!");
-      setError("Configurazione autenticazione non valida (supabase).");
-      setSubmitting(false);
-      return;
-    }
-
-    // IMPORTANT:
-    // On n'efface PLUS automatiquement le stockage auth ici.
-    // Dans certains navigateurs / extensions, un reset systématique peut créer des états incohérents.
-    // Un bouton "Nettoyer" est disponible en bas si besoin.
-
-    // Timeout SOFT : message après 10s, mais on ne coupe PAS la requête
-    const softTimeoutId = setTimeout(() => {
-      console.warn("[Login] Soft timeout 10s: UI warning only");
-      setError(
-        "La richiesta di accesso sta impiegando troppo tempo. Verifica la connessione o riprova."
-      );
-    }, 10000);
-
     try {
-      const { data, error: signInError } =
-        await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-      clearTimeout(softTimeoutId);
-
-      console.log("[Login] Risultato signInWithPassword:", {
-        data,
-        signInError,
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
 
       if (signInError) {
-        console.error("[Login] Errore login Supabase:", signInError);
-        if (signInError.message?.includes("Failed to fetch")) {
-          setError("Impossibile contattare il server di autenticazione (rete).");
-        } else {
-          setError("Credenziali non valide o account non autorizzato.");
-        }
+        console.error("[Login] signIn error:", signInError);
+        setError(`Login fallito: ${signInError.message}`);
         return;
       }
 
       const user = data?.user;
       if (!user) {
-        console.error("[Login] Nessun user restituito da Supabase");
-        setError("Errore imprevisto durante il login.");
+        setError("Login OK ma nessun user restituito (anomalia).");
         return;
       }
 
-      console.log("[Login] Login OK, user.id =", user.id);
-
-      const { data: prof, error: profileError } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single();
-
-      console.log("[Login] Risultato query profilo:", { prof, profileError });
-
-      const ruolo = prof?.app_role;
-
-      if (ruolo === "UFFICIO") {
-        console.log("[Login] Redirect → /ufficio");
-        navigate("/ufficio", { replace: true });
-      } else if (ruolo === "DIREZIONE") {
-        console.log("[Login] Redirect → /direction");
-        navigate("/direction", { replace: true });
-      } else if (ruolo === "MANAGER") {
-        console.log("[Login] Redirect → /manager");
-        navigate("/manager", { replace: true });
-      } else {
-        console.log("[Login] Redirect → /app (CAPO o profilo mancante)");
-        navigate("/app", { replace: true });
-      }
+      // AuthProvider va hydrater profile via onAuthStateChange
     } catch (err) {
-      clearTimeout(softTimeoutId);
-      console.error("[Login] Errore in handleSubmit:", err);
-      setError("Errore di rete o configurazione. Contatta l’Ufficio.");
+      console.error("[Login] unexpected error:", err);
+      setError(`Errore inatteso: ${err?.message || String(err)}`);
     } finally {
-      console.log("[Login] finally → setSubmitting(false)");
       setSubmitting(false);
     }
   };
 
+  // Erreur globale (AuthProvider) + erreur locale (Login)
+  const bannerError = error || authError;
+
   return (
-    <div
-      className={[
-        "min-h-screen flex items-center justify-center px-4",
-        pageBg(isDark),
-      ].join(" ")}
-    >
+    <div className={["min-h-screen flex items-center justify-center px-4", pageBg(isDark)].join(" ")}>
       <div className="w-full max-w-md">
-        {/* En-tête */}
-        <div className="flex items-start justify-between mb-4">
-          <div className="text-left">
-            <div className={`${headerPill(isDark)} mb-2`}>
-              SISTEMA CENTRALE DI CANTIERE
-            </div>
-
-            <div className="text-[12px] text-slate-500 font-mono mb-2">
-              Auth Module · SHAKUR Engineering
-            </div>
-
-            <h1 className="text-3xl font-semibold mb-2">Entra in CORE</h1>
-
-            <p className="text-[14px] text-slate-500 leading-relaxed">
-              Usa credenziali interne. Ogni accesso viene registrato.
-            </p>
-          </div>
-
-          {/* Switch Dark / Light */}
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className={[
-              "ml-3 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px]",
-              isDark
-                ? "border-slate-600 bg-slate-900/70 text-slate-200"
-                : "border-slate-300 bg-slate-50 text-slate-700",
-            ].join(" ")}
-          >
-            <span
-              className={[
-                "inline-flex h-3 w-3 items-center justify-center rounded-full text-[9px]",
-                isDark ? "bg-slate-800" : "bg-amber-200",
-              ].join(" ")}
-            >
-              {isDark ? "🌑" : "☀️"}
-            </span>
-            <span className="uppercase tracking-[0.16em]">
-              {isDark ? "Dark" : "Light"}
-            </span>
-          </button>
+        <div className="text-left mb-4">
+          <div className={`${headerPill(isDark)} mb-2`}>SISTEMA CENTRALE DI CANTIERE</div>
+          <h1 className="text-3xl font-semibold mb-2">Entra in CORE</h1>
+          <p className="text-[14px] text-slate-500 leading-relaxed">
+            Usa credenziali interne. Ogni accesso viene registrato.
+          </p>
         </div>
 
-        {/* Carte login */}
         <div className={cardSurface(isDark, "p-6")}>
-          {error && (
+          {/* Etat d'initialisation */}
+          {!authReady && (
+            <div className="text-[13px] rounded-md px-3 py-2 mb-4 border text-slate-200 bg-slate-900/40 border-slate-700">
+              Inizializzazione sicurezza CORE…
+            </div>
+          )}
+
+          {bannerError && (
             <div
               className={[
                 "text-[14px] rounded-md px-3 py-2 mb-4 border",
-                isDark
-                  ? "text-amber-200 bg-amber-900/40 border-amber-700"
-                  : "text-amber-800 bg-amber-50 border-amber-300",
+                "text-amber-200 bg-amber-900/40 border-amber-700",
               ].join(" ")}
             >
-              {error}
+              {bannerError}
+            </div>
+          )}
+
+          {/* Si déjà connecté: statut */}
+          {authReady && session && !profile && (
+            <div className="text-[13px] rounded-md px-3 py-2 mb-4 border text-slate-200 bg-slate-900/40 border-slate-700">
+              Sessione attiva… Caricamento profilo…
             </div>
           )}
 
@@ -231,15 +120,11 @@ export default function Login() {
               <input
                 type="email"
                 required
-                className={[
-                  "w-full rounded-md border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none",
-                  isDark
-                    ? "bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
-                    : "bg-white border-slate-300 text-slate-900 focus:ring-sky-500",
-                ].join(" ")}
-                placeholder="nome.cognome@core.com"
+                autoComplete="username"
+                className="w-full rounded-md border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                disabled={submitting || loading}
               />
             </div>
 
@@ -248,55 +133,44 @@ export default function Login() {
               <input
                 type="password"
                 required
-                className={[
-                  "w-full rounded-md border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none",
-                  isDark
-                    ? "bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
-                    : "bg-white border-slate-300 text-slate-900 focus:ring-sky-500",
-                ].join(" ")}
+                autoComplete="current-password"
+                className="w-full rounded-md border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                disabled={submitting || loading}
               />
             </div>
 
             <button
               type="submit"
-              disabled={submitting}
+              disabled={!authReady || submitting || loading}
               className={buttonPrimary(
                 isDark,
                 "w-full gap-2 mt-2 disabled:opacity-60 disabled:cursor-not-allowed"
               )}
             >
-              {submitting ? "Accesso in corso…" : "Accedi"}
+              {submitting || loading ? "Accesso in corso…" : "Accedi"}
             </button>
           </form>
 
-          {/* Footer actions */}
           <div className="mt-4 text-[12px] text-slate-500 flex justify-between items-center">
             <span>CORE · Sistema centrale di cantiere</span>
-            <Link
-              to="/"
-              className="underline underline-offset-2 hover:text-sky-400"
-            >
+            <Link to="/" className="underline underline-offset-2 hover:text-sky-400">
               Torna alla panoramica
             </Link>
           </div>
 
           <div className="mt-3 text-[12px] text-slate-500 flex justify-between items-center">
-            <span className="opacity-80">
-              Problemi di accesso dopo cambio scheda?
-            </span>
+            <span className="opacity-80">Problemi di accesso?</span>
             <button
               type="button"
               onClick={() => {
                 resetSupabaseAuthStorage();
-                setError(
-                  "Cache autenticazione pulita. Riprova ad accedere."
-                );
+                setError("Cache autenticazione pulita (scoped). Riprova ad accedere.");
               }}
               className="underline underline-offset-2 hover:text-sky-400"
             >
-              Nettoyer cache auth
+              Reset auth (scoped)
             </button>
           </div>
         </div>

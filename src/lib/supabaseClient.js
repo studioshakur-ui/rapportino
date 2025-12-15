@@ -4,12 +4,45 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+function safeStorage() {
+  const memory = new Map();
+
+  const memStore = {
+    getItem: (key) => (memory.has(key) ? memory.get(key) : null),
+    setItem: (key, value) => memory.set(key, String(value)),
+    removeItem: (key) => memory.delete(key),
+  };
+
+  try {
+    const t = "__core_ls_test__";
+    window.localStorage.setItem(t, "1");
+    window.localStorage.removeItem(t);
+    return window.localStorage;
+  } catch {
+    try {
+      const t = "__core_ss_test__";
+      window.sessionStorage.setItem(t, "1");
+      window.sessionStorage.removeItem(t);
+      return window.sessionStorage;
+    } catch {
+      return memStore;
+    }
+  }
+}
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storageKey: "core-auth-v2",
+    storage: typeof window !== "undefined" ? safeStorage() : undefined,
+  },
+});
 
 function getProjectRefFromUrl(url) {
   try {
     const u = new URL(url);
-    // ex: https://<ref>.supabase.co
     const host = u.hostname || "";
     const ref = host.split(".")[0];
     return ref || null;
@@ -18,27 +51,48 @@ function getProjectRefFromUrl(url) {
   }
 }
 
-// Reset ciblé (projet courant) pour éviter de casser d'autres apps Supabase du navigateur.
+function scopedKeys(ref, key) {
+  if (!key) return false;
+  if (key === "core-auth-v2") return true;
+  if (ref && key.startsWith(`sb-${ref}-`)) return true;
+  if (key === "supabase.auth.token") return true;
+  return false;
+}
+
+/**
+ * Reset ciblé:
+ * - Supabase v2: sb-<projectRef>-*
+ * - CORE: core-auth-v2
+ * Nettoie localStorage + sessionStorage (sans clear global)
+ */
 export function resetSupabaseAuthStorage() {
   try {
     const ref = getProjectRefFromUrl(supabaseUrl);
-    const keys = Object.keys(window.localStorage || {});
 
-    const toRemove = keys.filter((k) => {
-      if (!k) return false;
+    const removed = [];
 
-      // Clés Supabase v2: sb-<projectRef>-auth-token (+ variantes)
-      if (ref && k.startsWith(`sb-${ref}-`)) return true;
+    const ls = window.localStorage;
+    const ss = window.sessionStorage;
 
-      // Fallback (anciens patterns / extensions) mais on reste prudent
-      if (k === "supabase.auth.token") return true;
+    if (ls) {
+      Object.keys(ls).forEach((k) => {
+        if (scopedKeys(ref, k)) {
+          ls.removeItem(k);
+          removed.push(`local:${k}`);
+        }
+      });
+    }
 
-      return false;
-    });
+    if (ss) {
+      Object.keys(ss).forEach((k) => {
+        if (scopedKeys(ref, k)) {
+          ss.removeItem(k);
+          removed.push(`session:${k}`);
+        }
+      });
+    }
 
-    toRemove.forEach((k) => window.localStorage.removeItem(k));
-
-    console.warn("[Supabase] Reset auth storage (scoped):", toRemove);
+    console.warn("[Supabase] Reset auth storage (scoped):", removed);
   } catch (e) {
     console.warn("[Supabase] Reset auth storage failed:", e);
   }
