@@ -1,7 +1,7 @@
 // src/components/rapportino/rapportinoTemplates.js
 
-// Modèle par défaut 6368 (ce que tu utilises déjà)
-const base6368 = {
+// Modèle par défaut (générique)
+const baseC001 = {
   ELETTRICISTA: [
     {
       id: null,
@@ -76,14 +76,14 @@ const base6368 = {
   ],
 };
 
-// Exemple spécifique 6358 (DE-ICING ELETTRICISTA) – à affiner selon tes papiers
-const base6358 = {
+// Exemple spécifique (générique)
+const baseTemplate = {
   ELETTRICISTA: [
     {
       id: null,
       row_index: 0,
-      categoria: 'DE-ICING',
-      descrizione: 'POSA CAVI DE-ICING',
+      categoria: 'PROGETTO',
+      descrizione: 'POSA CAVI PROGETTO',
       operatori: '',
       tempo: '',
       previsto: '',
@@ -93,7 +93,7 @@ const base6358 = {
     {
       id: null,
       row_index: 1,
-      categoria: 'DE-ICING',
+      categoria: 'PROGETTO',
       descrizione: 'COLLEGAMENTI QUADRI / JUNCTION BOX',
       operatori: '',
       tempo: '',
@@ -104,7 +104,7 @@ const base6358 = {
     {
       id: null,
       row_index: 2,
-      categoria: 'DE-ICING',
+      categoria: 'PROGETTO',
       descrizione: 'PROVE, MISURE, TEST',
       operatori: '',
       tempo: '',
@@ -113,17 +113,16 @@ const base6358 = {
       note: '',
     },
   ],
-  CARPENTERIA: base6368.CARPENTERIA,
-  MONTAGGIO: base6368.MONTAGGIO,
+  CARPENTERIA: baseC001.CARPENTERIA,
+  MONTAGGIO: baseC001.MONTAGGIO,
 };
 
-export const RAPPORTINO_TEMPLATES = {
-  '6368': base6368,
-  '6358': base6358,
+export const const RAPPORTINO_TEMPLATES = {
+  DEFAULT: baseTemplate,
 };
 
 export function getBaseRowsFor(costr, crewRole) {
-  const template = RAPPORTINO_TEMPLATES[costr] || base6368;
+  const template = RAPPORTINO_TEMPLATES[costr] || baseC001;
   const rows = template[crewRole] || template.ELETTRICISTA || [];
   // deep clone pour ne pas modifier le template original
   return rows.map((r, idx) => ({

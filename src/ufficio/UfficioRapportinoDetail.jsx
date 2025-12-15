@@ -38,6 +38,7 @@ export default function UfficioRapportinoDetail() {
   const { profile, loading: authLoading } = useAuth();
 
   const [header, setHeader] = useState(null);
+  const [capoProfile, setCapoProfile] = useState(null); // <- NEW: profil CAPO lié au rapport
   const [rows, setRows] = useState([]);
   const [cavi, setCavi] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -46,14 +47,20 @@ export default function UfficioRapportinoDetail() {
   const [feedback, setFeedback] = useState('');
   const [returnNote, setReturnNote] = useState('');
 
-  const isElett = useMemo(
-    () => header?.crew_role === 'ELETTRICISTA',
-    [header],
-  );
+  const isElett = useMemo(() => header?.crew_role === 'ELETTRICISTA', [header]);
 
   const isManager = profile?.app_role === 'MANAGER';
   const isUfficio = profile?.app_role === 'UFFICIO';
   const isDirezione = profile?.app_role === 'DIREZIONE';
+
+  // Nom CAPO canonique : profiles.display_name → profiles.full_name → profiles.email → header.capo_name
+  const capoDisplay = useMemo(() => {
+    if (capoProfile?.display_name) return capoProfile.display_name;
+    if (capoProfile?.full_name) return capoProfile.full_name;
+    if (capoProfile?.email) return capoProfile.email;
+    if (header?.capo_name) return header.capo_name;
+    return '—';
+  }, [capoProfile, header]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -92,6 +99,25 @@ export default function UfficioRapportinoDetail() {
 
       setHeader(headerData);
 
+      // NEW: Charger le profil du CAPO via capo_id (source de vérité)
+      // (On ne dépend pas d'un nom de contrainte FK)
+      if (headerData.capo_id) {
+        const { data: capoData, error: capoErr } = await supabase
+          .from('profiles')
+          .select('id, display_name, full_name, email')
+          .eq('id', headerData.capo_id)
+          .single();
+
+        if (capoErr) {
+          console.error('Errore caricando profilo capo:', capoErr);
+          setCapoProfile(null);
+        } else {
+          setCapoProfile(capoData || null);
+        }
+      } else {
+        setCapoProfile(null);
+      }
+
       // Righe attività
       const { data: rowsData, error: rowsErr } = await supabase
         .from('rapportino_rows')
@@ -119,8 +145,7 @@ export default function UfficioRapportinoDetail() {
       setCavi(caviData || []);
 
       // Note de retour
-      const existingNote =
-        headerData.ufficio_note || headerData.note_ufficio || '';
+      const existingNote = headerData.ufficio_note || headerData.note_ufficio || '';
       setReturnNote(existingNote);
 
       setLoading(false);
@@ -138,14 +163,11 @@ export default function UfficioRapportinoDetail() {
 
   const canReturn =
     header &&
-    (header.status === 'VALIDATED_CAPO' ||
-      header.status === 'APPROVED_UFFICIO') &&
+    (header.status === 'VALIDATED_CAPO' || header.status === 'APPROVED_UFFICIO') &&
     (isUfficio || isDirezione) &&
     !saving;
 
-  const statusLabel = header
-    ? STATUS_LABELS[header.status] || header.status
-    : '—';
+  const statusLabel = header ? STATUS_LABELS[header.status] || header.status : '—';
 
   const handleBack = () => {
     navigate('/ufficio');
@@ -188,9 +210,7 @@ export default function UfficioRapportinoDetail() {
     if (!header || !canReturn) return;
 
     if (!returnNote || !returnNote.trim()) {
-      setError(
-        "Per rimandare il rapportino è obbligatorio compilare la nota.",
-      );
+      setError("Per rimandare il rapportino è obbligatorio compilare la nota.");
       return;
     }
 
@@ -286,7 +306,7 @@ export default function UfficioRapportinoDetail() {
           <div className="text-xs text-slate-400">
             Capo squadra:{' '}
             <span className="text-slate-100">
-              {header.capo_name || '—'}
+              {capoDisplay}
             </span>
           </div>
           <div className="text-xs text-slate-400">
@@ -301,8 +321,7 @@ export default function UfficioRapportinoDetail() {
           <span
             className={[
               'inline-flex items-center px-2.5 py-1 rounded-full font-medium',
-              STATUS_BADGE_CLASS[header.status] ||
-                'bg-slate-700 text-slate-100',
+              STATUS_BADGE_CLASS[header.status] || 'bg-slate-700 text-slate-100',
             ].join(' ')}
           >
             Stato: {statusLabel}
@@ -390,67 +409,32 @@ export default function UfficioRapportinoDetail() {
           <table className="min-w-full border-t border-slate-800 text-[12px]">
             <thead className="bg-slate-900/80 text-slate-300">
               <tr>
-                <th className="px-2 py-1 text-left border-b border-slate-800">
-                  #
-                </th>
-                <th className="px-2 py-1 text-left border-b border-slate-800">
-                  Categoria
-                </th>
-                <th className="px-2 py-1 text-left border-b border-slate-800">
-                  Descrizione
-                </th>
-                <th className="px-2 py-1 text-left border-b border-slate-800">
-                  Operatori
-                </th>
-                <th className="px-2 py-1 text-left border-b border-slate-800">
-                  Tempo
-                </th>
-                <th className="px-2 py-1 text-right border-b border-slate-800">
-                  Previsto
-                </th>
-                <th className="px-2 py-1 text-right border-b border-slate-800">
-                  Prodotto
-                </th>
-                <th className="px-2 py-1 text-left border-b border-slate-800">
-                  Note
-                </th>
+                <th className="px-2 py-1 text-left border-b border-slate-800">#</th>
+                <th className="px-2 py-1 text-left border-b border-slate-800">Categoria</th>
+                <th className="px-2 py-1 text-left border-b border-slate-800">Descrizione</th>
+                <th className="px-2 py-1 text-left border-b border-slate-800">Operatori</th>
+                <th className="px-2 py-1 text-left border-b border-slate-800">Tempo</th>
+                <th className="px-2 py-1 text-right border-b border-slate-800">Previsto</th>
+                <th className="px-2 py-1 text-right border-b border-slate-800">Prodotto</th>
+                <th className="px-2 py-1 text-left border-b border-slate-800">Note</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800 bg-slate-950/60">
               {rows.map((r, idx) => (
                 <tr key={r.id || idx}>
-                  <td className="px-2 py-1 text-slate-400 align-top">
-                    {idx + 1}
-                  </td>
-                  <td className="px-2 py-1 text-slate-100 align-top">
-                    {r.categoria || '—'}
-                  </td>
-                  <td className="px-2 py-1 text-slate-100 align-top">
-                    {r.descrizione || '—'}
-                  </td>
-                  <td className="px-2 py-1 text-slate-100 align-top whitespace-pre-wrap">
-                    {r.operatori || '—'}
-                  </td>
-                  <td className="px-2 py-1 text-slate-100 align-top whitespace-pre-wrap">
-                    {r.tempo || '—'}
-                  </td>
-                  <td className="px-2 py-1 text-slate-100 align-top text-right">
-                    {r.previsto ?? '—'}
-                  </td>
-                  <td className="px-2 py-1 text-slate-100 align-top text-right">
-                    {r.prodotto ?? '—'}
-                  </td>
-                  <td className="px-2 py-1 text-slate-100 align-top whitespace-pre-wrap">
-                    {r.note || '—'}
-                  </td>
+                  <td className="px-2 py-1 text-slate-400 align-top">{idx + 1}</td>
+                  <td className="px-2 py-1 text-slate-100 align-top">{r.categoria || '—'}</td>
+                  <td className="px-2 py-1 text-slate-100 align-top">{r.descrizione || '—'}</td>
+                  <td className="px-2 py-1 text-slate-100 align-top whitespace-pre-wrap">{r.operatori || '—'}</td>
+                  <td className="px-2 py-1 text-slate-100 align-top whitespace-pre-wrap">{r.tempo || '—'}</td>
+                  <td className="px-2 py-1 text-slate-100 align-top text-right">{r.previsto ?? '—'}</td>
+                  <td className="px-2 py-1 text-slate-100 align-top text-right">{r.prodotto ?? '—'}</td>
+                  <td className="px-2 py-1 text-slate-100 align-top whitespace-pre-wrap">{r.note || '—'}</td>
                 </tr>
               ))}
               {!rows.length && (
                 <tr>
-                  <td
-                    colSpan={8}
-                    className="px-3 py-2 text-center text-[12px] text-slate-500"
-                  >
+                  <td colSpan={8} className="px-3 py-2 text-center text-[12px] text-slate-500">
                     Nessuna riga attività trovata per questo rapportino.
                   </td>
                 </tr>
@@ -470,38 +454,20 @@ export default function UfficioRapportinoDetail() {
             <table className="min-w-full border-t border-slate-800 text-[12px]">
               <thead className="bg-slate-900/80 text-slate-300">
                 <tr>
-                  <th className="px-2 py-1 text-left border-b border-slate-800">
-                    Codice
-                  </th>
-                  <th className="px-2 py-1 text-left border-b border-slate-800">
-                    Descrizione
-                  </th>
-                  <th className="px-2 py-1 text-right border-b border-slate-800">
-                    Metri totali
-                  </th>
-                  <th className="px-2 py-1 text-right border-b border-slate-800">
-                    Metri posati
-                  </th>
-                  <th className="px-2 py-1 text-right border-b border-slate-800">
-                    %
-                  </th>
+                  <th className="px-2 py-1 text-left border-b border-slate-800">Codice</th>
+                  <th className="px-2 py-1 text-left border-b border-slate-800">Descrizione</th>
+                  <th className="px-2 py-1 text-right border-b border-slate-800">Metri totali</th>
+                  <th className="px-2 py-1 text-right border-b border-slate-800">Metri posati</th>
+                  <th className="px-2 py-1 text-right border-b border-slate-800">%</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800 bg-slate-950/60">
                 {cavi.map((c) => (
                   <tr key={c.id}>
-                    <td className="px-2 py-1 text-slate-100 align-top">
-                      {c.codice || '—'}
-                    </td>
-                    <td className="px-2 py-1 text-slate-100 align-top">
-                      {c.descrizione || '—'}
-                    </td>
-                    <td className="px-2 py-1 text-slate-100 align-top text-right">
-                      {c.metri_totali ?? '—'}
-                    </td>
-                    <td className="px-2 py-1 text-slate-100 align-top text-right">
-                      {c.metri_posati ?? '—'}
-                    </td>
+                    <td className="px-2 py-1 text-slate-100 align-top">{c.codice || '—'}</td>
+                    <td className="px-2 py-1 text-slate-100 align-top">{c.descrizione || '—'}</td>
+                    <td className="px-2 py-1 text-slate-100 align-top text-right">{c.metri_totali ?? '—'}</td>
+                    <td className="px-2 py-1 text-slate-100 align-top text-right">{c.metri_posati ?? '—'}</td>
                     <td className="px-2 py-1 text-slate-100 align-top text-right">
                       {c.percentuale != null ? `${c.percentuale}%` : '—'}
                     </td>
@@ -509,10 +475,7 @@ export default function UfficioRapportinoDetail() {
                 ))}
                 {!cavi.length && (
                   <tr>
-                    <td
-                      colSpan={5}
-                      className="px-3 py-2 text-center text-[12px] text-slate-500"
-                    >
+                    <td colSpan={5} className="px-3 py-2 text-center text-[12px] text-slate-500">
                       Nessun cavo associato a questo rapportino.
                     </td>
                   </tr>
@@ -556,4 +519,3 @@ export default function UfficioRapportinoDetail() {
     </div>
   );
 }
-

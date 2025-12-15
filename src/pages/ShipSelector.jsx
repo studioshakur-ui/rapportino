@@ -7,19 +7,19 @@ import { corePills } from "../ui/designSystem";
 
 const FALLBACK_SHIPS = [
   {
-    id: "6368",
-    code: "6368",
-    name: "SDC",
-    yard: "Riva Trigoso",
+    id: "C001",
+    code: "C001",
+    name: "COMM01",
+    yard: "Sede operativa",
     progress_inca: 62,
     deadline_date: "2026-02-15",
     recent_reports: 34,
   },
     {
-    id: "6358",
-    code: "6358",
-    name: "DE-ICING",
-    yard: "Riva Trigoso",
+    id: "C002",
+    code: "C002",
+    name: "COMM02",
+    yard: "Sede operativa",
     progress_inca: 48,
     deadline_date: "2026-03-10",
     recent_reports: 21,

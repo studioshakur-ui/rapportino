@@ -20,9 +20,9 @@ export function parseNumeric(value) {
 /**
  * Lignes de base selon le rôle de l'équipe.
  *
- * ⚠️ Version 6368 · SDC (ELETTRICISTA)
+ \* ⚠️ Version générique (ELETTRICISTA)
  *
- * Pour ELETTRICISTA, on applique le template chantier 6368 :
+ * Pour ELETTRICISTA, on applique le template générique :
  *   - 4 lignes
  *   - STESURA / FASCETTATURA / RIPRESA / VARI STESURA CAVI
  *   - PREVISTI : 150 / 600 / 150 / 0,2

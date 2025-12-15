@@ -1,4 +1,4 @@
-// src/rapportino/RapportinoSheet.jsx
+// src/components/RapportinoSheet.jsx
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import { supabase } from '../lib/supabaseClient';
@@ -272,8 +272,11 @@ export default function RapportinoSheet() {
   }
 
   return (
-    <div className="min-h-screen bg-white text-black print:bg-white print:text-black">
-      <div className="mx-auto px-8 pt-10 pb-8 max-w-[900px]">
+    // IMPORTANT PRINT:
+    // Le CSS global (src/index.css) isole et met en page #rapportino-document.
+    // Pour que la stampa A4 soit stable, on DOIT utiliser l'id + classes canon.
+    <div id="rapportino-document" className="min-h-screen bg-white text-black print:bg-white print:text-black">
+      <div className="rapportino-document">
         {/* Ligne 1 : titre centré */}
         <div className="text-center text-[16px] font-semibold mb-4 tracking-wide">
           RAPPORTINO GIORNALIERO
@@ -302,28 +305,28 @@ export default function RapportinoSheet() {
         </div>
 
         {/* Tableau principal */}
-        <table className="w-full border border-black border-collapse text-[10px]">
+        <table className="rapportino-table text-[10px]">
           <thead>
             <tr>
-              <th className="border border-black px-1 py-1 w-24 text-left">
+              <th className="px-1 py-1 w-24 text-left">
                 CATEGORIA
               </th>
-              <th className="border border-black px-1 py-1 w-64 text-left">
+              <th className="px-1 py-1 w-64 text-left">
                 DESCRIZIONE
               </th>
-              <th className="border border-black px-1 py-1 w-40 text-left">
+              <th className="px-1 py-1 w-40 text-left">
                 OPERATORE
               </th>
-              <th className="border border-black px-1 py-1 w-32 text-left">
+              <th className="px-1 py-1 w-32 text-left">
                 TEMPO IMPIEGATO
               </th>
-              <th className="border border-black px-1 py-1 w-24 text-right">
+              <th className="px-1 py-1 w-24 text-right">
                 PREVISTO
               </th>
-              <th className="border border-black px-1 py-1 w-24 text-right">
+              <th className="px-1 py-1 w-24 text-right">
                 PRODOTTO
               </th>
-              <th className="border border-black px-1 py-1 w-40 text-left">
+              <th className="px-1 py-1 w-40 text-left">
                 NOTE
               </th>
             </tr>
@@ -331,25 +334,25 @@ export default function RapportinoSheet() {
           <tbody>
             {rows.map((r, idx) => (
               <tr key={idx} className="align-top">
-                <td className="border border-black px-1 py-1">
+                <td className="px-1 py-1">
                   {r.categoria}
                 </td>
-                <td className="border border-black px-1 py-1">
+                <td className="px-1 py-1">
                   {r.descrizione}
                 </td>
-                <td className="border border-black px-1 py-1">
+                <td className="px-1 py-1">
                   <MultiLineCell value={r.operatori} />
                 </td>
-                <td className="border border-black px-1 py-1">
+                <td className="px-1 py-1">
                   <MultiLineCell value={r.tempo} />
                 </td>
-                <td className="border border-black px-1 py-1 text-right">
+                <td className="px-1 py-1 text-right">
                   {formatPrevisto(r.previsto)}
                 </td>
-                <td className="border border-black px-1 py-1 text-right">
+                <td className="px-1 py-1 text-right">
                   {r.prodotto}
                 </td>
-                <td className="border border-black px-1 py-1">
+                <td className="px-1 py-1">
                   <MultiLineCell value={r.note} />
                 </td>
               </tr>

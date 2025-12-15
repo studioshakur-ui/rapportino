@@ -3,8 +3,9 @@ import React from 'react';
 import { useAuth } from '../auth/AuthProvider';
 
 const COSTR_OPTIONS = [
-  { value: '6368', label: '6368 · Nave Crociera' },
-  { value: '6358', label: '6358 · De-Icing / Unitá tecnica' },
+  { value: 'C001', label: 'C001 · Progetto' },
+  { value: 'C002', label: 'C002 · Progetto' },
+  { value: 'C003', label: 'C003 · Progetto' },
 ];
 
 export default function CostrSelect({ onSelect }) {

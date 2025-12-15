@@ -499,7 +499,7 @@ export default function DirectionDashboard() {
             type="text"
             value={costrFilter}
             onChange={(e) => setCostrFilter(e.target.value)}
-            placeholder="es. 6368"
+            placeholder="es. C001"
             className="flex-1 rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1 text-slate-100 placeholder:text-slate-600"
           />
         </div>

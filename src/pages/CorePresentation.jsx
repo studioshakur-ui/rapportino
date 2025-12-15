@@ -3,11 +3,12 @@ import React, { useMemo, useRef, useState } from "react";
 
 /**
  * CORE Presentation (Direzione-only)
- * - Mission-control style flow map (SVG)
- * - Toggle: Attuale vs CORE
- * - Overlay frizioni (solo in modalità Attuale)
- * - Sezione Pilot: un solo bottone "AVVIA PILOT (14 GIORNI)"
- *   -> apre un pannello di cadrage (no configurazione nave/area in UI)
+ *
+ * UX upgrades:
+ * - Default mode: ATTUALE
+ * - Bottom transformation bar sticky (only when ATTUALE) to force click to CORE
+ * - Bigger typography for executive readability
+ * - CNCS definition (one-shot) + disciplined wink to Percorso
  */
 
 function cx(...parts) {
@@ -18,7 +19,7 @@ function Pill({ children, className }) {
   return (
     <span
       className={cx(
-        "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.18em]",
+        "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12px] uppercase tracking-[0.18em]",
         className
       )}
     >
@@ -37,10 +38,10 @@ function StatTile({ label, value, hint, accent = "slate" }) {
   };
 
   return (
-    <div className={cx("rounded-2xl border p-4", accentMap[accent] || accentMap.slate)}>
-      <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">{label}</div>
-      <div className="mt-1 text-2xl font-semibold text-slate-50">{value}</div>
-      {hint ? <div className="mt-1 text-[11px] text-slate-400">{hint}</div> : null}
+    <div className={cx("rounded-2xl border p-4 sm:p-5", accentMap[accent] || accentMap.slate)}>
+      <div className="text-[12px] uppercase tracking-[0.18em] text-slate-400">{label}</div>
+      <div className="mt-1 text-[28px] sm:text-3xl font-semibold text-slate-50 leading-none">{value}</div>
+      {hint ? <div className="mt-2 text-[12px] sm:text-[13px] text-slate-400 leading-relaxed">{hint}</div> : null}
     </div>
   );
 }
@@ -48,10 +49,10 @@ function StatTile({ label, value, hint, accent = "slate" }) {
 function TooltipCard({ title, lines }) {
   return (
     <div className="rounded-xl border border-slate-800 bg-[#070d16] px-3 py-2 shadow-[0_24px_80px_rgba(0,0,0,0.55)]">
-      <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{title}</div>
+      <div className="text-[12px] uppercase tracking-[0.18em] text-slate-500">{title}</div>
       <div className="mt-1 space-y-1">
         {lines.map((l, i) => (
-          <div key={i} className="text-[12px] text-slate-200">
+          <div key={i} className="text-[13px] text-slate-200">
             {l}
           </div>
         ))}
@@ -172,12 +173,7 @@ function MissionFlow({ mode, showFriction }) {
 
   return (
     <div className="relative rounded-3xl border border-slate-800 bg-[#050910] overflow-hidden">
-      {/* background grid */}
-      <svg
-        className="absolute inset-0 h-full w-full opacity-[0.22]"
-        viewBox="0 0 900 260"
-        preserveAspectRatio="none"
-      >
+      <svg className="absolute inset-0 h-full w-full opacity-[0.22]" viewBox="0 0 900 260" preserveAspectRatio="none">
         <defs>
           <pattern id="grid" width="36" height="36" patternUnits="userSpaceOnUse">
             <path d="M 36 0 L 0 0 0 36" fill="none" stroke="rgba(148,163,184,0.22)" strokeWidth="1" />
@@ -191,7 +187,6 @@ function MissionFlow({ mode, showFriction }) {
         <rect width="900" height="260" fill="url(#vignette)" />
       </svg>
 
-      {/* keyframes */}
       <style>{`
         @keyframes dash { from { stroke-dashoffset: 420; } to { stroke-dashoffset: 0; } }
         @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.08); opacity: 0.85; } }
@@ -199,17 +194,15 @@ function MissionFlow({ mode, showFriction }) {
       `}</style>
 
       <div className="relative px-5 py-5 sm:px-6 sm:py-6">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <div className="text-[11px] uppercase tracking-[0.26em] text-slate-500">
-              Mission Flow · Control Points
-            </div>
-            <div className="mt-1 text-sm sm:text-base font-semibold text-slate-100">
+            <div className="text-[12px] uppercase tracking-[0.26em] text-slate-500">Mission Flow · Control Points</div>
+            <div className="mt-1 text-[15px] sm:text-[16px] font-semibold text-slate-100">
               {mode === "ATTUALE"
                 ? "Architettura operativa attuale (dato non continuo)"
                 : "Scenario con CORE (dato nativo continuo + audit)"}
             </div>
-            <div className="mt-1 text-[12px] text-slate-400 max-w-2xl">
+            <div className="mt-2 text-[13px] sm:text-[14px] text-slate-400 max-w-2xl leading-relaxed">
               {mode === "ATTUALE"
                 ? "La stessa informazione viene trasformata più volte prima di arrivare alla decisione."
                 : "Un solo dato attraversa ruoli e stati: validazione, memoria certificata, sintesi Direzione."}
@@ -217,23 +210,15 @@ function MissionFlow({ mode, showFriction }) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Pill
-              className={cx(
-                "border-slate-700 bg-slate-950/30 text-slate-200",
-                showFriction ? "shadow-[0_0_0_1px_rgba(148,163,184,0.25)]" : ""
-              )}
-            >
-              <span
-                className="h-1.5 w-1.5 rounded-full bg-slate-300"
-                style={{ animation: "glow 2.2s ease-in-out infinite" }}
-              />
+            <Pill className="border-slate-700 bg-slate-950/30 text-slate-200">
+              <span className="h-2 w-2 rounded-full bg-slate-300" style={{ animation: "glow 2.2s ease-in-out infinite" }} />
               Stato: {mode === "ATTUALE" ? "FRIZIONI" : "CONTINUITÀ"}
             </Pill>
           </div>
         </div>
 
         <div className="mt-4 relative">
-          <svg viewBox="0 0 900 260" className="w-full h-[280px] sm:h-[320px]">
+          <svg viewBox="0 0 900 260" className="w-full h-[300px] sm:h-[340px]">
             <defs>
               <filter id="softGlow" x="-60%" y="-60%" width="220%" height="220%">
                 <feGaussianBlur stdDeviation="6" result="blur" />
@@ -250,7 +235,6 @@ function MissionFlow({ mode, showFriction }) {
               </linearGradient>
             </defs>
 
-            {/* edges */}
             {edges.map((e) => {
               const a = nodeById.get(e.from);
               const b = nodeById.get(e.to);
@@ -265,14 +249,7 @@ function MissionFlow({ mode, showFriction }) {
 
               return (
                 <g key={`${e.from}-${e.to}`}>
-                  <path
-                    d={d}
-                    fill="none"
-                    stroke={stroke}
-                    strokeWidth={e.weight + 2}
-                    opacity="0.18"
-                    filter="url(#softGlow)"
-                  />
+                  <path d={d} fill="none" stroke={stroke} strokeWidth={e.weight + 2} opacity="0.18" filter="url(#softGlow)" />
                   <path
                     d={d}
                     fill="none"
@@ -288,32 +265,12 @@ function MissionFlow({ mode, showFriction }) {
 
                   <g
                     transform={`translate(${midX - 58}, ${a.y + curve - 26})`}
-                    onMouseEnter={() =>
-                      setHover({
-                        x: midX,
-                        y: a.y + curve - 18,
-                        title: "Collegamento",
-                        lines: [e.label],
-                      })
-                    }
+                    onMouseEnter={() => setHover({ x: midX, y: a.y + curve - 18, title: "Collegamento", lines: [e.label] })}
                     onMouseLeave={() => setHover(null)}
                     style={{ cursor: "default" }}
                   >
-                    <rect
-                      width="116"
-                      height="18"
-                      rx="9"
-                      fill="rgba(2,6,23,0.75)"
-                      stroke="rgba(148,163,184,0.22)"
-                    />
-                    <text
-                      x="58"
-                      y="12.5"
-                      textAnchor="middle"
-                      fontSize="10"
-                      fill="#cbd5e1"
-                      style={{ letterSpacing: "0.08em" }}
-                    >
+                    <rect width="116" height="18" rx="9" fill="rgba(2,6,23,0.78)" stroke="rgba(148,163,184,0.22)" />
+                    <text x="58" y="12.5" textAnchor="middle" fontSize="10" fill="#cbd5e1" style={{ letterSpacing: "0.08em" }}>
                       {e.label}
                     </text>
                   </g>
@@ -321,52 +278,23 @@ function MissionFlow({ mode, showFriction }) {
               );
             })}
 
-            {/* nodes */}
             {nodes.map((n) => {
               const t = toneStyles[n.tone] || toneStyles.slate;
               return (
                 <g
                   key={n.id}
                   transform={`translate(${n.x}, ${n.y})`}
-                  onMouseEnter={() =>
-                    setHover({
-                      x: n.x,
-                      y: n.y,
-                      title: "Control point",
-                      lines: [n.label],
-                    })
-                  }
+                  onMouseEnter={() => setHover({ x: n.x, y: n.y, title: "Control point", lines: [n.label] })}
                   onMouseLeave={() => setHover(null)}
                   style={{ cursor: "default" }}
                 >
                   <circle r="18" fill={t.glow} opacity="0.35" filter="url(#softGlow)" />
-                  <circle
-                    r="15"
-                    fill="transparent"
-                    stroke={t.nodeBorder}
-                    strokeWidth="2"
-                    style={{ animation: "glow 2.2s ease-in-out infinite" }}
-                  />
+                  <circle r="15" fill="transparent" stroke={t.nodeBorder} strokeWidth="2" style={{ animation: "glow 2.2s ease-in-out infinite" }} />
                   <circle r="12" fill={t.node} stroke={t.nodeBorder} strokeWidth="1.5" />
 
                   <g transform={`translate(0, 34)`}>
-                    <rect
-                      x="-78"
-                      y="-12"
-                      width="156"
-                      height="22"
-                      rx="11"
-                      fill="rgba(2,6,23,0.72)"
-                      stroke="rgba(148,163,184,0.18)"
-                    />
-                    <text
-                      x="0"
-                      y="3.5"
-                      textAnchor="middle"
-                      fontSize="11"
-                      fill={t.text}
-                      style={{ fontWeight: 600 }}
-                    >
+                    <rect x="-78" y="-12" width="156" height="22" rx="11" fill="rgba(2,6,23,0.74)" stroke="rgba(148,163,184,0.18)" />
+                    <text x="0" y="3.5" textAnchor="middle" fontSize="11" fill={t.text} style={{ fontWeight: 700 }}>
                       {n.label}
                     </text>
                   </g>
@@ -379,29 +307,16 @@ function MissionFlow({ mode, showFriction }) {
               );
             })}
 
-            {/* friction overlay */}
             {mode === "ATTUALE" && showFriction
               ? frictionPoints.map((f) => (
                   <g
                     key={f.id}
                     transform={`translate(${f.x}, ${f.y})`}
-                    onMouseEnter={() =>
-                      setHover({
-                        x: f.x,
-                        y: f.y,
-                        title: f.title,
-                        lines: f.lines,
-                      })
-                    }
+                    onMouseEnter={() => setHover({ x: f.x, y: f.y, title: f.title, lines: f.lines })}
                     onMouseLeave={() => setHover(null)}
                     style={{ cursor: "default" }}
                   >
-                    <circle
-                      r="10"
-                      fill="rgba(244,63,94,0.15)"
-                      stroke="rgba(244,63,94,0.65)"
-                      strokeWidth="1.6"
-                    />
+                    <circle r="10" fill="rgba(244,63,94,0.15)" stroke="rgba(244,63,94,0.65)" strokeWidth="1.6" />
                     <circle r="4" fill="rgba(244,63,94,0.85)" />
                   </g>
                 ))
@@ -425,22 +340,24 @@ function MissionFlow({ mode, showFriction }) {
         </div>
 
         <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-[11px] text-slate-500">Suggerimento: passa il mouse sui nodi per leggere i control points.</div>
+          <div className="text-[12px] sm:text-[13px] text-slate-500">
+            Suggerimento: passa il mouse sui nodi per leggere i control points.
+          </div>
           <div className="flex flex-wrap gap-2">
             <Pill className="border-emerald-500/40 bg-emerald-950/20 text-emerald-200">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              <span className="h-2 w-2 rounded-full bg-emerald-400" />
               Origine dato
             </Pill>
             <Pill className="border-sky-500/40 bg-sky-950/20 text-sky-200">
-              <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
+              <span className="h-2 w-2 rounded-full bg-sky-400" />
               Controllo / validazione
             </Pill>
             <Pill className="border-violet-500/40 bg-violet-950/20 text-violet-200">
-              <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
+              <span className="h-2 w-2 rounded-full bg-violet-400" />
               Memoria + audit
             </Pill>
             <Pill className="border-amber-500/40 bg-amber-950/20 text-amber-200">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+              <span className="h-2 w-2 rounded-full bg-amber-400" />
               Direzione
             </Pill>
           </div>
@@ -453,11 +370,7 @@ function MissionFlow({ mode, showFriction }) {
 function PilotPanel({ onClose, onSeeFlow }) {
   return (
     <div className="fixed inset-0 z-[80]">
-      <div
-        className="absolute inset-0 bg-black/70"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      <div className="absolute inset-0 bg-black/70" onClick={onClose} aria-hidden="true" />
       <div className="absolute inset-x-0 top-10 sm:top-12 mx-auto w-[92%] max-w-4xl">
         <div className="relative overflow-hidden rounded-3xl border border-slate-800 bg-[#050910] shadow-[0_40px_140px_rgba(0,0,0,0.65)]">
           <div className="absolute inset-0 opacity-[0.22] pointer-events-none">
@@ -467,32 +380,33 @@ function PilotPanel({ onClose, onSeeFlow }) {
           <div className="relative p-5 sm:p-7">
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-2">
-                <div className="text-[11px] uppercase tracking-[0.26em] text-slate-500">
-                  Pilot CORE · Osservazione operativa
+                <div className="text-[12px] uppercase tracking-[0.26em] text-slate-500">
+                  Avvio controllato · Osservazione operativa
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Pill className="border-emerald-500/50 bg-emerald-950/20 text-emerald-200">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
-                    Durata: 14 giorni
+                    <span className="h-2 w-2 rounded-full bg-emerald-300" />
+                    Durata: fase breve
                   </Pill>
                   <Pill className="border-violet-500/50 bg-violet-950/20 text-violet-200">
-                    <span className="h-1.5 w-1.5 rounded-full bg-violet-300" />
+                    <span className="h-2 w-2 rounded-full bg-violet-300" />
                     Output: stato doc. + audit
                   </Pill>
                 </div>
+
                 <h3 className="mt-2 text-2xl sm:text-3xl font-bold text-slate-50">
-                  Pilot attivo: cosa osserviamo (senza cambiare l’organizzazione)
+                  Fase iniziale: cosa osserviamo (senza cambiare l’organizzazione)
                 </h3>
-                <p className="text-slate-400 text-sm leading-relaxed max-w-3xl">
-                  Nessuna configurazione in UI. Il perimetro si definisce a voce.
-                  Qui si mostra solo la logica: stesso lavoro, stesso flusso, un solo dato tracciato meglio.
+                <p className="text-slate-400 text-[13px] sm:text-sm leading-relaxed max-w-3xl">
+                  Nessuna configurazione in UI. Il perimetro si definisce a voce. Qui si mostra solo la logica:
+                  stesso lavoro, stesso flusso, un solo dato tracciato meglio.
                 </p>
               </div>
 
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-full border border-slate-700 bg-slate-950/30 px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-slate-300 hover:bg-slate-900/40"
+                className="rounded-full border border-slate-700 bg-slate-950/30 px-3 py-2 text-[12px] uppercase tracking-[0.18em] text-slate-200 hover:bg-slate-900/40"
                 aria-label="Chiudi"
               >
                 Chiudi
@@ -501,63 +415,54 @@ function PilotPanel({ onClose, onSeeFlow }) {
 
             <div className="mt-5 grid gap-4 sm:grid-cols-3">
               <div className="rounded-2xl border border-slate-800 bg-[#070d16] p-4">
-                <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Cosa succede</div>
-                <ul className="mt-2 space-y-2 text-[12px] text-slate-200">
+                <div className="text-[12px] uppercase tracking-[0.18em] text-slate-500">Cosa succede</div>
+                <ul className="mt-2 space-y-2 text-[13px] text-slate-200">
                   <li>• I capi lavorano come oggi</li>
                   <li>• Inserimento unico del dato operativo</li>
                   <li>• Ufficio controlla sullo stesso dato</li>
                   <li>• CORE Drive registra stato e storico</li>
                   <li>• Direzione legge sintesi</li>
                 </ul>
-                <div className="mt-3 text-[11px] text-slate-500">
-                  Non misuriamo le persone. Misuriamo il flusso.
-                </div>
               </div>
 
               <div className="rounded-2xl border border-slate-800 bg-[#070d16] p-4">
-                <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Cosa si misura</div>
-                <ul className="mt-2 space-y-2 text-[12px] text-slate-200">
+                <div className="text-[12px] uppercase tracking-[0.18em] text-slate-500">Cosa si misura</div>
+                <ul className="mt-2 space-y-2 text-[13px] text-slate-200">
                   <li>• Tempo medio chiusura giornaliera (Capo → Ufficio)</li>
                   <li>• Numero reinserimenti / richieste chiarimenti</li>
                   <li>• Divergenze tra versioni (prima vs dopo)</li>
                   <li>• Stato documento + tracciabilità minima</li>
                 </ul>
-                <div className="mt-3 text-[11px] text-slate-500">
-                  Output leggibile e verificabile, senza consolidamenti manuali.
-                </div>
               </div>
 
               <div className="rounded-2xl border border-slate-800 bg-[#070d16] p-4">
-                <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Cosa ottiene la Direzione</div>
-                <ul className="mt-2 space-y-2 text-[12px] text-slate-200">
+                <div className="text-[12px] uppercase tracking-[0.18em] text-slate-500">Cosa ottiene la Direzione</div>
+                <ul className="mt-2 space-y-2 text-[13px] text-slate-200">
                   <li>• Fotografia “prima / dopo”</li>
                   <li>• Evidenza consultabile (CORE Drive)</li>
                   <li>• Stato documento chiaro</li>
-                  <li>• Base pulita (KPI in fase successiva, se si vuole)</li>
+                  <li>• Base KPI (se richiesto)</li>
                 </ul>
-                <div className="mt-3 text-[11px] text-slate-500">
-                  A fine pilot non si decide “a sensazione”: si guarda l’evidenza.
-                </div>
               </div>
             </div>
 
             <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-[11px] text-slate-500">
-                Nota: il valore non è “un nuovo tool”. Il valore è continuità del dato + stato documento.
+              <div className="text-[12px] text-slate-600">
+                Perimetro (nave/area/capi) definito a voce. Nessuna configurazione in UI.
               </div>
 
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={onSeeFlow}
-                  className="rounded-full border border-emerald-500/60 bg-emerald-950/20 px-4 py-2 text-[11px] uppercase tracking-[0.18em] text-emerald-200 shadow-[0_18px_70px_rgba(16,185,129,0.16)] hover:bg-emerald-950/30"
+                  className="rounded-full border border-emerald-500/60 bg-emerald-950/20 px-4 py-2 text-[12px] uppercase tracking-[0.18em] text-emerald-200 shadow-[0_18px_70px_rgba(16,185,129,0.16)] hover:bg-emerald-950/30"
                 >
-                  Vedi cosa osserviamo (durante il pilot)
+                  Vedi il flusso (fase iniziale)
                 </button>
                 <button
                   type="button"
                   onClick={onClose}
-                  className="rounded-full border border-slate-700 bg-slate-950/30 px-4 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-200 hover:bg-slate-900/40"
+                  className="rounded-full border border-slate-700 bg-slate-950/30 px-4 py-2 text-[12px] uppercase tracking-[0.18em] text-slate-200 hover:bg-slate-900/40"
                 >
                   Torna alla presentazione
                 </button>
@@ -565,9 +470,74 @@ function PilotPanel({ onClose, onSeeFlow }) {
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
 
-        <div className="mt-3 text-center text-[11px] text-slate-600">
-          Perimetro (nave/area/capi) definito a voce. Nessuna configurazione in UI.
+function BottomTransformBar({ mode, onSwitchToCore }) {
+  if (mode !== "ATTUALE") return null;
+
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-[70]">
+      <div className="pointer-events-none absolute inset-x-0 -top-10 h-10 bg-gradient-to-t from-[#050910] to-transparent" />
+      <div className="border-t border-slate-800 bg-[#050910]/92 backdrop-blur">
+        <style>{`
+          @keyframes glow { 0%, 100% { opacity: 0.55; } 50% { opacity: 0.95; } }
+          @keyframes ctaPulse { 0%, 100% { transform: scale(1); opacity: 0.95; } 50% { transform: scale(1.06); opacity: 0.72; } }
+          @keyframes ctaNudge { 0%, 100% { transform: translateX(0); opacity: 0.75; } 50% { transform: translateX(4px); opacity: 1; } }
+        `}</style>
+
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center gap-2 text-[12px] uppercase tracking-[0.22em] text-slate-500">
+              <span className="h-2 w-2 rounded-full bg-amber-300" style={{ animation: "glow 2.2s ease-in-out infinite" }} />
+              ATTUALE
+            </span>
+
+            <span className="text-slate-500">→</span>
+
+            <span className="inline-flex items-center gap-2 text-[12px] uppercase tracking-[0.22em] text-slate-500">
+              <span className="h-2 w-2 rounded-full bg-emerald-300" style={{ animation: "glow 2.2s ease-in-out infinite" }} />
+              CORE
+            </span>
+
+            <span className="hidden sm:inline text-[12px] text-slate-500">
+              Vedi lo stesso flusso con dato nativo + audit.
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onSwitchToCore}
+              className={cx(
+                "relative rounded-full border px-5 py-2.5 text-[12px] uppercase tracking-[0.22em] font-semibold",
+                "border-emerald-500/75 bg-emerald-950/22 text-emerald-200",
+                "shadow-[0_22px_90px_rgba(16,185,129,0.20)] hover:bg-emerald-950/30",
+                "focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/30 focus-visible:ring-offset-2 focus-visible:ring-offset-[#050910]"
+              )}
+            >
+              <span className="inline-flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-300" style={{ animation: "glow 2.2s ease-in-out infinite" }} />
+                PASSA A CORE
+              </span>
+
+              <span
+                className="pointer-events-none absolute inset-0 rounded-full shadow-[0_0_0_1px_rgba(16,185,129,0.22),0_0_70px_rgba(16,185,129,0.16)]"
+                style={{ animation: "ctaPulse 2.2s ease-in-out infinite" }}
+                aria-hidden="true"
+              />
+
+              <span
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-emerald-200/85"
+                style={{ animation: "ctaNudge 1.8s ease-in-out infinite" }}
+                aria-hidden="true"
+              >
+                ›
+              </span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -575,7 +545,7 @@ function PilotPanel({ onClose, onSeeFlow }) {
 }
 
 export default function CorePresentation() {
-  const [mode, setMode] = useState("CORE"); // "ATTUALE" | "CORE"
+  const [mode, setMode] = useState("ATTUALE"); // default ATTUALE
   const [showFriction, setShowFriction] = useState(true);
   const [pilotOpen, setPilotOpen] = useState(false);
 
@@ -588,7 +558,7 @@ export default function CorePresentation() {
           pillClass: "border-amber-500/50 bg-amber-950/20 text-amber-200",
           title: "Radiografia: dove il dato si rompe prima della decisione",
           subtitle:
-            "Il problema non è l’assenza di strumenti: è la mancanza di continuità del dato e di stato documento.",
+            "Oggi lo stesso lavoro produce più versioni della verità: trasformazioni, reinserimenti, latenza e responsabilità diffusa.",
         }
       : {
           pill: "CORE · dato nativo + audit",
@@ -600,59 +570,72 @@ export default function CorePresentation() {
 
   function handleSeeFlow() {
     setPilotOpen(false);
-    // scroll morbido verso la flow map
     setTimeout(() => {
       flowRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 80);
   }
 
   return (
-    <div className="min-h-screen bg-[#050910] text-slate-100 px-4 sm:px-6 py-10 sm:py-14">
+    <div className="min-h-screen bg-[#050910] text-slate-100 px-4 sm:px-6 py-10 sm:py-14 pb-24">
+      {/* pb-24: espace pour la bottom bar */}
       <div className="max-w-7xl mx-auto space-y-10 sm:space-y-12">
         {/* HERO */}
         <section className="space-y-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div className="space-y-2">
-              <div className="text-[11px] uppercase tracking-[0.3em] text-slate-500">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="space-y-3">
+              <div className="text-[12px] uppercase tracking-[0.3em] text-slate-500">
                 CORE · Direzione (accesso riservato)
               </div>
 
+              <div className="flex flex-wrap items-center gap-2">
+                <Pill className="border-slate-700 bg-slate-950/35 text-slate-200">
+                  <span className="h-2 w-2 rounded-full bg-slate-200/70" style={{ animation: "glow 2.4s ease-in-out infinite" }} />
+                  CNCS — Cognitive Naval Control System
+                </Pill>
+                <Pill className="border-violet-500/40 bg-violet-950/15 text-violet-200">
+                  <span className="h-2 w-2 rounded-full bg-violet-300" />
+                  Percorso · modulo flagship (fase successiva)
+                </Pill>
+              </div>
+
+              <div className="text-[13px] sm:text-[14px] text-slate-400 max-w-3xl leading-relaxed">
+                Sistema di controllo cognitivo per ambienti industriali critici, dove l’errore non è un’opzione.
+              </div>
+
               <Pill className={topMessage.pillClass}>
-                <span
-                  className="h-1.5 w-1.5 rounded-full bg-slate-100/70"
-                  style={{ animation: "glow 2.2s ease-in-out infinite" }}
-                />
+                <span className="h-2 w-2 rounded-full bg-slate-100/70" style={{ animation: "glow 2.2s ease-in-out infinite" }} />
                 {topMessage.pill}
               </Pill>
 
-              <h1 className="text-3xl sm:text-5xl font-bold leading-tight">{topMessage.title}</h1>
-              <p className="max-w-3xl text-slate-400 text-sm sm:text-[13px] leading-relaxed">
+              <h1 className="text-4xl sm:text-6xl font-bold leading-[1.03]">{topMessage.title}</h1>
+              <p className="max-w-3xl text-slate-400 text-[14px] sm:text-[16px] leading-relaxed">
                 {topMessage.subtitle}
               </p>
             </div>
 
-            {/* controls */}
+            {/* Small controls remain, but the primary “pass to CORE” is guaranteed by bottom bar */}
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => setMode("ATTUALE")}
                 className={cx(
-                  "rounded-full border px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] transition",
+                  "rounded-full border px-4 py-2 text-[12px] uppercase tracking-[0.20em] transition",
                   mode === "ATTUALE"
-                    ? "border-amber-500/60 bg-amber-950/20 text-amber-200 shadow-[0_16px_60px_rgba(245,158,11,0.18)]"
-                    : "border-slate-700 bg-slate-950/30 text-slate-300 hover:bg-slate-900/40"
+                    ? "border-amber-500/70 bg-amber-950/18 text-amber-200 shadow-[0_16px_60px_rgba(245,158,11,0.12)]"
+                    : "border-slate-700 bg-slate-950/30 text-slate-200/85 hover:bg-slate-900/45 hover:text-slate-100"
                 )}
               >
                 Attuale
               </button>
+
               <button
                 type="button"
                 onClick={() => setMode("CORE")}
                 className={cx(
-                  "rounded-full border px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] transition",
+                  "rounded-full border px-4 py-2 text-[12px] uppercase tracking-[0.20em] transition",
                   mode === "CORE"
-                    ? "border-emerald-500/60 bg-emerald-950/20 text-emerald-200 shadow-[0_16px_60px_rgba(16,185,129,0.18)]"
-                    : "border-slate-700 bg-slate-950/30 text-slate-300 hover:bg-slate-900/40"
+                    ? "border-emerald-500/75 bg-emerald-950/22 text-emerald-200 shadow-[0_18px_70px_rgba(16,185,129,0.16)]"
+                    : "border-slate-700 bg-slate-950/30 text-slate-200/85 hover:bg-slate-900/45 hover:text-slate-100"
                 )}
               >
                 CORE
@@ -662,12 +645,12 @@ export default function CorePresentation() {
                 type="button"
                 onClick={() => setShowFriction((v) => !v)}
                 className={cx(
-                  "rounded-full border px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] transition",
+                  "rounded-full border px-4 py-2 text-[12px] uppercase tracking-[0.20em] transition",
                   mode !== "ATTUALE"
                     ? "border-slate-800 text-slate-600 bg-slate-950/20 cursor-not-allowed"
                     : showFriction
-                    ? "border-rose-500/60 bg-rose-950/20 text-rose-200"
-                    : "border-slate-700 bg-slate-950/30 text-slate-300 hover:bg-slate-900/40"
+                    ? "border-rose-500/70 bg-rose-950/20 text-rose-200"
+                    : "border-slate-700 bg-slate-950/30 text-slate-200/85 hover:bg-slate-900/45 hover:text-slate-100"
                 )}
                 disabled={mode !== "ATTUALE"}
                 title={mode !== "ATTUALE" ? "Disponibile solo in modalità Attuale" : ""}
@@ -678,7 +661,7 @@ export default function CorePresentation() {
           </div>
         </section>
 
-        {/* MINI KPI (non marketing, solo concetti) */}
+        {/* MINI KPI */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <StatTile
             label="Dato"
@@ -708,9 +691,9 @@ export default function CorePresentation() {
 
         {/* FLOW MAP */}
         <section className="space-y-4" ref={flowRef}>
-          <div className="flex flex-col gap-1">
-            <h2 className="text-xl sm:text-2xl font-semibold">Control points e continuità del dato</h2>
-            <p className="text-slate-400 text-xs sm:text-sm max-w-4xl">
+          <div className="flex flex-col gap-2">
+            <h2 className="text-2xl sm:text-3xl font-semibold">Control points e continuità del dato</h2>
+            <p className="text-slate-400 text-[13px] sm:text-[15px] max-w-4xl leading-relaxed">
               Qui non stiamo “mostrando numeri”: stiamo mostrando dove il dato nasce, come viene controllato,
               dove viene certificato e come arriva alla sintesi Direzione.
             </p>
@@ -719,34 +702,34 @@ export default function CorePresentation() {
           <MissionFlow mode={mode} showFriction={showFriction} />
         </section>
 
-        {/* PILOT (un solo bottone; nessun perimetro in UI) */}
+        {/* Avvio controllato */}
         <section className="space-y-4">
           <div className="rounded-3xl border border-slate-800 bg-[#050910] overflow-hidden">
             <div className="p-5 sm:p-7">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="space-y-2">
-                  <div className="text-[11px] uppercase tracking-[0.26em] text-slate-500">
-                    Proposta operativa (pilot ristretto)
+                  <div className="text-[12px] uppercase tracking-[0.26em] text-slate-500">
+                    Proposta operativa (fase iniziale)
                   </div>
                   <h2 className="text-2xl sm:text-3xl font-bold text-slate-50">
                     Test controllato, misurabile, senza cambiare l’organizzazione
                   </h2>
-                  <p className="text-slate-400 text-sm leading-relaxed max-w-3xl">
-                    Obiettivo del pilot: verificare sul campo la riduzione di reinserimenti e frizioni, e dimostrare
+                  <p className="text-slate-400 text-[13px] sm:text-[15px] leading-relaxed max-w-3xl">
+                    Obiettivo: verificare sul campo la riduzione di reinserimenti e frizioni, e dimostrare
                     che lo stesso dato può diventare continuo, auditabile e riusabile per sintesi Direzione.
                   </p>
 
                   <div className="flex flex-wrap gap-2 pt-1">
                     <Pill className="border-emerald-500/50 bg-emerald-950/20 text-emerald-200">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
-                      Durata: 14 giorni
+                      <span className="h-2 w-2 rounded-full bg-emerald-300" />
+                      Durata: fase breve
                     </Pill>
                     <Pill className="border-sky-500/50 bg-sky-950/20 text-sky-200">
-                      <span className="h-1.5 w-1.5 rounded-full bg-sky-300" />
+                      <span className="h-2 w-2 rounded-full bg-sky-300" />
                       Perimetro: definito a voce
                     </Pill>
                     <Pill className="border-violet-500/50 bg-violet-950/20 text-violet-200">
-                      <span className="h-1.5 w-1.5 rounded-full bg-violet-300" />
+                      <span className="h-2 w-2 rounded-full bg-violet-300" />
                       Output: stato doc. + audit
                     </Pill>
                   </div>
@@ -756,44 +739,11 @@ export default function CorePresentation() {
                   <button
                     type="button"
                     onClick={() => setPilotOpen(true)}
-                    className="rounded-full border border-emerald-500/60 bg-emerald-950/20 px-4 py-2 text-[11px] uppercase tracking-[0.18em] text-emerald-200 shadow-[0_18px_70px_rgba(16,185,129,0.16)] hover:bg-emerald-950/30"
+                    className="rounded-full border border-emerald-500/60 bg-emerald-950/20 px-5 py-2.5 text-[12px] uppercase tracking-[0.20em] text-emerald-200 shadow-[0_22px_90px_rgba(16,185,129,0.18)] hover:bg-emerald-950/30"
                   >
-                    AVVIA PILOT (14 GIORNI)
+                    AVVIA (FASE INIZIALE)
                   </button>
                 </div>
-              </div>
-
-              <div className="mt-4 grid gap-4 sm:grid-cols-3">
-                <div className="rounded-2xl border border-slate-800 bg-[#070d16] p-4">
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Cosa si misura</div>
-                  <ul className="mt-2 space-y-2 text-[12px] text-slate-200">
-                    <li>• Tempo di chiusura giornaliero (Capo → Ufficio)</li>
-                    <li>• Numero reinserimenti / riconciliazioni</li>
-                    <li>• Divergenze tra versioni (prima vs dopo)</li>
-                  </ul>
-                </div>
-
-                <div className="rounded-2xl border border-slate-800 bg-[#070d16] p-4">
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Cosa deve esistere</div>
-                  <ul className="mt-2 space-y-2 text-[12px] text-slate-200">
-                    <li>• Stati documento chiari (bozza → validato → archiviato)</li>
-                    <li>• Log minimo: chi / quando / cosa è cambiato</li>
-                    <li>• CORE Drive come punto di verità dell’evidenza</li>
-                  </ul>
-                </div>
-
-                <div className="rounded-2xl border border-slate-800 bg-[#070d16] p-4">
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Cosa ottiene la Direzione</div>
-                  <ul className="mt-2 space-y-2 text-[12px] text-slate-200">
-                    <li>• Sintesi affidabile senza consolidamenti manuali</li>
-                    <li>• Audit pronto: evidenza consultabile e tracciata</li>
-                    <li>• Base pulita per KPI (fase successiva)</li>
-                  </ul>
-                </div>
-              </div>
-
-              <div className="mt-3 text-[11px] text-slate-500">
-                Nota: il valore qui non è “un nuovo tool”. Il valore è la continuità del dato e lo stato documento.
               </div>
             </div>
           </div>
@@ -801,21 +751,28 @@ export default function CorePresentation() {
 
         {/* CHIUSURA */}
         <section className="text-center pt-6 pb-2">
-          <p className="text-2xl sm:text-4xl font-bold text-slate-100 mb-3">
+          <p className="text-2xl sm:text-5xl font-bold text-slate-100 mb-3 leading-tight">
             CORE non è un software.
             <br className="hidden sm:block" />
             È un sistema di controllo operativo sul dato reale.
           </p>
-          <p className="text-[11px] sm:text-xs text-slate-500 max-w-2xl mx-auto">
+          <p className="text-[12px] sm:text-[13px] text-slate-500 max-w-2xl mx-auto leading-relaxed">
             Obiettivo: rendere continuo, verificabile e auditabile lo stesso dato lungo ruoli e stati:
             campo → controllo → memoria certificata → sintesi Direzione.
           </p>
         </section>
       </div>
 
-      {pilotOpen ? (
-        <PilotPanel onClose={() => setPilotOpen(false)} onSeeFlow={handleSeeFlow} />
-      ) : null}
+      {pilotOpen ? <PilotPanel onClose={() => setPilotOpen(false)} onSeeFlow={handleSeeFlow} /> : null}
+
+      <BottomTransformBar
+        mode={mode}
+        onSwitchToCore={() => {
+          setMode("CORE");
+          // optional: scroll back slightly for narrative continuity
+          // window.scrollTo({ top: 0, behavior: "smooth" });
+        }}
+      />
     </div>
   );
 }

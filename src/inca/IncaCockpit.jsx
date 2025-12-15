@@ -411,7 +411,7 @@ export default function IncaCockpit() {
                 <input
                   value={costr}
                   onChange={(e) => setCostr(e.target.value)}
-                  placeholder="es: 6368"
+                  placeholder="es: C001"
                   className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[13px] text-slate-100"
                 />
               </div>
@@ -422,7 +422,7 @@ export default function IncaCockpit() {
                 <input
                   value={commessa}
                   onChange={(e) => setCommessa(e.target.value)}
-                  placeholder="es: SDC"
+                  placeholder="es: COMM01"
                   className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[13px] text-slate-100"
                 />
               </div>

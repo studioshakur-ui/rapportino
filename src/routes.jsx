@@ -7,13 +7,14 @@ import RequireRole from "./auth/RequireRole";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Unauthorized from "./pages/Unauthorized";
+import ForcePasswordChange from "./pages/ForcePasswordChange";
 
 import AppShell from "./AppShell";
 import UfficioShell from "./UfficioShell";
 import DirectionShell from "./DirectionShell";
 import ManagerShell from "./ManagerShell";
 
-// ADMIN (tu dis que ces fichiers existent déjà)
+// ADMIN
 import AdminShell from "./admin/AdminShell";
 import AdminUsersPage from "./admin/AdminUsersPage";
 
@@ -39,6 +40,7 @@ export default function AppRoutes() {
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/unauthorized" element={<Unauthorized />} />
+      <Route path="/force-password-change" element={<ForcePasswordChange />} />
 
       {/* ===== ADMIN ===== */}
       <Route

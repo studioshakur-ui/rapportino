@@ -17,6 +17,11 @@ export default function AppShell() {
   const isCoreDrive = pathname.startsWith("/app/archive");
   const isRapportino = !isCoreDrive;
 
+  // Sidebar UX:
+  // - Sur la feuille Rapportino: sidebar rétractée par défaut.
+  // - Hover / focus: "peek" temporaire pour lire les labels.
+  const [sidebarPeek, setSidebarPeek] = useState(false);
+
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
       const v = window.localStorage.getItem("core-sidebar-collapsed");
@@ -28,6 +33,8 @@ export default function AppShell() {
   useEffect(() => {
     if (isRapportino) setSidebarCollapsed(true);
   }, [isRapportino]);
+
+  const effectiveCollapsed = (isRapportino ? true : sidebarCollapsed) && !sidebarPeek;
 
   useEffect(() => {
     try {
@@ -75,8 +82,8 @@ export default function AppShell() {
               "w-9 h-9 rounded-full border",
               "border-slate-800 text-slate-200 hover:bg-slate-900/40",
             ].join(" ")}
-            aria-label={sidebarCollapsed ? "Espandi menu" : "Riduci menu"}
-            title={sidebarCollapsed ? "Espandi menu" : "Riduci menu"}
+            aria-label={effectiveCollapsed ? "Espandi menu" : "Riduci menu"}
+            title={effectiveCollapsed ? "Espandi menu" : "Riduci menu"}
           >
             ☰
           </button>
@@ -124,22 +131,27 @@ export default function AppShell() {
           className={[
             "no-print border-r flex flex-col gap-5",
             coreLayout.sidebar(isDark),
-            sidebarCollapsed ? "w-[84px] px-2 py-4" : "w-64 px-3 py-4",
+            effectiveCollapsed ? "w-[84px] px-2 py-4" : "w-64 px-3 py-4",
+            "transition-[width] duration-200",
             "hidden md:flex",
           ].join(" ")}
+          onMouseEnter={() => setSidebarPeek(true)}
+          onMouseLeave={() => setSidebarPeek(false)}
+          onFocusCapture={() => setSidebarPeek(true)}
+          onBlurCapture={() => setSidebarPeek(false)}
         >
-          <div className={["pb-3 border-b border-slate-800/60", sidebarCollapsed ? "px-0" : "px-1"].join(" ")}>
+          <div className={["pb-3 border-b border-slate-800/60", effectiveCollapsed ? "px-0" : "px-1"].join(" ")}>
             <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400 mb-1">
-              {sidebarCollapsed ? "CAPO" : "Pannello Capo"}
+              {effectiveCollapsed ? "CAPO" : "Pannello Capo"}
             </div>
-            {!sidebarCollapsed && (
+            {!effectiveCollapsed && (
               <div className="text-xs text-slate-300">
                 Compila, rivedi e invia i rapportini giornalieri.
               </div>
             )}
           </div>
 
-          <nav className={["py-3 space-y-1.5", sidebarCollapsed ? "px-0" : "px-1"].join(" ")}>
+          <nav className={["py-3 space-y-1.5", effectiveCollapsed ? "px-0" : "px-1"].join(" ")}>
             <NavLink
               to="/app"
               end
@@ -147,13 +159,13 @@ export default function AppShell() {
                 [
                   corePills(isDark, "sky", "w-full flex items-center gap-2 justify-start"),
                   isActive ? "" : "opacity-80 hover:opacity-100",
-                  sidebarCollapsed ? "justify-center px-0" : "",
+                  effectiveCollapsed ? "justify-center px-0" : "",
                 ].join(" ")
               }
               title="Rapportino di oggi"
             >
               <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
-              {!sidebarCollapsed && <span>Rapportino di oggi</span>}
+              {!effectiveCollapsed && <span>Rapportino di oggi</span>}
             </NavLink>
 
             <NavLink
@@ -162,19 +174,19 @@ export default function AppShell() {
                 [
                   corePills(isDark, "violet", "w-full flex items-center gap-2 justify-start"),
                   isActive ? "" : "opacity-75 hover:opacity-100",
-                  sidebarCollapsed ? "justify-center px-0" : "",
+                  effectiveCollapsed ? "justify-center px-0" : "",
                 ].join(" ")
               }
               title="CORE Drive · storico tecnico"
             >
               <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
-              {!sidebarCollapsed && <span>CORE Drive · storico tecnico</span>}
+              {!effectiveCollapsed && <span>Archivio tecnico</span>}
             </NavLink>
           </nav>
 
           <div className="mt-auto pt-4 border-t border-slate-800 text-[10px] text-slate-500">
             <div>CORE · SHAKUR Engineering</div>
-            {!sidebarCollapsed && <div className="text-slate-600">Capo · Cantiere · Fincantieri</div>}
+            {!effectiveCollapsed && <div className="text-slate-600">Capo · Area operativa</div>}
           </div>
         </aside>
 

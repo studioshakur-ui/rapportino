@@ -115,11 +115,10 @@ export default function IncaFilesPanel() {
           Tracciamento INCA
         </div>
         <div className="text-sm font-semibold text-slate-50">
-          Confronto INCA · percorsi · avanzamento cavi
+          INCA · avanzamento cavi
         </div>
         <div className="text-[11px] text-slate-400 max-w-2xl">
-          Importazione PDF INCA e foglio dati XLSX, analisi dei cavi e
-          collegamento con i rapportini giornalieri.
+          Import PDF/XLSX e analisi cavi.
         </div>
       </header>
 
@@ -159,7 +158,7 @@ export default function IncaFilesPanel() {
                 Cantieri / Navi attive
               </div>
               <div className="text-[11px] text-slate-400">
-                Vista globale dei progetti coperti dai file INCA caricati.
+                Vista globale dei progetti.
               </div>
             </div>
 
@@ -204,19 +203,13 @@ export default function IncaFilesPanel() {
 
                 {projects.length === 0 && (
                   <div className="text-slate-500">
-                    Nessun progetto ancora collegato. Importa almeno un file
-                    INCA per vedere la mappa.
+                    Nessun progetto. Importa un file INCA.
                   </div>
                 )}
               </div>
 
               <div className="mt-3 text-[11px] text-slate-500">
-                Questa area diventerà il{' '}
-                <span className="text-sky-300 font-medium">
-                  cockpit mappa nave
-                </span>{' '}
-                sincronizzato con INCA e Rapportini (zoom per cantiere, ponte,
-                zona…).
+                Area mappa (in sviluppo).
               </div>
             </div>
 

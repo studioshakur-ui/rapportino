@@ -16,77 +16,14 @@ export function parseNumeric(value) {
  * en fonction du rôle de la squadra ET du COSTR.
  *
  * @param {string} crewRole  - 'ELETTRICISTA' | 'CARPENTERIA' | 'MONTAGGIO'
- * @param {string|number} costr - ex: '6368', '6358'
+ * @param {string|number} costr - ex: 'C001'
  */
 export function getBaseRows(crewRole, costr) {
   const role = crewRole || 'ELETTRICISTA';
   const costrNorm = String(costr || '').trim();
 
   //
-  //  TEMPLATE 6358 – DE-IC/NG – ELETTRICISTA
-  //
-  if (role === 'ELETTRICISTA' && costrNorm === '6358') {
-    return [
-      {
-        id: null,
-        row_index: 0,
-        categoria: 'STESURA',
-        descrizione: "STESURA CAVI (3X6)",
-        operatori: '',
-        tempo: '',
-        previsto: '150,0',
-        prodotto: '',
-        note: '',
-      },
-      {
-        id: null,
-        row_index: 1,
-        categoria: 'STESURA',
-        descrizione: 'FASCETTATURA CAVI',
-        operatori: '',
-        tempo: '',
-        previsto: '600,0',
-        prodotto: '',
-        note: '',
-      },
-      {
-        id: null,
-        row_index: 2,
-        categoria: 'STESURA',
-        descrizione: 'RIPRESA CAVI',
-        operatori: '',
-        tempo: '',
-        previsto: '150,0',
-        prodotto: '',
-        note: '',
-      },
-      {
-        id: null,
-        row_index: 3,
-        categoria: 'STESURA',
-        descrizione: 'SISTEMAZIONE CAVI (3X6)',
-        operatori: '',
-        tempo: '',
-        previsto: '10,0',
-        prodotto: '',
-        note: '',
-      },
-      {
-        id: null,
-        row_index: 4,
-        categoria: 'GESTIONE E VARIE',
-        descrizione: 'VARI STESURA',
-        operatori: '',
-        tempo: '',
-        previsto: '0,2',
-        prodotto: '',
-        note: '',
-      },
-    ];
-  }
-
-  //
-  //  TEMPLATE STANDARD ELETTRICISTA (ex: 6368 – SDC)
+  //  TEMPLATE STANDARD ELETTRICISTA
   //
   if (role === 'ELETTRICISTA') {
     return [

@@ -487,12 +487,11 @@ export default function ArchivePage() {
                 {formatDate(summary.lastDate)}
               </>
             ) : (
-              "Nessun dato nei filtri attuali"
+              "Nessun dato per i filtri attuali"
             )}
           </div>
           <div className="mt-1 text-[11px] text-slate-500">
-            Usa i filtri data per restringere il periodo di analisi in CORE
-            Drive.
+            Regola i filtri data per restringere il periodo.
           </div>
         </div>
       </section>
@@ -639,7 +638,7 @@ export default function ArchivePage() {
               <div className="p-4 text-sm text-rose-300">{error}</div>
             ) : !filtered.length ? (
               <div className="p-4 text-sm text-slate-400">
-                Nessun rapportino trovato con i filtri selezionati.
+                Nessun rapportino per i filtri selezionati.
               </div>
             ) : viewMode === "TABLE" ? (
               <div className="overflow-x-auto">
@@ -718,7 +717,7 @@ export default function ArchivePage() {
                 ) : (
                   <>
                     <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
-                      <span>Timeline: giornate attive in CORE Drive</span>
+                      <span>Timeline: giornate attive</span>
                       <span>
                         Barre = prodotto · Puntini = numero rapportini
                       </span>
@@ -908,7 +907,7 @@ export default function ArchivePage() {
                 })
               ) : (
                 <div className="flex h-24 items-center justify-center text-[11px] text-slate-500">
-                  Nessun dato sufficiente per il confronto.
+                  Dati insufficienti per il confronto.
                 </div>
               )}
             </div>

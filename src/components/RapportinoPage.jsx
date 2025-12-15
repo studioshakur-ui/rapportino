@@ -50,8 +50,8 @@ export default function RapportinoPage() {
 
   const crewLabel = CREW_LABELS[normalizedCrewRole] || normalizedCrewRole;
 
-  const [costr, setCostr] = useState("6368");
-  const [commessa, setCommessa] = useState("SDC");
+  const [costr, setCostr] = useState("");
+  const [commessa, setCommessa] = useState("");
   const [rapportinoId, setRapportinoId] = useState(null);
   const [reportDate, setReportDate] = useState(getTodayISO());
   const [status, setStatus] = useState("DRAFT");
@@ -120,14 +120,14 @@ export default function RapportinoPage() {
 
         if (!rap) {
           setRapportinoId(null);
-          setCostr("6368");
-          setCommessa("SDC");
+          setCostr("");
+          setCommessa("");
           setStatus("DRAFT");
           setRows(getBaseRows(normalizedCrewRole));
         } else {
           setRapportinoId(rap.id);
-          setCostr(rap.costr || "6368");
-          setCommessa(rap.commessa || "SDC");
+          setCostr(rap.costr || "");
+          setCommessa(rap.commessa || "");
           setStatus(rap.status || "DRAFT");
 
           const { data: righe, error: rowsError } = await supabase

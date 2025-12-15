@@ -42,8 +42,8 @@ export default function ManagerAnalytics({ isDark = true }) {
 
   const siteHealth = useMemo(
     () => [
-      { metric: "6368", score: 82 },
-      { metric: "6358", score: 75 },
+      { metric: "C001", score: 82 },
+      { metric: "C002", score: 75 },
       { metric: "6310", score: 58 },
     ],
     []

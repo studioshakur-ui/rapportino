@@ -39,6 +39,30 @@ export default function DirectionShell() {
   const [theme, setTheme] = useState(getInitialTheme);
   const isDark = theme === 'dark';
 
+  // Sidebar UX: collapsable + "peek" (hover/focus) pour lire les labels.
+  const [sidebarPeek, setSidebarPeek] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      const v = window.localStorage.getItem('core-sidebar-collapsed-direction');
+      if (v === '1' || v === '0') return v === '1';
+    } catch {
+      // ignore
+    }
+    return false;
+  });
+  const effectiveCollapsed = sidebarCollapsed && !sidebarPeek;
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        'core-sidebar-collapsed-direction',
+        sidebarCollapsed ? '1' : '0',
+      );
+    } catch {
+      // ignore
+    }
+  }, [sidebarCollapsed]);
+
   // Popup de présentation CORE
   const [showPresentationModal, setShowPresentationModal] = useState(false);
 
@@ -119,6 +143,21 @@ export default function DirectionShell() {
         : 'text-slate-700 border-transparent hover:bg-slate-50 hover:border-slate-300',
     ].join(' ');
 
+  const NavItem = ({ to, active, dotClass, label }) => (
+    <Link
+      to={to}
+      className={[
+        navItemClasses(active),
+        'flex items-center gap-2',
+        effectiveCollapsed ? 'justify-center px-0' : '',
+      ].join(' ')}
+      title={label}
+    >
+      <span className={['h-1.5 w-1.5 rounded-full', dotClass].join(' ')} />
+      {!effectiveCollapsed && <span className="truncate">{label}</span>}
+    </Link>
+  );
+
   const isActive = (prefix) => location.pathname.startsWith(prefix);
 
   if (!profile) {
@@ -146,8 +185,25 @@ export default function DirectionShell() {
         ].join(' ')}
       >
         <div className="max-w-6xl mx-auto px-3 sm:px-4 py-2 flex items-center justify-between gap-3">
-          {/* Bloc gauche : brand + contexte */}
-          <div className="flex flex-col gap-0.5">
+          {/* Bloc gauche : toggle sidebar + brand + contexte */}
+          <div className="flex items-start gap-3 min-w-0">
+            <button
+              type="button"
+              onClick={() => setSidebarCollapsed((v) => !v)}
+              className={[
+                'hidden md:inline-flex items-center justify-center',
+                'w-9 h-9 rounded-full border',
+                isDark
+                  ? 'border-slate-800 text-slate-200 hover:bg-slate-900/40'
+                  : 'border-slate-300 text-slate-700 hover:bg-slate-100',
+              ].join(' ')}
+              aria-label={effectiveCollapsed ? 'Espandi menu' : 'Riduci menu'}
+              title={effectiveCollapsed ? 'Espandi menu' : 'Riduci menu'}
+            >
+              ☰
+            </button>
+
+            <div className="flex flex-col gap-0.5 min-w-0">
             <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
               CORE · Sistema centrale di cantiere
             </div>
@@ -156,6 +212,7 @@ export default function DirectionShell() {
               <span className="font-semibold">
                 Presenze · produzione · CORE Drive
               </span>
+            </div>
             </div>
           </div>
 
@@ -212,16 +269,20 @@ export default function DirectionShell() {
         {/* SIDEBAR */}
         <aside
           className={[
-            'no-print w-60 border-r px-3 py-4 flex flex-col gap-5',
-            isDark
-              ? 'bg-slate-950 border-slate-800'
-              : 'bg-slate-50 border-slate-200',
+            'no-print border-r flex flex-col gap-5 hidden md:flex',
+            isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200',
+            effectiveCollapsed ? 'w-[84px] px-2 py-4' : 'w-60 px-3 py-4',
+            'transition-[width] duration-200',
           ].join(' ')}
+          onMouseEnter={() => setSidebarPeek(true)}
+          onMouseLeave={() => setSidebarPeek(false)}
+          onFocusCapture={() => setSidebarPeek(true)}
+          onBlurCapture={() => setSidebarPeek(false)}
         >
           {/* Blocco principale */}
           <div>
             <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-2">
-              Direzione
+              {effectiveCollapsed ? 'DIR' : 'Direzione'}
             </div>
             <nav className="space-y-1.5">
               <Link
@@ -231,7 +292,10 @@ export default function DirectionShell() {
                     location.pathname === '/direction/',
                 )}
               >
-                Panoramica &amp; Presenze
+                <span className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
+                  {!effectiveCollapsed && <span>Panoramica &amp; Presenze</span>}
+                </span>
               </Link>
               <Link
                 to="/direction/presentazione"
@@ -239,43 +303,59 @@ export default function DirectionShell() {
                   isActive('/direction/presentazione'),
                 )}
               >
-                Presentazione CORE
+                <span className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
+                  {!effectiveCollapsed && <span>Presentazione</span>}
+                </span>
               </Link>
               <Link
                 to="/ufficio"
                 className={navItemClasses(isActive('/ufficio'))}
               >
-                Area Ufficio · Rapportini
+                <span className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  {!effectiveCollapsed && <span>Area Ufficio</span>}
+                </span>
               </Link>
             </nav>
           </div>
 
           {/* Sezione CORE Drive · Storico */}
           <div className="mt-1">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-2">
-              CORE Drive · Storico
-            </div>
+            {!effectiveCollapsed && (
+              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-2">
+                Archivio
+              </div>
+            )}
             <nav className="space-y-1.5">
               <Link
                 to="/direction/archive"
                 className={navItemClasses(isActive('/direction/archive'))}
               >
-                CORE Drive · rapportini v1
+                <span className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
+                  {!effectiveCollapsed && <span>Rapportini</span>}
+                </span>
               </Link>
             </nav>
           </div>
 
           {/* Sezione INCA / tracciamento */}
           <div className="mt-1">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-2">
-              INCA · Tracciamento cavi
-            </div>
+            {!effectiveCollapsed && (
+              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-2">
+                INCA
+              </div>
+            )}
             <nav className="space-y-1.5">
               <Link
                 to="/ufficio/inca"
                 className={navItemClasses(isActive('/ufficio/inca'))}
               >
-                Modulo INCA
+                <span className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  {!effectiveCollapsed && <span>Modulo INCA</span>}
+                </span>
               </Link>
             </nav>
           </div>
@@ -283,9 +363,7 @@ export default function DirectionShell() {
           {/* Bas de sidebar */}
           <div className="mt-auto pt-4 border-t border-slate-800 text-[10px] text-slate-500">
             <div>CORE · SHAKUR Engineering</div>
-            <div className="text-slate-600">
-              Direzione · Trieste · La Spezia · Dakar
-            </div>
+            {!effectiveCollapsed && <div className="text-slate-600">Direzione · Area operativa</div>}
           </div>
         </aside>
 

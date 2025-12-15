@@ -8,7 +8,7 @@ import { pageBg, headerPill, cardSurface, buttonPrimary } from "../ui/designSyst
 export default function Login() {
   const navigate = useNavigate();
 
-  // ✅ maintenant ces champs existent vraiment (alias fournis par AuthProvider)
+  // Champs exposés par AuthProvider
   const { session, profile, loading, authReady, error: authError } = useAuth();
 
   // Dark-only
@@ -19,19 +19,27 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
-  // Détermine la home selon le rôle (source: profile hydraté par AuthProvider)
+  // Home selon le rôle
   const roleHome = useMemo(() => {
-  const r = profile?.app_role;
-  if (r === "ADMIN") return "/admin";
-  if (r === "UFFICIO") return "/ufficio";
-  if (r === "DIREZIONE") return "/direction";
-  if (r === "MANAGER") return "/manager";
-  return "/app";
-}, [profile]);
+    const r = profile?.app_role;
+    if (r === "ADMIN") return "/admin";
+    if (r === "UFFICIO") return "/ufficio";
+    if (r === "DIREZIONE") return "/direction";
+    if (r === "MANAGER") return "/manager";
+    return "/app";
+  }, [profile]);
+
+  // Logs DEV uniquement (aucun bruit en prod / démo)
+  const DEV = import.meta?.env?.DEV;
+  const logDev = (...args) => {
+    if (DEV) console.log(...args);
+  };
+  const errorDev = (...args) => {
+    if (DEV) console.error(...args);
+  };
 
   useEffect(() => {
-    console.log("%cCORE AUTH", "color:#22c55e;font-weight:bold;");
-    console.log("[Login] supabaseUrl:", import.meta.env.VITE_SUPABASE_URL);
+    logDev("[Login] mounted");
   }, []);
 
   // Si déjà connecté + profil prêt => redirection immédiate
@@ -54,20 +62,20 @@ export default function Login() {
       });
 
       if (signInError) {
-        console.error("[Login] signIn error:", signInError);
+        errorDev("[Login] signIn error:", signInError);
         setError(`Login fallito: ${signInError.message}`);
         return;
       }
 
       const user = data?.user;
       if (!user) {
-        setError("Login OK ma nessun user restituito (anomalia).");
+        setError("Login OK ma nessun user restituito.");
         return;
       }
 
-      // AuthProvider va hydrater profile via onAuthStateChange
+      // AuthProvider hydraterà il profilo via onAuthStateChange
     } catch (err) {
-      console.error("[Login] unexpected error:", err);
+      errorDev("[Login] unexpected error:", err);
       setError(`Errore inatteso: ${err?.message || String(err)}`);
     } finally {
       setSubmitting(false);
@@ -78,7 +86,11 @@ export default function Login() {
   const bannerError = error || authError;
 
   return (
-    <div className={["min-h-screen flex items-center justify-center px-4", pageBg(isDark)].join(" ")}>
+    <div
+      className={["min-h-screen flex items-center justify-center px-4", pageBg(isDark)].join(
+        " "
+      )}
+    >
       <div className="w-full max-w-md">
         <div className="text-left mb-4">
           <div className={`${headerPill(isDark)} mb-2`}>SISTEMA CENTRALE DI CANTIERE</div>
@@ -89,7 +101,6 @@ export default function Login() {
         </div>
 
         <div className={cardSurface(isDark, "p-6")}>
-          {/* Etat d'initialisation */}
           {!authReady && (
             <div className="text-[13px] rounded-md px-3 py-2 mb-4 border text-slate-200 bg-slate-900/40 border-slate-700">
               Inizializzazione sicurezza CORE…
@@ -107,7 +118,6 @@ export default function Login() {
             </div>
           )}
 
-          {/* Si déjà connecté: statut */}
           {authReady && session && !profile && (
             <div className="text-[13px] rounded-md px-3 py-2 mb-4 border text-slate-200 bg-slate-900/40 border-slate-700">
               Sessione attiva… Caricamento profilo…
@@ -166,11 +176,11 @@ export default function Login() {
               type="button"
               onClick={() => {
                 resetSupabaseAuthStorage();
-                setError("Cache autenticazione pulita (scoped). Riprova ad accedere.");
+                setError("Sessione ripulita. Riprova ad accedere.");
               }}
               className="underline underline-offset-2 hover:text-sky-400"
             >
-              Reset auth (scoped)
+              Ripulisci sessione
             </button>
           </div>
         </div>

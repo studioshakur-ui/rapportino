@@ -108,8 +108,8 @@ export default function RapportinoSheet() {
 
   const [crewRole, setCrewRole] = useState('ELETTRICISTA');
   const [reportDate, setReportDate] = useState('');
-  const [costr, setCostr] = useState('6368');
-  const [commessa, setCommessa] = useState('SDC');
+  const [costr, setCostr] = useState("");
+  const [commessa, setCommessa] = useState("");
   const [rows, setRows] = useState(EMPTY_ROWS_BY_CREW.ELETTRICISTA);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -160,16 +160,16 @@ export default function RapportinoSheet() {
         }
 
         if (!rap) {
-          // Aucun rapport → gabarit brut 6368/SDC
-          setCostr('6368');
-          setCommessa('SDC');
+          // Aucun rapport → gabarit brut (générique)
+          setCostr("");
+          setCommessa("");
           setRows(EMPTY_ROWS_BY_CREW[crewRole] || EMPTY_ROWS_BY_CREW.ELETTRICISTA);
           setLoading(false);
           return;
         }
 
-        setCostr(rap.costr || rap.cost || '6368');
-        setCommessa(rap.commessa || 'SDC');
+        setCostr(rap.costr || rap.cost || "");
+        setCommessa(rap.commessa || "");
 
         const { data: righe, error: rowsError } = await supabase
           .from('rapportino_rows')

@@ -259,7 +259,7 @@ export default function UfficioShell() {
           <div className="mt-auto pt-4 border-t border-slate-800 text-[10px] text-slate-500">
             <div>CORE · SHAKUR Engineering</div>
             <div className="text-slate-600">
-              Ufficio · Trieste · Riva Trigoso · La Spezia
+              Ufficio · Sedi operative
             </div>
           </div>
         </aside>

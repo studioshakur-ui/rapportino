@@ -34,7 +34,7 @@ function normalizePercent(v) {
  *
  * Props :
  *  - rapportinoId: uuid
- *  - shipCostr: string (ex: "6368")
+ *  - shipCostr: string (ex: "C001")
  *  - shipCommessa?: string (optionnel, si tu veux affiner les checks)
  *  - disabled?: boolean (quand rapportino VALIDATO / INVIATO)
  */

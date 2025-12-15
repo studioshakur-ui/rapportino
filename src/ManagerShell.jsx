@@ -7,6 +7,7 @@ import ConnectionIndicator from "./components/ConnectionIndicator";
 import ManagerDashboard from "./pages/ManagerDashboard";
 import ManagerAssignments from "./pages/ManagerAssignments";
 import ManagerAnalytics from "./pages/ManagerAnalytics";
+import ManagerCoreDrive from "./pages/ManagerCoreDrive";
 
 export default function ManagerShell() {
   const { profile, signOut } = useAuth();
@@ -39,6 +40,7 @@ export default function ManagerShell() {
   const isOnRootManager = pathname === "/manager" || pathname === "/manager/";
   const isOnAssignments = pathname.includes("/manager/assegnazioni");
   const isOnAnalytics = pathname.includes("/manager/analytics");
+  const isOnDrive = pathname.includes("/manager/drive");
 
   const navItemClasses = (active) =>
     [
@@ -121,6 +123,12 @@ export default function ManagerShell() {
               Scopes · Capi · Squadre
             </Link>
             <Link
+              to="/manager/drive"
+              className={navItemClasses(isOnDrive)}
+            >
+              Core Drive
+            </Link>
+            <Link
               to="/manager/analytics"
               className={navItemClasses(isOnAnalytics)}
             >
@@ -142,6 +150,10 @@ export default function ManagerShell() {
               <Route
                 path="assegnazioni"
                 element={<ManagerAssignments isDark={isDark} />}
+              />
+              <Route
+                path="drive"
+                element={<ManagerCoreDrive isDark={isDark} />}
               />
               <Route
                 path="analytics"

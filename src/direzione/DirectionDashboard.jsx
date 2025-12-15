@@ -10,8 +10,7 @@ export default function DirectionDashboard() {
           Dashboard Direzione
         </h1>
         <p className="text-xs md:text-sm text-slate-400 mt-1">
-          Vista sintetica di avanzamento, carico squadre e qualità dei dati.
-          Dati dimostrativi per la versione attuale.
+          Vista sintetica: avanzamento, carico squadre, qualità dati.
         </p>
       </header>
 

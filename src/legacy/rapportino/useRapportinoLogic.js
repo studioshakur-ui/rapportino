@@ -23,8 +23,8 @@ export function useRapportinoLogic(crewRole) {
   // ---------------------------------------------------------------------------
   // Header
   // ---------------------------------------------------------------------------
-  const [costr, setCostr] = useState('6368');
-  const [commessa, setCommessa] = useState('SDC');
+  const [costr, setCostr] = useState("");
+  const [commessa, setCommessa] = useState("");
   const [data, setData] = useState(() => new Date().toISOString().slice(0, 10));
   const [status, setStatus] = useState('DRAFT');
 

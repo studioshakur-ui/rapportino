@@ -1,4 +1,3 @@
-// src/admin/AdminUsersPage.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
@@ -24,7 +23,6 @@ export default function AdminUsersPage() {
 
   // Create form
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [appRole, setAppRole] = useState("CAPO");
   const [fullName, setFullName] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -35,6 +33,10 @@ export default function AdminUsersPage() {
   const [creating, setCreating] = useState(false);
   const [createMsg, setCreateMsg] = useState(null);
 
+  // Last code banner (create or reset)
+  const [lastCode, setLastCode] = useState(null);
+  const [lastCodeEmail, setLastCodeEmail] = useState(null);
+
   // List
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -42,6 +44,8 @@ export default function AdminUsersPage() {
   const [q, setQ] = useState("");
   const [roleFilter, setRoleFilter] = useState("ALL");
   const [page, setPage] = useState(1);
+
+  const [resettingId, setResettingId] = useState(null);
 
   const filtered = useMemo(() => {
     const qq = safeLower(q);
@@ -65,9 +69,7 @@ export default function AdminUsersPage() {
       });
   }, [rows, q, roleFilter]);
 
-  const totalPages = useMemo(() => {
-    return Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  }, [filtered.length]);
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)), [filtered.length]);
 
   const pageRows = useMemo(() => {
     const p = Math.min(Math.max(1, page), totalPages);
@@ -75,17 +77,16 @@ export default function AdminUsersPage() {
     return filtered.slice(start, start + PAGE_SIZE);
   }, [filtered, page, totalPages]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [q, roleFilter]);
+  useEffect(() => setPage(1), [q, roleFilter]);
 
   const loadUsers = async () => {
     setLoading(true);
     try {
-      // ADMIN should read all profiles (RLS policy expected)
       const { data, error } = await supabase
         .from("profiles")
-        .select("id,email,full_name,display_name,app_role,default_costr,default_commessa,allowed_cantieri,updated_at,created_at")
+        .select(
+          "id,email,full_name,display_name,app_role,default_costr,default_commessa,allowed_cantieri,must_change_password,updated_at,created_at"
+        )
         .order("created_at", { ascending: false })
         .limit(2000);
 
@@ -108,11 +109,12 @@ export default function AdminUsersPage() {
     e.preventDefault();
     setCreateMsg(null);
     setCreating(true);
+    setLastCode(null);
+    setLastCodeEmail(null);
 
     try {
       const payload = {
         email: email.trim().toLowerCase(),
-        password: password.trim(),
         app_role: appRole,
         full_name: fullName.trim() || undefined,
         display_name: (displayName.trim() || fullName.trim() || email.trim()).trim(),
@@ -121,16 +123,13 @@ export default function AdminUsersPage() {
         allowed_cantieri: parseCsv(allowedCantieri),
       };
 
-      const { data, error } = await supabase.functions.invoke("admin-create-user", {
-        body: payload,
-      });
+      const { data, error } = await supabase.functions.invoke("admin-create-user", { body: payload });
 
       if (error) {
         console.error("[AdminUsersPage] create error:", error);
         setCreateMsg({ ok: false, text: `${t(lang, "CREATE_FAIL")}: ${error.message}` });
         return;
       }
-
       if (!data?.ok) {
         setCreateMsg({ ok: false, text: `${t(lang, "CREATE_FAIL")}` });
         return;
@@ -138,8 +137,11 @@ export default function AdminUsersPage() {
 
       setCreateMsg({ ok: true, text: t(lang, "CREATED_OK") });
 
-      // Clear minimal sensitive field
-      setPassword("");
+      if (data?.temp_code) {
+        setLastCode(String(data.temp_code));
+        setLastCodeEmail(String(data.email || payload.email));
+      }
+
       setEmail("");
       setFullName("");
       setDisplayName("");
@@ -153,6 +155,42 @@ export default function AdminUsersPage() {
       setCreateMsg({ ok: false, text: `${t(lang, "CREATE_FAIL")}: ${e2?.message || String(e2)}` });
     } finally {
       setCreating(false);
+    }
+  };
+
+  const onResetCode = async (userId) => {
+    setCreateMsg(null);
+    setLastCode(null);
+    setLastCodeEmail(null);
+    setResettingId(userId);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-reset-temp-code", {
+        body: { user_id: userId },
+      });
+
+      if (error) {
+        setCreateMsg({ ok: false, text: `Reset failed: ${error.message}` });
+        return;
+      }
+      if (!data?.ok) {
+        setCreateMsg({ ok: false, text: "Reset failed." });
+        return;
+      }
+
+      setCreateMsg({ ok: true, text: "Codice rigenerato." });
+
+      if (data?.temp_code) {
+        setLastCode(String(data.temp_code));
+        setLastCodeEmail(String(data.email || ""));
+      }
+
+      await loadUsers();
+    } catch (e) {
+      console.error("[AdminUsersPage] reset unexpected:", e);
+      setCreateMsg({ ok: false, text: `Reset failed: ${e?.message || String(e)}` });
+    } finally {
+      setResettingId(null);
     }
   };
 
@@ -174,7 +212,7 @@ export default function AdminUsersPage() {
               {t(lang, "CREATE_USER")}
             </div>
             <div className="text-xs text-slate-400 mt-1">
-              Edge Function only. No creation logic in Manager.
+              Codice temporaneo (6 cifre) + cambio obbligatorio al primo login.
             </div>
           </div>
           <button
@@ -199,6 +237,28 @@ export default function AdminUsersPage() {
           </div>
         )}
 
+        {lastCode && (
+          <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950/30 p-3">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+              Codice temporaneo (da comunicare)
+            </div>
+            <div className="mt-1 flex items-center justify-between gap-3">
+              <div className="flex flex-col">
+                <div className="text-sm text-slate-200">{lastCodeEmail || "—"}</div>
+                <div className="text-2xl font-mono tracking-[0.25em] text-slate-50">{lastCode}</div>
+                <div className="text-xs text-slate-400 mt-1">L’utente dovrà cambiarlo al primo accesso.</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => copy(lastCode)}
+                className="text-[12px] px-3 py-2 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50"
+              >
+                {t(lang, "COPY")}
+              </button>
+            </div>
+          </div>
+        )}
+
         <form onSubmit={onCreate} className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label className="block text-[12px] mb-1 text-slate-300">{t(lang, "EMAIL")}</label>
@@ -207,18 +267,6 @@ export default function AdminUsersPage() {
               onChange={(e) => setEmail(e.target.value)}
               type="email"
               required
-              className="w-full rounded-md border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[12px] mb-1 text-slate-300">{t(lang, "PASSWORD")}</label>
-            <input
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              type="password"
-              required
-              minLength={8}
               className="w-full rounded-md border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
             />
           </div>
@@ -295,13 +343,14 @@ export default function AdminUsersPage() {
               type="button"
               onClick={() => {
                 setEmail("");
-                setPassword("");
                 setFullName("");
                 setDisplayName("");
                 setDefaultCostr("");
                 setDefaultCommessa("");
                 setAllowedCantieri("");
                 setCreateMsg(null);
+                setLastCode(null);
+                setLastCodeEmail(null);
               }}
               className="text-[12px] px-3 py-2 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50"
             >
@@ -323,12 +372,8 @@ export default function AdminUsersPage() {
       <div className="mt-4 border border-slate-800 rounded-2xl bg-slate-950/20 p-4 sm:p-5">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-              {t(lang, "USERS_LIST")}
-            </div>
-            <div className="text-xs text-slate-400 mt-1">
-              {loading ? "Loading…" : `${filtered.length} users`}
-            </div>
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{t(lang, "USERS_LIST")}</div>
+            <div className="text-xs text-slate-400 mt-1">{loading ? "Loading…" : `${filtered.length} users`}</div>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
@@ -355,15 +400,13 @@ export default function AdminUsersPage() {
         </div>
 
         <div className="mt-4 overflow-x-auto border border-slate-800 rounded-xl">
-          <table className="min-w-[980px] w-full text-[12px]">
+          <table className="min-w-[1080px] w-full text-[12px]">
             <thead className="bg-slate-900/60 text-slate-300">
               <tr className="text-left">
                 <th className="px-3 py-2">{t(lang, "EMAIL")}</th>
                 <th className="px-3 py-2">{t(lang, "NAME")}</th>
                 <th className="px-3 py-2">{t(lang, "ROLE")}</th>
-                <th className="px-3 py-2">{t(lang, "COSTR")}</th>
-                <th className="px-3 py-2">{t(lang, "COMMESSA")}</th>
-                <th className="px-3 py-2">{t(lang, "CANTIERI")}</th>
+                <th className="px-3 py-2">PWD</th>
                 <th className="px-3 py-2">{t(lang, "ID")}</th>
                 <th className="px-3 py-2">{t(lang, "ACTIONS")}</th>
               </tr>
@@ -372,59 +415,69 @@ export default function AdminUsersPage() {
             <tbody className="divide-y divide-slate-800">
               {loading ? (
                 <tr>
-                  <td className="px-3 py-3 text-slate-500" colSpan={8}>
-                    Loading…
-                  </td>
+                  <td className="px-3 py-3 text-slate-500" colSpan={6}>Loading…</td>
                 </tr>
               ) : pageRows.length === 0 ? (
                 <tr>
-                  <td className="px-3 py-3 text-slate-500" colSpan={8}>
-                    {t(lang, "NO_ROWS")}
-                  </td>
+                  <td className="px-3 py-3 text-slate-500" colSpan={6}>{t(lang, "NO_ROWS")}</td>
                 </tr>
               ) : (
-                pageRows.map((r) => (
-                  <tr key={r.id} className="text-slate-200 hover:bg-slate-900/30">
-                    <td className="px-3 py-2">{r.email}</td>
-                    <td className="px-3 py-2">
-                      <div className="flex flex-col">
-                        <span className="font-medium">{r.display_name || "-"}</span>
-                        <span className="text-slate-500">{r.full_name || ""}</span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2">
-                      <span className="px-2 py-0.5 rounded-full border border-slate-700 text-[11px]">
-                        {r.app_role}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-slate-300">{r.default_costr || "-"}</td>
-                    <td className="px-3 py-2 text-slate-300">{r.default_commessa || "-"}</td>
-                    <td className="px-3 py-2 text-slate-300">
-                      {Array.isArray(r.allowed_cantieri) ? r.allowed_cantieri.join(", ") : "-"}
-                    </td>
-                    <td className="px-3 py-2 font-mono text-[11px] text-slate-400">
-                      {String(r.id).slice(0, 8)}…
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => copy(r.email)}
-                          className="px-2 py-1 rounded-md border border-slate-800 text-slate-200 hover:bg-slate-900/50"
-                        >
-                          {t(lang, "COPY")}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => copy(r.id)}
-                          className="px-2 py-1 rounded-md border border-slate-800 text-slate-200 hover:bg-slate-900/50"
-                        >
-                          ID
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                pageRows.map((r) => {
+                  const canReset = r.must_change_password === true;
+                  const isResetting = resettingId === r.id;
+
+                  return (
+                    <tr key={r.id} className="text-slate-200 hover:bg-slate-900/30">
+                      <td className="px-3 py-2">{r.email}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex flex-col">
+                          <span className="font-medium">{r.display_name || "-"}</span>
+                          <span className="text-slate-500">{r.full_name || ""}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2">
+                        <span className="px-2 py-0.5 rounded-full border border-slate-700 text-[11px]">
+                          {r.app_role}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-slate-300">
+                        {canReset ? <span className="text-amber-300">CHANGE</span> : <span className="text-slate-500">OK</span>}
+                      </td>
+                      <td className="px-3 py-2 font-mono text-[11px] text-slate-400">
+                        {String(r.id).slice(0, 8)}…
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => copy(r.email)}
+                            className="px-2 py-1 rounded-md border border-slate-800 text-slate-200 hover:bg-slate-900/50"
+                          >
+                            {t(lang, "COPY")}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => copy(r.id)}
+                            className="px-2 py-1 rounded-md border border-slate-800 text-slate-200 hover:bg-slate-900/50"
+                          >
+                            ID
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={!canReset || isResetting}
+                            onClick={() => onResetCode(r.id)}
+                            className="px-2 py-1 rounded-md border border-amber-700 text-amber-100 hover:bg-amber-800/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={canReset ? "Rigenera codice (6 cifre)" : "Reset non consentito"}
+                          >
+                            {isResetting ? "Reset…" : "Reset codice"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

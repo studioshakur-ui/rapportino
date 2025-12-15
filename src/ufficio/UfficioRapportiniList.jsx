@@ -35,11 +35,22 @@ function formatProdotto(row) {
   return 0;
 }
 
+// Canon: display_name > full_name > email > capo_name (fallback) > '—'
+function resolveCapoName({ capoProfile, capoNameFallback }) {
+  if (capoProfile?.display_name) return capoProfile.display_name;
+  if (capoProfile?.full_name) return capoProfile.full_name;
+  if (capoProfile?.email) return capoProfile.email;
+  if (capoNameFallback) return capoNameFallback;
+  return '—';
+}
+
 export default function UfficioRapportiniList() {
   const { profile, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   const [rapportini, setRapportini] = useState([]);
+  const [capoById, setCapoById] = useState({}); // { [capo_id]: {display_name, full_name, email} }
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -56,7 +67,9 @@ export default function UfficioRapportiniList() {
       return;
     }
 
-    if (profile.app_role !== 'UFFICIO' && profile.app_role !== 'DIREZIONE') {
+    // Route-level gating is already handled by <RequireRole />.
+    // Defensive check to avoid silent empty states if routing is misconfigured.
+    if (!['UFFICIO', 'DIREZIONE', 'MANAGER', 'ADMIN'].includes(profile.app_role)) {
       setError('Non sei autorizzato ad accedere alla sezione Ufficio.');
       setLoading(false);
       return;
@@ -66,29 +79,73 @@ export default function UfficioRapportiniList() {
       setLoading(true);
       setError(null);
 
-      // Nouvelle source : table "reports" (public.reports)
+      // 1) Charger les rapportini (inclure capo_id)
       const { data, error: err } = await supabase
-        .from('reports')
+        .from('rapportini')
         .select(
-          `
-          id,
-          report_date,
-          capo_name,
-          role_key,
-          commessa,
-          status,
-          totale_prodotto
-        `
+          [
+            'id',
+            'report_date',
+            'data',
+            'capo_id',
+            'capo_name',
+            'crew_role',
+            'commessa',
+            'status',
+            'totale_prodotto',
+            'prodotto_totale',
+            'prodotto_tot',
+          ].join(',')
         )
         .in('status', ['VALIDATED_CAPO', 'APPROVED_UFFICIO', 'RETURNED'])
-        .order('report_date', { ascending: false });
+        .order('report_date', { ascending: false })
+        .order('data', { ascending: false });
 
       if (err) {
         console.error('Errore caricando i rapportini Ufficio:', err);
         setError('Errore durante il caricamento dei rapportini.');
-      } else {
-        setRapportini(data || []);
+        setRapportini([]);
+        setCapoById({});
+        setLoading(false);
+        return;
       }
+
+      const rapportiniRows = data || [];
+      setRapportini(rapportiniRows);
+
+      // 2) Charger les profils CAPO correspondants (sans dépendre d’un JOIN FK)
+      const uniqueCapoIds = Array.from(
+        new Set(
+          rapportiniRows
+            .map((r) => r.capo_id)
+            .filter((v) => typeof v === 'string' && v.length > 0)
+        )
+      );
+
+      if (!uniqueCapoIds.length) {
+        setCapoById({});
+        setLoading(false);
+        return;
+      }
+
+      const { data: capoProfiles, error: capoErr } = await supabase
+        .from('profiles')
+        .select('id, display_name, full_name, email')
+        .in('id', uniqueCapoIds);
+
+      if (capoErr) {
+        console.error('Errore caricando i profili capo:', capoErr);
+        // On garde les rapportini, mais sans enrichissement de noms
+        setCapoById({});
+        setLoading(false);
+        return;
+      }
+
+      const map = {};
+      for (const p of capoProfiles || []) {
+        map[p.id] = p;
+      }
+      setCapoById(map);
 
       setLoading(false);
     };
@@ -96,21 +153,32 @@ export default function UfficioRapportiniList() {
     fetchRapportini();
   }, [authLoading, profile]);
 
+  const enrichedRapportini = useMemo(() => {
+    return (rapportini || []).map((r) => {
+      const capoProfile = r.capo_id ? capoById[r.capo_id] : null;
+      const capoDisplay = resolveCapoName({
+        capoProfile,
+        capoNameFallback: r.capo_name,
+      });
+      return { ...r, _capoDisplay: capoDisplay };
+    });
+  }, [rapportini, capoById]);
+
   const filteredRapportini = useMemo(() => {
-    return (rapportini || []).filter((r) => {
+    return (enrichedRapportini || []).filter((r) => {
       if (statusFilter !== 'ALL' && r.status !== statusFilter) return false;
 
-      if (roleFilter !== 'ALL' && r.role_key !== roleFilter) return false;
+      if (roleFilter !== 'ALL' && r.crew_role !== roleFilter) return false;
 
       if (capoFilter.trim()) {
         const q = capoFilter.trim().toLowerCase();
-        const name = (r.capo_name || '').toLowerCase();
+        const name = (r._capoDisplay || '').toLowerCase();
         if (!name.includes(q)) return false;
       }
 
       return true;
     });
-  }, [rapportini, statusFilter, capoFilter, roleFilter]);
+  }, [enrichedRapportini, statusFilter, capoFilter, roleFilter]);
 
   const handleRowClick = (id) => {
     navigate(`/ufficio/rapportini/${id}`);
@@ -253,7 +321,7 @@ export default function UfficioRapportiniList() {
                 STATUS_BADGE_CLASS[r.status] ||
                 'bg-slate-700/80 text-slate-200';
 
-              const dateToShow = r.report_date;
+              const dateToShow = r.report_date || r.data;
 
               return (
                 <tr
@@ -265,10 +333,10 @@ export default function UfficioRapportiniList() {
                     {formatDate(dateToShow)}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap text-slate-100">
-                    {r.capo_name || '—'}
+                    {r._capoDisplay || '—'}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap text-slate-100">
-                    {r.role_key || '—'}
+                    {r.crew_role || '—'}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap text-slate-100">
                     {r.commessa || '—'}

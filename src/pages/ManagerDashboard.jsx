@@ -28,8 +28,8 @@ export default function ManagerDashboard({ isDark = true }) {
 
   const hoursByCantiere = useMemo(
     () => [
-      { costr: "6368", ore: 320 },
-      { costr: "6358", ore: 280 },
+      { costr: "C001", ore: 320 },
+      { costr: "C002", ore: 280 },
       { costr: "6310", ore: 150 },
     ],
     []
@@ -37,8 +37,8 @@ export default function ManagerDashboard({ isDark = true }) {
 
   const incaHealth = useMemo(
     () => [
-      { costr: "6368", imported: 92, checked: 78 },
-      { costr: "6358", imported: 85, checked: 64 },
+      { costr: "C001", imported: 92, checked: 78 },
+      { costr: "C002", imported: 85, checked: 64 },
       { costr: "6310", imported: 60, checked: 40 },
     ],
     []
@@ -267,7 +267,7 @@ export default function ManagerDashboard({ isDark = true }) {
               <li className="py-2 flex items-start justify-between gap-2">
                 <div>
                   <div className="text-slate-200">
-                    Rapportini mancanti · cantiere 6358
+                    Rapportini mancanti · cantiere C002
                   </div>
                   <div className="text-slate-500 text-[11px]">
                     2 giorni consecutivi senza rapportino per una squadra
@@ -294,7 +294,7 @@ export default function ManagerDashboard({ isDark = true }) {
               <li className="py-2 flex items-start justify-between gap-2">
                 <div>
                   <div className="text-slate-200">
-                    Squadra carpenteria sotto-utilizzata · 6368
+                    Squadra carpenteria sotto-utilizzata · C001
                   </div>
                   <div className="text-slate-500 text-[11px]">
                     Volume ore molto inferiore alla media settimana precedente.
