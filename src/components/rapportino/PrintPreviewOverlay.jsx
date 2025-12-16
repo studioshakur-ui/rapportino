@@ -1,10 +1,9 @@
-// src/components/rapportino/PrintPreviewOverlay.jsx
 import React, { useEffect } from "react";
 
 /**
- * Overlay Preview (Option B)
- * - Ne duplique pas le document : on repositionne #rapportino-document via CSS (.print-preview)
- * - Fournit un cadre UX "preview" + actions Stampa/Chiudi
+ * Overlay Preview
+ * - Ajoute html/body.print-preview pour isoler le #rapportino-document via index.css
+ * - Le document devient fixed + scrollable, au-dessus du layout AppShell
  */
 export default function PrintPreviewOverlay({
   open,
@@ -15,9 +14,14 @@ export default function PrintPreviewOverlay({
   useEffect(() => {
     if (!open) return;
 
-    const hadClass = document.documentElement.classList.contains("print-preview");
-    document.documentElement.classList.add("print-preview");
-    document.body.classList.add("print-preview");
+    const root = document.documentElement;
+    const body = document.body;
+
+    const hadHtml = root.classList.contains("print-preview");
+    const hadBody = body.classList.contains("print-preview");
+
+    root.classList.add("print-preview");
+    body.classList.add("print-preview");
 
     const onKeyDown = (e) => {
       if (e.key === "Escape") onClose?.();
@@ -26,8 +30,8 @@ export default function PrintPreviewOverlay({
 
     return () => {
       window.removeEventListener("keydown", onKeyDown);
-      if (!hadClass) document.documentElement.classList.remove("print-preview");
-      document.body.classList.remove("print-preview");
+      if (!hadHtml) root.classList.remove("print-preview");
+      if (!hadBody) body.classList.remove("print-preview");
     };
   }, [open, onClose]);
 
@@ -80,7 +84,7 @@ export default function PrintPreviewOverlay({
       <div className="absolute bottom-0 left-0 right-0 z-[70] pb-3">
         <div className="mx-auto max-w-6xl px-3 md:px-6">
           <div className="text-[11px] text-slate-200/90">
-            Suggerimento: usa pinch/zoom del browser per controllare la densità, poi “Stampa”.
+            Suggerimento: su mobile, usa zoom browser per controllare la densità, poi “Stampa”.
           </div>
         </div>
       </div>

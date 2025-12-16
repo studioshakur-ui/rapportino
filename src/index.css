@@ -1,125 +1,242 @@
-/* src/index.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* =========================================================
-   GLOBALS
-   ========================================================= */
+/* ==========================================================================
+   RAPPORTINO — Screen + Mobile + Print + Print Preview
+   Canon: #rapportino-document + .rapportino-document
+   ========================================================================== */
 
 :root {
-  color-scheme: dark;
-  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --rapportino-page-bg: #ffffff;
+  --rapportino-ink: #0b1220;
+  --rapportino-border: rgba(15, 23, 42, 0.18);
+  --rapportino-grid: rgba(15, 23, 42, 0.12);
+  --rapportino-shadow: 0 18px 45px rgba(0, 0, 0, 0.25);
+
+  /* A4 width reference */
+  --a4-width: 210mm;
+  --a4-pad: 10mm;
 }
 
-body {
-  @apply bg-slate-950 text-slate-100;
+/* Helpers */
+.no-print { display: block; }
+.print-only { display: none; }
+
+/* ==========================================================================
+   Base Screen (default)
+   ========================================================================== */
+
+/* Document host: keep it natural in app layout */
+#rapportino-document {
+  background: transparent;
+  color: var(--rapportino-ink);
 }
 
-/* =========================================================
-   RAPPORTINO – AIDE UX (écran)
-   ========================================================= */
+/* The paper itself */
 .rapportino-document {
-  /* rien de spécial ici : le print override gère tout */
+  background: var(--rapportino-page-bg);
+  color: var(--rapportino-ink);
+  border: 1px solid var(--rapportino-border);
+  border-radius: 14px;
+  box-shadow: var(--rapportino-shadow);
+  width: 100%;
+  max-width: 980px;              /* Desktop cap */
+  margin: 0 auto;
+  padding: 18px 18px 14px;
 }
 
+/* Table */
 .rapportino-table {
   width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--rapportino-border);
+  border-radius: 12px;
+  overflow: hidden;
 }
 
-/* =========================================================
-   PRINT – RAPPORTINO (A4 propre, 1 page si contenu <= A4)
-   Correction “2 feuilles”:
-   - pas de visibility-hack qui garde le layout
-   - shell retiré du flux
-   - feuille sortie du flux => pas de page fantôme
-   ========================================================= */
+.rapportino-table thead th {
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(15, 23, 42, 0.75);
+  background: rgba(15, 23, 42, 0.04);
+  border-bottom: 1px solid var(--rapportino-border);
+}
+
+.rapportino-table th,
+.rapportino-table td {
+  border-right: 1px solid var(--rapportino-grid);
+}
+
+.rapportino-table th:last-child,
+.rapportino-table td:last-child {
+  border-right: none;
+}
+
+.rapportino-table tbody tr td {
+  border-top: 1px solid rgba(15, 23, 42, 0.10);
+}
+
+.rapportino-textarea {
+  resize: none;
+  overflow: hidden; /* critical: no internal scroll */
+  min-height: 22px;
+  line-height: 1.25;
+}
+
+/* Print text blocks (when print-only is visible) */
+.rapportino-print-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.25;
+}
+
+/* ==========================================================================
+   Mobile-first adjustments (screen)
+   ========================================================================== */
+
+@media (max-width: 640px) {
+  .rapportino-document {
+    max-width: 100%;
+    border-radius: 12px;
+    padding: 14px 12px 12px;
+    box-shadow: 0 10px 26px rgba(0,0,0,0.18);
+  }
+
+  /* Make table scroll horizontally instead of breaking layout */
+  .rapportino-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .rapportino-table thead,
+  .rapportino-table tbody,
+  .rapportino-table tr {
+    white-space: nowrap;
+  }
+
+  /* Slightly tighten padding */
+  .rapportino-table th,
+  .rapportino-table td {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+}
+
+/* ==========================================================================
+   PRINT PREVIEW MODE (html.print-preview)
+   Goal: isolate paper above AppShell sidebar/header -> no superposition
+   ========================================================================== */
+
+html.print-preview,
+body.print-preview {
+  height: 100%;
+  overflow: hidden;
+  background: #05070d; /* deep */
+}
+
+/* Hide scrollbars behind preview; keep overlay controls visible */
+html.print-preview #root {
+  height: 100%;
+}
+
+/* Critical: lift paper to top layer and center it */
+html.print-preview #rapportino-document {
+  position: fixed !important;
+  inset: 84px 0 54px 0; /* space for overlay top bar + hint footer */
+  z-index: 80 !important;
+  overflow: auto;
+  padding: 14px;
+}
+
+/* paper stays max width A4-ish but fits viewport */
+html.print-preview .rapportino-document {
+  width: min(var(--a4-width), calc(100vw - 28px));
+  margin: 0 auto;
+  border-radius: 12px;
+  box-shadow: 0 22px 70px rgba(0,0,0,0.65);
+}
+
+/* In preview, avoid any app layout pushing the doc (sidebar) */
+html.print-preview body,
+html.print-preview #root,
+html.print-preview #root * {
+  /* don’t mess with layout; we already fix-position the document */
+}
+
+/* ==========================================================================
+   PRINT (real)
+   ========================================================================== */
+
 @media print {
+  /* Remove app chrome */
+  .no-print { display: none !important; }
+  .print-only { display: block !important; }
+
+  html, body {
+    background: #ffffff !important;
+    color: #000 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Force paper sizing */
   @page {
     size: A4 portrait;
     margin: 10mm;
   }
 
-  html,
-  body {
-    width: 210mm !important;
-    height: auto !important;
-    margin: 0 !important;
+  /* Isolate document */
+  #rapportino-document {
+    position: static !important;
+    inset: auto !important;
+    overflow: visible !important;
     padding: 0 !important;
     background: #fff !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
   }
 
-  /* Masquer complètement le shell (ne doit pas influencer la pagination) */
-  header,
-  nav,
-  aside,
-  .no-print {
-    display: none !important;
-  }
-
-  /* Ne laisse pas les wrappers imposer des tailles/paddings */
-  #root,
-  main,
-  .min-h-screen,
-  .flex,
-  .flex-col {
-    min-height: 0 !important;
-    height: auto !important;
-  }
-
-  /* IMPORTANT:
-     On sort le document du flow pour éviter "page fantôme"
-     causée par des éléments masqués (visibility) ou des wrappers.
-   */
-  #rapportino-document {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
-
+  .rapportino-document {
     width: 100% !important;
-    max-width: none !important;
-
+    max-width: 100% !important;
     margin: 0 !important;
-    padding: 0 !important;
-
+    padding: 0 !important; /* @page handles margins */
     border: none !important;
     border-radius: 0 !important;
     box-shadow: none !important;
     background: #fff !important;
-
-    transform: none !important;
-    overflow: visible !important;
-
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
   }
 
-  #rapportino-document * {
+  /* Table borders become crisp on paper */
+  .rapportino-table {
+    border: 1px solid #c9cdd6 !important;
+    border-radius: 0 !important;
+  }
+  .rapportino-table thead th {
+    background: #f3f4f6 !important;
+    border-bottom: 1px solid #c9cdd6 !important;
+    color: #111827 !important;
+  }
+  .rapportino-table th,
+  .rapportino-table td {
+    border-right: 1px solid #d7dbe3 !important;
+  }
+  .rapportino-table tbody tr td {
+    border-top: 1px solid #e5e7eb !important;
+  }
+
+  /* Inputs should look like text; avoid browser controls */
+  input, textarea, select {
+    border: none !important;
+    outline: none !important;
     box-shadow: none !important;
-    text-shadow: none !important;
-  }
-
-  table {
-    width: 100% !important;
-    border-collapse: collapse !important;
-  }
-
-  thead {
-    display: table-header-group;
-  }
-
-  tr,
-  td,
-  th {
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
-  }
-
-  /* Retire la colonne suppression à l'impression (dernier th/td) */
-  #rapportino-document table thead th:last-child,
-  #rapportino-document table tbody td:last-child {
-    display: none !important;
+    background: transparent !important;
+    color: #000 !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
   }
 }

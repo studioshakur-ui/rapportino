@@ -1,20 +1,10 @@
-// src/components/RapportinoSheet.jsx
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import { supabase } from '../lib/supabaseClient';
 
-// Gabarits de lignes "papier" par rôle
 const EMPTY_ROWS_BY_CREW = {
   ELETTRICISTA: [
-    {
-      categoria: 'STESURA',
-      descrizione: 'STESURA',
-      operatori: '',
-      tempo: '',
-      previsto: '150,0',
-      prodotto: '',
-      note: '',
-    },
+    { categoria: 'STESURA', descrizione: 'STESURA', operatori: '', tempo: '', previsto: '150,0', prodotto: '', note: '' },
     { categoria: '', descrizione: '', operatori: '', tempo: '', previsto: '', prodotto: '', note: '' },
     { categoria: '', descrizione: '', operatori: '', tempo: '', previsto: '', prodotto: '', note: '' },
     { categoria: '', descrizione: '', operatori: '', tempo: '', previsto: '', prodotto: '', note: '' },
@@ -51,13 +41,10 @@ function parseNumeric(value) {
 function formatPrevisto(value) {
   const n = parseNumeric(value);
   if (n === null) return '';
-  if (Number.isInteger(n)) {
-    return n.toFixed(1).replace('.', ',');
-  }
+  if (Number.isInteger(n)) return n.toFixed(1).replace('.', ',');
   return String(n).replace('.', ',');
 }
 
-// Rend un champ multi-ligne comme sur le papier (OPERATORE / TEMPO / NOTE)
 function MultiLineCell({ value }) {
   if (!value) return null;
   const lines = String(value).split(/\r?\n/);
@@ -74,18 +61,8 @@ function MultiLineCell({ value }) {
 }
 
 const IT_MONTHS = [
-  'gennaio',
-  'febbraio',
-  'marzo',
-  'aprile',
-  'maggio',
-  'giugno',
-  'luglio',
-  'agosto',
-  'settembre',
-  'ottobre',
-  'novembre',
-  'dicembre',
+  'gennaio','febbraio','marzo','aprile','maggio','giugno',
+  'luglio','agosto','settembre','ottobre','novembre','dicembre',
 ];
 
 export default function RapportinoSheet() {
@@ -102,36 +79,23 @@ export default function RapportinoSheet() {
   const [rows, setRows] = useState(EMPTY_ROWS_BY_CREW.ELETTRICISTA);
 
   const totals = useMemo(
-    () =>
-      rows.reduce(
-        (sum, r) => {
-          const v = parseNumeric(r.prodotto);
-          return sum + (v ?? 0);
-        },
-        0
-      ),
+    () => rows.reduce((sum, r) => sum + (parseNumeric(r.prodotto) ?? 0), 0),
     [rows]
   );
 
-  // Lecture du paramètre d'URL : id
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const idParam = params.get('id');
-    if (idParam) {
-      setRapportinoId(idParam);
-    } else {
-      setLoading(false);
-    }
+    if (idParam) setRapportinoId(idParam);
+    else setLoading(false);
   }, []);
 
-  // Sécurité: si l'utilisateur vient d'un overlay "print-preview", on neutralise ses styles
+  // Neutraliser preview classes si l’utilisateur arrive depuis un preview
   useEffect(() => {
     try {
       document.documentElement.classList.remove('print-preview');
       document.body.classList.remove('print-preview');
-    } catch {
-      // ignore
-    }
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -163,7 +127,9 @@ export default function RapportinoSheet() {
 
         if (rowsErr) throw rowsErr;
 
-        const base = EMPTY_ROWS_BY_CREW[(rap.crew_role || 'ELETTRICISTA').toUpperCase()] || EMPTY_ROWS_BY_CREW.ELETTRICISTA;
+        const base =
+          EMPTY_ROWS_BY_CREW[(rap.crew_role || 'ELETTRICISTA').toUpperCase()] ||
+          EMPTY_ROWS_BY_CREW.ELETTRICISTA;
 
         if (!righe || righe.length === 0) {
           setRows(base);
@@ -173,14 +139,8 @@ export default function RapportinoSheet() {
             descrizione: r.descrizione ?? '',
             operatori: r.operatori ?? '',
             tempo: r.tempo ?? '',
-            previsto:
-              r.previsto !== null && r.previsto !== undefined
-                ? String(r.previsto)
-                : '',
-            prodotto:
-              r.prodotto !== null && r.prodotto !== undefined
-                ? String(r.prodotto)
-                : '',
+            previsto: r.previsto !== null && r.previsto !== undefined ? String(r.previsto) : '',
+            prodotto: r.prodotto !== null && r.prodotto !== undefined ? String(r.prodotto) : '',
             note: r.note ?? '',
           }));
           setRows(mapped);
@@ -188,13 +148,10 @@ export default function RapportinoSheet() {
 
         setLoading(false);
 
-        // Lancer la boîte de dialogue d'impression
         setTimeout(() => {
           try {
             window.print();
-          } catch {
-            // ignore
-          }
+          } catch {}
         }, 300);
       } catch (err) {
         console.error('Errore caricamento rapportino (print):', err);
@@ -211,7 +168,6 @@ export default function RapportinoSheet() {
       .toUpperCase()
       .trim() || '';
 
-  // Date en italien : 08 dicembre 2025
   let formattedDate = '';
   if (reportDate) {
     try {
@@ -242,29 +198,22 @@ export default function RapportinoSheet() {
   }
 
   return (
-    // IMPORTANT PRINT:
-    // Le CSS global (src/index.css) isole et met en page #rapportino-document.
-    // Pour que la stampa A4 soit stable, on DOIT utiliser l'id + classes canon.
     <div id="rapportino-document" className="min-h-screen bg-white text-black print:bg-white print:text-black">
       <div className="rapportino-document">
-        {/* Ligne 1 : titre centré */}
         <div className="text-center text-[16px] font-semibold mb-4 tracking-wide">
           RAPPORTINO GIORNALIERO
         </div>
 
-        {/* Ligne 2 : COSTR */}
         <div className="mb-2 text-[11px]">
           <span className="font-semibold mr-2">COSTR.:</span>
           <span>{costr}</span>
         </div>
 
-        {/* Ligne 3 : COMMESSA */}
         <div className="mb-3 text-[11px]">
           <span className="font-semibold mr-2">COMMESSA:</span>
           <span>{commessa}</span>
         </div>
 
-        {/* Bandeau info (capo/date) */}
         <div className="grid grid-cols-3 gap-2 mb-3 text-[11px]">
           <div className="text-left">
             <span className="font-semibold mr-2">Ruolo:</span>
@@ -280,63 +229,33 @@ export default function RapportinoSheet() {
           </div>
         </div>
 
-        {/* Tableau principal */}
         <table className="rapportino-table text-[10px]">
           <thead>
             <tr>
-              <th className="px-1 py-1 text-left col-categoria">
-                CATEGORIA
-              </th>
-              <th className="px-1 py-1 text-left col-descrizione">
-                DESCRIZIONE
-              </th>
-              <th className="px-1 py-1 text-left col-operatore">
-                OPERATORE
-              </th>
-              <th className="px-1 py-1 text-left col-tempo">
-                TEMPO IMPIEGATO
-              </th>
-              <th className="px-1 py-1 text-right col-previsto">
-                PREVISTO
-              </th>
-              <th className="px-1 py-1 text-right col-prodotto">
-                PRODOTTO
-              </th>
-              <th className="px-1 py-1 text-left col-note">
-                NOTE
-              </th>
+              <th className="px-1 py-1 text-left">CATEGORIA</th>
+              <th className="px-1 py-1 text-left">DESCRIZIONE</th>
+              <th className="px-1 py-1 text-left">OPERATORE</th>
+              <th className="px-1 py-1 text-left">TEMPO IMPIEGATO</th>
+              <th className="px-1 py-1 text-right">PREVISTO</th>
+              <th className="px-1 py-1 text-right">PRODOTTO</th>
+              <th className="px-1 py-1 text-left">NOTE</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r, idx) => (
               <tr key={idx} className="align-top">
-                <td className="px-1 py-1">
-                  {r.categoria}
-                </td>
-                <td className="px-1 py-1">
-                  {r.descrizione}
-                </td>
-                <td className="px-1 py-1">
-                  <MultiLineCell value={r.operatori} />
-                </td>
-                <td className="px-1 py-1">
-                  <MultiLineCell value={r.tempo} />
-                </td>
-                <td className="px-1 py-1 text-right">
-                  {formatPrevisto(r.previsto)}
-                </td>
-                <td className="px-1 py-1 text-right">
-                  {r.prodotto}
-                </td>
-                <td className="px-1 py-1">
-                  <MultiLineCell value={r.note} />
-                </td>
+                <td className="px-1 py-1">{r.categoria}</td>
+                <td className="px-1 py-1">{r.descrizione}</td>
+                <td className="px-1 py-1"><MultiLineCell value={r.operatori} /></td>
+                <td className="px-1 py-1"><MultiLineCell value={r.tempo} /></td>
+                <td className="px-1 py-1 text-right">{formatPrevisto(r.previsto)}</td>
+                <td className="px-1 py-1 text-right">{r.prodotto}</td>
+                <td className="px-1 py-1"><MultiLineCell value={r.note} /></td>
               </tr>
             ))}
           </tbody>
         </table>
 
-        {/* Totaux (optionnel) */}
         <div className="mt-3 text-[11px] flex justify-end">
           <span className="font-semibold mr-2">Totale prodotto:</span>
           <span>{totals ? String(totals).replace('.', ',') : ''}</span>
