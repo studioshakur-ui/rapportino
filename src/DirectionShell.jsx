@@ -13,6 +13,9 @@ import DirectionDashboard from './components/DirectionDashboard';
 import ArchivePage from './pages/Archive';
 import CorePresentationPopup from './components/CorePresentationPopup';
 import CorePresentation from './pages/CorePresentation';
+import UfficioRapportiniList from './ufficio/UfficioRapportiniList';
+import UfficioRapportinoDetail from './ufficio/UfficioRapportinoDetail';
+import IncaFilesPanel from './inca/IncaFilesPanel';
 
 function getInitialTheme() {
   if (typeof window === 'undefined') return 'dark';
@@ -31,26 +34,126 @@ function getInitialTheme() {
   return 'dark';
 }
 
-export default function DirectionShell() {
-  const { profile, signOut } = useAuth();
-  const navigate = useNavigate();
+function UfficioView({ isDark }) {
   const location = useLocation();
 
-  const [theme, setTheme] = useState(getInitialTheme);
+  const isHere = (path) =>
+    location.pathname === path || location.pathname.startsWith(path + '/');
+  const j = (...p) => p.filter(Boolean).join(' ');
+
+  const tabBase =
+    'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] transition';
+  const tabOff = isDark
+    ? 'border-slate-800 bg-slate-950/20 text-slate-300 hover:bg-slate-900/35'
+    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50';
+  const tabOn = isDark
+    ? 'border-emerald-500/60 bg-emerald-950/20 text-emerald-200 shadow-[0_16px_60px_rgba(16,185,129,0.14)]'
+    : 'border-emerald-400 bg-emerald-50 text-emerald-800';
+
+  const isTabRapportini =
+    isHere('/direction/ufficio-view') &&
+    !isHere('/direction/ufficio-view/inca') &&
+    !isHere('/direction/ufficio-view/archive');
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-2">
+          <div className="text-[11px] uppercase tracking-[0.26em] text-slate-500">
+            Direzione · Vista Ufficio (lettura)
+          </div>
+          <div className="text-xl sm:text-2xl font-semibold text-slate-100">
+            Controllo operativo sullo stesso dato
+          </div>
+          <div className="text-[12px] sm:text-[13px] text-slate-400 max-w-3xl leading-relaxed">
+            Vista integrata: non esci mai dalla Direzione. Serve per consultare lo stato Ufficio senza cambiare contesto.
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            to="/direction"
+            className="rounded-full border border-slate-700 bg-slate-950/30 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-200 hover:bg-slate-900/40"
+          >
+            ← Torna a Direzione
+          </Link>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Link
+          to="/direction/ufficio-view"
+          className={j(tabBase, isTabRapportini ? tabOn : tabOff)}
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+          Rapportini
+        </Link>
+
+        <Link
+          to="/direction/ufficio-view/inca"
+          className={j(tabBase, isHere('/direction/ufficio-view/inca') ? tabOn : tabOff)}
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
+          INCA
+        </Link>
+
+        <Link
+          to="/direction/ufficio-view/archive"
+          className={j(tabBase, isHere('/direction/ufficio-view/archive') ? tabOn : tabOff)}
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
+          Archive
+        </Link>
+
+        <span className="ml-1 inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/20 px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-slate-500">
+          <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+          Lettura
+        </span>
+      </div>
+
+      <div className="rounded-3xl border border-slate-800 bg-[#050910] overflow-hidden">
+        <div className="p-4 sm:p-5">
+          <Routes>
+            <Route path="/" element={<UfficioRapportiniList />} />
+            <Route path="rapportini/:id" element={<UfficioRapportinoDetail />} />
+            <Route path="inca" element={<IncaFilesPanel />} />
+            <Route path="archive" element={<ArchivePage />} />
+          </Routes>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function DirectionShell() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { profile, signOut } = useAuth();
+
+  const [theme, setTheme] = useState(getInitialTheme());
   const isDark = theme === 'dark';
 
-  // Sidebar UX: collapsable + "peek" (hover/focus) pour lire les labels.
-  const [sidebarPeek, setSidebarPeek] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+  useEffect(() => {
     try {
-      const v = window.localStorage.getItem('core-sidebar-collapsed-direction');
-      if (v === '1' || v === '0') return v === '1';
+      window.localStorage.setItem('core-theme', theme);
     } catch {
       // ignore
     }
-    return false;
-  });
-  const effectiveCollapsed = sidebarCollapsed && !sidebarPeek;
+  }, [theme]);
+
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(
+        'core-sidebar-collapsed-direction',
+      );
+      if (stored === '1') setSidebarCollapsed(true);
+      if (stored === '0') setSidebarCollapsed(false);
+    } catch {
+      // ignore
+    }
+  }, []);
 
   useEffect(() => {
     try {
@@ -63,31 +166,49 @@ export default function DirectionShell() {
     }
   }, [sidebarCollapsed]);
 
-  // Popup de présentation CORE
   const [showPresentationModal, setShowPresentationModal] = useState(false);
 
   useEffect(() => {
     try {
-      window.localStorage.setItem('core-theme', theme);
+      const dismissed = window.localStorage.getItem('core-presentation-dismissed');
+      if (dismissed === '1') return;
+      const lastSeen = window.localStorage.getItem('core-presentation-last-seen');
+      if (!lastSeen) setShowPresentationModal(true);
     } catch {
       // ignore
     }
-  }, [theme]);
+  }, []);
 
-  // Afficher le popup une seule fois par navigateur
-  useEffect(() => {
-    if (!profile) return;
-    try {
-      const dismissed = window.localStorage.getItem(
-        'core-presentation-dismissed',
-      );
-      if (!dismissed) {
-        setShowPresentationModal(true);
-      }
-    } catch {
-      setShowPresentationModal(true);
+  const effectiveCollapsed = sidebarCollapsed;
+
+  const isActive = (path) => {
+    const p = location.pathname || '';
+    if (path === '/direction') return p === '/direction' || p === '/direction/';
+    return p === path || p.startsWith(path + '/');
+  };
+
+  const navItemClasses = (active) => {
+    const base =
+      'w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-sm border transition-colors';
+    if (active) {
+      return isDark
+        ? `${base} bg-sky-500/12 border-sky-500/55 text-slate-100`
+        : `${base} bg-sky-50 border-sky-400 text-slate-900`;
     }
-  }, [profile]);
+    return isDark
+      ? `${base} bg-slate-950/20 border-slate-800 text-slate-300 hover:bg-slate-900/35`
+      : `${base} bg-white border-slate-200 text-slate-700 hover:bg-slate-50`;
+  };
+
+  const handleOpenPresentation = () => {
+    try {
+      window.localStorage.setItem('core-presentation-last-seen', String(Date.now()));
+    } catch {
+      // ignore
+    }
+    setShowPresentationModal(false);
+    navigate('/direction/presentazione');
+  };
 
   const handleDismissPresentation = () => {
     try {
@@ -96,16 +217,6 @@ export default function DirectionShell() {
       // ignore
     }
     setShowPresentationModal(false);
-  };
-
-  const handleOpenPresentation = () => {
-    try {
-      window.localStorage.setItem('core-presentation-dismissed', '1');
-    } catch {
-      // ignore
-    }
-    setShowPresentationModal(false);
-    navigate('/direction/presentazione');
   };
 
   const handleLogout = async () => {
@@ -118,280 +229,137 @@ export default function DirectionShell() {
     }
   };
 
-  const displayName = useMemo(
-    () =>
-      profile?.display_name ||
-      profile?.full_name ||
-      profile?.email ||
-      'Direzione',
-    [profile],
-  );
-
-  const toggleTheme = () => {
-    setTheme((current) => (current === 'dark' ? 'light' : 'dark'));
-  };
-
-  const navItemClasses = (active) =>
-    [
-      'block px-2.5 py-1.5 rounded-lg text-sm transition-colors border',
-      active
-        ? isDark
-          ? 'bg-sky-500/15 text-sky-100 border-sky-500/60'
-          : 'bg-sky-50 text-sky-800 border-sky-400'
-        : isDark
-        ? 'text-slate-300 border-transparent hover:bg-slate-900 hover:border-slate-700'
-        : 'text-slate-700 border-transparent hover:bg-slate-50 hover:border-slate-300',
-    ].join(' ');
-
-  const NavItem = ({ to, active, dotClass, label }) => (
-    <Link
-      to={to}
-      className={[
-        navItemClasses(active),
-        'flex items-center gap-2',
-        effectiveCollapsed ? 'justify-center px-0' : '',
-      ].join(' ')}
-      title={label}
-    >
-      <span className={['h-1.5 w-1.5 rounded-full', dotClass].join(' ')} />
-      {!effectiveCollapsed && <span className="truncate">{label}</span>}
-    </Link>
-  );
-
-  const isActive = (prefix) => location.pathname.startsWith(prefix);
-
-  if (!profile) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-400">
-        Caricamento profilo Direzione…
-      </div>
-    );
-  }
+  const roleLabel = useMemo(() => {
+    const r = profile?.role || '';
+    return r ? String(r).toUpperCase() : 'DIREZIONE';
+  }, [profile?.role]);
 
   return (
-    <div
-      className={[
-        'min-h-screen flex flex-col',
-        isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900',
-      ].join(' ')}
-    >
-      {/* HEADER HARMONISÉ */}
-      <header
-        className={[
-          'no-print sticky top-0 z-20 border-b backdrop-blur',
-          isDark
-            ? 'bg-slate-950/95 border-slate-800'
-            : 'bg-white/95 border-slate-200 shadow-sm',
-        ].join(' ')}
-      >
-        <div className="max-w-6xl mx-auto px-3 sm:px-4 py-2 flex items-center justify-between gap-3">
-          {/* Bloc gauche : toggle sidebar + brand + contexte */}
-          <div className="flex items-start gap-3 min-w-0">
-            <button
-              type="button"
-              onClick={() => setSidebarCollapsed((v) => !v)}
-              className={[
-                'hidden md:inline-flex items-center justify-center',
-                'w-9 h-9 rounded-full border',
-                isDark
-                  ? 'border-slate-800 text-slate-200 hover:bg-slate-900/40'
-                  : 'border-slate-300 text-slate-700 hover:bg-slate-100',
-              ].join(' ')}
-              aria-label={effectiveCollapsed ? 'Espandi menu' : 'Riduci menu'}
-              title={effectiveCollapsed ? 'Espandi menu' : 'Riduci menu'}
-            >
-              ☰
-            </button>
-
-            <div className="flex flex-col gap-0.5 min-w-0">
-            <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
-              CORE · Sistema centrale di cantiere
-            </div>
-            <div className="text-xs text-slate-400">
-              Modulo Direzione ·{' '}
-              <span className="font-semibold">
-                Presenze · produzione · CORE Drive
-              </span>
-            </div>
-            </div>
-          </div>
-
-          {/* Bloc droite : thème + connexion + user */}
-          <div className="flex items-center gap-3 text-[11px]">
-            {/* Switch Dark/Light */}
-            <button
-              type="button"
-              onClick={toggleTheme}
-              className={[
-                'inline-flex items-center gap-1 rounded-full border px-2 py-0.5',
-                isDark
-                  ? 'border-slate-600 bg-slate-900/70 text-slate-200'
-                  : 'border-slate-300 bg-slate-50 text-slate-700',
-              ].join(' ')}
-            >
-              <span
-                className={[
-                  'inline-flex h-3 w-3 items-center justify-center rounded-full text-[9px]',
-                  isDark ? 'bg-slate-800' : 'bg-amber-200',
-                ].join(' ')}
-              >
-                {isDark ? '🌑' : '☀️'}
-              </span>
-              <span className="uppercase tracking-[0.16em]">
-                {isDark ? 'Dark' : 'Light'}
-              </span>
-            </button>
-
-            {/* ConnectionIndicator existant */}
-            <ConnectionIndicator />
-
-            <div className="hidden sm:flex flex-col items-end mr-1">
-              <span className="text-slate-400">Utente Direzione</span>
-              <span className="text-slate-50 font-medium">{displayName}</span>
-            </div>
-            <button
-              onClick={handleLogout}
-              className={[
-                'px-3 py-1.5 rounded-full border text-xs font-medium',
-                isDark
-                  ? 'border-rose-500 text-rose-100 hover:bg-rose-600/20'
-                  : 'border-rose-400 text-rose-700 hover:bg-rose-50',
-              ].join(' ')}
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* LAYOUT */}
-      <div className="flex flex-1 min-h-0 relative">
+    <div className={isDark ? 'min-h-screen bg-[#050910] text-slate-100' : 'min-h-screen bg-slate-50 text-slate-900'}>
+      <div className="flex">
         {/* SIDEBAR */}
         <aside
           className={[
-            'no-print border-r flex flex-col gap-5 hidden md:flex',
-            isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200',
-            effectiveCollapsed ? 'w-[84px] px-2 py-4' : 'w-60 px-3 py-4',
-            'transition-[width] duration-200',
+            'sticky top-0 h-screen border-r',
+            isDark ? 'border-slate-800 bg-[#050910]' : 'border-slate-200 bg-white',
+            effectiveCollapsed ? 'w-16' : 'w-64',
+            'transition-all',
           ].join(' ')}
-          onMouseEnter={() => setSidebarPeek(true)}
-          onMouseLeave={() => setSidebarPeek(false)}
-          onFocusCapture={() => setSidebarPeek(true)}
-          onBlurCapture={() => setSidebarPeek(false)}
         >
-          {/* Blocco principale */}
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-2">
-              {effectiveCollapsed ? 'DIR' : 'Direzione'}
-            </div>
-            <nav className="space-y-1.5">
-              <Link
-                to="/direction"
-                className={navItemClasses(
-                  location.pathname === '/direction' ||
-                    location.pathname === '/direction/',
+          <div className="p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="h-9 w-9 rounded-xl border border-slate-800 bg-slate-950/30" />
+                {!effectiveCollapsed && (
+                  <div>
+                    <div className="text-[11px] uppercase tracking-[0.24em] text-slate-500">
+                      CNCS
+                    </div>
+                    <div className="text-sm font-semibold">Direzione</div>
+                  </div>
                 )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSidebarCollapsed((v) => !v)}
+                className="rounded-xl border border-slate-800 bg-slate-950/20 px-2 py-2 text-slate-200 hover:bg-slate-900/35"
+                aria-label="Toggle sidebar"
+                title="Toggle sidebar"
               >
+                {effectiveCollapsed ? '›' : '‹'}
+              </button>
+            </div>
+
+            <div className="mt-3">
+              <div className="rounded-2xl border border-slate-800 bg-slate-950/20 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="space-y-1">
+                    <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
+                      Ruolo
+                    </div>
+                    {!effectiveCollapsed && (
+                      <div className="text-sm font-semibold text-slate-100">
+                        {roleLabel}
+                      </div>
+                    )}
+                  </div>
+                  <ConnectionIndicator compact />
+                </div>
+              </div>
+            </div>
+
+            <nav className="mt-3 space-y-2">
+              <Link to="/direction" className={navItemClasses(isActive('/direction'))}>
                 <span className="flex items-center gap-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
-                  {!effectiveCollapsed && <span>Panoramica &amp; Presenze</span>}
+                  {!effectiveCollapsed && <span>Dashboard</span>}
                 </span>
               </Link>
+
               <Link
                 to="/direction/presentazione"
-                className={navItemClasses(
-                  isActive('/direction/presentazione'),
-                )}
+                className={navItemClasses(isActive('/direction/presentazione'))}
               >
                 <span className="flex items-center gap-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
                   {!effectiveCollapsed && <span>Presentazione</span>}
                 </span>
               </Link>
+
               <Link
-                to="/ufficio"
-                className={navItemClasses(isActive('/ufficio'))}
+                to="/direction/ufficio-view"
+                className={navItemClasses(isActive('/direction/ufficio-view'))}
               >
                 <span className="flex items-center gap-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                  {!effectiveCollapsed && <span>Area Ufficio</span>}
+                  {!effectiveCollapsed && <span>Vista Ufficio</span>}
                 </span>
               </Link>
-            </nav>
-          </div>
 
-          {/* Sezione CORE Drive · Storico */}
-          <div className="mt-1">
-            {!effectiveCollapsed && (
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-2">
-                Archivio
-              </div>
-            )}
-            <nav className="space-y-1.5">
               <Link
                 to="/direction/archive"
                 className={navItemClasses(isActive('/direction/archive'))}
               >
                 <span className="flex items-center gap-2">
-                  <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
-                  {!effectiveCollapsed && <span>Rapportini</span>}
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                  {!effectiveCollapsed && <span>Archive</span>}
                 </span>
               </Link>
             </nav>
-          </div>
 
-          {/* Sezione INCA / tracciamento */}
-          <div className="mt-1">
-            {!effectiveCollapsed && (
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-2">
-                INCA
-              </div>
-            )}
-            <nav className="space-y-1.5">
-              <Link
-                to="/ufficio/inca"
-                className={navItemClasses(isActive('/ufficio/inca'))}
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={handleLogout}
+                className={navItemClasses(false)}
               >
                 <span className="flex items-center gap-2">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                  {!effectiveCollapsed && <span>Modulo INCA</span>}
+                  <span className="h-1.5 w-1.5 rounded-full bg-rose-400" />
+                  {!effectiveCollapsed && <span>Logout</span>}
                 </span>
-              </Link>
-            </nav>
-          </div>
-
-          {/* Bas de sidebar */}
-          <div className="mt-auto pt-4 border-t border-slate-800 text-[10px] text-slate-500">
-            <div>CORE · SHAKUR Engineering</div>
-            {!effectiveCollapsed && <div className="text-slate-600">Direzione · Area operativa</div>}
+              </button>
+            </div>
           </div>
         </aside>
 
-        {/* CONTENT – routes internes Direzione */}
-        <main
-          className={[
-            'flex-1 min-h-0 overflow-y-auto p-4 md:p-6',
-            isDark ? 'bg-slate-950' : 'bg-slate-100',
-          ].join(' ')}
-        >
+        {/* MAIN */}
+        <main className="flex-1 px-4 sm:px-6 py-6">
           <div className="max-w-6xl mx-auto space-y-4">
             <Routes>
-              {/* /direction */}
+              <Route path="/" element={<DirectionDashboard isDark={isDark} />} />
+              <Route path="presentazione" element={<CorePresentation />} />
+
+              {/* /direction/ufficio-view/* → Vista Ufficio (lettura) dentro Direzione */}
               <Route
-                path="/"
-                element={<DirectionDashboard isDark={isDark} />}
+                path="ufficio-view/*"
+                element={<UfficioView isDark={isDark} />}
               />
-              {/* /direction/presentazione */}
-              <Route
-                path="presentazione"
-                element={<CorePresentation />}
-              />
-              {/* /direction/archive → CORE Drive moteur actuel */}
+
               <Route path="archive" element={<ArchivePage />} />
             </Routes>
           </div>
 
-          {/* POPUP PRESENTATION CORE PREMIUM (simple) */}
           {showPresentationModal && (
             <CorePresentationPopup
               onOpen={handleOpenPresentation}

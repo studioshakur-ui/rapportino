@@ -1,5 +1,5 @@
 // src/ufficio/UfficioRapportiniList.jsx
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../auth/AuthProvider';
@@ -23,25 +23,22 @@ const STATUS_BADGE_CLASS = {
 function formatDate(value) {
   if (!value) return '';
   const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
+  if (Number.isNaN(d.getTime())) return String(value);
   return d.toLocaleDateString('it-IT');
 }
 
 function formatProdotto(row) {
-  // On essaie dans l’ordre : totale_prodotto, prodotto_totale, prodotto_tot
   if (row.totale_prodotto != null) return Number(row.totale_prodotto);
   if (row.prodotto_totale != null) return Number(row.prodotto_totale);
   if (row.prodotto_tot != null) return Number(row.prodotto_tot);
   return 0;
 }
 
-// Canon: display_name > full_name > email > capo_name (fallback) > '—'
-function resolveCapoName({ capoProfile, capoNameFallback }) {
-  if (capoProfile?.display_name) return capoProfile.display_name;
-  if (capoProfile?.full_name) return capoProfile.full_name;
-  if (capoProfile?.email) return capoProfile.email;
-  if (capoNameFallback) return capoNameFallback;
-  return '—';
+function bestNameFromProfile(p) {
+  const d = (p?.display_name || '').trim();
+  const f = (p?.full_name || '').trim();
+  const e = (p?.email || '').trim();
+  return d || f || e || null;
 }
 
 export default function UfficioRapportiniList() {
@@ -49,8 +46,7 @@ export default function UfficioRapportiniList() {
   const navigate = useNavigate();
 
   const [rapportini, setRapportini] = useState([]);
-  const [capoById, setCapoById] = useState({}); // { [capo_id]: {display_name, full_name, email} }
-
+  const [capoNameById, setCapoNameById] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -67,8 +63,6 @@ export default function UfficioRapportiniList() {
       return;
     }
 
-    // Route-level gating is already handled by <RequireRole />.
-    // Defensive check to avoid silent empty states if routing is misconfigured.
     if (!['UFFICIO', 'DIREZIONE', 'MANAGER', 'ADMIN'].includes(profile.app_role)) {
       setError('Non sei autorizzato ad accedere alla sezione Ufficio.');
       setLoading(false);
@@ -79,7 +73,6 @@ export default function UfficioRapportiniList() {
       setLoading(true);
       setError(null);
 
-      // 1) Charger les rapportini (inclure capo_id)
       const { data, error: err } = await supabase
         .from('rapportini')
         .select(
@@ -102,83 +95,70 @@ export default function UfficioRapportiniList() {
         .order('data', { ascending: false });
 
       if (err) {
-        console.error('Errore caricando i rapportini Ufficio:', err);
+        console.error('[UFFICIO LIST] Errore caricando i rapportini:', err);
         setError('Errore durante il caricamento dei rapportini.');
         setRapportini([]);
-        setCapoById({});
+        setCapoNameById({});
         setLoading(false);
         return;
       }
 
-      const rapportiniRows = data || [];
-      setRapportini(rapportiniRows);
+      const rows = data || [];
+      setRapportini(rows);
 
-      // 2) Charger les profils CAPO correspondants (sans dépendre d’un JOIN FK)
+      // Resolve CAPO names via RPC (public profile fields)
       const uniqueCapoIds = Array.from(
-        new Set(
-          rapportiniRows
-            .map((r) => r.capo_id)
-            .filter((v) => typeof v === 'string' && v.length > 0)
-        )
+        new Set(rows.map((r) => r.capo_id).filter(Boolean))
       );
 
-      if (!uniqueCapoIds.length) {
-        setCapoById({});
+      if (uniqueCapoIds.length === 0) {
+        setCapoNameById({});
         setLoading(false);
         return;
       }
 
-      const { data: capoProfiles, error: capoErr } = await supabase
-        .from('profiles')
-        .select('id, display_name, full_name, email')
-        .in('id', uniqueCapoIds);
+      const { data: profs, error: rpcErr } = await supabase.rpc(
+        'core_profiles_public_by_ids',
+        { p_ids: uniqueCapoIds }
+      );
 
-      if (capoErr) {
-        console.error('Errore caricando i profili capo:', capoErr);
-        // On garde les rapportini, mais sans enrichissement de noms
-        setCapoById({});
+      if (rpcErr) {
+        // Non-blocking: fallback to capo_name
+        console.warn('[UFFICIO LIST] RPC profiles_public failed:', rpcErr);
+        setCapoNameById({});
         setLoading(false);
         return;
       }
 
       const map = {};
-      for (const p of capoProfiles || []) {
-        map[p.id] = p;
-      }
-      setCapoById(map);
+      (profs || []).forEach((p) => {
+        map[p.id] = bestNameFromProfile(p);
+      });
 
+      setCapoNameById(map);
       setLoading(false);
     };
 
     fetchRapportini();
   }, [authLoading, profile]);
 
-  const enrichedRapportini = useMemo(() => {
-    return (rapportini || []).map((r) => {
-      const capoProfile = r.capo_id ? capoById[r.capo_id] : null;
-      const capoDisplay = resolveCapoName({
-        capoProfile,
-        capoNameFallback: r.capo_name,
-      });
-      return { ...r, _capoDisplay: capoDisplay };
-    });
-  }, [rapportini, capoById]);
-
   const filteredRapportini = useMemo(() => {
-    return (enrichedRapportini || []).filter((r) => {
+    const q = capoFilter.trim().toLowerCase();
+    return (rapportini || []).filter((r) => {
       if (statusFilter !== 'ALL' && r.status !== statusFilter) return false;
-
       if (roleFilter !== 'ALL' && r.crew_role !== roleFilter) return false;
 
-      if (capoFilter.trim()) {
-        const q = capoFilter.trim().toLowerCase();
-        const name = (r._capoDisplay || '').toLowerCase();
+      if (q) {
+        const resolved =
+          (r.capo_id && capoNameById[r.capo_id]) ||
+          (r.capo_name || '');
+        const name = String(resolved).toLowerCase();
         if (!name.includes(q)) return false;
       }
 
       return true;
     });
-  }, [enrichedRapportini, statusFilter, capoFilter, roleFilter]);
+  }, [rapportini, statusFilter, capoFilter, roleFilter, capoNameById]);
 
   const handleRowClick = (id) => {
     navigate(`/ufficio/rapportini/${id}`);
@@ -226,7 +206,6 @@ export default function UfficioRapportiniList() {
         </div>
       </header>
 
-      {/* Filtri */}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-wrap gap-3">
           <div className="flex flex-col text-xs">
@@ -274,7 +253,6 @@ export default function UfficioRapportiniList() {
         </div>
       </div>
 
-      {/* Tabella */}
       <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/60 shadow-[0_0_0_1px_rgba(15,23,42,0.7)]">
         <table className="min-w-full text-xs">
           <thead className="bg-slate-900/80 border-b border-slate-800">
@@ -323,6 +301,13 @@ export default function UfficioRapportiniList() {
 
               const dateToShow = r.report_date || r.data;
 
+              const capoResolved =
+                (r.capo_id && capoNameById[r.capo_id]) ||
+                (r.capo_name && r.capo_name !== 'CAPO SCONOSCIUTO'
+                  ? r.capo_name
+                  : null) ||
+                (r.capo_id ? `CAPO ${String(r.capo_id).slice(0, 8)}` : '—');
+
               return (
                 <tr
                   key={r.id}
@@ -333,7 +318,7 @@ export default function UfficioRapportiniList() {
                     {formatDate(dateToShow)}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap text-slate-100">
-                    {r._capoDisplay || '—'}
+                    {capoResolved}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap text-slate-100">
                     {r.crew_role || '—'}

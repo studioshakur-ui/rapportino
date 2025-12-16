@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useOutletContext } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { t } from "./i18n";
 
 const PAGE_SIZE = 25;
+const STORAGE_KEY = "core_admin_users_page_v1";
 
 function parseCsv(raw) {
   const s = (raw ?? "").toString().trim();
@@ -18,58 +19,123 @@ function safeLower(s) {
   return (s ?? "").toString().toLowerCase();
 }
 
+function loadPersisted() {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    if (!obj || typeof obj !== "object") return null;
+    return obj;
+  } catch {
+    return null;
+  }
+}
+
+function savePersisted(snapshot) {
+  try {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+  } catch {
+    // ignore
+  }
+}
+
 export default function AdminUsersPage() {
   const { lang } = useOutletContext();
+  const persisted = useMemo(() => loadPersisted(), []);
 
   // Create form
-  const [email, setEmail] = useState("");
-  const [appRole, setAppRole] = useState("CAPO");
-  const [fullName, setFullName] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [defaultCostr, setDefaultCostr] = useState("");
-  const [defaultCommessa, setDefaultCommessa] = useState("");
-  const [allowedCantieri, setAllowedCantieri] = useState("");
+  const [email, setEmail] = useState(persisted?.email ?? "");
+  const [appRole, setAppRole] = useState(persisted?.appRole ?? "CAPO");
+  const [fullName, setFullName] = useState(persisted?.fullName ?? "");
+  const [displayName, setDisplayName] = useState(persisted?.displayName ?? "");
+  const [defaultCostr, setDefaultCostr] = useState(persisted?.defaultCostr ?? "");
+  const [defaultCommessa, setDefaultCommessa] = useState(persisted?.defaultCommessa ?? "");
+  const [allowedCantieri, setAllowedCantieri] = useState(persisted?.allowedCantieri ?? "");
 
-  const [creating, setCreating] = useState(false);
-  const [createMsg, setCreateMsg] = useState(null);
+  const [creating, setCreating] = useState(persisted?.creating ?? false);
+  const [createMsg, setCreateMsg] = useState(persisted?.createMsg ?? null);
 
-  // Last code banner (create or reset)
-  const [lastCode, setLastCode] = useState(null);
-  const [lastCodeEmail, setLastCodeEmail] = useState(null);
+  // Last password banner
+  const [lastPassword, setLastPassword] = useState(persisted?.lastPassword ?? null);
+  const [lastPasswordEmail, setLastPasswordEmail] = useState(persisted?.lastPasswordEmail ?? null);
 
   // List
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [rows, setRows] = useState(persisted?.rows ?? []);
+  const [loading, setLoading] = useState(persisted?.loading ?? true);
 
-  const [q, setQ] = useState("");
-  const [roleFilter, setRoleFilter] = useState("ALL");
-  const [page, setPage] = useState(1);
+  const [q, setQ] = useState(persisted?.q ?? "");
+  const [roleFilter, setRoleFilter] = useState(persisted?.roleFilter ?? "ALL");
+  const [page, setPage] = useState(persisted?.page ?? 1);
 
-  const [resettingId, setResettingId] = useState(null);
+  const [settingPwdId, setSettingPwdId] = useState(persisted?.settingPwdId ?? null);
+
+  // Persist EVERYTHING
+  useEffect(() => {
+    savePersisted({
+      email,
+      appRole,
+      fullName,
+      displayName,
+      defaultCostr,
+      defaultCommessa,
+      allowedCantieri,
+      creating,
+      createMsg,
+      lastPassword,
+      lastPasswordEmail,
+      rows,
+      loading,
+      q,
+      roleFilter,
+      page,
+      settingPwdId,
+      savedAt: new Date().toISOString(),
+    });
+  }, [
+    email,
+    appRole,
+    fullName,
+    displayName,
+    defaultCostr,
+    defaultCommessa,
+    allowedCantieri,
+    creating,
+    createMsg,
+    lastPassword,
+    lastPasswordEmail,
+    rows,
+    loading,
+    q,
+    roleFilter,
+    page,
+    settingPwdId,
+  ]);
 
   const filtered = useMemo(() => {
     const qq = safeLower(q);
-    return rows
-      .filter((r) => {
-        if (roleFilter !== "ALL" && r.app_role !== roleFilter) return false;
-        if (!qq) return true;
-        const hay =
-          safeLower(r.email) +
-          " " +
-          safeLower(r.full_name) +
-          " " +
-          safeLower(r.display_name) +
-          " " +
-          safeLower(r.app_role) +
-          " " +
-          safeLower(r.default_costr) +
-          " " +
-          safeLower(r.default_commessa);
-        return hay.includes(qq);
-      });
+    return (rows || []).filter((r) => {
+      if (roleFilter !== "ALL" && r.app_role !== roleFilter) return false;
+      if (!qq) return true;
+      const hay =
+        safeLower(r.email) +
+        " " +
+        safeLower(r.full_name) +
+        " " +
+        safeLower(r.display_name) +
+        " " +
+        safeLower(r.app_role) +
+        " " +
+        safeLower(r.default_costr) +
+        " " +
+        safeLower(r.default_commessa);
+      return hay.includes(qq);
+    });
   }, [rows, q, roleFilter]);
 
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)), [filtered.length]);
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)),
+    [filtered.length]
+  );
 
   const pageRows = useMemo(() => {
     const p = Math.min(Math.max(1, page), totalPages);
@@ -79,7 +145,7 @@ export default function AdminUsersPage() {
 
   useEffect(() => setPage(1), [q, roleFilter]);
 
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -94,23 +160,22 @@ export default function AdminUsersPage() {
       setRows(data || []);
     } catch (e) {
       console.error("[AdminUsersPage] loadUsers error:", e);
-      setRows([]);
+      // keep persisted rows
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadUsers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadUsers]);
 
   const onCreate = async (e) => {
     e.preventDefault();
     setCreateMsg(null);
     setCreating(true);
-    setLastCode(null);
-    setLastCodeEmail(null);
+    setLastPassword(null);
+    setLastPasswordEmail(null);
 
     try {
       const payload = {
@@ -136,19 +201,6 @@ export default function AdminUsersPage() {
       }
 
       setCreateMsg({ ok: true, text: t(lang, "CREATED_OK") });
-
-      if (data?.temp_code) {
-        setLastCode(String(data.temp_code));
-        setLastCodeEmail(String(data.email || payload.email));
-      }
-
-      setEmail("");
-      setFullName("");
-      setDisplayName("");
-      setDefaultCostr("");
-      setDefaultCommessa("");
-      setAllowedCantieri("");
-
       await loadUsers();
     } catch (e2) {
       console.error("[AdminUsersPage] create unexpected:", e2);
@@ -158,39 +210,39 @@ export default function AdminUsersPage() {
     }
   };
 
-  const onResetCode = async (userId) => {
+  const onSetPassword = async (userId) => {
     setCreateMsg(null);
-    setLastCode(null);
-    setLastCodeEmail(null);
-    setResettingId(userId);
+    setLastPassword(null);
+    setLastPasswordEmail(null);
+    setSettingPwdId(userId);
 
     try {
-      const { data, error } = await supabase.functions.invoke("admin-reset-temp-code", {
+      const { data, error } = await supabase.functions.invoke("admin-set-password", {
         body: { user_id: userId },
       });
 
       if (error) {
-        setCreateMsg({ ok: false, text: `Reset failed: ${error.message}` });
+        setCreateMsg({ ok: false, text: `Set password failed: ${error.message}` });
         return;
       }
       if (!data?.ok) {
-        setCreateMsg({ ok: false, text: "Reset failed." });
+        setCreateMsg({ ok: false, text: "Set password failed." });
         return;
       }
 
-      setCreateMsg({ ok: true, text: "Codice rigenerato." });
+      setCreateMsg({ ok: true, text: "Password test generata." });
 
-      if (data?.temp_code) {
-        setLastCode(String(data.temp_code));
-        setLastCodeEmail(String(data.email || ""));
+      if (data?.password) {
+        setLastPassword(String(data.password));
+        setLastPasswordEmail(String(data.email || ""));
       }
 
       await loadUsers();
     } catch (e) {
-      console.error("[AdminUsersPage] reset unexpected:", e);
-      setCreateMsg({ ok: false, text: `Reset failed: ${e?.message || String(e)}` });
+      console.error("[AdminUsersPage] set password unexpected:", e);
+      setCreateMsg({ ok: false, text: `Set password failed: ${e?.message || String(e)}` });
     } finally {
-      setResettingId(null);
+      setSettingPwdId(null);
     }
   };
 
@@ -202,9 +254,36 @@ export default function AdminUsersPage() {
     }
   };
 
+  const hardResetPageState = () => {
+    setEmail("");
+    setAppRole("CAPO");
+    setFullName("");
+    setDisplayName("");
+    setDefaultCostr("");
+    setDefaultCommessa("");
+    setAllowedCantieri("");
+
+    setCreating(false);
+    setCreateMsg(null);
+
+    setLastPassword(null);
+    setLastPasswordEmail(null);
+
+    setQ("");
+    setRoleFilter("ALL");
+    setPage(1);
+
+    setSettingPwdId(null);
+
+    try {
+      sessionStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+  };
+
   return (
     <div className="p-4 sm:p-5">
-      {/* CREATE PANEL */}
       <div className="border border-slate-800 rounded-2xl bg-slate-950/40 p-4 sm:p-5">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -212,7 +291,7 @@ export default function AdminUsersPage() {
               {t(lang, "CREATE_USER")}
             </div>
             <div className="text-xs text-slate-400 mt-1">
-              Codice temporaneo (6 cifre) + cambio obbligatorio al primo login.
+              Fase test: crea account + genera password test (Core!####) con cambio obbligatorio al primo login.
             </div>
           </div>
           <button
@@ -237,20 +316,22 @@ export default function AdminUsersPage() {
           </div>
         )}
 
-        {lastCode && (
+        {lastPassword && (
           <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950/30 p-3">
             <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-              Codice temporaneo (da comunicare)
+              Password test (da comunicare)
             </div>
             <div className="mt-1 flex items-center justify-between gap-3">
               <div className="flex flex-col">
-                <div className="text-sm text-slate-200">{lastCodeEmail || "—"}</div>
-                <div className="text-2xl font-mono tracking-[0.25em] text-slate-50">{lastCode}</div>
-                <div className="text-xs text-slate-400 mt-1">L’utente dovrà cambiarlo al primo accesso.</div>
+                <div className="text-sm text-slate-200">{lastPasswordEmail || "—"}</div>
+                <div className="text-2xl font-mono tracking-[0.18em] text-slate-50">{lastPassword}</div>
+                <div className="text-xs text-slate-400 mt-1">
+                  L’utente dovrà cambiarla al primo accesso.
+                </div>
               </div>
               <button
                 type="button"
-                onClick={() => copy(lastCode)}
+                onClick={() => copy(lastPassword)}
                 className="text-[12px] px-3 py-2 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50"
               >
                 {t(lang, "COPY")}
@@ -341,18 +422,9 @@ export default function AdminUsersPage() {
           <div className="md:col-span-2 flex items-center justify-end gap-2 pt-1">
             <button
               type="button"
-              onClick={() => {
-                setEmail("");
-                setFullName("");
-                setDisplayName("");
-                setDefaultCostr("");
-                setDefaultCommessa("");
-                setAllowedCantieri("");
-                setCreateMsg(null);
-                setLastCode(null);
-                setLastCodeEmail(null);
-              }}
+              onClick={hardResetPageState}
               className="text-[12px] px-3 py-2 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50"
+              title="Reset UI + clear sessionStorage snapshot"
             >
               {t(lang, "RESET")}
             </button>
@@ -368,7 +440,6 @@ export default function AdminUsersPage() {
         </form>
       </div>
 
-      {/* LIST PANEL */}
       <div className="mt-4 border border-slate-800 rounded-2xl bg-slate-950/20 p-4 sm:p-5">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
@@ -400,13 +471,13 @@ export default function AdminUsersPage() {
         </div>
 
         <div className="mt-4 overflow-x-auto border border-slate-800 rounded-xl">
-          <table className="min-w-[1080px] w-full text-[12px]">
+          <table className="min-w-[1120px] w-full text-[12px]">
             <thead className="bg-slate-900/60 text-slate-300">
               <tr className="text-left">
                 <th className="px-3 py-2">{t(lang, "EMAIL")}</th>
                 <th className="px-3 py-2">{t(lang, "NAME")}</th>
                 <th className="px-3 py-2">{t(lang, "ROLE")}</th>
-                <th className="px-3 py-2">PWD</th>
+                <th className="px-3 py-2">Onboarding</th>
                 <th className="px-3 py-2">{t(lang, "ID")}</th>
                 <th className="px-3 py-2">{t(lang, "ACTIONS")}</th>
               </tr>
@@ -415,16 +486,20 @@ export default function AdminUsersPage() {
             <tbody className="divide-y divide-slate-800">
               {loading ? (
                 <tr>
-                  <td className="px-3 py-3 text-slate-500" colSpan={6}>Loading…</td>
+                  <td className="px-3 py-3 text-slate-500" colSpan={6}>
+                    Loading…
+                  </td>
                 </tr>
               ) : pageRows.length === 0 ? (
                 <tr>
-                  <td className="px-3 py-3 text-slate-500" colSpan={6}>{t(lang, "NO_ROWS")}</td>
+                  <td className="px-3 py-3 text-slate-500" colSpan={6}>
+                    {t(lang, "NO_ROWS")}
+                  </td>
                 </tr>
               ) : (
                 pageRows.map((r) => {
-                  const canReset = r.must_change_password === true;
-                  const isResetting = resettingId === r.id;
+                  const isSetting = settingPwdId === r.id;
+                  const onboarding = r.must_change_password === true;
 
                   return (
                     <tr key={r.id} className="text-slate-200 hover:bg-slate-900/30">
@@ -440,8 +515,12 @@ export default function AdminUsersPage() {
                           {r.app_role}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-slate-300">
-                        {canReset ? <span className="text-amber-300">CHANGE</span> : <span className="text-slate-500">OK</span>}
+                      <td className="px-3 py-2">
+                        {onboarding ? (
+                          <span className="text-amber-300">MUST CHANGE</span>
+                        ) : (
+                          <span className="text-slate-500">OK</span>
+                        )}
                       </td>
                       <td className="px-3 py-2 font-mono text-[11px] text-slate-400">
                         {String(r.id).slice(0, 8)}…
@@ -466,12 +545,12 @@ export default function AdminUsersPage() {
 
                           <button
                             type="button"
-                            disabled={!canReset || isResetting}
-                            onClick={() => onResetCode(r.id)}
-                            className="px-2 py-1 rounded-md border border-amber-700 text-amber-100 hover:bg-amber-800/10 disabled:opacity-50 disabled:cursor-not-allowed"
-                            title={canReset ? "Rigenera codice (6 cifre)" : "Reset non consentito"}
+                            disabled={isSetting}
+                            onClick={() => onSetPassword(r.id)}
+                            className="px-2 py-1 rounded-md border border-emerald-700 text-emerald-100 hover:bg-emerald-800/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Genera password test (Core!####) e forza cambio password al primo login"
                           >
-                            {isResetting ? "Reset…" : "Reset codice"}
+                            {isSetting ? "Set…" : "Set password test"}
                           </button>
                         </div>
                       </td>

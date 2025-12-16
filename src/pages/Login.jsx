@@ -5,6 +5,26 @@ import { supabase, resetSupabaseAuthStorage } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
 import { pageBg, headerPill, cardSurface, buttonPrimary } from "../ui/designSystem";
 
+function normalizeError(err) {
+  if (!err) return null;
+  if (typeof err === "string") return err;
+  if (err instanceof Error) return err.message || String(err);
+
+  // Supabase/PostgREST style: { message, code, details, hint }
+  if (typeof err === "object") {
+    const msg = err.message || err.error_description || err.error || null;
+    if (msg) return String(msg);
+
+    try {
+      return JSON.stringify(err);
+    } catch {
+      return String(err);
+    }
+  }
+
+  return String(err);
+}
+
 export default function Login() {
   const navigate = useNavigate();
 
@@ -76,21 +96,19 @@ export default function Login() {
       // AuthProvider hydraterà il profilo via onAuthStateChange
     } catch (err) {
       errorDev("[Login] unexpected error:", err);
-      setError(`Errore inatteso: ${err?.message || String(err)}`);
+      setError(`Errore inatteso: ${normalizeError(err) || "Errore."}`);
     } finally {
       setSubmitting(false);
     }
   };
 
   // Erreur globale (AuthProvider) + erreur locale (Login)
-  const bannerError = error || authError;
+  const bannerError = useMemo(() => {
+    return normalizeError(error) || normalizeError(authError);
+  }, [error, authError]);
 
   return (
-    <div
-      className={["min-h-screen flex items-center justify-center px-4", pageBg(isDark)].join(
-        " "
-      )}
-    >
+    <div className={["min-h-screen flex items-center justify-center px-4", pageBg(isDark)].join(" ")}>
       <div className="w-full max-w-md">
         <div className="text-left mb-4">
           <div className={`${headerPill(isDark)} mb-2`}>SISTEMA CENTRALE DI CANTIERE</div>
@@ -154,10 +172,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={!authReady || submitting || loading}
-              className={buttonPrimary(
-                isDark,
-                "w-full gap-2 mt-2 disabled:opacity-60 disabled:cursor-not-allowed"
-              )}
+              className={buttonPrimary(isDark, "w-full gap-2 mt-2 disabled:opacity-60 disabled:cursor-not-allowed")}
             >
               {submitting || loading ? "Accesso in corso…" : "Accedi"}
             </button>

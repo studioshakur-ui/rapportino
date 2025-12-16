@@ -31,9 +31,9 @@ const CREW_LABELS = {
 };
 
 export default function RapportinoPage() {
+  const { shipId } = useParams(); // shipId sert à la navigation UX, PAS à la table rapportini (pas de ship_id en DB)
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
-  const { shipId } = useParams();
 
   const [crewRole, setCrewRole] = useState(() => {
     try {
@@ -85,7 +85,7 @@ export default function RapportinoPage() {
     }, 0);
   }, [rows]);
 
-  // INCA éditable uniquement si draft/returned
+  // INCA éditable uniquement si rapportino déjà créé et état editable
   const canEditInca = !!rapportinoId && (status === "DRAFT" || status === "RETURNED");
 
   useEffect(() => {
@@ -105,6 +105,7 @@ export default function RapportinoPage() {
         setShowErrorDetails(false);
         setSuccessMessage(null);
 
+        // IMPORTANT: PAS de ship_id ici (la colonne n'existe pas)
         const { data: rap, error: rapError } = await supabase
           .from("rapportini")
           .select("*")
@@ -157,8 +158,8 @@ export default function RapportinoPage() {
           }
         }
       } catch (err) {
-        console.error("Errore caricamento rapportino:", err);
-        setError("Errore durante il caricamento del rapportino.");
+        console.error("[Rapportino] load error:", err);
+        setError("Errore nel caricamento del rapportino.");
         setErrorDetails(err?.message || String(err));
       } finally {
         if (active) {
@@ -320,19 +321,20 @@ export default function RapportinoPage() {
     setIsPrintPreviewOpen(true);
   };
 
-  const handleConfirmPrint = () => {
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        try {
-          window.print();
-        } catch {}
-      }, 60);
-    });
+  const handleConfirmPrint = async () => {
+    setIsPrintPreviewOpen(false);
+
+    // Impression “dans la page” (overlay) : robuste
+    try {
+      window.print();
+    } catch (e) {
+      console.warn("Print failed:", e);
+    }
   };
 
   const handleLogout = async () => {
     try {
-      await signOut();
+      await signOut?.();
     } catch (err) {
       console.error("Errore logout capo:", err);
     } finally {
@@ -344,6 +346,27 @@ export default function RapportinoPage() {
     return <LoadingScreen message="Caricamento del rapportino in corso." />;
   }
 
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <div className="max-w-lg w-full bg-white rounded-lg border p-5">
+          <div className="font-semibold text-red-700">{error}</div>
+          {errorDetails && (
+            <pre className="mt-3 text-xs bg-slate-50 text-slate-800 p-2 rounded border whitespace-pre-wrap">
+              {errorDetails}
+            </pre>
+          )}
+          <button
+            className="mt-4 px-3 py-2 rounded bg-slate-900 text-white"
+            onClick={() => navigate(-1)}
+          >
+            Torna indietro
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-900/80">
       <PrintPreviewOverlay
@@ -353,7 +376,6 @@ export default function RapportinoPage() {
         title={`Rapportino · COSTR ${costr} · ${crewLabel} · ${reportDate}`}
       />
 
-      {/* Bandeau haut (UI) = no-print */}
       <header className="no-print border-b border-slate-700 bg-slate-900 text-slate-50 sticky top-0 z-20">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex flex-col">
@@ -384,7 +406,6 @@ export default function RapportinoPage() {
 
       <main className="flex-1 px-2 md:px-4 py-4 md:py-6">
         <div className="flex justify-center">
-          {/* FEUILLE = seul élément imprimable */}
           <div
             id="rapportino-document"
             className="rapportino-document bg-white text-slate-900 border border-slate-200 shadow-[0_18px_45px_rgba(0,0,0,0.25)]"
@@ -405,7 +426,6 @@ export default function RapportinoPage() {
               onRemoveRow={handleRemoveRow}
             />
 
-            {/* INCA: visible écran, exclu print */}
             <div className="mt-6 no-print">
               <RapportinoIncaCaviSection
                 rapportinoId={rapportinoId}
@@ -414,7 +434,6 @@ export default function RapportinoPage() {
               />
             </div>
 
-            {/* Actions: exclues print */}
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-[11px] no-print">
               <div className="flex flex-wrap items-center gap-2">
                 <button
@@ -429,13 +448,14 @@ export default function RapportinoPage() {
               <div className="flex flex-wrap items-center gap-2">
                 {saving && <span className="text-slate-500">Salvataggio in corso…</span>}
                 {successMessage && <span className="text-emerald-700 font-semibold">{successMessage}</span>}
-                {error && (
+
+                {errorDetails && (
                   <button
                     type="button"
                     onClick={() => setShowErrorDetails((v) => !v)}
                     className="px-2 py-1 rounded border border-red-400 text-red-700 bg-red-50 hover:bg-red-100"
                   >
-                    Errore salvataggio
+                    Dettagli errore
                   </button>
                 )}
 

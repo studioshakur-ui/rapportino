@@ -20,6 +20,7 @@ import AdminUsersPage from "./admin/AdminUsersPage";
 
 // CAPO
 import RapportinoPage from "./components/RapportinoPage";
+import RapportinoSheet from "./components/RapportinoSheet";
 import ShipSelector from "./pages/ShipSelector";
 import CapoModuleSelector from "./pages/CapoModuleSelector";
 import CapoRoleSelector from "./pages/CapoRoleSelector";
@@ -41,6 +42,16 @@ export default function AppRoutes() {
       <Route path="/login" element={<Login />} />
       <Route path="/unauthorized" element={<Unauthorized />} />
       <Route path="/force-password-change" element={<ForcePasswordChange />} />
+
+      {/* ===== CAPO PRINT (Sheet) — DANS /app POUR GARDER LA SESSION ===== */}
+      <Route
+        path="/app/rapportino/sheet"
+        element={
+          <RequireRole allow={["CAPO"]}>
+            <RapportinoSheet />
+          </RequireRole>
+        }
+      />
 
       {/* ===== ADMIN ===== */}
       <Route

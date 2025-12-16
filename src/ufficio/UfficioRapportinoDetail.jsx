@@ -21,15 +21,30 @@ const STATUS_BADGE_CLASS = {
 function formatDate(value) {
   if (!value) return '—';
   const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
+  if (Number.isNaN(d.getTime())) return String(value);
   return d.toLocaleDateString('it-IT');
 }
 
 function formatDateTime(value) {
   if (!value) return '—';
   const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
+  if (Number.isNaN(d.getTime())) return String(value);
   return d.toLocaleString('it-IT');
+}
+
+function bestNameFromProfile(p) {
+  const d = (p?.display_name || '').trim();
+  const f = (p?.full_name || '').trim();
+  const e = (p?.email || '').trim();
+  return d || f || e || null;
+}
+
+function safeMultilineText(v) {
+  if (v == null) return '';
+  const s = String(v);
+  // Normalize line endings and trim outer whitespace
+  const normalized = s.replace(/\r\n/g, '\n').trim();
+  return normalized;
 }
 
 export default function UfficioRapportinoDetail() {
@@ -38,9 +53,10 @@ export default function UfficioRapportinoDetail() {
   const { profile, loading: authLoading } = useAuth();
 
   const [header, setHeader] = useState(null);
-  const [capoProfile, setCapoProfile] = useState(null); // <- NEW: profil CAPO lié au rapport
   const [rows, setRows] = useState([]);
   const [cavi, setCavi] = useState([]);
+  const [capoDisplayName, setCapoDisplayName] = useState(null);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -52,15 +68,7 @@ export default function UfficioRapportinoDetail() {
   const isManager = profile?.app_role === 'MANAGER';
   const isUfficio = profile?.app_role === 'UFFICIO';
   const isDirezione = profile?.app_role === 'DIREZIONE';
-
-  // Nom CAPO canonique : profiles.display_name → profiles.full_name → profiles.email → header.capo_name
-  const capoDisplay = useMemo(() => {
-    if (capoProfile?.display_name) return capoProfile.display_name;
-    if (capoProfile?.full_name) return capoProfile.full_name;
-    if (capoProfile?.email) return capoProfile.email;
-    if (header?.capo_name) return header.capo_name;
-    return '—';
-  }, [capoProfile, header]);
+  const isAdmin = profile?.app_role === 'ADMIN';
 
   useEffect(() => {
     if (authLoading) return;
@@ -71,8 +79,7 @@ export default function UfficioRapportinoDetail() {
       return;
     }
 
-    // UFFICIO + DIREZIONE + MANAGER peuvent accéder à la page
-    if (!isUfficio && !isDirezione && !isManager) {
+    if (!isUfficio && !isDirezione && !isManager && !isAdmin) {
       setError('Non sei autorizzato ad accedere alla sezione Ufficio.');
       setLoading(false);
       return;
@@ -82,8 +89,9 @@ export default function UfficioRapportinoDetail() {
       setLoading(true);
       setError(null);
       setFeedback('');
+      setCapoDisplayName(null);
 
-      // Header rapportino
+      // 1) Header rapportino
       const { data: headerData, error: headerErr } = await supabase
         .from('rapportini')
         .select('*')
@@ -91,7 +99,7 @@ export default function UfficioRapportinoDetail() {
         .single();
 
       if (headerErr || !headerData) {
-        console.error('Errore caricando il rapportino:', headerErr);
+        console.error('[UFFICIO DETAIL] Errore caricando il rapportino:', headerErr);
         setError('Impossibile caricare il rapportino selezionato.');
         setLoading(false);
         return;
@@ -99,26 +107,23 @@ export default function UfficioRapportinoDetail() {
 
       setHeader(headerData);
 
-      // NEW: Charger le profil du CAPO via capo_id (source de vérité)
-      // (On ne dépend pas d'un nom de contrainte FK)
+      // 2) Resolve CAPO name via RPC (public profile fields)
       if (headerData.capo_id) {
-        const { data: capoData, error: capoErr } = await supabase
-          .from('profiles')
-          .select('id, display_name, full_name, email')
-          .eq('id', headerData.capo_id)
-          .single();
+        const { data: profs, error: rpcErr } = await supabase.rpc(
+          'core_profiles_public_by_ids',
+          { p_ids: [headerData.capo_id] }
+        );
 
-        if (capoErr) {
-          console.error('Errore caricando profilo capo:', capoErr);
-          setCapoProfile(null);
+        if (rpcErr) {
+          console.warn('[UFFICIO DETAIL] RPC profiles_public failed:', rpcErr);
         } else {
-          setCapoProfile(capoData || null);
+          const p = (profs || [])[0];
+          const resolved = bestNameFromProfile(p);
+          if (resolved) setCapoDisplayName(resolved);
         }
-      } else {
-        setCapoProfile(null);
       }
 
-      // Righe attività
+      // 3) Righe attività
       const { data: rowsData, error: rowsErr } = await supabase
         .from('rapportino_rows')
         .select('*')
@@ -126,12 +131,11 @@ export default function UfficioRapportinoDetail() {
         .order('row_index', { ascending: true });
 
       if (rowsErr) {
-        console.error('Errore caricando le righe:', rowsErr);
+        console.error('[UFFICIO DETAIL] Errore caricando le righe:', rowsErr);
       }
-
       setRows(rowsData || []);
 
-      // Cavi
+      // 4) Cavi (si la tabella existe et RLS le permet)
       const { data: caviData, error: caviErr } = await supabase
         .from('rapportino_cavi')
         .select('*')
@@ -139,39 +143,40 @@ export default function UfficioRapportinoDetail() {
         .order('id', { ascending: true });
 
       if (caviErr) {
-        console.error('Errore caricando i cavi:', caviErr);
+        console.error('[UFFICIO DETAIL] Errore caricando i cavi:', caviErr);
       }
-
       setCavi(caviData || []);
 
-      // Note de retour
+      // 5) Note de retour (legacy fields)
       const existingNote = headerData.ufficio_note || headerData.note_ufficio || '';
-      setReturnNote(existingNote);
+      setReturnNote(existingNote || '');
 
       setLoading(false);
     };
 
     load();
-  }, [authLoading, profile, id, isUfficio, isDirezione, isManager]);
+  }, [authLoading, profile, id, isUfficio, isDirezione, isManager, isAdmin]);
 
-  // MANAGER = lecture seule -> ne peut pas approuver / renvoyer
   const canApprove =
     header &&
     header.status === 'VALIDATED_CAPO' &&
-    (isUfficio || isDirezione) &&
+    (isUfficio || isDirezione || isAdmin) &&
     !saving;
 
   const canReturn =
     header &&
     (header.status === 'VALIDATED_CAPO' || header.status === 'APPROVED_UFFICIO') &&
-    (isUfficio || isDirezione) &&
+    (isUfficio || isDirezione || isAdmin) &&
     !saving;
 
   const statusLabel = header ? STATUS_LABELS[header.status] || header.status : '—';
 
-  const handleBack = () => {
-    navigate('/ufficio');
-  };
+  const capoResolved =
+    capoDisplayName ||
+    (header?.capo_name && header.capo_name !== 'CAPO SCONOSCIUTO' ? header.capo_name : null) ||
+    (header?.capo_id ? `CAPO ${String(header.capo_id).slice(0, 8)}` : '—');
+
+  const handleBack = () => navigate('/ufficio');
 
   const handleApprove = async () => {
     if (!header || !canApprove) return;
@@ -196,7 +201,7 @@ export default function UfficioRapportinoDetail() {
       .eq('id', header.id);
 
     if (updateErr) {
-      console.error("Errore approvazione rapportino:", updateErr);
+      console.error("[UFFICIO DETAIL] Errore approvazione rapportino:", updateErr);
       setError("Errore durante l'approvazione del rapportino.");
     } else {
       setHeader((prev) => (prev ? { ...prev, ...updatePayload } : prev));
@@ -234,7 +239,7 @@ export default function UfficioRapportinoDetail() {
       .eq('id', header.id);
 
     if (updateErr) {
-      console.error('Errore rimandando il rapportino:', updateErr);
+      console.error('[UFFICIO DETAIL] Errore rimandando il rapportino:', updateErr);
       setError('Errore durante il rinvio del rapportino.');
     } else {
       setHeader((prev) => (prev ? { ...prev, ...updatePayload } : prev));
@@ -288,7 +293,6 @@ export default function UfficioRapportinoDetail() {
 
   return (
     <div className="p-4 md:p-5 space-y-4">
-      {/* HEADER RAPPORTINO */}
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
         <div className="space-y-1 text-sm text-slate-100">
           <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
@@ -305,9 +309,7 @@ export default function UfficioRapportinoDetail() {
           </div>
           <div className="text-xs text-slate-400">
             Capo squadra:{' '}
-            <span className="text-slate-100">
-              {capoDisplay}
-            </span>
+            <span className="text-slate-100">{capoResolved}</span>
           </div>
           <div className="text-xs text-slate-400">
             Tipo squadra:{' '}
@@ -321,11 +323,13 @@ export default function UfficioRapportinoDetail() {
           <span
             className={[
               'inline-flex items-center px-2.5 py-1 rounded-full font-medium',
-              STATUS_BADGE_CLASS[header.status] || 'bg-slate-700 text-slate-100',
+              STATUS_BADGE_CLASS[header.status] ||
+                'bg-slate-700 text-slate-100',
             ].join(' ')}
           >
             Stato: {statusLabel}
           </span>
+
           <div className="text-[11px] text-slate-400 space-y-0.5 text-right">
             <div>
               Validato Capo:{' '}
@@ -347,7 +351,6 @@ export default function UfficioRapportinoDetail() {
             </div>
           </div>
 
-          {/* Boutons d'action */}
           <div className="flex flex-wrap gap-2 justify-end">
             <button
               type="button"
@@ -393,14 +396,11 @@ export default function UfficioRapportinoDetail() {
           )}
 
           {feedback && (
-            <div className="mt-1 text-[11px] text-emerald-300">
-              {feedback}
-            </div>
+            <div className="mt-1 text-[11px] text-emerald-300">{feedback}</div>
           )}
         </div>
       </div>
 
-      {/* TABLE RIGHE */}
       <div className="border border-slate-800 rounded-xl overflow-hidden">
         <div className="bg-slate-900/80 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-400">
           Attività giornaliere
@@ -420,21 +420,45 @@ export default function UfficioRapportinoDetail() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800 bg-slate-950/60">
-              {rows.map((r, idx) => (
-                <tr key={r.id || idx}>
-                  <td className="px-2 py-1 text-slate-400 align-top">{idx + 1}</td>
-                  <td className="px-2 py-1 text-slate-100 align-top">{r.categoria || '—'}</td>
-                  <td className="px-2 py-1 text-slate-100 align-top">{r.descrizione || '—'}</td>
-                  <td className="px-2 py-1 text-slate-100 align-top whitespace-pre-wrap">{r.operatori || '—'}</td>
-                  <td className="px-2 py-1 text-slate-100 align-top whitespace-pre-wrap">{r.tempo || '—'}</td>
-                  <td className="px-2 py-1 text-slate-100 align-top text-right">{r.previsto ?? '—'}</td>
-                  <td className="px-2 py-1 text-slate-100 align-top text-right">{r.prodotto ?? '—'}</td>
-                  <td className="px-2 py-1 text-slate-100 align-top whitespace-pre-wrap">{r.note || '—'}</td>
-                </tr>
-              ))}
+              {rows.map((r, idx) => {
+                const operatori = safeMultilineText(r.operatori);
+                const tempo = safeMultilineText(r.tempo);
+                const note = safeMultilineText(r.note);
+
+                return (
+                  <tr key={r.id || idx}>
+                    <td className="px-2 py-1 text-slate-400 align-top">{idx + 1}</td>
+                    <td className="px-2 py-1 text-slate-100 align-top">{r.categoria || '—'}</td>
+                    <td className="px-2 py-1 text-slate-100 align-top">{r.descrizione || '—'}</td>
+
+                    <td className="px-2 py-1 text-slate-100 align-top whitespace-pre-line">
+                      {operatori ? operatori : '—'}
+                    </td>
+
+                    <td className="px-2 py-1 text-slate-100 align-top whitespace-pre-line">
+                      {tempo ? tempo : '—'}
+                    </td>
+
+                    <td className="px-2 py-1 text-slate-100 align-top text-right">
+                      {r.previsto ?? '—'}
+                    </td>
+                    <td className="px-2 py-1 text-slate-100 align-top text-right">
+                      {r.prodotto ?? '—'}
+                    </td>
+
+                    <td className="px-2 py-1 text-slate-100 align-top whitespace-pre-line">
+                      {note ? note : '—'}
+                    </td>
+                  </tr>
+                );
+              })}
+
               {!rows.length && (
                 <tr>
-                  <td colSpan={8} className="px-3 py-2 text-center text-[12px] text-slate-500">
+                  <td
+                    colSpan={8}
+                    className="px-3 py-2 text-center text-[12px] text-slate-500"
+                  >
                     Nessuna riga attività trovata per questo rapportino.
                   </td>
                 </tr>
@@ -444,7 +468,6 @@ export default function UfficioRapportinoDetail() {
         </div>
       </div>
 
-      {/* CAVI (ELETTRICISTA) */}
       {isElett && (
         <div className="border border-slate-800 rounded-xl overflow-hidden">
           <div className="bg-slate-900/80 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-400">
@@ -473,6 +496,7 @@ export default function UfficioRapportinoDetail() {
                     </td>
                   </tr>
                 ))}
+
                 {!cavi.length && (
                   <tr>
                     <td colSpan={5} className="px-3 py-2 text-center text-[12px] text-slate-500">
@@ -486,18 +510,16 @@ export default function UfficioRapportinoDetail() {
         </div>
       )}
 
-      {/* NOTE DI RITORNO UFFICIO */}
       <div className="border border-slate-800 rounded-xl p-3 space-y-2">
         <div className="flex items-center justify-between gap-2">
           <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
             Nota di ritorno Ufficio → Capo
           </div>
           {isManager && (
-            <span className="text-[10px] text-slate-500">
-              Manager · sola lettura
-            </span>
+            <span className="text-[10px] text-slate-500">Manager · sola lettura</span>
           )}
         </div>
+
         <textarea
           value={returnNote}
           onChange={(e) => setReturnNote(e.target.value)}

@@ -3,152 +3,123 @@
 @tailwind components;
 @tailwind utilities;
 
+/* =========================================================
+   GLOBALS
+   ========================================================= */
+
 :root {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color-scheme: dark;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 body {
-  @apply bg-slate-100 text-slate-900;
+  @apply bg-slate-950 text-slate-100;
 }
 
 /* =========================================================
-   RAPPORTINO — DOCUMENT CANONIQUE + PRINT PREVIEW
-   Objectif: UX large à l'écran, mais PRINT = A4 propre.
+   RAPPORTINO – AIDE UX (écran)
    ========================================================= */
-
-/* Document container (écran) */
 .rapportino-document {
-  width: min(1400px, 100%);
-  margin: 0 auto;
-  padding: 12mm 12mm;
-  border-radius: 10px;
+  /* rien de spécial ici : le print override gère tout */
 }
-
-/* Lock scroll in preview */
-html.print-preview,
-body.print-preview {
-  overflow: hidden !important;
-}
-
-/* Print preview: lift the document into overlay (same DOM) */
-html.print-preview #rapportino-document {
-  position: fixed;
-  top: 64px; /* laisse la place à la barre d'actions overlay */
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 65;
-  width: min(210mm, calc(100vw - 18px));
-  max-height: calc(100vh - 120px);
-  overflow: auto;
-  -webkit-overflow-scrolling: touch;
-  background: #ffffff;
-  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.45);
-  border-radius: 10px;
-}
-
-@media (max-width: 640px) {
-  .rapportino-document {
-    padding: 10mm 7mm;
-    border-radius: 8px;
-  }
-
-  html.print-preview #rapportino-document {
-    top: 70px;
-    width: calc(100vw - 16px);
-    border-radius: 8px;
-  }
-}
-
-/* ====== TABLE RAPPORTINO (papier) ====== */
 
 .rapportino-table {
-  font-family: "Times New Roman", Times, serif;
-  border-collapse: collapse;
   width: 100%;
 }
 
-.rapportino-table th,
-.rapportino-table td {
-  border: 0.6px solid #111827; /* slate-900 */
-  vertical-align: top;
-}
-
-/* Textareas auto-height (zéro scroll interne) */
-.rapportino-textarea {
-  resize: none;
-  overflow: hidden;
-  min-height: 22px;
-  line-height: 1.15;
-}
-
-/* Texte print-only (respecte les retours ligne) */
-.rapportino-print-text {
-  white-space: pre-wrap;
-  line-height: 1.15;
-}
-
-/* Utilitaires */
-.no-print { /* visible écran, caché print */ }
-.print-only { display: none; }
-
-/* ====== PRINT A4 PORTRAIT – SHEET ONLY (BLINDÉ) ====== */
+/* =========================================================
+   PRINT – RAPPORTINO (A4 propre, 1 page si contenu <= A4)
+   Correction “2 feuilles”:
+   - pas de visibility-hack qui garde le layout
+   - shell retiré du flux
+   - feuille sortie du flux => pas de page fantôme
+   ========================================================= */
 @media print {
   @page {
     size: A4 portrait;
-    margin: 0;
+    margin: 10mm;
   }
 
   html,
-  body,
-  #root {
+  body {
+    width: 210mm !important;
     height: auto !important;
-    min-height: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
-    background: #ffffff !important;
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
-  /* KILL SWITCH: tout cacher... */
-  body * {
-    visibility: hidden !important;
+  /* Masquer complètement le shell (ne doit pas influencer la pagination) */
+  header,
+  nav,
+  aside,
+  .no-print {
+    display: none !important;
   }
 
-  /* ... puis ne rendre visible QUE la feuille */
-  #rapportino-document,
-  #rapportino-document * {
-    visibility: visible !important;
+  /* Ne laisse pas les wrappers imposer des tailles/paddings */
+  #root,
+  main,
+  .min-h-screen,
+  .flex,
+  .flex-col {
+    min-height: 0 !important;
+    height: auto !important;
   }
 
-  /* Positionner la feuille en haut-gauche */
+  /* IMPORTANT:
+     On sort le document du flow pour éviter "page fantôme"
+     causée par des éléments masqués (visibility) ou des wrappers.
+   */
   #rapportino-document {
     position: absolute !important;
     left: 0 !important;
     top: 0 !important;
-  }
 
-  /* La feuille A4 */
-  .rapportino-document {
-    width: 210mm !important;
-    min-height: 297mm !important;
+    width: 100% !important;
+    max-width: none !important;
+
     margin: 0 !important;
-    padding: 10mm 10mm !important;
+    padding: 0 !important;
+
+    border: none !important;
     border-radius: 0 !important;
     box-shadow: none !important;
-    border: none !important;
-    background: #ffffff !important;
+    background: #fff !important;
+
+    transform: none !important;
+    overflow: visible !important;
+
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
-  /* no-print / print-only */
-  .no-print { display: none !important; }
-  .print-only { display: block !important; }
+  #rapportino-document * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tr,
+  td,
+  th {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
 
   /* Retire la colonne suppression à l'impression (dernier th/td) */
   #rapportino-document table thead th:last-child,
   #rapportino-document table tbody td:last-child {
     display: none !important;
   }
-
-  /* Répéter entête tableau si pagination */
-  .rapportino-table thead { display: table-header-group; }
-  .rapportino-table tr { page-break-inside: avoid; }
 }
