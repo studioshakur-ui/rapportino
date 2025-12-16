@@ -1,4 +1,3 @@
-// src/components/RapportinoPage.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
@@ -31,7 +30,7 @@ const CREW_LABELS = {
 };
 
 export default function RapportinoPage() {
-  const { shipId } = useParams(); // shipId sert à la navigation UX, PAS à la table rapportini (pas de ship_id en DB)
+  const { shipId } = useParams();
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
 
@@ -85,7 +84,6 @@ export default function RapportinoPage() {
     }, 0);
   }, [rows]);
 
-  // INCA éditable uniquement si rapportino déjà créé et état editable
   const canEditInca = !!rapportinoId && (status === "DRAFT" || status === "RETURNED");
 
   useEffect(() => {
@@ -105,7 +103,6 @@ export default function RapportinoPage() {
         setShowErrorDetails(false);
         setSuccessMessage(null);
 
-        // IMPORTANT: PAS de ship_id ici (la colonne n'existe pas)
         const { data: rap, error: rapError } = await supabase
           .from("rapportini")
           .select("*")
@@ -323,8 +320,6 @@ export default function RapportinoPage() {
 
   const handleConfirmPrint = async () => {
     setIsPrintPreviewOpen(false);
-
-    // Impression “dans la page” (overlay) : robuste
     try {
       window.print();
     } catch (e) {
@@ -404,12 +399,11 @@ export default function RapportinoPage() {
         </div>
       </header>
 
-      <main className="flex-1 px-2 md:px-4 py-4 md:py-6">
-        <div className="flex justify-center">
-          <div
-            id="rapportino-document"
-            className="rapportino-document bg-white text-slate-900 border border-slate-200 shadow-[0_18px_45px_rgba(0,0,0,0.25)]"
-          >
+      <main className="flex-1 px-2 sm:px-4 py-4 sm:py-6">
+        {/* Important: do NOT wrap the #rapportino-document in a layout that can be shifted by sidebar.
+            The preview CSS will fixed-position #rapportino-document above everything. */}
+        <div id="rapportino-document" className="mx-auto">
+          <div className="rapportino-document">
             <RapportinoHeader
               costr={costr}
               commessa={commessa}
