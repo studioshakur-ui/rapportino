@@ -29,7 +29,7 @@ import IncaCapoCockpit from "./capo/IncaCapoCockpit";
 // UFFICIO
 import UfficioRapportiniList from "./ufficio/UfficioRapportiniList";
 import UfficioRapportinoDetail from "./ufficio/UfficioRapportinoDetail";
-import IncaFilesPanel from "./inca/IncaFilesPanel";
+import UfficioIncaHub from "./ufficio/UfficioIncaHub";
 
 // ARCHIVE
 import ArchivePage from "./pages/Archive";
@@ -94,7 +94,8 @@ export default function AppRoutes() {
       >
         <Route index element={<UfficioRapportiniList />} />
         <Route path="rapportini/:id" element={<UfficioRapportinoDetail />} />
-        <Route path="inca" element={<IncaFilesPanel />} />
+        {/* INCA HUB (modal fullscreen cockpit) */}
+        <Route path="inca" element={<UfficioIncaHub />} />
         <Route path="archive" element={<ArchivePage />} />
       </Route>
 

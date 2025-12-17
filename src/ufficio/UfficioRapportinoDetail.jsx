@@ -42,9 +42,28 @@ function bestNameFromProfile(p) {
 function safeMultilineText(v) {
   if (v == null) return '';
   const s = String(v);
-  // Normalize line endings and trim outer whitespace
   const normalized = s.replace(/\r\n/g, '\n').trim();
   return normalized;
+}
+
+function safeNum(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function formatMeters(v) {
+  if (v == null) return '—';
+  const n = safeNum(v);
+  // Affichage compact (terrain)
+  if (!n) return '0';
+  if (Math.abs(n) >= 1000) return `${(n / 1000).toFixed(2)} km`;
+  // Garder 0 décimale si entier, sinon 1 décimale
+  const isInt = Math.abs(n - Math.round(n)) < 1e-9;
+  return isInt ? `${Math.round(n)}` : `${n.toFixed(1)}`;
+}
+
+function clamp(n, a, b) {
+  return Math.max(a, Math.min(b, n));
 }
 
 export default function UfficioRapportinoDetail() {
@@ -54,7 +73,10 @@ export default function UfficioRapportinoDetail() {
 
   const [header, setHeader] = useState(null);
   const [rows, setRows] = useState([]);
-  const [cavi, setCavi] = useState([]);
+
+  // INCA linked cavi (new)
+  const [incaCavi, setIncaCavi] = useState([]);
+
   const [capoDisplayName, setCapoDisplayName] = useState(null);
 
   const [loading, setLoading] = useState(true);
@@ -135,17 +157,32 @@ export default function UfficioRapportinoDetail() {
       }
       setRows(rowsData || []);
 
-      // 4) Cavi (si la tabella existe et RLS le permet)
-      const { data: caviData, error: caviErr } = await supabase
-        .from('rapportino_cavi')
-        .select('*')
+      // 4) Cavi INCA associati (SOURCE CORRETTA)
+      // NB: filtrare SOLO per rapportino_id (robusto) e leggere da view archivio.
+      const { data: incaData, error: incaErr } = await supabase
+        .from('archive_rapportino_inca_cavi_v1')
+        .select(
+          [
+            'link_id',
+            'rapportino_id',
+            'inca_cavo_id',
+            'codice',
+            'descrizione',
+            'metri_teo',
+            'metri_dis',
+            'metri_posati',
+            'progress_percent',
+            'step_type',
+            'situazione',
+          ].join(',')
+        )
         .eq('rapportino_id', id)
-        .order('id', { ascending: true });
+        .order('codice', { ascending: true });
 
-      if (caviErr) {
-        console.error('[UFFICIO DETAIL] Errore caricando i cavi:', caviErr);
+      if (incaErr) {
+        console.error('[UFFICIO DETAIL] Errore caricando i cavi INCA:', incaErr);
       }
-      setCavi(caviData || []);
+      setIncaCavi(incaData || []);
 
       // 5) Note de retour (legacy fields)
       const existingNote = headerData.ufficio_note || headerData.note_ufficio || '';
@@ -484,20 +521,53 @@ export default function UfficioRapportinoDetail() {
                   <th className="px-2 py-1 text-right border-b border-slate-800">%</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800 bg-slate-950/60">
-                {cavi.map((c) => (
-                  <tr key={c.id}>
-                    <td className="px-2 py-1 text-slate-100 align-top">{c.codice || '—'}</td>
-                    <td className="px-2 py-1 text-slate-100 align-top">{c.descrizione || '—'}</td>
-                    <td className="px-2 py-1 text-slate-100 align-top text-right">{c.metri_totali ?? '—'}</td>
-                    <td className="px-2 py-1 text-slate-100 align-top text-right">{c.metri_posati ?? '—'}</td>
-                    <td className="px-2 py-1 text-slate-100 align-top text-right">
-                      {c.percentuale != null ? `${c.percentuale}%` : '—'}
-                    </td>
-                  </tr>
-                ))}
 
-                {!cavi.length && (
+              <tbody className="divide-y divide-slate-800 bg-slate-950/60">
+                {incaCavi.map((c) => {
+                  const metriTot = safeNum(c.metri_teo ?? c.metri_dis);
+                  const metriPos = safeNum(c.metri_posati);
+
+                  // %: priorité à progress_percent (terrain), sinon fallback calculé
+                  const pctFromField =
+                    c.progress_percent != null && c.progress_percent !== ''
+                      ? safeNum(c.progress_percent)
+                      : null;
+
+                  const pctFromCalc =
+                    metriTot > 0 && metriPos > 0 ? (metriPos / metriTot) * 100 : null;
+
+                  const pct = clamp(
+                    pctFromField != null ? pctFromField : pctFromCalc != null ? pctFromCalc : 0,
+                    0,
+                    100
+                  );
+
+                  // Metri posati: priorité au champ si >0, sinon calcul depuis % et metriTot
+                  const metriPosDisplay =
+                    metriPos > 0 ? metriPos : metriTot > 0 ? (metriTot * pct) / 100 : 0;
+
+                  return (
+                    <tr key={c.link_id || c.id || c.inca_cavo_id}>
+                      <td className="px-2 py-1 text-slate-100 align-top">
+                        {c.codice || '—'}
+                      </td>
+                      <td className="px-2 py-1 text-slate-100 align-top">
+                        {c.descrizione || '—'}
+                      </td>
+                      <td className="px-2 py-1 text-slate-100 align-top text-right">
+                        {metriTot ? formatMeters(metriTot) : '—'}
+                      </td>
+                      <td className="px-2 py-1 text-slate-100 align-top text-right">
+                        {metriTot ? formatMeters(metriPosDisplay) : '—'}
+                      </td>
+                      <td className="px-2 py-1 text-slate-100 align-top text-right">
+                        {pct ? `${pct.toFixed(0)}%` : '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {!incaCavi.length && (
                   <tr>
                     <td colSpan={5} className="px-3 py-2 text-center text-[12px] text-slate-500">
                       Nessun cavo associato a questo rapportino.

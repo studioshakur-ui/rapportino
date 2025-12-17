@@ -1,3 +1,4 @@
+// src/components/RapportinoPage.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
@@ -7,7 +8,6 @@ import LoadingScreen from "./LoadingScreen";
 import RapportinoHeader from "./rapportino/RapportinoHeader";
 import RapportinoTable from "./rapportino/RapportinoTable";
 import RapportinoIncaCaviSection from "./RapportinoIncaCaviSection";
-import PrintPreviewOverlay from "./rapportino/PrintPreviewOverlay";
 
 import {
   getTodayISO,
@@ -30,20 +30,27 @@ const CREW_LABELS = {
 };
 
 export default function RapportinoPage() {
-  const { shipId } = useParams();
+  const { shipId } = useParams(); // shipId sert à la navigation UX, PAS à la table rapportini
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
 
   const [crewRole, setCrewRole] = useState(() => {
     try {
       const stored = window.localStorage.getItem("core-current-role");
-      if (stored === "ELETTRICISTA" || stored === "CARPENTERIA" || stored === "MONTAGGIO") return stored;
+      if (
+        stored === "ELETTRICISTA" ||
+        stored === "CARPENTERIA" ||
+        stored === "MONTAGGIO"
+      )
+        return stored;
     } catch {}
     return "ELETTRICISTA";
   });
 
   const normalizedCrewRole =
-    crewRole === "ELETTRICISTA" || crewRole === "CARPENTERIA" || crewRole === "MONTAGGIO"
+    crewRole === "ELETTRICISTA" ||
+    crewRole === "CARPENTERIA" ||
+    crewRole === "MONTAGGIO"
       ? crewRole
       : "ELETTRICISTA";
 
@@ -65,8 +72,6 @@ export default function RapportinoPage() {
   const [showErrorDetails, setShowErrorDetails] = useState(false);
   const [successMessage, setSuccessMessage] = useState(null);
 
-  const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
-
   const capoName = useMemo(() => {
     return (
       (profile?.display_name || profile?.full_name || profile?.email || "Capo Squadra")
@@ -84,6 +89,7 @@ export default function RapportinoPage() {
     }, 0);
   }, [rows]);
 
+  // INCA éditable uniquement si rapportino déjà créé et état editable
   const canEditInca = !!rapportinoId && (status === "DRAFT" || status === "RETURNED");
 
   useEffect(() => {
@@ -147,8 +153,10 @@ export default function RapportinoPage() {
               descrizione: r.descrizione ?? "",
               operatori: r.operatori ?? "",
               tempo: r.tempo ?? "",
-              previsto: r.previsto !== null && r.previsto !== undefined ? String(r.previsto) : "",
-              prodotto: r.prodotto !== null && r.prodotto !== undefined ? String(r.prodotto) : "",
+              previsto:
+                r.previsto !== null && r.previsto !== undefined ? String(r.previsto) : "",
+              prodotto:
+                r.prodotto !== null && r.prodotto !== undefined ? String(r.prodotto) : "",
               note: r.note ?? "",
             }));
             setRows(mapped);
@@ -312,19 +320,19 @@ export default function RapportinoPage() {
     await handleSave("VALIDATED_CAPO");
   };
 
-  const handleOpenPrintPreview = async () => {
+  // PRINT: même page, A4 landscape via index.css (@page size: A4 landscape)
+  const handlePrint = async () => {
     const ok = await handleSave(status);
     if (!ok) return;
-    setIsPrintPreviewOpen(true);
-  };
 
-  const handleConfirmPrint = async () => {
-    setIsPrintPreviewOpen(false);
-    try {
-      window.print();
-    } catch (e) {
-      console.warn("Print failed:", e);
-    }
+    // Laisser React peindre puis imprimer
+    setTimeout(() => {
+      try {
+        window.print();
+      } catch (e) {
+        console.warn("Print failed:", e);
+      }
+    }, 120);
   };
 
   const handleLogout = async () => {
@@ -364,13 +372,6 @@ export default function RapportinoPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-900/80">
-      <PrintPreviewOverlay
-        open={isPrintPreviewOpen}
-        onClose={() => setIsPrintPreviewOpen(false)}
-        onPrint={handleConfirmPrint}
-        title={`Rapportino · COSTR ${costr} · ${crewLabel} · ${reportDate}`}
-      />
-
       <header className="no-print border-b border-slate-700 bg-slate-900 text-slate-50 sticky top-0 z-20">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex flex-col">
@@ -399,11 +400,12 @@ export default function RapportinoPage() {
         </div>
       </header>
 
-      <main className="flex-1 px-2 sm:px-4 py-4 sm:py-6">
-        {/* Important: do NOT wrap the #rapportino-document in a layout that can be shifted by sidebar.
-            The preview CSS will fixed-position #rapportino-document above everything. */}
-        <div id="rapportino-document" className="mx-auto">
-          <div className="rapportino-document">
+      <main className="flex-1 px-2 md:px-4 py-4 md:py-6">
+        <div className="flex justify-center">
+          <div
+            id="rapportino-document"
+            className="rapportino-document bg-white text-slate-900 border border-slate-200 shadow-[0_18px_45px_rgba(0,0,0,0.25)]"
+          >
             <RapportinoHeader
               costr={costr}
               commessa={commessa}
@@ -441,7 +443,9 @@ export default function RapportinoPage() {
 
               <div className="flex flex-wrap items-center gap-2">
                 {saving && <span className="text-slate-500">Salvataggio in corso…</span>}
-                {successMessage && <span className="text-emerald-700 font-semibold">{successMessage}</span>}
+                {successMessage && (
+                  <span className="text-emerald-700 font-semibold">{successMessage}</span>
+                )}
 
                 {errorDetails && (
                   <button
@@ -471,8 +475,9 @@ export default function RapportinoPage() {
 
                 <button
                   type="button"
-                  onClick={handleOpenPrintPreview}
+                  onClick={handlePrint}
                   className="px-3 py-1.5 rounded-md border border-sky-700 bg-sky-600 text-white hover:bg-sky-700"
+                  title="Stampa A4 orizzontale (stessa pagina)"
                 >
                   Export / Print
                 </button>

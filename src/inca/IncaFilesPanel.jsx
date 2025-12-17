@@ -25,8 +25,13 @@ export default function IncaFilesPanel() {
   // Fichier actuellement ouvert dans le cockpit fullscreen
   const [cockpitFile, setCockpitFile] = useState(null);
 
+  // Logs DEV uniquement (aucun bruit en prod / démo)
+  const DEV = import.meta?.env?.DEV;
+  const errorDev = (...args) => {
+    if (DEV) console.error(...args);
+  };
+
   useEffect(() => {
-    console.log('[INCA FilesPanel] MONTATO');
     loadFiles();
   }, []);
 
@@ -51,7 +56,7 @@ export default function IncaFilesPanel() {
         setSelectedFile(data[0]);
       }
     } catch (e) {
-      console.error('[INCA FilesPanel] Errore loadFiles:', e);
+      errorDev('[INCA FilesPanel] Errore loadFiles:', e);
       setError(e.message || String(e));
     } finally {
       setLoading(false);
@@ -115,10 +120,11 @@ export default function IncaFilesPanel() {
           Tracciamento INCA
         </div>
         <div className="text-sm font-semibold text-slate-50">
-          INCA · avanzamento cavi
+          Confronto INCA · percorsi · avanzamento cavi
         </div>
         <div className="text-[11px] text-slate-400 max-w-2xl">
-          Import PDF/XLSX e analisi cavi.
+          Importazione PDF INCA e foglio dati XLSX, analisi dei cavi e
+          collegamento con i rapportini giornalieri.
         </div>
       </header>
 
@@ -158,7 +164,7 @@ export default function IncaFilesPanel() {
                 Cantieri / Navi attive
               </div>
               <div className="text-[11px] text-slate-400">
-                Vista globale dei progetti.
+                Vista globale dei progetti coperti dai file INCA caricati.
               </div>
             </div>
 
@@ -203,43 +209,56 @@ export default function IncaFilesPanel() {
 
                 {projects.length === 0 && (
                   <div className="text-slate-500">
-                    Nessun progetto. Importa un file INCA.
+                    Nessun progetto ancora collegato. Importa almeno un file
+                    INCA per vedere la mappa.
                   </div>
                 )}
               </div>
 
               <div className="mt-3 text-[11px] text-slate-500">
-                Area mappa (in sviluppo).
+                Questa area diventerà il{' '}
+                <span className="text-sky-300 font-medium">
+                  cockpit mappa nave
+                </span>{' '}
+                sincronizzato con INCA e Rapportini (zoom per cantiere, ponte,
+                zona…).
               </div>
             </div>
 
-            {/* Bloc info + bouton cockpit */}
-            <div className="mt-auto flex items-center justify-between gap-3 text-[11px]">
-              <div className="text-slate-500 max-w-xs">
-                Apri la vista dettagliata dei cavi INCA per il file
-                selezionato. Il cockpit è fullscreen e multi-filtro (situazione,
-                stato INCA, tipo cavo, zona…).
+            {/* Cockpit INCA inline (synthèse) */}
+            <div className="rounded-lg border border-slate-800 bg-slate-950/90 px-3 py-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-[11px] font-semibold text-slate-300">
+                  Cockpit INCA (sintesi)
+                </div>
+                <div className="text-[11px] text-slate-500">
+                  {selectedProject ? selectedProject.label : "—"}
+                </div>
               </div>
 
-              <button
-                type="button"
-                disabled={!selectedFile}
-                onClick={() => selectedFile && handleOpenCockpit(selectedFile)}
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-sky-500/70 bg-sky-500/15 text-[11px] font-medium text-sky-100 hover:bg-sky-500/25 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Apri cockpit INCA
-              </button>
+              <IncaCockpit
+                fileId={selectedFileId}
+                file={selectedFile}
+                project={selectedProject}
+                onOpenFull={(file) => handleOpenCockpit(file)}
+              />
             </div>
           </div>
         </div>
       </section>
 
-      {/* Popup cockpit fullscreen */}
+      {/* Cockpit fullscreen */}
       {cockpitFile && (
         <IncaCockpit
+          fileId={cockpitFile.id}
           file={cockpitFile}
+          project={{
+            label: `${(cockpitFile.costr || "—").trim()} · ${(cockpitFile.commessa || "—").trim()}`,
+            costr: (cockpitFile.costr || "—").trim(),
+            commessa: (cockpitFile.commessa || "—").trim(),
+          }}
+          fullscreen
           onClose={() => setCockpitFile(null)}
-          initialRole="UFFICIO"
         />
       )}
     </div>

@@ -1,796 +1,744 @@
 // src/components/RapportinoIncaCaviSection.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  fetchRapportinoIncaCavi,
-  addRapportinoCavoRow,
-  updateRapportinoCavoRow,
-  deleteRapportinoCavoRow,
-  searchIncaCaviForRapportino,
-  getCodiceHistorySummary,
-} from "../inca/incaRapportinoLinkApi";
-
-function formatMeters(v) {
-  if (v == null) return "—";
-  const num = Number(v);
-  if (Number.isNaN(num)) return String(v);
-  return `${num.toFixed(1)} m`;
-}
-
-function normalizeStepType(v) {
-  const t = String(v || "POSA").toUpperCase().trim();
-  return t === "RIPRESA" ? "RIPRESA" : "POSA";
-}
-
-function normalizePercent(v) {
-  if (v === null || v === undefined || v === "") return "";
-  const n = Number(v);
-  if (!Number.isFinite(n)) return "";
-  const p = Math.round(n);
-  return [50, 70, 100].includes(p) ? p : "";
-}
+import { supabase } from "../lib/supabaseClient";
+import { calcMetriPosati, formatMeters, getBaseMetri, safeNum } from "../inca/incaMath";
 
 /**
- * Section à insérer dans RapportinoPage.jsx
+ * CAPO — Section "CAVI INCA COLLEGATI AL RAPPORTINO"
  *
- * Props :
- *  - rapportinoId: uuid
- *  - shipCostr: string (ex: "C001")
- *  - shipCommessa?: string (optionnel, si tu veux affiner les checks)
- *  - disabled?: boolean (quand rapportino VALIDATO / INVIATO)
+ * Objectif:
+ * - lier des cavi INCA au rapportino (table rapportino_inca_cavi)
+ * - persister progress_percent + metri_posati calculé
+ * - permettre POSA / RIPRESA (RIPRESA -> 100% one-shot)
+ *
+ * Props attendues (robuste):
+ * - rapportinoId (recommandé, sinon la section reste en lecture "vuota")
+ * - reportDate (optionnel, ex: header.report_date)
+ * - costr (optionnel, pour filtrer le picker)
+ * - commessa (optionnel, pour filtrer le picker)
  */
 export default function RapportinoIncaCaviSection({
   rapportinoId,
-  shipCostr,
-  shipCommessa = "",
-  disabled = false,
+  reportDate,
+  costr,
+  commessa,
 }) {
-  const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [pickerSearch, setPickerSearch] = useState("");
-  const [pickerLoading, setPickerLoading] = useState(false);
-  const [pickerCandidates, setPickerCandidates] = useState([]);
-
+  const [savingId, setSavingId] = useState(null);
   const [error, setError] = useState(null);
-  const [savingRowId, setSavingRowId] = useState(null);
 
-  // Modal RIPRESA
-  const [ripresaModal, setRipresaModal] = useState({
-    open: false,
-    incaCavo: null,
-    reason: "",
-    checking: false,
-    summary: null,
-  });
+  // linked rows (rapportino_inca_cavi + join inca_cavi)
+  const [links, setLinks] = useState([]);
 
-  // Charger les lignes existantes
+  // picker modal
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [pickerLoading, setPickerLoading] = useState(false);
+  const [pickerError, setPickerError] = useState(null);
+  const [pickerQuery, setPickerQuery] = useState("");
+  const [pickerRows, setPickerRows] = useState([]);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+
+  const percentOptions = useMemo(() => [0, 50, 70, 100], []);
+  const canUsePicker = Boolean(costr || commessa);
+
+  const normalizedReportDate = useMemo(() => {
+    // Prefer reportDate prop; fallback to "today"
+    try {
+      if (reportDate) {
+        const d = new Date(reportDate);
+        if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+      }
+    } catch {
+      // ignore
+    }
+    return new Date().toISOString().slice(0, 10);
+  }, [reportDate]);
+
+  // -----------------------------
+  // Load linked INCA cavi for rapportino
+  // -----------------------------
   useEffect(() => {
-    let cancelled = false;
+    let alive = true;
 
-    async function load() {
+    async function loadLinks() {
       if (!rapportinoId) {
-        setRows([]);
+        setLinks([]);
         setLoading(false);
         return;
       }
+
+      setLoading(true);
+      setError(null);
+
       try {
-        setLoading(true);
-        setError(null);
-        const data = await fetchRapportinoIncaCavi(rapportinoId);
-        if (cancelled) return;
-        setRows(Array.isArray(data) ? data : []);
-      } catch (e) {
-        if (!cancelled) setError(e.message || String(e));
+        // Attempt relation select (requires FK rapportino_inca_cavi.inca_cavo_id -> inca_cavi.id)
+        const { data, error: e } = await supabase
+          .from("rapportino_inca_cavi")
+          .select(
+            `
+            id,
+            rapportino_id,
+            inca_cavo_id,
+            step_type,
+            progress_percent,
+            metri_posati,
+            posa_date,
+            note,
+            inca_cavi:inca_cavo_id (
+              id,
+              codice,
+              descrizione,
+              metri_teo,
+              metri_dis,
+              situazione,
+              marca_cavo,
+              zona_da,
+              zona_a,
+              apparato_da,
+              apparato_a
+            )
+          `
+          )
+          .eq("rapportino_id", rapportinoId)
+          .order("created_at", { ascending: true });
+
+        if (e) throw e;
+
+        if (!alive) return;
+        setLinks(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("[RapportinoIncaCaviSection] loadLinks error:", err);
+        if (!alive) return;
+        setError("Impossibile caricare i cavi INCA collegati al rapportino.");
+        setLinks([]);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (alive) setLoading(false);
       }
     }
 
-    load();
+    loadLinks();
     return () => {
-      cancelled = true;
+      alive = false;
     };
   }, [rapportinoId]);
 
-  const totalCavi = rows.length;
+  const linkedIncaIds = useMemo(() => {
+    const s = new Set();
+    for (const l of links || []) if (l?.inca_cavo_id) s.add(l.lica_cavo_id);
+    // bug guard: above typo would ruin; do it properly
+    const s2 = new Set();
+    for (const l of links || []) if (l?.inca_cavo_id) s2.add(l.inca_cavo_id);
+    return s2;
+  }, [links]);
 
-  // On exclut du picker uniquement les câbles déjà ajoutés (inca_cavo_id)
-  // => Le picker sert à ajouter des POSA; la RIPRESA se fait depuis la ligne existante
-  const excludeIds = useMemo(
-    () => rows.map((r) => r.inca_cavo_id).filter(Boolean),
-    [rows]
-  );
+  // -----------------------------
+  // Derived display rows
+  // -----------------------------
+  const displayRows = useMemo(() => {
+    return (links || []).map((l) => {
+      const inca = l.inca_cavi || null;
+      const base = getBaseMetri(inca);
+      const pct =
+        l.progress_percent != null && l.progress_percent !== ""
+          ? safeNum(l.progress_percent)
+          : 0;
 
-  /* ---------------------------------------------------------------------- */
-  /*                         GESTION DES LIGNES LOCALES                     */
-  /* ---------------------------------------------------------------------- */
+      const storedPosati = safeNum(l.metri_posati);
+      const computedPosati = calcMetriPosati(base, pct);
+      const posati = storedPosati > 0 ? storedPosati : computedPosati;
 
-  async function handleChangeProgress(rowId, value, stepType) {
-    if (disabled) return;
+      return {
+        linkId: l.id,
+        incaId: l.inca_cavo_id,
+        codice: inca?.codice || l.codice_cache || "—",
+        descrizione: inca?.descrizione || "—",
+        baseMetri: base,
+        percent: pct,
+        metriPosati: posati,
+        stepType: (l.step_type || "POSA").toUpperCase(),
+        situazione: inca?.situazione || "—",
+        ripresaLocked: String((l.step_type || "")).toUpperCase() === "RIPRESA",
+      };
+    });
+  }, [links]);
 
-    const st = normalizeStepType(stepType);
-    const safe = st === "RIPRESA" ? 100 : normalizePercent(value);
+  // -----------------------------
+  // Update link: persist percent + metri_posati
+  // -----------------------------
+  async function updateLinkProgress({ linkId, newPercent, newStepType }) {
+    const row = (links || []).find((x) => x.id === linkId);
+    if (!row) return;
 
-    setSavingRowId(rowId);
+    const inca = row.inca_cavi || null;
+    const base = getBaseMetri(inca);
+
+    const step = String(newStepType || row.step_type || "POSA").toUpperCase();
+    const forcedPercent = step === "RIPRESA" ? 100 : safeNum(newPercent);
+
+    const metriPosati = calcMetriPosati(base, forcedPercent);
+
+    setSavingId(linkId);
+    setError(null);
+
     try {
-      const updated = await updateRapportinoCavoRow(rowId, {
-        progress_percent: safe === "" ? null : safe,
-      });
-      setRows((prev) => prev.map((r) => (r.id === rowId ? updated : r)));
-    } catch (e) {
-      console.error("[RapportinoIncaSection] update progress error", e);
-      setError(e.message || String(e));
+      const payload = {
+        step_type: step,
+        progress_percent: forcedPercent,
+        metri_posati: metriPosati,
+        posa_date: normalizedReportDate,
+      };
+
+      const { error: e } = await supabase
+        .from("rapportino_inca_cavi")
+        .update(payload)
+        .eq("id", linkId);
+
+      if (e) throw e;
+
+      // refresh local state
+      setLinks((prev) =>
+        (prev || []).map((x) => (x.id === linkId ? { ...x, ...payload } : x))
+      );
+    } catch (err) {
+      console.error("[RapportinoIncaCaviSection] updateLinkProgress error:", err);
+      setError("Errore aggiornando avanzamento INCA (salvataggio fallito).");
     } finally {
-      setSavingRowId(null);
+      setSavingId(null);
     }
   }
 
-  async function handleDeleteRow(rowId) {
-    if (disabled) return;
-    const ok = window.confirm("Rimuovere questo cavo dal rapportino?");
-    if (!ok) return;
+  // -----------------------------
+  // Delete link
+  // -----------------------------
+  async function removeLink(linkId) {
+    if (!linkId) return;
+    setSavingId(linkId);
+    setError(null);
 
     try {
-      await deleteRapportinoCavoRow(rowId);
-      setRows((prev) => prev.filter((r) => r.id !== rowId));
-    } catch (e) {
-      console.error("[RapportinoIncaSection] delete row error", e);
-      setError(e.message || String(e));
+      const { error: e } = await supabase
+        .from("rapportino_inca_cavi")
+        .delete()
+        .eq("id", linkId);
+
+      if (e) throw e;
+
+      setLinks((prev) => (prev || []).filter((x) => x.id !== linkId));
+    } catch (err) {
+      console.error("[RapportinoIncaCaviSection] removeLink error:", err);
+      setError("Errore rimuovendo il cavo INCA dal rapportino.");
+    } finally {
+      setSavingId(null);
     }
   }
 
-  /* ---------------------------------------------------------------------- */
-  /*                         PICKER "AGGIUNGI DA INCA"                      */
-  /* ---------------------------------------------------------------------- */
+  // -----------------------------
+  // Picker: load INCA cavi list (for costr/commessa)
+  // -----------------------------
+  useEffect(() => {
+    let alive = true;
 
-  async function openPicker() {
-    if (!shipCostr) {
-      setError("COSTR nave non disponibile per il collegamento INCA.");
-      return;
-    }
-    setPickerOpen(true);
-    setPickerSearch("");
-    await reloadPicker("");
-  }
+    async function loadPicker() {
+      if (!isPickerOpen) return;
 
-  async function reloadPicker(search) {
-    if (!shipCostr) return;
-    try {
       setPickerLoading(true);
-      const data = await searchIncaCaviForRapportino({
-        shipCostr,
-        search,
-        excludeIncaIds: excludeIds,
-        limit: 120,
+      setPickerError(null);
+
+      try {
+        let q = supabase
+          .from("inca_cavi")
+          .select("id,codice,descrizione,metri_teo,metri_dis,situazione,marca_cavo")
+          .order("codice", { ascending: true })
+          .limit(400);
+
+        if (costr) q = q.eq("costr", costr);
+        if (commessa) q = q.eq("commessa", commessa);
+
+        const search = (pickerQuery || "").trim().toLowerCase();
+        // Supabase PostgREST ilike can be used per-field; use OR to broaden.
+        if (search) {
+          q = q.or(
+            [
+              `codice.ilike.%${search}%`,
+              `descrizione.ilike.%${search}%`,
+              `marca_cavo.ilike.%${search}%`,
+              `situazione.ilike.%${search}%`,
+            ].join(",")
+          );
+        }
+
+        const { data, error: e } = await q;
+        if (e) throw e;
+
+        if (!alive) return;
+
+        // filter out already linked ones
+        const already = new Set((links || []).map((l) => l.inca_cavo_id).filter(Boolean));
+        const filtered = (data || []).filter((r) => !already.has(r.id));
+
+        setPickerRows(filtered);
+      } catch (err) {
+        console.error("[RapportinoIncaCaviSection] picker load error:", err);
+        if (!alive) return;
+        setPickerError("Impossibile caricare la lista INCA (picker).");
+        setPickerRows([]);
+      } finally {
+        if (alive) setPickerLoading(false);
+      }
+    }
+
+    loadPicker();
+    return () => {
+      alive = false;
+    };
+  }, [isPickerOpen, pickerQuery, costr, commessa, links]);
+
+  function toggleSelected(id) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function closePicker() {
+    setIsPickerOpen(false);
+    setPickerQuery("");
+    setPickerRows([]);
+    setPickerError(null);
+    setSelectedIds(new Set());
+  }
+
+  // -----------------------------
+  // Add selected INCA cavi -> rapportino_inca_cavi
+  // -----------------------------
+  async function addSelected() {
+    if (!rapportinoId) return;
+    const ids = Array.from(selectedIds || []);
+    if (!ids.length) return;
+
+    setPickerLoading(true);
+    setPickerError(null);
+
+    try {
+      // Fetch base metri for selected (to compute metri_posati immediately)
+      const { data: incaRows, error: e1 } = await supabase
+        .from("inca_cavi")
+        .select("id,metri_teo,metri_dis,codice,descrizione,situazione,marca_cavo,zona_da,zona_a,apparato_da,apparato_a")
+        .in("id", ids);
+
+      if (e1) throw e1;
+
+      const nowDate = normalizedReportDate;
+
+      // Default: POSA, 0% (capo choisit ensuite 50/70/100)
+      const inserts = (incaRows || []).map((c) => {
+        const base = getBaseMetri(c);
+        const pct = 0;
+        const posati = calcMetriPosati(base, pct);
+
+        return {
+          rapportino_id: rapportinoId,
+          inca_cavo_id: c.id,
+          step_type: "POSA",
+          progress_percent: pct,
+          metri_posati: posati,
+          posa_date: nowDate,
+        };
       });
-      setPickerCandidates(Array.isArray(data) ? data : []);
-    } catch (e) {
-      console.error("[RapportinoIncaSection] picker load error", e);
-      setError(e.message || String(e));
+
+      const { data: insData, error: e2 } = await supabase
+        .from("rapportino_inca_cavi")
+        .insert(inserts)
+        .select("id,rapportino_id,inca_cavo_id,step_type,progress_percent,metri_posati,posa_date,note");
+
+      if (e2) throw e2;
+
+      // Merge into local state with embedded inca_cavi if possible (avoid second fetch if not needed)
+      // We will refresh by reloading links (most reliable).
+      closePicker();
+
+      // Reload links
+      setLoading(true);
+      const { data: reData, error: reErr } = await supabase
+        .from("rapportino_inca_cavi")
+        .select(
+          `
+          id,
+          rapportino_id,
+          inca_cavo_id,
+          step_type,
+          progress_percent,
+          metri_posati,
+          posa_date,
+          note,
+          inca_cavi:inca_cavo_id (
+            id,
+            codice,
+            descrizione,
+            metri_teo,
+            metri_dis,
+            situazione,
+            marca_cavo,
+            zona_da,
+            zona_a,
+            apparato_da,
+            apparato_a
+          )
+        `
+        )
+        .eq("rapportino_id", rapportinoId)
+        .order("created_at", { ascending: true });
+
+      if (reErr) throw reErr;
+      setLinks(Array.isArray(reData) ? reData : []);
+    } catch (err) {
+      console.error("[RapportinoIncaCaviSection] addSelected error:", err);
+      setPickerError("Errore aggiungendo i cavi INCA al rapportino.");
     } finally {
       setPickerLoading(false);
+      setLoading(false);
     }
   }
 
-  async function handlePickerSearchChange(e) {
-    const s = e.target.value;
-    setPickerSearch(s);
-    await reloadPicker(s);
+  // -----------------------------
+  // UI
+  // -----------------------------
+  if (!rapportinoId) {
+    return (
+      <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
+        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+          Cavi INCA collegati al rapportino
+        </div>
+        <div className="mt-1 text-[13px] text-slate-200 font-semibold">
+          Rapportino non disponibile
+        </div>
+        <div className="mt-1 text-[12px] text-slate-400">
+          Manca <span className="text-slate-200 font-semibold">rapportinoId</span>. La sezione INCA non può caricare i collegamenti.
+        </div>
+      </div>
+    );
   }
-
-  async function handleSelectCavo(cavo) {
-    if (disabled) return;
-    if (!rapportinoId || !cavo?.id) return;
-
-    try {
-      // POSA par défaut, avancement null
-      const newRow = await addRapportinoCavoRow(
-        rapportinoId,
-        cavo.id,
-        null,
-        "POSA"
-      );
-      setRows((prev) => [...prev, newRow]);
-      setPickerOpen(false);
-    } catch (e) {
-      console.error("[RapportinoIncaSection] add cavo error", e);
-      setError(e.message || String(e));
-    }
-  }
-
-  /* ---------------------------------------------------------------------- */
-  /*                               RIPRESA                                  */
-  /* ---------------------------------------------------------------------- */
-
-  async function openRipresaModalFromRow(row) {
-    if (disabled) return;
-
-    const c = row?.inca_cavo || {};
-    const stepType = normalizeStepType(row?.step_type);
-
-    // RIPRESA ne se fait pas si la ligne est déjà RIPRESA
-    if (stepType === "RIPRESA") {
-      setError("Questa riga è già una RIPRESA (100%).");
-      return;
-    }
-
-    const percent = Number(row?.progress_percent || 0) || 0;
-    if (percent < 50) {
-      setError(
-        "Ripresa disponibile solo dopo una POSA almeno al 50% (per evitare litigi)."
-      );
-      return;
-    }
-
-    const codice = c.codice || "";
-    if (!codice) {
-      setError("Codice cavo non disponibile. Impossibile aprire RIPRESA.");
-      return;
-    }
-
-    // On tente un check “intelligent” si les colonnes cache existent déjà.
-    setRipresaModal({
-      open: true,
-      incaCavo: c,
-      reason:
-        percent === 50 || percent === 70
-          ? "POSA parziale registrata. La RIPRESA deve portare il cavo a 100% (una sola volta)."
-          : "POSA già a 100%. Ripresa non necessaria, ma puoi usarla solo se previsto dal processo.",
-      checking: true,
-      summary: null,
-    });
-
-    try {
-      const summary = await getCodiceHistorySummary({
-        costr: c.costr || shipCostr,
-        commessa: c.commessa || shipCommessa,
-        codice,
-        excludeRowId: null,
-      });
-
-      setRipresaModal((prev) => ({
-        ...prev,
-        checking: false,
-        summary: summary || null,
-      }));
-    } catch (e) {
-      // Non bloquant : si cache pas encore en DB, on continue, DB fera foi
-      setRipresaModal((prev) => ({
-        ...prev,
-        checking: false,
-        summary: null,
-      }));
-    }
-  }
-
-  async function confirmRipresa() {
-    if (disabled) return;
-    const c = ripresaModal?.incaCavo;
-    if (!c?.id) return;
-
-    // Si on a la summary et qu’elle dit “ripresa already exists”, on bloque côté UI
-    if (ripresaModal?.summary?.hasRipresa) {
-      setError(
-        "Ripresa già registrata per questo cavo (codice). Ripresa è unica."
-      );
-      setRipresaModal({ open: false, incaCavo: null, reason: "", checking: false, summary: null });
-      return;
-    }
-
-    try {
-      // On ajoute une nouvelle ligne RIPRESA 100% (unique)
-      const newRow = await addRapportinoCavoRow(
-        rapportinoId,
-        c.id,
-        100,
-        "RIPRESA"
-      );
-      setRows((prev) => [...prev, newRow]);
-      setRipresaModal({ open: false, incaCavo: null, reason: "", checking: false, summary: null });
-    } catch (e) {
-      console.error("[RapportinoIncaSection] ripresa add error", e);
-      setError(e.message || String(e));
-      setRipresaModal({ open: false, incaCavo: null, reason: "", checking: false, summary: null });
-    }
-  }
-
-  /* ---------------------------------------------------------------------- */
 
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
+    <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-[11px] uppercase tracking-[0.18em] text-emerald-400">
+          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
             Cavi INCA collegati al rapportino
           </div>
-          <div className="text-xs text-slate-400 mt-1">
-            Seleziona i cavi da INCA e indica l&apos;avanzamento di questo turno.
-            POSA: 50/70/100. RIPRESA: 100 (una sola volta).
+          <div className="text-[12px] text-slate-400 mt-1">
+            Seleziona i cavi da INCA e indica l&apos;avanzamento del turno.
+            <span className="text-slate-500"> POSA: 50/70/100. RIPRESA: 100 (una sola volta).</span>
           </div>
         </div>
 
-        <div className="flex flex-col items-end gap-1">
-          <div className="flex items-center gap-2 text-[11px] text-slate-400">
-            <span>
-              Cavi:{" "}
-              <span className="text-emerald-300 font-semibold">{totalCavi}</span>
-            </span>
+        <div className="flex items-center gap-2">
+          <div className="text-[11px] text-slate-400">
+            Cavi: <span className="text-slate-100 font-semibold">{displayRows.length}</span>
           </div>
+
           <button
             type="button"
-            onClick={openPicker}
-            disabled={disabled}
-            className="inline-flex items-center justify-center px-3 py-1.5 rounded-full border border-emerald-500/70 bg-emerald-500/10 text-[11px] font-medium text-emerald-100 hover:bg-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={() => setIsPickerOpen(true)}
+            className={[
+              "inline-flex items-center gap-2 rounded-full border px-3 py-2 text-[12px] font-medium",
+              canUsePicker
+                ? "border-emerald-500/40 bg-emerald-950/20 text-emerald-200 hover:bg-emerald-950/30"
+                : "border-slate-800 bg-slate-950/40 text-slate-500 cursor-not-allowed",
+            ].join(" ")}
+            disabled={!canUsePicker}
+            title={
+              canUsePicker
+                ? "Aggiungi cavo da INCA"
+                : "Per aprire il picker servono COSTR/COMMESSA (per filtrare INCA)."
+            }
           >
-            ＋ Aggiungi cavo da INCA
+            + Aggiungi cavo da INCA
           </button>
         </div>
       </div>
 
       {error && (
-        <div className="text-[11px] px-3 py-2 rounded-lg border border-rose-500/60 bg-rose-500/10 text-rose-100">
+        <div className="mt-3 rounded-xl border border-rose-600/40 bg-rose-950/25 px-3 py-2 text-[12px] text-rose-200">
           {error}
         </div>
       )}
 
-      {/* TABLEAU PRINCIPAL */}
-      <div className="rounded-xl border border-slate-800 bg-slate-950/80 overflow-hidden">
-        <div className="max-h-[300px] overflow-auto text-[11px]">
-          <table className="w-full border-collapse">
-            <thead className="bg-slate-900 sticky top-0 z-10 border-b border-slate-800">
-              <tr className="text-slate-400">
-                <Th className="w-[220px]">Marca / codice</Th>
-                <Th>Arrivo</Th>
-                <Th className="text-right">Lung. disegno</Th>
-                <Th className="text-center w-[100px]">Step</Th>
-                <Th className="text-right w-[160px]">Avanzamento (%)</Th>
-                <Th>Situazione</Th>
-                <Th className="w-[150px] text-right">RIPRESA</Th>
-                <Th className="w-[40px] text-right">Azioni</Th>
+      <div className="mt-3 overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/30">
+        <table className="min-w-[980px] w-full">
+          <thead className="bg-slate-950/60 border-b border-slate-800">
+            <tr className="text-left text-[11px] text-slate-500">
+              <th className="px-3 py-2">Marca / codice</th>
+              <th className="px-3 py-2">Lung. disegno</th>
+              <th className="px-3 py-2">Step</th>
+              <th className="px-3 py-2">Avanzamento (%)</th>
+              <th className="px-3 py-2">Metri posati</th>
+              <th className="px-3 py-2">Situazione</th>
+              <th className="px-3 py-2 text-right">Azioni</th>
+            </tr>
+          </thead>
+
+          <tbody className="divide-y divide-slate-800">
+            {loading ? (
+              <tr>
+                <td colSpan={7} className="px-3 py-10 text-center text-[12px] text-slate-500">
+                  Caricamento…
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {loading && (
-                <tr>
-                  <Td colSpan={8} className="py-6 text-center text-slate-500">
-                    Caricamento cavi INCA del rapportino…
-                  </Td>
-                </tr>
-              )}
+            ) : displayRows.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-3 py-10 text-center text-[12px] text-slate-500">
+                  Nessun cavo INCA collegato a questo rapportino.
+                </td>
+              </tr>
+            ) : (
+              displayRows.map((r) => {
+                const isSaving = savingId === r.linkId;
 
-              {!loading && rows.length === 0 && (
-                <tr>
-                  <Td colSpan={8} className="py-4 text-center text-slate-500">
-                    Nessun cavo collegato. Usa &quot;Aggiungi cavo da INCA&quot;.
-                  </Td>
-                </tr>
-              )}
+                return (
+                  <tr key={r.linkId} className="hover:bg-slate-900/25">
+                    <td className="px-3 py-2">
+                      <div className="text-[12px] text-slate-100 font-semibold">
+                        {r.codice}
+                      </div>
+                      <div className="text-[11px] text-slate-500">
+                        {r.descrizione && r.descrizione !== "—" ? r.descrizione : "—"}
+                      </div>
+                    </td>
 
-              {rows.map((row) => (
-                <RapportinoIncaRow
-                  key={row.id}
-                  row={row}
-                  disabled={disabled}
-                  saving={savingRowId === row.id}
-                  onChangeProgress={handleChangeProgress}
-                  onDelete={handleDeleteRow}
-                  onOpenRipresa={() => openRipresaModalFromRow(row)}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+                    <td className="px-3 py-2 text-[12px] text-slate-100">
+                      {r.baseMetri ? formatMeters(r.baseMetri) : "—"}
+                    </td>
+
+                    <td className="px-3 py-2">
+                      <select
+                        value={r.stepType}
+                        disabled={isSaving}
+                        onChange={(e) =>
+                          updateLinkProgress({
+                            linkId: r.linkId,
+                            newPercent: r.percent,
+                            newStepType: e.target.value,
+                          })
+                        }
+                        className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[12px] text-slate-100"
+                      >
+                        <option value="POSA">POSA</option>
+                        <option value="RIPRESA">RIPRESA</option>
+                      </select>
+                    </td>
+
+                    <td className="px-3 py-2">
+                      <select
+                        value={r.ripresaLocked ? 100 : r.percent}
+                        disabled={isSaving || r.ripresaLocked}
+                        onChange={(e) =>
+                          updateLinkProgress({
+                            linkId: r.linkId,
+                            newPercent: Number(e.target.value),
+                            newStepType: r.stepType,
+                          })
+                        }
+                        className={[
+                          "rounded-xl border bg-slate-950/60 px-3 py-2 text-[12px]",
+                          r.ripresaLocked
+                            ? "border-slate-800 text-slate-500 cursor-not-allowed"
+                            : "border-slate-800 text-slate-100",
+                        ].join(" ")}
+                        title={r.ripresaLocked ? "RIPRESA è fissata a 100%" : "Seleziona avanzamento POSA"}
+                      >
+                        {percentOptions.map((p) => (
+                          <option key={p} value={p}>
+                            {p}%
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+
+                    <td className="px-3 py-2 text-[12px] text-slate-100">
+                      {r.baseMetri ? formatMeters(r.metriPosati) : "—"}
+                    </td>
+
+                    <td className="px-3 py-2">
+                      <span className="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/60 px-2 py-1 text-[11px] text-slate-200">
+                        <span className="h-2 w-2 rounded-full bg-slate-400" />
+                        {r.situazione || "—"}
+                      </span>
+                    </td>
+
+                    <td className="px-3 py-2 text-right">
+                      <button
+                        type="button"
+                        onClick={() => removeLink(r.linkId)}
+                        disabled={isSaving}
+                        className={[
+                          "inline-flex items-center justify-center rounded-full border px-3 py-2 text-[12px]",
+                          isSaving
+                            ? "border-slate-800 bg-slate-950/40 text-slate-600 cursor-not-allowed"
+                            : "border-rose-500/40 bg-rose-950/20 text-rose-200 hover:bg-rose-950/30",
+                        ].join(" ")}
+                        title="Rimuovi cavo dal rapportino"
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
       </div>
 
-      {/* PICKER MODAL */}
-      {pickerOpen && (
-        <div className="fixed inset-0 z-[90] bg-black/70 backdrop-blur-sm flex items-center justify-center">
-          <div className="w-full max-w-4xl max-h-[80vh] rounded-2xl border border-slate-800 bg-slate-950/95 shadow-2xl flex flex-col overflow-hidden">
-            <header className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
-              <div className="flex flex-col gap-1">
-                <div className="text-[11px] uppercase tracking-[0.2em] text-sky-400">
-                  Seleziona cavi da INCA
-                </div>
-                <div className="text-[11px] text-slate-400">
-                  COSTR {shipCostr || "?"} · cavi non ancora collegati a questo
-                  rapportino.
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPickerOpen(false)}
-                className="px-3 py-1.5 rounded-full border border-slate-600 text-[11px] text-slate-100 hover:bg-slate-800/80"
-              >
-                Chiudi
-              </button>
-            </header>
-
-            <div className="px-4 py-3 flex items-center gap-3 border-b border-slate-800">
-              <div className="flex-1">
-                <input
-                  type="text"
-                  value={pickerSearch}
-                  onChange={handlePickerSearchChange}
-                  placeholder="Cerca per marca, codice, descrizione, locale…"
-                  className="w-full text-[11px] rounded-full bg-slate-900/80 border border-slate-700 px-3 py-1.5 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                />
-              </div>
-              {pickerLoading && (
-                <span className="text-[11px] text-amber-400 animate-pulse">
-                  Caricamento cavi…
-                </span>
-              )}
-            </div>
-
-            <div className="flex-1 overflow-auto text-[11px]">
-              <table className="w-full border-collapse">
-                <thead className="bg-slate-900 sticky top-0 z-10 border-b border-slate-800">
-                  <tr className="text-slate-400">
-                    <Th className="w-[220px]">Marca / codice</Th>
-                    <Th>Arrivo</Th>
-                    <Th className="text-right">Lung. disegno</Th>
-                    <Th className="text-right">Lung. prevista</Th>
-                    <Th>Situazione</Th>
-                    <Th className="w-[80px] text-right">Seleziona</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {!pickerLoading && pickerCandidates.length === 0 && (
-                    <tr>
-                      <Td colSpan={6} className="py-4 text-center text-slate-500">
-                        Nessun cavo trovato per questi criteri.
-                      </Td>
-                    </tr>
-                  )}
-
-                  {pickerCandidates.map((cavo) => (
-                    <tr
-                      key={cavo.id}
-                      className="border-t border-slate-900 hover:bg-slate-900/70"
-                    >
-                      <Td className="font-medium text-slate-50">
-                        <div className="flex flex-col">
-                          <span className="truncate">{cavo.marca_cavo || "—"}</span>
-                          <span className="text-[10px] text-slate-400">
-                            {cavo.codice || "—"}
-                          </span>
-                        </div>
-                      </Td>
-                      <Td>
-                        <div className="flex flex-col">
-                          <span className="truncate text-slate-100">{cavo.zona_a || "—"}</span>
-                          <span className="truncate text-[10px] text-slate-400">
-                            {cavo.descrizione_a || cavo.descrizione || "—"}
-                          </span>
-                        </div>
-                      </Td>
-                      <Td className="text-right">{formatMeters(cavo.metri_teo)}</Td>
-                      <Td className="text-right">{formatMeters(cavo.metri_previsti)}</Td>
-                      <Td>
-                        <SituazioneBadge value={cavo.situazione} />
-                      </Td>
-                      <Td className="text-right">
-                        <button
-                          type="button"
-                          onClick={() => handleSelectCavo(cavo)}
-                          className="px-2 py-1 rounded-full border border-emerald-500/70 text-[11px] text-emerald-100 bg-emerald-900/40 hover:bg-emerald-900/70"
-                        >
-                          Usa
-                        </button>
-                      </Td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL RIPRESA */}
-      {ripresaModal.open && (
+      {/* ========================= */}
+      {/* Picker modal (giant)      */}
+      {/* ========================= */}
+      {isPickerOpen && (
         <div
-          className="fixed inset-0 z-[95] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 backdrop-blur-md p-2"
           role="dialog"
           aria-modal="true"
+          aria-label="Aggiungi cavi INCA"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) closePicker();
+          }}
         >
-          <div className="w-full max-w-2xl rounded-2xl border border-slate-800 bg-slate-950/95 shadow-2xl overflow-hidden">
-            <header className="px-4 py-3 border-b border-slate-800 flex items-start justify-between gap-3">
-              <div className="flex flex-col gap-1">
-                <div className="text-[11px] uppercase tracking-[0.2em] text-amber-300">
-                  RIPRESA CAVO — 100%
+          <div className="w-[min(98vw,1400px)] h-[92vh] overflow-hidden rounded-3xl border border-slate-700 bg-slate-950/85 shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-slate-800 bg-slate-950/75 px-4 py-3 backdrop-blur">
+              <div>
+                <div className="text-[11px] text-slate-500 uppercase tracking-wide">
+                  INCA · Selezione cavi
                 </div>
-                <div className="text-[12px] text-slate-200 font-semibold">
-                  {ripresaModal?.incaCavo?.codice || "—"}{" "}
-                  <span className="text-slate-500 font-normal">
-                    · {ripresaModal?.incaCavo?.marca_cavo || "—"}
+                <div className="text-lg font-semibold text-slate-50 leading-tight">
+                  Aggiungi cavi al rapportino
+                </div>
+                <div className="text-[12px] text-slate-400 mt-1">
+                  Filtri:{" "}
+                  <span className="text-slate-200 font-semibold">
+                    {costr || "—"} · {commessa || "—"}
+                  </span>
+                  {" · "}
+                  Selezionati:{" "}
+                  <span className="text-slate-200 font-semibold">
+                    {Array.from(selectedIds).length}
                   </span>
                 </div>
-                <div className="text-[11px] text-slate-400">
-                  {ripresaModal.reason}
-                </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() =>
-                  setRipresaModal({
-                    open: false,
-                    incaCavo: null,
-                    reason: "",
-                    checking: false,
-                    summary: null,
-                  })
-                }
-                className="px-3 py-1.5 rounded-full border border-slate-600 text-[11px] text-slate-100 hover:bg-slate-800/80"
-              >
-                Chiudi
-              </button>
-            </header>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={closePicker}
+                  className="inline-flex items-center justify-center rounded-xl border border-slate-700 bg-slate-900/50 px-3 py-2 text-[12px] text-slate-200 hover:bg-slate-900/70"
+                >
+                  Chiudi
+                </button>
+                <button
+                  type="button"
+                  onClick={addSelected}
+                  disabled={pickerLoading || Array.from(selectedIds).length === 0}
+                  className={[
+                    "inline-flex items-center justify-center rounded-xl border px-3 py-2 text-[12px] font-semibold",
+                    pickerLoading || Array.from(selectedIds).length === 0
+                      ? "border-slate-800 bg-slate-950/50 text-slate-600 cursor-not-allowed"
+                      : "border-emerald-500/50 bg-emerald-950/20 text-emerald-200 hover:bg-emerald-950/30",
+                  ].join(" ")}
+                >
+                  Aggiungi selezionati
+                </button>
+              </div>
+            </div>
 
-            <div className="px-4 py-4 space-y-3">
-              <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-[11px] text-slate-300">
-                <div className="text-slate-200 font-semibold mb-1">
-                  Regola litigi (critica)
-                </div>
-                <div>
-                  La RIPRESA porta il cavo a 100% e deve essere registrata{" "}
-                  <span className="text-slate-100 font-semibold">una sola volta</span>.
-                  Se esiste già, il sistema la rifiuterà (UI + vincolo DB).
-                </div>
+            <div className="p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <input
+                  value={pickerQuery}
+                  onChange={(e) => setPickerQuery(e.target.value)}
+                  placeholder="Cerca per codice / descrizione / marca / situazione…"
+                  className="w-full rounded-2xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[13px] text-slate-100"
+                />
               </div>
 
-              {ripresaModal.checking && (
-                <div className="text-[11px] text-amber-300 animate-pulse">
-                  Verifica storico RIPRESA…
+              {pickerError && (
+                <div className="rounded-xl border border-rose-600/40 bg-rose-950/25 px-3 py-2 text-[12px] text-rose-200">
+                  {pickerError}
                 </div>
               )}
 
-              {!ripresaModal.checking && ripresaModal.summary && (
-                <div className="grid grid-cols-3 gap-2">
-                  <MiniKpi
-                    label="Max POSA"
-                    value={`${ripresaModal.summary.maxPosaPercent || 0}%`}
-                  />
-                  <MiniKpi
-                    label="POSA parziale"
-                    value={ripresaModal.summary.hasPartialPosa ? "Sì" : "No"}
-                  />
-                  <MiniKpi
-                    label="RIPRESA esistente"
-                    value={ripresaModal.summary.hasRipresa ? "Sì" : "No"}
-                    danger={ripresaModal.summary.hasRipresa}
-                  />
+              <div className="rounded-2xl border border-slate-800 bg-slate-950/35 overflow-hidden">
+                <div className="max-h-[68vh] overflow-auto">
+                  <table className="w-full min-w-[900px]">
+                    <thead className="sticky top-0 bg-slate-950/80 backdrop-blur border-b border-slate-800">
+                      <tr className="text-left text-[11px] text-slate-500">
+                        <th className="px-3 py-2 w-[64px]">Sel.</th>
+                        <th className="px-3 py-2">Codice</th>
+                        <th className="px-3 py-2">Descrizione</th>
+                        <th className="px-3 py-2 text-right">Metri</th>
+                        <th className="px-3 py-2">Situazione</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800">
+                      {pickerLoading ? (
+                        <tr>
+                          <td colSpan={5} className="px-3 py-10 text-center text-[12px] text-slate-500">
+                            Caricamento INCA…
+                          </td>
+                        </tr>
+                      ) : (pickerRows || []).length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="px-3 py-10 text-center text-[12px] text-slate-500">
+                            Nessun cavo disponibile con questi filtri.
+                          </td>
+                        </tr>
+                      ) : (
+                        pickerRows.map((r) => {
+                          const base = getBaseMetri(r);
+                          const checked = selectedIds.has(r.id);
+
+                          return (
+                            <tr
+                              key={r.id}
+                              className="hover:bg-slate-900/25 cursor-pointer"
+                              onClick={() => toggleSelected(r.id)}
+                            >
+                              <td className="px-3 py-2">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleSelected(r.id)}
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              </td>
+                              <td className="px-3 py-2 text-[12px] text-slate-100 font-semibold">
+                                {r.codice || "—"}
+                              </td>
+                              <td className="px-3 py-2 text-[12px] text-slate-300">
+                                {r.descrizione || "—"}
+                              </td>
+                              <td className="px-3 py-2 text-[12px] text-slate-100 text-right">
+                                {base ? formatMeters(base) : "—"}
+                              </td>
+                              <td className="px-3 py-2 text-[12px] text-slate-300">
+                                {r.situazione || "—"}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
                 </div>
-              )}
 
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setRipresaModal({
-                      open: false,
-                      incaCavo: null,
-                      reason: "",
-                      checking: false,
-                      summary: null,
-                    })
-                  }
-                  className="px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-900/60 text-[11px] text-slate-200 hover:bg-slate-900/80"
-                >
-                  Annulla
-                </button>
-
-                <button
-                  type="button"
-                  disabled={disabled || ripresaModal.checking || ripresaModal.summary?.hasRipresa}
-                  onClick={confirmRipresa}
-                  className="px-3 py-1.5 rounded-xl border border-amber-500/70 bg-amber-500/15 text-[11px] text-amber-100 hover:bg-amber-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={
-                    ripresaModal.summary?.hasRipresa
-                      ? "RIPRESA già esistente"
-                      : "Conferma RIPRESA 100%"
-                  }
-                >
-                  Conferma RIPRESA 100%
-                </button>
-              </div>
-
-              <div className="text-[10px] text-slate-500">
-                Nota: se il controllo storico non è disponibile (cache non ancora
-                attiva), la verifica definitiva sarà comunque garantita dal database.
+                <div className="px-4 py-3 border-t border-slate-800 text-[11px] text-slate-500">
+                  Nota: i cavi già collegati non vengono mostrati nel picker.
+                </div>
               </div>
             </div>
           </div>
         </div>
       )}
-    </section>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-
-function Th({ children, className = "" }) {
-  return (
-    <th className={`px-3 py-2 text-left font-normal ${className}`}>{children}</th>
-  );
-}
-
-function Td({ children, className = "", ...rest }) {
-  return (
-    <td className={`px-3 py-2 text-slate-200 ${className}`} {...rest}>
-      {children}
-    </td>
-  );
-}
-
-function StepBadge({ value }) {
-  const v = normalizeStepType(value);
-  const base =
-    "inline-flex items-center gap-2 px-2 py-0.5 rounded-full text-[10px] font-semibold border";
-
-  if (v === "RIPRESA") {
-    return (
-      <span className={`${base} bg-amber-900/50 border-amber-500/70 text-amber-100`}>
-        RIPRESA
-      </span>
-    );
-  }
-  return (
-    <span className={`${base} bg-sky-900/50 border-sky-500/70 text-sky-100`}>
-      POSA
-    </span>
-  );
-}
-
-function SituazioneBadge({ value }) {
-  const v = (value || "").trim();
-  let label = v || "—";
-  let cls =
-    "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border";
-
-  switch (v) {
-    case "P":
-      label = "Posato";
-      cls += " bg-emerald-900/60 border-emerald-500/70 text-emerald-100";
-      break;
-    case "T":
-      label = "Tagliato";
-      cls += " bg-sky-900/60 border-sky-500/70 text-sky-100";
-      break;
-    case "R":
-      label = "Richiesta";
-      cls += " bg-amber-900/60 border-amber-500/70 text-amber-100";
-      break;
-    case "B":
-      label = "Bloccato";
-      cls += " bg-rose-900/60 border-rose-500/70 text-rose-100";
-      break;
-    case "E":
-      label = "Eliminato";
-      cls += " bg-slate-900/60 border-slate-600 text-slate-100";
-      break;
-    default:
-      label = v || "—";
-      cls += " bg-slate-900/60 border-slate-700 text-slate-300";
-  }
-
-  return <span className={cls}>{label}</span>;
-}
-
-function MiniKpi({ label, value, danger = false }) {
-  return (
-    <div
-      className={[
-        "rounded-xl border bg-slate-950/60 px-3 py-2",
-        danger ? "border-rose-500/70" : "border-slate-800",
-      ].join(" ")}
-    >
-      <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
-        {label}
-      </div>
-      <div className={["text-[12px] font-semibold", danger ? "text-rose-200" : "text-slate-100"].join(" ")}>
-        {value}
-      </div>
     </div>
-  );
-}
-
-function RapportinoIncaRow({
-  row,
-  disabled,
-  saving,
-  onChangeProgress,
-  onDelete,
-  onOpenRipresa,
-}) {
-  const c = row.inca_cavo || {};
-  const stepType = normalizeStepType(row.step_type);
-  const percent = stepType === "RIPRESA" ? 100 : normalizePercent(row.progress_percent);
-
-  const canRipresa =
-    !disabled && stepType === "POSA" && (percent === 50 || percent === 70);
-
-  return (
-    <tr className="border-t border-slate-900 hover:bg-slate-900/60">
-      <Td className="font-medium text-slate-50">
-        <div className="flex flex-col">
-          <span className="truncate">{c.marca_cavo || "—"}</span>
-          <span className="text-[10px] text-slate-400">{c.codice || "—"}</span>
-        </div>
-      </Td>
-
-      <Td>
-        <div className="flex flex-col">
-          <span className="truncate text-slate-100">{c.zona_a || "—"}</span>
-          <span className="truncate text-[10px] text-slate-400">
-            {c.descrizione_a || c.descrizione || "—"}
-          </span>
-        </div>
-      </Td>
-
-      <Td className="text-right">{formatMeters(c.metri_teo)}</Td>
-
-      <Td className="text-center">
-        <StepBadge value={stepType} />
-      </Td>
-
-      <Td className="text-right">
-        {stepType === "RIPRESA" ? (
-          <span className="inline-flex items-center justify-end w-24 text-[11px] font-semibold text-amber-200">
-            100%
-          </span>
-        ) : (
-          <select
-            value={percent === "" ? "" : String(percent)}
-            disabled={disabled || saving}
-            onChange={(e) => onChangeProgress(row.id, e.target.value, stepType)}
-            className="w-24 text-right text-[11px] rounded-md bg-slate-900/80 border border-slate-700 px-2 py-1 text-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-60"
-          >
-            <option value="">—</option>
-            <option value="50">50%</option>
-            <option value="70">70%</option>
-            <option value="100">100%</option>
-          </select>
-        )}
-      </Td>
-
-      <Td>
-        <SituazioneBadge value={c.situazione} />
-      </Td>
-
-      <Td className="text-right">
-        <button
-          type="button"
-          disabled={!canRipresa}
-          onClick={onOpenRipresa}
-          className={[
-            "px-2 py-1 rounded-full border text-[11px]",
-            canRipresa
-              ? "border-amber-500/70 text-amber-100 bg-amber-900/30 hover:bg-amber-900/55"
-              : "border-slate-700 text-slate-400 bg-slate-900/30 opacity-60 cursor-not-allowed",
-          ].join(" ")}
-          title={
-            canRipresa
-              ? "Apri RIPRESA 100% (una sola volta)"
-              : "RIPRESA disponibile solo dopo POSA 50% o 70%"
-          }
-        >
-          RIPRESA 100%
-        </button>
-      </Td>
-
-      <Td className="text-right">
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => onDelete(row.id)}
-          className="px-2 py-1 rounded-full border border-slate-600 text-[11px] text-slate-200 hover:bg-slate-800/80 disabled:opacity-50"
-        >
-          ✕
-        </button>
-      </Td>
-    </tr>
   );
 }

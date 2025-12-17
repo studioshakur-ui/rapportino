@@ -1,15 +1,14 @@
 // src/inca/IncaFileViewer.jsx
-import React, { useEffect, useMemo, useState } from 'react';
-import { supabase } from '../lib/supabaseClient';
-import IncaFileDetail from './IncaFileDetail';
-import IncaCaviTable from './IncaCaviTable';
+import React, { useEffect, useMemo, useState } from "react";
+import { supabase } from "../lib/supabaseClient";
+import IncaFileDetail from "./IncaFileDetail";
+import IncaCaviTable from "./IncaCaviTable";
 
 export default function IncaFileViewer({ file }) {
   const [cavi, setCavi] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Chargement des cavi pour ce file.id
   useEffect(() => {
     let active = true;
 
@@ -25,21 +24,19 @@ export default function IncaFileViewer({ file }) {
         setError(null);
 
         const { data, error: dbError } = await supabase
-          .from('inca_cavi')
-          .select('*')
-          .eq('inca_file_id', file.id)
-          .order('codice', { ascending: true });
+          .from("inca_cavi")
+          .select("*")
+          .eq("inca_file_id", file.id)
+          .order("codice", { ascending: true });
 
         if (dbError) throw dbError;
         if (!active) return;
 
         setCavi(data || []);
       } catch (err) {
-        console.error('[INCA] Errore caricamento cavi:', err);
+        console.error("[INCA] Errore caricamento cavi:", err);
         if (active) {
-          setError(
-            'Impossibile caricare i cavi INCA per questo file. Riprova o contatta l’Ufficio.'
-          );
+          setError("Impossibile caricare i cavi INCA per questo file.");
           setCavi([]);
         }
       } finally {
@@ -69,7 +66,7 @@ export default function IncaFileViewer({ file }) {
         metriPosati += Number(c.metri_posati_teorici) || 0;
       if (c.metri_totali != null) metriTot += Number(c.metri_totali) || 0;
 
-      const stato = (c.stato_cantiere || '').trim() || 'SENZA STATO';
+      const stato = (c.stato_cantiere || "").trim() || "SENZA STATO";
       byStatoCantiere[stato] = (byStatoCantiere[stato] || 0) + 1;
     }
 
@@ -86,17 +83,15 @@ export default function IncaFileViewer({ file }) {
   if (!file) {
     return (
       <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-4 py-4 text-[13px] text-slate-300">
-        <div className="text-[12px] text-slate-400 uppercase tracking-[0.18em] mb-1">
-          Modulo INCA · Nessun file selezionato
+        <div className="text-[11px] text-slate-500 uppercase tracking-[0.18em] mb-1">
+          INCA
         </div>
         <div className="text-[15px] font-semibold text-slate-50 mb-1">
-          Seleziona un file INCA dalla lista
+          Nessun file selezionato
         </div>
-        <p className="text-[13px] text-slate-300 max-w-xl">
-          A sinistra trovi tutti i file INCA importati (XLSX / PDF). Seleziona un file
-          per vedere la lista cavi normalizzata con metri, stati e note. Ogni cavo
-          è collegato all’Archivio CORE.
-        </p>
+        <div className="text-[12px] text-slate-400">
+          Seleziona un file dalla lista per aprire i cavi.
+        </div>
       </div>
     );
   }

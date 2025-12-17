@@ -2,72 +2,46 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ==========================================================================
-   RAPPORTINO — Screen + Mobile + Print + Print Preview
-   Canon: #rapportino-document + .rapportino-document
-   ========================================================================== */
-
-:root {
-  --rapportino-page-bg: #ffffff;
-  --rapportino-ink: #0b1220;
-  --rapportino-border: rgba(15, 23, 42, 0.18);
-  --rapportino-grid: rgba(15, 23, 42, 0.12);
-  --rapportino-shadow: 0 18px 45px rgba(0, 0, 0, 0.25);
-
-  /* A4 width reference */
-  --a4-width: 210mm;
-  --a4-pad: 10mm;
-}
-
-/* Helpers */
+/* =========================
+   Helpers print / screen
+   ========================= */
 .no-print { display: block; }
 .print-only { display: none; }
 
-/* ==========================================================================
-   Base Screen (default)
-   ========================================================================== */
-
-/* Document host: keep it natural in app layout */
-#rapportino-document {
-  background: transparent;
-  color: var(--rapportino-ink);
+@media print {
+  .no-print { display: none !important; }
+  .print-only { display: block !important; }
 }
 
-/* The paper itself */
+/* =========================
+   Rapportino document
+   ========================= */
 .rapportino-document {
-  background: var(--rapportino-page-bg);
-  color: var(--rapportino-ink);
-  border: 1px solid var(--rapportino-border);
-  border-radius: 14px;
-  box-shadow: var(--rapportino-shadow);
-  width: 100%;
-  max-width: 980px;              /* Desktop cap */
+  width: min(1100px, 100%);
   margin: 0 auto;
-  padding: 18px 18px 14px;
+  padding: 16px;
+  border-radius: 12px;
+  background: #fff;
 }
 
-/* Table */
+/* =========================
+   Table layout (CRITICAL)
+   ========================= */
 .rapportino-table {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  border: 1px solid var(--rapportino-border);
-  border-radius: 12px;
+  table-layout: fixed;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
   overflow: hidden;
-}
-
-.rapportino-table thead th {
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: rgba(15, 23, 42, 0.75);
-  background: rgba(15, 23, 42, 0.04);
-  border-bottom: 1px solid var(--rapportino-border);
 }
 
 .rapportino-table th,
 .rapportino-table td {
-  border-right: 1px solid var(--rapportino-grid);
+  border-right: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: top;
 }
 
 .rapportino-table th:last-child,
@@ -75,168 +49,147 @@
   border-right: none;
 }
 
-.rapportino-table tbody tr td {
-  border-top: 1px solid rgba(15, 23, 42, 0.10);
+.rapportino-table tr:last-child td {
+  border-bottom: none;
 }
 
+/* =========================
+   Textareas auto-height
+   ========================= */
 .rapportino-textarea {
   resize: none;
-  overflow: hidden; /* critical: no internal scroll */
+  overflow: hidden;
   min-height: 22px;
   line-height: 1.25;
 }
 
-/* Print text blocks (when print-only is visible) */
+/* Print multiline */
 .rapportino-print-text {
   white-space: pre-wrap;
   word-break: break-word;
   line-height: 1.25;
 }
 
-/* ==========================================================================
-   Mobile-first adjustments (screen)
-   ========================================================================== */
+/* =========================
+   COLUMN WIDTHS — SCREEN
+   ========================= */
+.rapportino-table th:nth-child(1),
+.rapportino-table td:nth-child(1) { width: 120px; }   /* CATEGORIA */
 
-@media (max-width: 640px) {
-  .rapportino-document {
-    max-width: 100%;
-    border-radius: 12px;
-    padding: 14px 12px 12px;
-    box-shadow: 0 10px 26px rgba(0,0,0,0.18);
-  }
+.rapportino-table th:nth-child(2),
+.rapportino-table td:nth-child(2) { width: 220px; }   /* DESCRIZIONE (réduite) */
 
-  /* Make table scroll horizontally instead of breaking layout */
-  .rapportino-table {
-    display: block;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
+.rapportino-table th:nth-child(3),
+.rapportino-table td:nth-child(3) { width: 170px; }   /* OPERATORE */
 
-  .rapportino-table thead,
-  .rapportino-table tbody,
-  .rapportino-table tr {
-    white-space: nowrap;
-  }
+.rapportino-table th:nth-child(4),
+.rapportino-table td:nth-child(4) { width: 110px; }   /* TEMPO */
 
-  /* Slightly tighten padding */
-  .rapportino-table th,
-  .rapportino-table td {
-    padding-left: 8px !important;
-    padding-right: 8px !important;
-  }
+.rapportino-table th:nth-child(5),
+.rapportino-table td:nth-child(5) { width: 100px; }   /* PREVISTO */
+
+.rapportino-table th:nth-child(6),
+.rapportino-table td:nth-child(6) { width: 110px; }   /* PRODOTTO */
+
+/* NOTE = dernière colonne + large */
+.rapportino-table th:nth-child(7),
+.rapportino-table td:nth-child(7) {
+  width: auto;
+  min-width: 320px;
 }
 
-/* ==========================================================================
-   PRINT PREVIEW MODE (html.print-preview)
-   Goal: isolate paper above AppShell sidebar/header -> no superposition
-   ========================================================================== */
-
-html.print-preview,
-body.print-preview {
-  height: 100%;
-  overflow: hidden;
-  background: #05070d; /* deep */
+/* =========================
+   DELETE COLUMN (X) — REMOVED
+   ========================= */
+.rapportino-table th:nth-child(8),
+.rapportino-table td:nth-child(8) {
+  display: none !important;
 }
 
-/* Hide scrollbars behind preview; keep overlay controls visible */
-html.print-preview #root {
-  height: 100%;
-}
-
-/* Critical: lift paper to top layer and center it */
-html.print-preview #rapportino-document {
-  position: fixed !important;
-  inset: 84px 0 54px 0; /* space for overlay top bar + hint footer */
-  z-index: 80 !important;
-  overflow: auto;
-  padding: 14px;
-}
-
-/* paper stays max width A4-ish but fits viewport */
-html.print-preview .rapportino-document {
-  width: min(var(--a4-width), calc(100vw - 28px));
-  margin: 0 auto;
-  border-radius: 12px;
-  box-shadow: 0 22px 70px rgba(0,0,0,0.65);
-}
-
-/* In preview, avoid any app layout pushing the doc (sidebar) */
-html.print-preview body,
-html.print-preview #root,
-html.print-preview #root * {
-  /* don’t mess with layout; we already fix-position the document */
-}
-
-/* ==========================================================================
-   PRINT (real)
-   ========================================================================== */
-
+/* =========================
+   PRINT — A4 LANDSCAPE
+   ========================= */
 @media print {
-  /* Remove app chrome */
-  .no-print { display: none !important; }
-  .print-only { display: block !important; }
-
-  html, body {
-    background: #ffffff !important;
-    color: #000 !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-
-  /* Force paper sizing */
   @page {
-    size: A4 portrait;
+    size: A4 landscape;
     margin: 10mm;
   }
 
-  /* Isolate document */
-  #rapportino-document {
-    position: static !important;
-    inset: auto !important;
+  html, body {
+    background: #fff !important;
+    color: #000 !important;
+    height: auto !important;
     overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* isolation totale */
+  body * {
+    visibility: hidden !important;
+  }
+
+  #rapportino-document,
+  #rapportino-document * {
+    visibility: visible !important;
+  }
+
+  #rapportino-document {
+    position: absolute;
+    inset: 0;
+    width: 100% !important;
+    margin: 0 !important;
     padding: 0 !important;
     background: #fff !important;
   }
 
   .rapportino-document {
-    width: 100% !important;
-    max-width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important; /* @page handles margins */
     border: none !important;
     border-radius: 0 !important;
     box-shadow: none !important;
-    background: #fff !important;
   }
 
-  /* Table borders become crisp on paper */
   .rapportino-table {
-    border: 1px solid #c9cdd6 !important;
-    border-radius: 0 !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 8px !important;
   }
-  .rapportino-table thead th {
-    background: #f3f4f6 !important;
-    border-bottom: 1px solid #c9cdd6 !important;
-    color: #111827 !important;
-  }
+
   .rapportino-table th,
   .rapportino-table td {
-    border-right: 1px solid #d7dbe3 !important;
-  }
-  .rapportino-table tbody tr td {
-    border-top: 1px solid #e5e7eb !important;
+    border-color: #cbd5e1 !important;
   }
 
-  /* Inputs should look like text; avoid browser controls */
-  input, textarea, select {
-    border: none !important;
-    outline: none !important;
+  /* Sécurité: X jamais imprimé */
+  .rapportino-table th:nth-child(8),
+  .rapportino-table td:nth-child(8) {
+    display: none !important;
+  }
+
+  /* PRINT widths */
+  .rapportino-table th:nth-child(2),
+  .rapportino-table td:nth-child(2) { width: 200px !important; }
+
+  .rapportino-table th:nth-child(3),
+  .rapportino-table td:nth-child(3) { width: 150px !important; }
+
+  .rapportino-table th:nth-child(4),
+  .rapportino-table td:nth-child(4) { width: 95px !important; }
+
+  .rapportino-table th:nth-child(5),
+  .rapportino-table td:nth-child(5) { width: 85px !important; }
+
+  .rapportino-table th:nth-child(6),
+  .rapportino-table td:nth-child(6) { width: 90px !important; }
+
+  /* NOTE récupère tout l’espace restant */
+  .rapportino-table th:nth-child(7),
+  .rapportino-table td:nth-child(7) {
+    width: auto !important;
+    min-width: 0 !important;
+  }
+
+  button, input, textarea, select {
     box-shadow: none !important;
-    background: transparent !important;
-    color: #000 !important;
-    -webkit-appearance: none !important;
-    appearance: none !important;
+    outline: none !important;
   }
 }
