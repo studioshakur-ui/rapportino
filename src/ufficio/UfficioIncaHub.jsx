@@ -1,8 +1,10 @@
-// src/pages/ufficio/UfficioIncaHub.jsx
+// src/ufficio/UfficioIncaHub.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import IncaCockpitModal from "../inca/IncaCockpitModal";
+
 import LoadingScreen from "../components/LoadingScreen";
+import IncaCockpitModal from "../inca/IncaCockpitModal";
+import IncaImportModal from "../inca/IncaImportModal";
 
 export default function UfficioIncaHub() {
   const [files, setFiles] = useState([]);
@@ -11,6 +13,8 @@ export default function UfficioIncaHub() {
 
   const [selectedFileId, setSelectedFileId] = useState("");
   const [cockpitOpen, setCockpitOpen] = useState(false);
+
+  const [importOpen, setImportOpen] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -55,13 +59,16 @@ export default function UfficioIncaHub() {
     return (files || []).find((f) => f.id === selectedFileId) || null;
   }, [files, selectedFileId]);
 
+  const headerCostr = (selectedFile?.costr || "").trim();
+  const headerCommessa = (selectedFile?.commessa || "").trim();
+
   if (loadingFiles) {
     return <LoadingScreen message="Caricamento modulo INCA…" />;
   }
 
   return (
     <div className="p-4">
-      {/* TOP: header compact (no bla-bla) */}
+      {/* TOP: header compact */}
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
           <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
@@ -78,6 +85,15 @@ export default function UfficioIncaHub() {
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={() => setImportOpen(true)}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/40 px-4 py-2 text-[13px] font-semibold text-slate-200 hover:bg-slate-900/60"
+            title="Importa un file INCA (XLSX/PDF)"
+          >
+            Importa INCA
+          </button>
+
+          <button
+            type="button"
             onClick={() => setCockpitOpen(true)}
             disabled={!selectedFileId}
             className={[
@@ -89,7 +105,7 @@ export default function UfficioIncaHub() {
             title={selectedFileId ? "Apri cockpit INCA" : "Seleziona un file INCA"}
           >
             <span className="text-lg leading-none">+</span>
-            Apri cockpit INCA
+            Apri cockpit
           </button>
         </div>
       </div>
@@ -102,7 +118,7 @@ export default function UfficioIncaHub() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-        {/* IMPORT CARD (minimal text) */}
+        {/* IMPORT CARD */}
         <div className="lg:col-span-7 rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -114,14 +130,10 @@ export default function UfficioIncaHub() {
               </div>
             </div>
 
-            {/* Tu peux relier ce bouton à ton modal import existant */}
             <button
               type="button"
               className="rounded-xl border border-slate-700 bg-slate-900/40 px-3 py-2 text-[12px] text-slate-200 hover:bg-slate-900/60"
-              onClick={() => {
-                // TODO: connecte ici ton IncaImportModal
-                alert("Collega qui il tuo Import INCA (modal).");
-              }}
+              onClick={() => setImportOpen(true)}
             >
               Importa file INCA
             </button>
@@ -132,7 +144,7 @@ export default function UfficioIncaHub() {
           </div>
         </div>
 
-        {/* RIGHT: Projects / active ships (clean empty) */}
+        {/* RIGHT: Projects / active ships */}
         <div className="lg:col-span-5 rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
           <div className="flex items-center justify-between">
             <div>
@@ -155,7 +167,12 @@ export default function UfficioIncaHub() {
               </div>
             ) : (
               <div className="text-[12px] text-slate-400">
-                Seleziona un file e apri il cockpit.
+                Seleziona un file e apri il cockpit.{" "}
+                {selectedFile ? (
+                  <span className="text-slate-500">
+                    (Selezionato: {headerCostr || "—"} · {headerCommessa || "—"})
+                  </span>
+                ) : null}
               </div>
             )}
           </div>
@@ -226,9 +243,7 @@ export default function UfficioIncaHub() {
                       {f.file_type || "—"}
                     </td>
                     <td className="px-4 py-2 text-[12px] text-slate-500">
-                      {f.uploaded_at
-                        ? new Date(f.uploaded_at).toLocaleString()
-                        : "—"}
+                      {f.uploaded_at ? new Date(f.uploaded_at).toLocaleString() : "—"}
                     </td>
                   </tr>
                 );
@@ -270,6 +285,21 @@ export default function UfficioIncaHub() {
           </div>
         )}
       </div>
+
+      {/* IMPORT MODAL */}
+      <IncaImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        defaultCostr={headerCostr || ""}
+        defaultCommessa={headerCommessa || ""}
+        onImported={(data) => {
+          // si commit renvoie inca_file_id, on le sélectionne direct
+          const newId = data?.inca_file_id || null;
+          setImportOpen(false);
+          if (newId) setSelectedFileId(newId);
+          window.location.reload(); // simple & fiable (tu améliorera ensuite)
+        }}
+      />
 
       {/* FULLSCREEN COCKPIT MODAL */}
       <IncaCockpitModal
