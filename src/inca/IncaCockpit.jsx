@@ -15,7 +15,7 @@ import {
 import LoadingScreen from "../components/LoadingScreen";
 
 // =====================================================
-// INCA COCKPIT (UFFICIO) — Page OR Modal embeddable
+// INCA COCKPIT (UFFICIO) — Percorso-level UI
 // =====================================================
 
 const SITUAZIONI_ORDER = ["T", "P", "R", "B", "E", "NP"];
@@ -56,39 +56,22 @@ function isoWeek(dateLike) {
   }
 }
 
-/**
- * IncaCockpit
- *
- * Modes:
- * - mode="page"  : autonomous page (loads inca_files, allows selecting file)
- * - mode="modal" : embedded cockpit, driven by incaFileId (no file list UI)
- *
- * Props:
- * - mode: "page" | "modal"
- * - incaFileId: uuid (required for modal mode)
- * - initialCostr / initialCommessa: optional
- * - onRequestClose: optional (used by modal wrapper)
- */
 export default function IncaCockpit({
-  mode = "page",
-  incaFileId = "",
-  initialCostr = "",
-  initialCommessa = "",
+  mode, // "modal" | undefined
+  fileId: fileIdProp, // pilotage externe
   onRequestClose,
 }) {
-  const isModal = mode === "modal";
-
-  // Filters / selection
-  const [costr, setCostr] = useState(initialCostr || "");
-  const [commessa, setCommessa] = useState(initialCommessa || "");
-  const [fileId, setFileId] = useState(incaFileId || "");
+  // Filters
+  const [costr, setCostr] = useState("");
+  const [commessa, setCommessa] = useState("");
+  const [fileId, setFileId] = useState("");
 
   const [query, setQuery] = useState("");
   const [onlyP, setOnlyP] = useState(false);
   const [onlyNP, setOnlyNP] = useState(false);
 
   const [loading, setLoading] = useState(true);
-  const [loadingFiles, setLoadingFiles] = useState(isModal ? false : true);
+  const [loadingFiles, setLoadingFiles] = useState(true);
   const [error, setError] = useState(null);
 
   // Data
@@ -103,6 +86,8 @@ export default function IncaCockpit({
 
   // KPI / computed
   const [lunghezzaMax, setLunghezzaMax] = useState(0); // 0 = no limit
+
+  const isModal = mode === "modal";
 
   // ---------------------------
   // Helpers (colors)
@@ -126,15 +111,18 @@ export default function IncaCockpit({
   };
 
   // ---------------------------
-  // Keep internal fileId in sync with prop (modal)
+  // Sync fileId from prop (external control)
   // ---------------------------
   useEffect(() => {
-    if (!isModal) return;
-    setFileId(incaFileId || "");
-  }, [incaFileId, isModal]);
+    if (!fileIdProp) return;
+    // Avoid resetting repeatedly
+    setFileId((current) => (current === fileIdProp ? current : fileIdProp));
+    // Also reset selection on file change
+    setSelectedCable(null);
+  }, [fileIdProp]);
 
   // ---------------------------
-  // UX: fermeture modal (ESC) + lock scroll (for distrib modal)
+  // UX: fermeture modal (ESC) + lock scroll (for distrib zoom)
   // ---------------------------
   useEffect(() => {
     if (!isDistribModalOpen) return;
@@ -154,11 +142,9 @@ export default function IncaCockpit({
   }, [isDistribModalOpen]);
 
   // ---------------------------
-  // Load files (inca_files) — only in page mode
+  // Load files (inca_files)
   // ---------------------------
   useEffect(() => {
-    if (isModal) return;
-
     let alive = true;
 
     async function loadFiles() {
@@ -170,13 +156,28 @@ export default function IncaCockpit({
           .order("uploaded_at", { ascending: false });
 
         if (e) throw e;
+
         if (!alive) return;
+        const list = data || [];
+        setFiles(list);
 
-        setFiles(data || []);
+        // Priority:
+        // 1) external fileIdProp
+        // 2) current fileId
+        // 3) first file
+        const prefer = fileIdProp || fileId;
+        if (prefer) {
+          const exists = list.find((x) => x.id === prefer);
+          if (exists) {
+            setFileId(exists.id);
+            setCostr(exists.costr || "");
+            setCommessa(exists.commessa || "");
+            return;
+          }
+        }
 
-        // Auto-pick first file if none selected
-        if (!fileId && (data || []).length > 0) {
-          const first = data[0];
+        if (!fileId && list.length > 0) {
+          const first = list[0];
           setFileId(first.id);
           setCostr(first.costr || "");
           setCommessa(first.commessa || "");
@@ -196,47 +197,7 @@ export default function IncaCockpit({
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isModal]);
-
-  // ---------------------------
-  // In modal mode: fetch selected file meta for header + autofill costr/commessa (if missing)
-  // ---------------------------
-  useEffect(() => {
-    if (!isModal) return;
-    if (!fileId) return;
-
-    let alive = true;
-
-    async function loadSelectedFileMeta() {
-      try {
-        const { data, error: e } = await supabase
-          .from("inca_files")
-          .select("*")
-          .eq("id", fileId)
-          .maybeSingle();
-
-        if (e) throw e;
-        if (!alive) return;
-
-        if (data) {
-          setFiles([data]);
-          // Fill costr/commessa only if not explicitly set
-          setCostr((prev) => prev || data.costr || "");
-          setCommessa((prev) => prev || data.commessa || "");
-        }
-      } catch (err) {
-        console.error("[IncaCockpit] loadSelectedFileMeta error:", err);
-        if (!alive) return;
-        // keep going; cockpit can still load cavi by fileId
-      }
-    }
-
-    loadSelectedFileMeta();
-
-    return () => {
-      alive = false;
-    };
-  }, [isModal, fileId]);
+  }, []);
 
   // ---------------------------
   // Load cavi (inca_cavi) for selected file/costr/commessa
@@ -261,11 +222,13 @@ export default function IncaCockpit({
 
         const { data, error: e } = await q;
         if (e) throw e;
+
         if (!alive) return;
 
         const rows = data || [];
         setCavi(rows);
 
+        // compute max length
         const maxM = rows.reduce((acc, r) => {
           const m = safeNum(r.metri_teo) || safeNum(r.metri_dis) || 0;
           return Math.max(acc, m);
@@ -373,6 +336,20 @@ export default function IncaCockpit({
     }, 0);
   }, [filteredCavi]);
 
+  const totalMetriPosati = useMemo(() => {
+    return filteredCavi.reduce((acc, r) => {
+      const s = (r.situazione || "").trim();
+      if (s !== "P") return acc;
+      const m =
+        safeNum(r.metri_posati_teorici) ||
+        safeNum(r.metri_sta) ||
+        safeNum(r.metri_sit_cavo) ||
+        safeNum(r.metri_sit_tec) ||
+        0;
+      return acc + m;
+    }, 0);
+  }, [filteredCavi]);
+
   const prodPercent = useMemo(() => {
     if (!totalCavi) return 0;
     return (done / totalCavi) * 100;
@@ -385,57 +362,65 @@ export default function IncaCockpit({
   // ---------------------------
   // UI
   // ---------------------------
-  if (!isModal && loadingFiles) {
+  if (loadingFiles) {
     return <LoadingScreen message="Caricamento file INCA…" />;
   }
 
   return (
-    <div className={isModal ? "p-4" : "min-h-[calc(100vh-80px)] p-4"}>
+    <div className="min-h-[calc(100vh-80px)] p-4">
+      {/* Optional modal header */}
+      {isModal && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-950/40 px-4 py-3">
+          <div className="min-w-0">
+            <div className="text-[11px] text-slate-500 uppercase tracking-wide">
+              Ufficio · INCA Cockpit (fullscreen)
+            </div>
+            <div className="text-[12px] text-slate-300">
+              {selectedFile?.costr || "—"} · {selectedFile?.commessa || "—"} ·{" "}
+              <span className="text-slate-400">{selectedFile?.file_name || "—"}</span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => onRequestClose?.()}
+            className="shrink-0 rounded-xl border border-slate-700 bg-slate-900/50 px-3 py-2 text-[12px] text-slate-200 hover:bg-slate-900/70"
+          >
+            Chiudi
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
           <div className="text-[11px] text-slate-500 uppercase tracking-wide">
-            {isModal ? "INCA · Cockpit" : "Ufficio · INCA Cockpit"}
+            Ufficio · INCA Cockpit
           </div>
           <div className="text-2xl font-semibold text-slate-50">
             Panorama INCA
           </div>
           <div className="text-[12px] text-slate-400 mt-1">
-            {isModal
-              ? "Analisi rapida · filtri · stato cavi"
-              : "Seleziona file, filtra e controlla la situazione."}
+            Seleziona file, filtra, e analizza la situazione reale.
           </div>
         </div>
 
-        <div className="flex items-start gap-2">
-          <div className="text-right">
-            <div className="text-[11px] text-slate-500">Ship</div>
-            <div className="text-[13px] text-slate-200 font-semibold">
-              {selectedFile?.costr || costr || "—"} ·{" "}
-              {selectedFile?.commessa || commessa || "—"}
-            </div>
-            <div className="text-[11px] text-slate-500 mt-1">
-              File:{" "}
-              <span className="text-slate-300">
-                {selectedFile?.file_name || "—"}
-              </span>
-            </div>
+        <div className="text-right">
+          <div className="text-[11px] text-slate-500">Ship</div>
+          <div className="text-[13px] text-slate-200 font-semibold">
+            {selectedFile?.costr || costr || "—"} ·{" "}
+            {selectedFile?.commessa || commessa || "—"}
           </div>
-
-          {isModal && (
-            <button
-              type="button"
-              onClick={() => onRequestClose?.()}
-              className="shrink-0 rounded-xl border border-slate-700 bg-slate-900/50 px-3 py-2 text-[12px] text-slate-200 hover:bg-slate-900/70"
-              title="Chiudi cockpit"
-            >
-              Chiudi
-            </button>
-          )}
+          <div className="text-[11px] text-slate-500 mt-1">
+            File:{" "}
+            <span className="text-slate-300">
+              {selectedFile?.file_name || "—"}
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* Controls + KPIs */}
+      {/* Controls */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
         <div className="lg:col-span-4 rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
           <div className="text-[11px] text-slate-500 uppercase tracking-wide mb-2">
@@ -443,36 +428,34 @@ export default function IncaCockpit({
           </div>
 
           <div className="space-y-3">
-            {!isModal && (
-              <div>
-                <label className="text-[12px] text-slate-400 block mb-1">
-                  File INCA
-                </label>
-                <select
-                  value={fileId}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setFileId(v);
-                    const f = (files || []).find((x) => x.id === v);
-                    if (f) {
-                      setCostr(f.costr || "");
-                      setCommessa(f.commessa || "");
-                    }
-                  }}
-                  className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[13px] text-slate-100"
-                >
-                  {(files || []).map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {(f.costr || "—") +
-                        " · " +
-                        (f.commessa || "—") +
-                        " · " +
-                        (f.file_name || "file")}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+            <div>
+              <label className="text-[12px] text-slate-400 block mb-1">
+                File INCA
+              </label>
+              <select
+                value={fileId}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setFileId(v);
+                  const f = (files || []).find((x) => x.id === v);
+                  if (f) {
+                    setCostr(f.costr || "");
+                    setCommessa(f.commessa || "");
+                  }
+                }}
+                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[13px] text-slate-100"
+              >
+                {(files || []).map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {(f.costr || "—") +
+                      " · " +
+                      (f.commessa || "—") +
+                      " · " +
+                      (f.file_name || "file")}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             <div className="grid grid-cols-2 gap-2">
               <div>
@@ -482,9 +465,8 @@ export default function IncaCockpit({
                 <input
                   value={costr}
                   onChange={(e) => setCostr(e.target.value)}
-                  placeholder="es: C001"
+                  placeholder="es: 6368"
                   className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[13px] text-slate-100"
-                  disabled={isModal}
                 />
               </div>
               <div>
@@ -494,21 +476,20 @@ export default function IncaCockpit({
                 <input
                   value={commessa}
                   onChange={(e) => setCommessa(e.target.value)}
-                  placeholder="es: COMM01"
+                  placeholder="es: SDC"
                   className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[13px] text-slate-100"
-                  disabled={isModal}
                 />
               </div>
             </div>
 
             <div>
               <label className="text-[12px] text-slate-400 block mb-1">
-                Ricerca
+                Ricerca (codice / zona / apparato / descrizione)
               </label>
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Codice, zona, apparato…"
+                placeholder="Es: CAV-..., QUADRO, PONTE, ..."
                 className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[13px] text-slate-100"
               />
             </div>
@@ -563,34 +544,35 @@ export default function IncaCockpit({
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-[11px] uppercase tracking-wide text-slate-500">
-                Stato INCA
+                Panorama INCA
               </div>
               <div className="text-[11px] text-slate-400">
-                Distribuzione situazioni (clic per ingrandire).
+                Distribuzione T / P / R / B / E / NP (clic per ingrandire).
               </div>
             </div>
-
             <div className="text-right text-[11px]">
               <div className="text-slate-400">
-                Cavi:{" "}
-                <span className="text-slate-100 font-semibold">
-                  {totalCavi}
-                </span>
+                Cavi totali:{" "}
+                <span className="text-slate-100 font-semibold">{totalCavi}</span>
               </div>
               <div className="text-slate-400">
-                P:{" "}
+                Posati (P):{" "}
                 <span className="text-emerald-300 font-semibold">{done}</span>
               </div>
               <div className="text-slate-400">
-                NP:{" "}
-                <span className="text-purple-300 font-semibold">
-                  {nonPosati}
+                Non posati (NP):{" "}
+                <span className="text-purple-300 font-semibold">{nonPosati}</span>
+              </div>
+              <div className="text-slate-400">
+                Tot. metri dis.:{" "}
+                <span className="text-slate-100 font-semibold">
+                  {formatMeters(totalMetri)}
                 </span>
               </div>
               <div className="text-slate-400">
-                Metri:{" "}
-                <span className="text-slate-100 font-semibold">
-                  {formatMeters(totalMetri)}
+                Metri posati:{" "}
+                <span className="text-emerald-200 font-semibold">
+                  {formatMeters(totalMetriPosati)}
                 </span>
               </div>
             </div>
@@ -600,7 +582,7 @@ export default function IncaCockpit({
           <div className="flex items-center gap-3 mt-3">
             <div className="flex-1">
               <div className="flex items-center justify-between text-[10px] text-slate-500 mb-1">
-                <span>Produzione (P / tutti)</span>
+                <span>Produzione globale (P / tutti)</span>
                 <span className="text-sky-300 font-semibold">
                   {prodPercent.toFixed(1)}%
                 </span>
@@ -681,9 +663,7 @@ export default function IncaCockpit({
           <div className="text-[11px] text-slate-500 uppercase tracking-wide">
             Cavi ({filteredCavi.length})
           </div>
-          <div className="text-[11px] text-slate-500">
-            Click riga → dettagli
-          </div>
+          <div className="text-[11px] text-slate-500">Click riga → dettagli</div>
         </div>
 
         {loading ? (
@@ -826,7 +806,7 @@ export default function IncaCockpit({
       {/* ===================================================== */}
       {isDistribModalOpen && (
         <div
-          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/35 backdrop-blur-md p-2"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/35 backdrop-blur-md p-2"
           role="dialog"
           aria-modal="true"
           aria-label="Dettaglio distribuzione INCA"
@@ -838,7 +818,7 @@ export default function IncaCockpit({
             <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-slate-800 bg-slate-950/75 px-4 py-3 backdrop-blur">
               <div>
                 <div className="text-[11px] text-slate-500 uppercase tracking-wide">
-                  Distribuzione INCA
+                  Panorama INCA — Distribuzione
                 </div>
                 <div className="text-lg font-semibold text-slate-50 leading-tight">
                   Situazioni T / P / R / B / E / NP
@@ -846,9 +826,9 @@ export default function IncaCockpit({
                 <div className="text-[12px] text-slate-400 mt-1">
                   Totale:{" "}
                   <span className="text-slate-100 font-semibold">{totalCavi}</span>{" "}
-                  · P:{" "}
+                  · Posati (P):{" "}
                   <span className="text-emerald-300 font-semibold">{done}</span>{" "}
-                  · NP:{" "}
+                  · Non posati (NP):{" "}
                   <span className="text-purple-300 font-semibold">{nonPosati}</span>
                 </div>
               </div>
@@ -927,7 +907,7 @@ export default function IncaCockpit({
                 </div>
 
                 <div className="text-[11px] text-slate-500 mt-3">
-                  ESC per chiudere, o clic fuori dal pannello.
+                  Astuce: ESC pour fermer, ou clic fuori dal pannello.
                 </div>
               </div>
             </div>

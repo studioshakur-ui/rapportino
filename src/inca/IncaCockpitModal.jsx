@@ -8,7 +8,7 @@ import IncaCockpit from "./IncaCockpit";
  * - Click on backdrop closes
  * - Locks body scroll
  */
-export default function IncaCockpitModal({ open, incaFileId, onClose }) {
+export default function IncaCockpitModal({ open, fileId, onClose }) {
   useEffect(() => {
     if (!open) return;
 
@@ -43,7 +43,7 @@ export default function IncaCockpitModal({ open, incaFileId, onClose }) {
           <div className="h-full overflow-auto">
             <IncaCockpit
               mode="modal"
-              incaFileId={incaFileId}
+              fileId={fileId}
               onRequestClose={onClose}
             />
           </div>
