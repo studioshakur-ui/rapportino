@@ -72,15 +72,37 @@ export default function RapportinoPage() {
   const [showErrorDetails, setShowErrorDetails] = useState(false);
   const [successMessage, setSuccessMessage] = useState(null);
 
+  // Inbox RETURNED (rapporto rimandato dall'Ufficio):
+  // rende impossibile "mancare" un ritorno anche se la data corrente è diversa.
+  const [returnedCount, setReturnedCount] = useState(0);
+  const [latestReturned, setLatestReturned] = useState(null);
+  const [returnedLoading, setReturnedLoading] = useState(false);
+
   const capoName = useMemo(() => {
     return (
-      (profile?.display_name || profile?.full_name || profile?.email || "Capo Squadra")
+      (profile?.display_name ||
+        profile?.full_name ||
+        profile?.email ||
+        "Capo Squadra")
         .toUpperCase()
         .trim()
     );
   }, [profile]);
 
   const statusLabel = STATUS_LABELS[status] || status;
+
+  const formatDateIt = (iso) => {
+    if (!iso) return "";
+    try {
+      return new Date(iso).toLocaleDateString("it-IT", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
+    } catch {
+      return iso;
+    }
+  };
 
   const prodottoTotale = useMemo(() => {
     return rows.reduce((sum, r) => {
@@ -90,7 +112,65 @@ export default function RapportinoPage() {
   }, [rows]);
 
   // INCA éditable uniquement si rapportino déjà créé et état editable
-  const canEditInca = !!rapportinoId && (status === "DRAFT" || status === "RETURNED");
+  const canEditInca =
+    !!rapportinoId && (status === "DRAFT" || status === "RETURNED");
+
+  const loadReturnedInbox = async () => {
+    if (!profile?.id) {
+      setReturnedCount(0);
+      setLatestReturned(null);
+      return;
+    }
+
+    setReturnedLoading(true);
+    try {
+      // Count (HEAD request) — léger et rapide
+      const { count, error: countError } = await supabase
+        .from("rapportini")
+        .select("id", { count: "exact", head: true })
+        .eq("capo_id", profile.id)
+        .eq("crew_role", normalizedCrewRole)
+        .eq("status", "RETURNED");
+
+      if (countError) throw countError;
+
+      // Dernier RETURNED
+      const { data: last, error: lastError } = await supabase
+        .from("rapportini")
+        .select("id, report_date, costr, commessa, updated_at")
+        .eq("capo_id", profile.id)
+        .eq("crew_role", normalizedCrewRole)
+        .eq("status", "RETURNED")
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (lastError && lastError.code !== "PGRST116") throw lastError;
+
+      setReturnedCount(Number(count || 0));
+      setLatestReturned(last || null);
+    } catch (e) {
+      console.warn("[Rapportino] returned inbox load failed:", e);
+      // Ne bloque pas la page principale
+      setReturnedCount(0);
+      setLatestReturned(null);
+    } finally {
+      setReturnedLoading(false);
+    }
+  };
+
+  // Charger l'inbox RETURNED indépendamment de la date affichée.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      if (!active) return;
+      await loadReturnedInbox();
+    })();
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.id, normalizedCrewRole]);
 
   useEffect(() => {
     let active = true;
@@ -154,9 +234,13 @@ export default function RapportinoPage() {
               operatori: r.operatori ?? "",
               tempo: r.tempo ?? "",
               previsto:
-                r.previsto !== null && r.previsto !== undefined ? String(r.previsto) : "",
+                r.previsto !== null && r.previsto !== undefined
+                  ? String(r.previsto)
+                  : "",
               prodotto:
-                r.prodotto !== null && r.prodotto !== undefined ? String(r.prodotto) : "",
+                r.prodotto !== null && r.prodotto !== undefined
+                  ? String(r.prodotto)
+                  : "",
               note: r.note ?? "",
             }));
             setRows(mapped);
@@ -298,13 +382,22 @@ export default function RapportinoPage() {
       }
 
       if (cleanRows.length > 0) {
-        const rowsToInsert = cleanRows.map((r) => ({ ...r, rapportino_id: newId }));
-        const { error: insertRowsError } = await supabase.from("rapportino_rows").insert(rowsToInsert);
+        const rowsToInsert = cleanRows.map((r) => ({
+          ...r,
+          rapportino_id: newId,
+        }));
+        const { error: insertRowsError } = await supabase
+          .from("rapportino_rows")
+          .insert(rowsToInsert);
         if (insertRowsError) throw insertRowsError;
       }
 
       setStatus(newStatus);
       setSuccessMessage("Salvataggio riuscito.");
+
+      // Si le rapport était RETURNED et vient d'être corrigé/validé,
+      // on rafraîchit l'inbox pour enlever immédiatement la bannière.
+      await loadReturnedInbox();
       return true;
     } catch (err) {
       console.error("Errore salvataggio rapportino:", err);
@@ -401,6 +494,72 @@ export default function RapportinoPage() {
       </header>
 
       <main className="flex-1 px-2 md:px-4 py-4 md:py-6">
+        {/* Banner RETURNED — impossible à manquer */}
+        {latestReturned && returnedCount > 0 && (
+          <div className="no-print max-w-6xl mx-auto px-2 md:px-0 mb-4">
+            <div className="rounded-2xl border border-amber-400/40 bg-gradient-to-r from-amber-500/15 via-slate-900/60 to-slate-900/60 p-3 md:p-3.5">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-200">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-300" />
+                      Rimandato
+                    </span>
+                    <span className="text-[11px] text-slate-300">
+                      {returnedCount} in attesa
+                    </span>
+                  </div>
+
+                  <div className="mt-1 text-[12px] md:text-[13px] text-slate-100 font-semibold truncate">
+                    {formatDateIt(latestReturned.report_date)} · COSTR{" "}
+                    {latestReturned.costr || "—"}
+                    {latestReturned.commessa
+                      ? ` / ${latestReturned.commessa}`
+                      : ""}
+                  </div>
+
+                  <div className="mt-0.5 text-[11px] text-slate-300">
+                    {rapportinoId === latestReturned.id && status === "RETURNED"
+                      ? "Documento aperto: correggi e salva, poi valida."
+                      : "Documento rimandato dall'Ufficio: apri e correggi."}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={
+                      rapportinoId === latestReturned.id && status === "RETURNED"
+                    }
+                    onClick={() => {
+                      setError(null);
+                      setErrorDetails(null);
+                      setShowErrorDetails(false);
+                      setSuccessMessage(null);
+                      if (latestReturned?.report_date)
+                        setReportDate(latestReturned.report_date);
+                    }}
+                    className={
+                      "px-3 py-1.5 rounded-full border text-[11px] font-semibold tracking-[0.06em] transition-colors " +
+                      (rapportinoId === latestReturned.id && status === "RETURNED"
+                        ? "border-slate-700 text-slate-400 bg-slate-900/40"
+                        : "border-amber-300/40 text-amber-100 bg-amber-500/15 hover:bg-amber-500/25")
+                    }
+                  >
+                    Apri e correggi
+                  </button>
+
+                  {returnedLoading && (
+                    <span className="text-[11px] text-slate-400">
+                      Aggiornamento…
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="flex justify-center">
           <div
             id="rapportino-document"
@@ -425,10 +584,8 @@ export default function RapportinoPage() {
             <div className="mt-6 no-print">
               <RapportinoIncaCaviSection
                 rapportinoId={rapportinoId}
-  reportDate={reportDate}
-  costr={costr}
-  commessa={commessa}
-                
+                shipCostr={costr}
+                disabled={!canEditInca}
               />
             </div>
 
@@ -444,9 +601,13 @@ export default function RapportinoPage() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                {saving && <span className="text-slate-500">Salvataggio in corso…</span>}
+                {saving && (
+                  <span className="text-slate-500">Salvataggio in corso…</span>
+                )}
                 {successMessage && (
-                  <span className="text-emerald-700 font-semibold">{successMessage}</span>
+                  <span className="text-emerald-700 font-semibold">
+                    {successMessage}
+                  </span>
                 )}
 
                 {errorDetails && (
