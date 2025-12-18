@@ -1,6 +1,6 @@
 // /src/components/core-drive/CoreDrivePreviewDrawer.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { getSignedUrl } from "../../services/coreDrive.api";
+import { getSignedUrl } from "../../services/coreDriveApi";
 import { fmtDateTimeLong } from "./coreDriveUi";
 
 function Badge({ children }) {
