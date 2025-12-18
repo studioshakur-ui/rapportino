@@ -1,6 +1,6 @@
 // src/UfficioShell.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { NavLink, useNavigate, useLocation, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "./auth/AuthProvider";
 import ConnectionIndicator from "./components/ConnectionIndicator";
 import { coreLayout } from "./ui/coreLayout";
@@ -11,10 +11,7 @@ function getInitialTheme() {
   try {
     const stored = window.localStorage.getItem("core-theme");
     if (stored === "dark" || stored === "light") return stored;
-    if (
-      window.matchMedia &&
-      window.matchMedia("(prefers-color-scheme: dark)").matches
-    ) {
+    if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
       return "dark";
     }
   } catch {}
@@ -37,26 +34,7 @@ export default function UfficioShell() {
 
   const toggleTheme = () => setTheme((c) => (c === "dark" ? "light" : "dark"));
 
-  const handleLogout = async () => {
-    try {
-      await signOut();
-    } catch (err) {
-      console.error("Errore logout ufficio:", err);
-    } finally {
-      navigate("/login");
-    }
-  };
-
-  const displayName = useMemo(
-    () =>
-      profile?.display_name ||
-      profile?.full_name ||
-      profile?.email ||
-      "Ufficio",
-    [profile]
-  );
-
-  // Sidebar dynamique (collapsed + peek)
+  // Sidebar dynamique (compact + peek)
   const [sidebarPeek, setSidebarPeek] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
@@ -77,32 +55,29 @@ export default function UfficioShell() {
 
   const effectiveCollapsed = sidebarCollapsed && !sidebarPeek;
 
-  const isInca = location.pathname.startsWith("/ufficio/inca");
-  const isCoreDrive = location.pathname.startsWith("/ufficio/archive");
-  const pageLabel = isCoreDrive ? "CORE Drive" : isInca ? "INCA" : "Rapportini";
-
-  const navItemClasses = (active, section) => {
-    const base =
-      "w-full flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition-colors";
-    if (active) {
-      if (section === "inca") {
-        return isDark
-          ? `${base} bg-emerald-950/20 border-emerald-500/70 text-emerald-100`
-          : `${base} bg-emerald-50 border-emerald-400 text-emerald-800`;
-      }
-      if (section === "drive") {
-        return isDark
-          ? `${base} bg-violet-950/30 border-violet-500/70 text-violet-100 shadow-[0_18px_60px_rgba(139,92,246,0.14)]`
-          : `${base} bg-violet-50 border-violet-400 text-violet-800`;
-      }
-      return isDark
-        ? `${base} bg-sky-950/20 border-sky-500/70 text-sky-100`
-        : `${base} bg-sky-50 border-sky-400 text-sky-800`;
+  const handleLogout = async () => {
+    try {
+      await signOut();
+    } catch (err) {
+      console.error("Errore logout ufficio:", err);
+    } finally {
+      navigate("/login");
     }
-    return isDark
-      ? `${base} border-transparent text-slate-300 hover:border-slate-700 hover:bg-slate-900/35`
-      : `${base} border-transparent text-slate-700 hover:border-slate-300 hover:bg-slate-50`;
   };
+
+  const displayName = useMemo(() => {
+    return (
+      profile?.display_name ||
+      profile?.full_name ||
+      profile?.email ||
+      "Ufficio"
+    );
+  }, [profile]);
+
+  const pathname = location.pathname || "";
+  const isInca = pathname.startsWith("/ufficio/inca");
+  const isCoreDrive = pathname.startsWith("/ufficio/archive");
+  const pageLabel = isCoreDrive ? "CORE Drive" : isInca ? "INCA" : "Rapportini";
 
   if (!profile) {
     return (
@@ -117,14 +92,8 @@ export default function UfficioShell() {
     : "bg-transparent";
 
   return (
-    <div
-      className={[
-        "min-h-screen flex flex-col",
-        coreLayout.pageShell(isDark),
-        isCoreDrive ? "bg-[#070714]" : "",
-      ].join(" ")}
-    >
-      {/* TOP BAR — mince / silencieuse */}
+    <div className={["min-h-screen flex flex-col", coreLayout.pageShell(isDark)].join(" ")}>
+      {/* TOP BAR — 1 ligne, Logout top-right */}
       <header
         className={[
           "no-print sticky top-0 z-30 border-b backdrop-blur",
@@ -135,18 +104,16 @@ export default function UfficioShell() {
           driveTopGlow,
         ].join(" ")}
       >
-        {/* Left */}
         <div className="flex items-center gap-2.5 min-w-0">
           <button
             type="button"
             onClick={() => setSidebarCollapsed((v) => !v)}
             className={[
               "hidden md:inline-flex items-center justify-center",
-              "h-9 w-9 rounded-full border",
+              "h-9 w-9 rounded-full border transition-colors",
               isDark
                 ? "border-slate-800 text-slate-200 hover:bg-slate-900/40"
                 : "border-slate-200 text-slate-800 hover:bg-slate-50",
-              "transition-colors",
             ].join(" ")}
             aria-label={effectiveCollapsed ? "Espandi menu" : "Riduci menu"}
             title={effectiveCollapsed ? "Espandi menu" : "Riduci menu"}
@@ -154,50 +121,43 @@ export default function UfficioShell() {
             ☰
           </button>
 
-          <div className="flex items-center gap-2 min-w-0">
-            <span
-              className={[
-                "text-[10px] uppercase tracking-[0.22em] whitespace-nowrap",
-                isDark ? "text-slate-500" : "text-slate-500",
-              ].join(" ")}
-            >
-              CORE
-            </span>
+          <span className="text-[10px] uppercase tracking-[0.22em] text-slate-500 whitespace-nowrap">
+            CORE
+          </span>
 
-            <span
-              className={corePills(
-                isDark,
-                "sky",
-                "px-2 py-0.5 text-[10px] uppercase tracking-[0.14em]"
-              )}
-            >
-              UFFICIO
-            </span>
+          <span
+            className={corePills(
+              isDark,
+              "sky",
+              "px-2 py-0.5 text-[10px] uppercase tracking-[0.14em]"
+            )}
+          >
+            UFFICIO
+          </span>
 
-            <span className={isDark ? "text-slate-700" : "text-slate-300"}>·</span>
+          <span className={isDark ? "text-slate-700" : "text-slate-300"}>·</span>
 
-            <span
-              className={[
-                "text-[14px] md:text-[15px] font-semibold truncate",
-                isCoreDrive
-                  ? isDark
-                    ? "text-violet-100"
-                    : "text-violet-800"
-                  : isDark
-                  ? "text-slate-100"
-                  : "text-slate-900",
-              ].join(" ")}
-              title={pageLabel}
-            >
-              {pageLabel}
-            </span>
-          </div>
+          <span
+            className={[
+              "text-[14px] md:text-[15px] font-semibold truncate",
+              isCoreDrive
+                ? isDark
+                  ? "text-violet-100"
+                  : "text-violet-800"
+                : isDark
+                ? "text-slate-100"
+                : "text-slate-900",
+            ].join(" ")}
+            title={pageLabel}
+          >
+            {pageLabel}
+          </span>
         </div>
 
-        {/* Right — actions compact + Logout top-right */}
-        <div className="flex items-center gap-2.5 text-[11px]">
+        {/* Right cluster unique */}
+        <div className="flex items-center gap-2.5">
           <div className="flex items-center" title="Connessione">
-            <ConnectionIndicator />
+            <ConnectionIndicator compact />
           </div>
 
           <button
@@ -205,9 +165,10 @@ export default function UfficioShell() {
             onClick={toggleTheme}
             className={[
               "inline-flex items-center justify-center",
-              "h-9 w-9 rounded-full border",
-              coreLayout.themeToggle(isDark),
-              "transition-colors",
+              "h-9 w-9 rounded-full border transition-colors",
+              isDark
+                ? "border-slate-800 bg-slate-950/20 hover:bg-slate-900/35"
+                : "border-slate-200 bg-white hover:bg-slate-50",
             ].join(" ")}
             aria-label="Tema"
             title="Tema"
@@ -233,13 +194,11 @@ export default function UfficioShell() {
             onClick={handleLogout}
             className={[
               "inline-flex items-center gap-2",
-              "rounded-full border",
-              "px-2.5 py-1",
-              "text-[11px] font-medium",
+              "rounded-full border px-2.5 py-1",
+              "text-[11px] font-medium transition-colors",
               isDark
                 ? "border-rose-500/80 text-rose-100 hover:bg-rose-600/20"
                 : "border-rose-400 text-rose-700 hover:bg-rose-50",
-              "transition-colors",
             ].join(" ")}
             title="Logout"
             aria-label="Logout"
@@ -253,7 +212,7 @@ export default function UfficioShell() {
       </header>
 
       <div className="flex flex-1 min-h-0">
-        {/* SIDEBAR — dynamique (desktop) */}
+        {/* SIDEBAR — premium, compacte */}
         <aside
           className={[
             "no-print border-r hidden md:flex flex-col",
@@ -272,7 +231,8 @@ export default function UfficioShell() {
               end
               className={({ isActive }) =>
                 [
-                  navItemClasses(isActive, "rapportini"),
+                  corePills(isDark, "sky", "w-full flex items-center gap-2 justify-start"),
+                  isActive ? "" : "opacity-85 hover:opacity-100",
                   effectiveCollapsed ? "justify-center px-0" : "",
                 ].join(" ")
               }
@@ -286,7 +246,8 @@ export default function UfficioShell() {
               to="/ufficio/inca"
               className={({ isActive }) =>
                 [
-                  navItemClasses(isActive, "inca"),
+                  corePills(isDark, "emerald", "w-full flex items-center gap-2 justify-start"),
+                  isActive ? "" : "opacity-85 hover:opacity-100",
                   effectiveCollapsed ? "justify-center px-0" : "",
                 ].join(" ")
               }
@@ -300,7 +261,10 @@ export default function UfficioShell() {
               to="/ufficio/archive"
               className={({ isActive }) =>
                 [
-                  navItemClasses(isActive, "drive"),
+                  corePills(isDark, "violet", "w-full flex items-center gap-2 justify-start font-semibold"),
+                  isActive
+                    ? "bg-violet-950/30 border-violet-500/65 text-violet-100 shadow-[0_18px_60px_rgba(139,92,246,0.16)]"
+                    : "bg-violet-950/18 border-violet-500/50 text-violet-100/90 hover:bg-violet-950/25",
                   effectiveCollapsed ? "justify-center px-0" : "",
                 ].join(" ")
               }
@@ -317,21 +281,9 @@ export default function UfficioShell() {
         </aside>
 
         {/* MAIN */}
-        <main
-          className={[
-            "flex-1 min-h-0 overflow-y-auto",
-            coreLayout.mainBg(isDark),
-            isCoreDrive ? "bg-[#070714]" : "",
-          ].join(" ")}
-        >
+        <main className={["flex-1 min-h-0 overflow-y-auto", coreLayout.mainBg(isDark)].join(" ")}>
           <section className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
-            <div
-              className={[
-                "border rounded-2xl overflow-hidden",
-                coreLayout.primaryPanel(isDark),
-                isCoreDrive ? "border-violet-500/25" : "",
-              ].join(" ")}
-            >
+            <div className={["border rounded-2xl overflow-hidden", coreLayout.primaryPanel(isDark)].join(" ")}>
               <Outlet />
             </div>
           </section>
