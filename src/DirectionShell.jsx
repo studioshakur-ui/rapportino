@@ -1,6 +1,6 @@
 // src/DirectionShell.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useLocation, Routes, Route } from "react-router-dom";
+import { Link, useLocation, useNavigate, Routes, Route } from "react-router-dom";
 
 import { useAuth } from "./auth/AuthProvider";
 import ConnectionIndicator from "./components/ConnectionIndicator";
@@ -20,10 +20,7 @@ function getInitialTheme() {
   try {
     const stored = window.localStorage.getItem("core-theme");
     if (stored === "dark" || stored === "light") return stored;
-    if (
-      window.matchMedia &&
-      window.matchMedia("(prefers-color-scheme: dark)").matches
-    ) {
+    if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
       return "dark";
     }
   } catch {}
@@ -34,9 +31,7 @@ function UfficioView({ isDark }) {
   const location = useLocation();
   const isHere = (path) =>
     location.pathname === path || location.pathname.startsWith(path + "/");
-  const j = (...p) => p.filter(Boolean).join(" ");
 
-  // Tabs compacts (silencieux)
   const tabBase =
     "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] transition";
   const tabOff = isDark
@@ -59,25 +54,13 @@ function UfficioView({ isDark }) {
 
   return (
     <div className="space-y-4">
-      {/* Header minimal (réduction bruit) */}
+      {/* Header minimal */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span
-            className={corePills(
-              isDark,
-              "neutral",
-              "px-2 py-0.5 text-[10px] uppercase tracking-[0.16em]"
-            )}
-          >
+          <span className={corePills(isDark, "neutral", "px-2 py-0.5 text-[10px] uppercase tracking-[0.16em]")}>
             Ufficio View
           </span>
-          <span
-            className={corePills(
-              isDark,
-              "neutral",
-              "px-2 py-0.5 text-[10px] uppercase tracking-[0.16em]"
-            )}
-          >
+          <span className={corePills(isDark, "neutral", "px-2 py-0.5 text-[10px] uppercase tracking-[0.16em]")}>
             READ
           </span>
         </div>
@@ -93,7 +76,7 @@ function UfficioView({ isDark }) {
       <div className="flex flex-wrap items-center gap-2">
         <Link
           to="/direction/ufficio-view"
-          className={j(tabBase, isTabRapportini ? tabOnRap : tabOff)}
+          className={[tabBase, isTabRapportini ? tabOnRap : tabOff].join(" ")}
         >
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
           Rapportini
@@ -101,7 +84,7 @@ function UfficioView({ isDark }) {
 
         <Link
           to="/direction/ufficio-view/inca"
-          className={j(tabBase, isHere("/direction/ufficio-view/inca") ? tabOnInca : tabOff)}
+          className={[tabBase, isHere("/direction/ufficio-view/inca") ? tabOnInca : tabOff].join(" ")}
         >
           <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
           INCA
@@ -109,10 +92,7 @@ function UfficioView({ isDark }) {
 
         <Link
           to="/direction/ufficio-view/archive"
-          className={j(
-            tabBase,
-            isHere("/direction/ufficio-view/archive") ? tabOnDrive : tabOff
-          )}
+          className={[tabBase, isHere("/direction/ufficio-view/archive") ? tabOnDrive : tabOff].join(" ")}
         >
           <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
           CORE Drive
@@ -149,13 +129,11 @@ export default function DirectionShell() {
 
   const toggleTheme = () => setTheme((c) => (c === "dark" ? "light" : "dark"));
 
-  // Sidebar dynamique (collapsed + peek)
+  // Sidebar dynamique
   const [sidebarPeek, setSidebarPeek] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
-      const stored = window.localStorage.getItem(
-        "core-sidebar-collapsed-direction"
-      );
+      const stored = window.localStorage.getItem("core-sidebar-collapsed-direction");
       if (stored === "1" || stored === "0") return stored === "1";
     } catch {}
     return true;
@@ -176,9 +154,7 @@ export default function DirectionShell() {
 
   useEffect(() => {
     try {
-      const dismissed = window.localStorage.getItem(
-        "core-presentation-dismissed"
-      );
+      const dismissed = window.localStorage.getItem("core-presentation-dismissed");
       if (dismissed === "1") return;
       const lastSeen = window.localStorage.getItem("core-presentation-last-seen");
       if (!lastSeen) setShowPresentationModal(true);
@@ -211,12 +187,7 @@ export default function DirectionShell() {
   };
 
   const displayName = useMemo(() => {
-    return (
-      profile?.display_name ||
-      profile?.full_name ||
-      profile?.email ||
-      "Direzione"
-    );
+    return profile?.display_name || profile?.full_name || profile?.email || "Direzione";
   }, [profile]);
 
   const pathname = location.pathname || "";
@@ -229,27 +200,27 @@ export default function DirectionShell() {
     return p === path || p.startsWith(path + "/");
   };
 
-  const navItemClasses = (active, variant) => {
+  const navBtn = (active, variant) => {
     const base =
-      "w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-sm border transition-colors";
-    if (active) {
-      if (variant === "drive") {
-        return isDark
-          ? `${base} bg-violet-950/30 border-violet-500/65 text-violet-100 shadow-[0_18px_60px_rgba(139,92,246,0.14)]`
-          : `${base} bg-violet-50 border-violet-400 text-violet-900`;
-      }
-      if (variant === "ufficio") {
-        return isDark
-          ? `${base} bg-emerald-950/20 border-emerald-500/60 text-emerald-100`
-          : `${base} bg-emerald-50 border-emerald-400 text-emerald-900`;
-      }
+      "w-full flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition-colors";
+    if (!active) {
       return isDark
-        ? `${base} bg-sky-950/20 border-sky-500/55 text-slate-100`
-        : `${base} bg-sky-50 border-sky-400 text-slate-900`;
+        ? `${base} border-transparent text-slate-300 hover:border-slate-700 hover:bg-slate-900/35`
+        : `${base} border-transparent text-slate-700 hover:border-slate-300 hover:bg-slate-50`;
+    }
+    if (variant === "drive") {
+      return isDark
+        ? `${base} bg-violet-950/30 border-violet-500/65 text-violet-100 shadow-[0_18px_60px_rgba(139,92,246,0.14)]`
+        : `${base} bg-violet-50 border-violet-400 text-violet-900`;
+    }
+    if (variant === "ufficio") {
+      return isDark
+        ? `${base} bg-emerald-950/20 border-emerald-500/60 text-emerald-100`
+        : `${base} bg-emerald-50 border-emerald-400 text-emerald-900`;
     }
     return isDark
-      ? `${base} bg-slate-950/20 border-slate-800 text-slate-300 hover:bg-slate-900/35`
-      : `${base} bg-white border-slate-200 text-slate-700 hover:bg-slate-50`;
+      ? `${base} bg-sky-950/20 border-sky-500/55 text-slate-100`
+      : `${base} bg-sky-50 border-sky-400 text-slate-900`;
   };
 
   if (!profile) {
@@ -265,14 +236,8 @@ export default function DirectionShell() {
     : "bg-transparent";
 
   return (
-    <div
-      className={
-        isDark
-          ? `min-h-screen text-slate-100 ${isCoreDrive ? "bg-[#070714]" : "bg-[#050910]"}`
-          : "min-h-screen bg-slate-50 text-slate-900"
-      }
-    >
-      {/* TOP BAR (mince) */}
+    <div className={isDark ? "min-h-screen text-slate-100 bg-[#050910]" : "min-h-screen bg-slate-50 text-slate-900"}>
+      {/* TOP BAR — 1 ligne, Logout top-right */}
       <header
         className={[
           "no-print sticky top-0 z-30 border-b backdrop-blur",
@@ -289,11 +254,10 @@ export default function DirectionShell() {
             onClick={() => setSidebarCollapsed((v) => !v)}
             className={[
               "hidden md:inline-flex items-center justify-center",
-              "h-9 w-9 rounded-full border",
+              "h-9 w-9 rounded-full border transition-colors",
               isDark
                 ? "border-slate-800 text-slate-200 hover:bg-slate-900/40"
                 : "border-slate-200 text-slate-800 hover:bg-slate-50",
-              "transition-colors",
             ].join(" ")}
             aria-label={effectiveCollapsed ? "Espandi menu" : "Riduci menu"}
             title={effectiveCollapsed ? "Espandi menu" : "Riduci menu"}
@@ -305,13 +269,7 @@ export default function DirectionShell() {
             CORE
           </span>
 
-          <span
-            className={corePills(
-              isDark,
-              "sky",
-              "px-2 py-0.5 text-[10px] uppercase tracking-[0.14em]"
-            )}
-          >
+          <span className={corePills(isDark, "sky", "px-2 py-0.5 text-[10px] uppercase tracking-[0.14em]")}>
             DIREZIONE
           </span>
 
@@ -328,7 +286,7 @@ export default function DirectionShell() {
           </span>
         </div>
 
-        <div className="flex items-center gap-2.5 text-[11px]">
+        <div className="flex items-center gap-2.5">
           <div className="flex items-center" title="Connessione">
             <ConnectionIndicator compact />
           </div>
@@ -362,14 +320,12 @@ export default function DirectionShell() {
             {displayName}
           </span>
 
-          {/* Logout toujours top-right (unique) */}
           <button
             type="button"
             onClick={handleLogout}
             className={[
               "inline-flex items-center gap-2",
-              "rounded-full border",
-              "px-2.5 py-1",
+              "rounded-full border px-2.5 py-1",
               "text-[11px] font-medium transition-colors",
               isDark
                 ? "border-rose-500/80 text-rose-100 hover:bg-rose-600/20"
@@ -387,63 +343,43 @@ export default function DirectionShell() {
       </header>
 
       <div className="flex">
-        {/* SIDEBAR — dynamique */}
+        {/* SIDEBAR — premium, compacte */}
         <aside
           className={[
-            "no-print sticky top-0 h-[calc(100vh-0px)] border-r",
+            "no-print border-r hidden md:flex md:flex-col",
             isDark ? "border-slate-800 bg-[#050910]" : "border-slate-200 bg-white",
-            effectiveCollapsed ? "w-[84px] px-2" : "w-64 px-3",
+            effectiveCollapsed ? "w-[84px] px-2 py-4" : "w-64 px-3 py-4",
             "transition-[width] duration-200",
-            "hidden md:flex md:flex-col",
           ].join(" ")}
           onMouseEnter={() => setSidebarPeek(true)}
           onMouseLeave={() => setSidebarPeek(false)}
           onFocusCapture={() => setSidebarPeek(true)}
           onBlurCapture={() => setSidebarPeek(false)}
         >
-          <div className="pt-4">
-            <nav className="space-y-2">
-              <Link to="/direction" className={navItemClasses(isActive("/direction"))}>
-                <span className="flex items-center gap-2">
-                  <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
-                  {!effectiveCollapsed && <span>Dashboard</span>}
-                </span>
-              </Link>
+          <nav className={["space-y-1.5", effectiveCollapsed ? "px-0" : "px-1"].join(" ")}>
+            <Link to="/direction" className={navBtn(isActive("/direction"))}>
+              <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
+              {!effectiveCollapsed && <span>Dashboard</span>}
+            </Link>
 
-              <Link
-                to="/direction/presentazione"
-                className={navItemClasses(isActive("/direction/presentazione"))}
-              >
-                <span className="flex items-center gap-2">
-                  <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
-                  {!effectiveCollapsed && <span>Presentazione</span>}
-                </span>
-              </Link>
+            <Link to="/direction/presentazione" className={navBtn(isActive("/direction/presentazione"))}>
+              <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
+              {!effectiveCollapsed && <span>Presentazione</span>}
+            </Link>
 
-              <Link
-                to="/direction/ufficio-view"
-                className={navItemClasses(isActive("/direction/ufficio-view"), "ufficio")}
-              >
-                <span className="flex items-center gap-2">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                  {!effectiveCollapsed && <span>Ufficio View</span>}
-                </span>
-              </Link>
+            <Link to="/direction/ufficio-view" className={navBtn(isActive("/direction/ufficio-view"), "ufficio")}>
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              {!effectiveCollapsed && <span>Ufficio View</span>}
+            </Link>
 
-              <Link
-                to="/direction/archive"
-                className={navItemClasses(isActive("/direction/archive"), "drive")}
-              >
-                <span className="flex items-center gap-2">
-                  <span className="h-1.5 w-1.5 rounded-full bg-violet-400 shadow-[0_0_10px_rgba(167,139,250,0.45)]" />
-                  {!effectiveCollapsed && <span>CORE Drive</span>}
-                </span>
-              </Link>
-            </nav>
+            <Link to="/direction/archive" className={navBtn(isActive("/direction/archive"), "drive")}>
+              <span className="h-1.5 w-1.5 rounded-full bg-violet-400 shadow-[0_0_10px_rgba(167,139,250,0.45)]" />
+              {!effectiveCollapsed && <span>CORE Drive</span>}
+            </Link>
+          </nav>
 
-            <div className="mt-4 border-t border-slate-800 pt-4 text-[10px] text-slate-600">
-              {!effectiveCollapsed ? "CORE" : "·"}
-            </div>
+          <div className="mt-auto pt-4 border-t border-slate-800 text-[10px] text-slate-600">
+            <div>CORE</div>
           </div>
         </aside>
 
@@ -459,10 +395,7 @@ export default function DirectionShell() {
           </div>
 
           {showPresentationModal && (
-            <CorePresentationPopup
-              onOpen={handleOpenPresentation}
-              onClose={handleDismissPresentation}
-            />
+            <CorePresentationPopup onOpen={handleOpenPresentation} onClose={handleDismissPresentation} />
           )}
         </main>
       </div>
