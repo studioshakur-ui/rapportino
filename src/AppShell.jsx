@@ -11,22 +11,20 @@ export default function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // CAPO: dark-only (CORE 1.0)
+  // CORE 1.0: CAPO dark-only
   const isDark = true;
 
   const pathname = location.pathname || "";
   const isCoreDrive = pathname.startsWith("/app/archive");
-  const isInca = pathname.includes("/inca");
-  const pageLabel = isCoreDrive ? "CORE Drive" : isInca ? "INCA" : "Rapportino";
+  const pageLabel = isCoreDrive ? "CORE Drive" : "Rapportino";
 
-  // Sidebar dynamique: collapsed + peek
+  // Sidebar dynamique (compact + peek)
   const [sidebarPeek, setSidebarPeek] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
       const v = window.localStorage.getItem("core-sidebar-collapsed");
       if (v === "1" || v === "0") return v === "1";
     } catch {}
-    // par défaut: compact
     return true;
   });
 
@@ -45,20 +43,20 @@ export default function AppShell() {
     try {
       await signOut();
     } catch (err) {
-      console.error("Errore logout capo:", err);
+      console.error("Errore logout:", err);
     } finally {
       navigate("/login");
     }
   };
 
-  const displayName = useMemo(
-    () =>
+  const displayName = useMemo(() => {
+    return (
       profile?.display_name ||
       profile?.full_name ||
       profile?.email ||
-      "Capo Squadra",
-    [profile]
-  );
+      "Capo"
+    );
+  }, [profile]);
 
   if (!profile) {
     return (
@@ -68,20 +66,13 @@ export default function AppShell() {
     );
   }
 
-  // Styles “CORE Drive premium mauve”
   const driveTopGlow = isCoreDrive
     ? "bg-gradient-to-r from-violet-950/55 via-slate-950/35 to-slate-950/20"
     : "bg-transparent";
 
   return (
-    <div
-      className={[
-        "min-h-screen flex flex-col",
-        coreLayout.pageShell(isDark),
-        isCoreDrive ? "bg-[#05050e]" : "",
-      ].join(" ")}
-    >
-      {/* TOP BAR — mince / premium / 1 ligne */}
+    <div className={["min-h-screen flex flex-col", coreLayout.pageShell(isDark)].join(" ")}>
+      {/* TOP BAR — 1 ligne, Logout top-right */}
       <header
         className={[
           "no-print sticky top-0 z-30 border-b backdrop-blur",
@@ -92,7 +83,7 @@ export default function AppShell() {
           driveTopGlow,
         ].join(" ")}
       >
-        {/* Left */}
+        {/* Left: CORE + role + page */}
         <div className="flex items-center gap-2.5 min-w-0">
           <button
             type="button"
@@ -109,39 +100,37 @@ export default function AppShell() {
             ☰
           </button>
 
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-[10px] uppercase tracking-[0.22em] text-slate-500 whitespace-nowrap">
-              CORE
-            </span>
+          <span className="text-[10px] uppercase tracking-[0.22em] text-slate-500 whitespace-nowrap">
+            CORE
+          </span>
 
-            <span
-              className={corePills(
-                isDark,
-                "sky",
-                "px-2 py-0.5 text-[10px] uppercase tracking-[0.14em]"
-              )}
-            >
-              CAPO
-            </span>
+          <span
+            className={corePills(
+              isDark,
+              "sky",
+              "px-2 py-0.5 text-[10px] uppercase tracking-[0.14em]"
+            )}
+          >
+            CAPO
+          </span>
 
-            <span className="text-slate-700">·</span>
+          <span className="text-slate-700">·</span>
 
-            <span
-              className={[
-                "text-[14px] md:text-[15px] font-semibold truncate",
-                isCoreDrive ? "text-violet-100" : "text-slate-100",
-              ].join(" ")}
-              title={pageLabel}
-            >
-              {pageLabel}
-            </span>
-          </div>
+          <span
+            className={[
+              "text-[14px] md:text-[15px] font-semibold truncate",
+              isCoreDrive ? "text-violet-100" : "text-slate-100",
+            ].join(" ")}
+            title={pageLabel}
+          >
+            {pageLabel}
+          </span>
         </div>
 
-        {/* Right (Logout toujours ici) */}
-        <div className="flex items-center gap-2.5 text-[11px]">
+        {/* Right: ONLY status + user + logout (plus jamais à gauche) */}
+        <div className="flex items-center gap-2.5">
           <div className="flex items-center" title="Connessione">
-            <ConnectionIndicator />
+            <ConnectionIndicator compact />
           </div>
 
           <span
@@ -184,14 +173,13 @@ export default function AppShell() {
       </header>
 
       <div className="flex flex-1 min-h-0">
-        {/* SIDEBAR — dynamique (desktop) */}
+        {/* SIDEBAR — premium, compacte */}
         <aside
           className={[
-            "no-print border-r flex flex-col",
+            "no-print border-r hidden md:flex flex-col",
             coreLayout.sidebar(isDark),
             effectiveCollapsed ? "w-[84px] px-2 py-4" : "w-64 px-3 py-4",
             "transition-[width] duration-200",
-            "hidden md:flex",
           ].join(" ")}
           onMouseEnter={() => setSidebarPeek(true)}
           onMouseLeave={() => setSidebarPeek(false)}
@@ -204,7 +192,11 @@ export default function AppShell() {
               end
               className={({ isActive }) =>
                 [
-                  corePills(isDark, "sky", "w-full flex items-center gap-2 justify-start"),
+                  corePills(
+                    isDark,
+                    "sky",
+                    "w-full flex items-center gap-2 justify-start"
+                  ),
                   isActive ? "" : "opacity-85 hover:opacity-100",
                   effectiveCollapsed ? "justify-center px-0" : "",
                 ].join(" ")
@@ -225,12 +217,9 @@ export default function AppShell() {
                     "w-full flex items-center gap-2 justify-start font-semibold"
                   ),
                   isActive
-                    ? "shadow-[0_18px_60px_rgba(139,92,246,0.18)]"
-                    : "opacity-90 hover:opacity-100",
+                    ? "bg-violet-950/35 border-violet-500/65 text-violet-100 shadow-[0_18px_60px_rgba(139,92,246,0.18)]"
+                    : "bg-violet-950/18 border-violet-500/50 text-violet-100/90 hover:bg-violet-950/25",
                   effectiveCollapsed ? "justify-center px-0" : "",
-                  // mauve sombre puissant
-                  isActive ? "bg-violet-950/35" : "bg-violet-950/18",
-                  "border-violet-500/60",
                 ].join(" ")
               }
               title="CORE Drive"
@@ -246,13 +235,7 @@ export default function AppShell() {
         </aside>
 
         {/* MAIN */}
-        <main
-          className={[
-            "flex-1 min-h-0 overflow-y-auto",
-            coreLayout.mainBg(isDark),
-            isCoreDrive ? "bg-[#070714]" : "",
-          ].join(" ")}
-        >
+        <main className={["flex-1 min-h-0 overflow-y-auto", coreLayout.mainBg(isDark)].join(" ")}>
           <section className="mx-auto max-w-none px-0 py-0">
             <Outlet />
           </section>
