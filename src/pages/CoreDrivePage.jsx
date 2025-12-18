@@ -7,7 +7,7 @@ import CoreDriveUpload from "../components/core-drive/CoreDriveUpload";
 import CoreDriveList from "../components/core-drive/CoreDriveList";
 import CoreDrivePreviewDrawer from "../components/core-drive/CoreDrivePreviewDrawer";
 
-import { deleteCoreFile, listCoreFiles } from "../services/coreDrive.api";
+import { deleteCoreFile, listCoreFiles } from "../services/coreDriveApi";
 import { uniqSorted } from "../components/core-drive/coreDriveUi";
 
 export default function CoreDrivePage() {
