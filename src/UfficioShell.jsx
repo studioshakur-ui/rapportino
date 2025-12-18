@@ -34,7 +34,6 @@ export default function UfficioShell() {
 
   const toggleTheme = () => setTheme((c) => (c === "dark" ? "light" : "dark"));
 
-  // Sidebar dynamique (compact + peek)
   const [sidebarPeek, setSidebarPeek] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
@@ -66,12 +65,7 @@ export default function UfficioShell() {
   };
 
   const displayName = useMemo(() => {
-    return (
-      profile?.display_name ||
-      profile?.full_name ||
-      profile?.email ||
-      "Ufficio"
-    );
+    return profile?.display_name || profile?.full_name || profile?.email || "Ufficio";
   }, [profile]);
 
   const pathname = location.pathname || "";
@@ -93,45 +87,23 @@ export default function UfficioShell() {
 
   return (
     <div className={["min-h-screen flex flex-col", coreLayout.pageShell(isDark)].join(" ")}>
-      {/* TOP BAR — 1 ligne, Logout top-right */}
+      {/* TOP BAR — cockpit */}
       <header
         className={[
           "no-print sticky top-0 z-30 border-b backdrop-blur",
-          "h-12 md:h-14",
+          "h-11 md:h-12",
           "flex items-center justify-between",
           "px-3 sm:px-4 md:px-6",
           coreLayout.header(isDark),
           driveTopGlow,
         ].join(" ")}
       >
-        <div className="flex items-center gap-2.5 min-w-0">
-          <button
-            type="button"
-            onClick={() => setSidebarCollapsed((v) => !v)}
-            className={[
-              "hidden md:inline-flex items-center justify-center",
-              "h-9 w-9 rounded-full border transition-colors",
-              isDark
-                ? "border-slate-800 text-slate-200 hover:bg-slate-900/40"
-                : "border-slate-200 text-slate-800 hover:bg-slate-50",
-            ].join(" ")}
-            aria-label={effectiveCollapsed ? "Espandi menu" : "Riduci menu"}
-            title={effectiveCollapsed ? "Espandi menu" : "Riduci menu"}
-          >
-            ☰
-          </button>
-
+        <div className="flex items-center gap-2 min-w-0">
           <span className="text-[10px] uppercase tracking-[0.22em] text-slate-500 whitespace-nowrap">
             CORE
           </span>
 
-          <span
-            className={corePills(
-              isDark,
-              "sky",
-              "px-2 py-0.5 text-[10px] uppercase tracking-[0.14em]"
-            )}
-          >
+          <span className={corePills(isDark, "sky", "px-2 py-0.5 text-[10px] uppercase tracking-[0.14em]")}>
             UFFICIO
           </span>
 
@@ -154,7 +126,6 @@ export default function UfficioShell() {
           </span>
         </div>
 
-        {/* Right cluster unique */}
         <div className="flex items-center gap-2.5">
           <div className="flex items-center" title="Connessione">
             <ConnectionIndicator compact />
@@ -212,7 +183,6 @@ export default function UfficioShell() {
       </header>
 
       <div className="flex flex-1 min-h-0">
-        {/* SIDEBAR — premium, compacte */}
         <aside
           className={[
             "no-print border-r hidden md:flex flex-col",
@@ -225,6 +195,30 @@ export default function UfficioShell() {
           onFocusCapture={() => setSidebarPeek(true)}
           onBlurCapture={() => setSidebarPeek(false)}
         >
+          {/* Toggle discret en haut de sidebar */}
+          <div className={["mb-3", effectiveCollapsed ? "px-0" : "px-1"].join(" ")}>
+            <button
+              type="button"
+              onClick={() => setSidebarCollapsed((v) => !v)}
+              className={[
+                "w-full inline-flex items-center gap-2",
+                "rounded-xl border px-3 py-2",
+                "text-[11px] uppercase tracking-[0.18em] transition-colors",
+                isDark
+                  ? "border-slate-800 bg-slate-950/20 text-slate-300 hover:bg-slate-900/35"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                effectiveCollapsed ? "justify-center px-0" : "justify-start",
+              ].join(" ")}
+              title={sidebarCollapsed ? "Espandi menu" : "Riduci menu"}
+              aria-label={sidebarCollapsed ? "Espandi menu" : "Riduci menu"}
+            >
+              <span className={isDark ? "text-slate-400" : "text-slate-500"}>☰</span>
+              {!effectiveCollapsed && (
+                <span>{sidebarCollapsed ? "Espandi" : "Compatto"}</span>
+              )}
+            </button>
+          </div>
+
           <nav className={["space-y-1.5", effectiveCollapsed ? "px-0" : "px-1"].join(" ")}>
             <NavLink
               to="/ufficio"
@@ -280,7 +274,6 @@ export default function UfficioShell() {
           </div>
         </aside>
 
-        {/* MAIN */}
         <main className={["flex-1 min-h-0 overflow-y-auto", coreLayout.mainBg(isDark)].join(" ")}>
           <section className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
             <div className={["border rounded-2xl overflow-hidden", coreLayout.primaryPanel(isDark)].join(" ")}>

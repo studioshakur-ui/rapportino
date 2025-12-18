@@ -1,9 +1,6 @@
 // /src/services/coreDrive.api.js
 import { supabase } from "../lib/supabaseClient";
 
-/* =========================
-   Helpers
-========================= */
 function safeTerm(input) {
   const s = (input || "").toString().trim();
   return s.replace(/[,%]/g, " ").replace(/\s+/g, " ").trim();
@@ -18,9 +15,6 @@ function normalizeMimeGroup(mimeGroup) {
   return g;
 }
 
-/* =========================
-   Upload
-========================= */
 export async function uploadCoreFile({ file, meta }) {
   if (!file) throw new Error("Missing file");
   if (!meta?.cantiere) throw new Error("Missing meta.cantiere");
@@ -34,14 +28,12 @@ export async function uploadCoreFile({ file, meta }) {
   const fileName = safeExt ? `${crypto.randomUUID()}.${safeExt}` : `${crypto.randomUUID()}`;
   const storagePath = `${meta.cantiere}/${meta.categoria}/${fileName}`;
 
-  // 1) Upload Storage
   const { error: uploadError } = await supabase.storage
     .from("core-drive")
     .upload(storagePath, file, { upsert: false });
 
   if (uploadError) throw uploadError;
 
-  // 2) Insert metadata DB
   const { data, error } = await supabase
     .from("core_files")
     .insert([
@@ -55,7 +47,7 @@ export async function uploadCoreFile({ file, meta }) {
         cantiere: meta.cantiere,
         commessa: meta.commessa || null,
         categoria: meta.categoria,
-        origine: meta.origine || "CAPO",
+        origine: meta.origine || "UFFICIO",
         stato_doc: meta.stato_doc || "BOZZA",
 
         rapportino_id: meta.rapportino_id || null,
@@ -72,17 +64,9 @@ export async function uploadCoreFile({ file, meta }) {
     .single();
 
   if (error) throw error;
-
   return data;
 }
 
-/* =========================
-   Listing (cursor pagination)
-========================= */
-/**
- * Cursor stable: order created_at desc, id desc
- * cursor = { created_at: ISOstring, id: uuid }
- */
 export async function listCoreFiles({ filters = {}, pageSize = 60, cursor = null }) {
   const {
     cantiere,
@@ -130,9 +114,7 @@ export async function listCoreFiles({ filters = {}, pageSize = 60, cursor = null
   const t = safeTerm(text);
   if (t) {
     const like = `%${t}%`;
-    query = query.or(
-      `filename.ilike.${like},note.ilike.${like},commessa.ilike.${like},categoria.ilike.${like}`
-    );
+    query = query.or(`filename.ilike.${like},note.ilike.${like},commessa.ilike.${like},categoria.ilike.${like}`);
   }
 
   if (cursor?.created_at && cursor?.id) {
@@ -150,38 +132,24 @@ export async function listCoreFiles({ filters = {}, pageSize = 60, cursor = null
       ? { created_at: items[items.length - 1].created_at, id: items[items.length - 1].id }
       : null;
 
-  return {
-    items,
-    nextCursor,
-    hasMore: items.length === pageSize,
-  };
+  return { items, nextCursor, hasMore: items.length === pageSize };
 }
 
-/* =========================
-   Signed URL (preview)
-========================= */
 export async function getSignedUrl(coreFile, expiresSeconds = 60 * 30) {
   if (!coreFile?.storage_path) throw new Error("Missing storage_path");
-
   const { data, error } = await supabase.storage
     .from("core-drive")
     .createSignedUrl(coreFile.storage_path, expiresSeconds);
-
   if (error) throw error;
   return data.signedUrl;
 }
 
-/* =========================
-   Delete (safe order)
-========================= */
 export async function deleteCoreFile({ id, storage_path }) {
   if (!id || !storage_path) throw new Error("Missing delete args");
 
-  // 1) Storage first (avoid orphans)
   const { error: delFileErr } = await supabase.storage.from("core-drive").remove([storage_path]);
   if (delFileErr) throw delFileErr;
 
-  // 2) DB after
   const { error: delMetaErr } = await supabase.from("core_files").delete().eq("id", id);
   if (delMetaErr) throw delMetaErr;
 

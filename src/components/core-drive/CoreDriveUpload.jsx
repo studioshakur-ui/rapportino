@@ -1,7 +1,7 @@
-// /src/components/core-drive/CoreDriveUpload.jsx
+
 import React, { useMemo, useState } from "react";
-import { uploadCoreFile } from "../../services/coreDriveApi";
-import { bytes } from "./coreDriveUi";
+import { uploadCoreFile } from "../../services/coreDrive.api";
+import { bytes } from "./docs/coreDriveDocsUi";
 
 export default function CoreDriveUpload({ defaultCantiere = "", defaultOrigine = "UFFICIO", onUploaded }) {
   const [open, setOpen] = useState(false);
@@ -69,14 +69,14 @@ export default function CoreDriveUpload({ defaultCantiere = "", defaultOrigine =
         onClick={() => setOpen(true)}
         className="inline-flex h-9 items-center rounded-lg border border-slate-800 bg-slate-950/60 px-3 text-sm font-medium text-slate-100 hover:border-slate-600"
       >
-        Carica file
+        Carica
       </button>
 
       {open && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm">
           <div className="mx-auto mt-10 w-[92vw] max-w-xl rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl shadow-black/40">
             <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
-              <div className="text-sm font-semibold text-slate-100">Upload</div>
+              <div className="text-sm font-semibold text-slate-100">Upload documento</div>
               <button
                 type="button"
                 onClick={() => {
@@ -186,12 +186,12 @@ export default function CoreDriveUpload({ defaultCantiere = "", defaultOrigine =
                   type="button"
                   onClick={doUpload}
                   disabled={!canSubmit}
-                  className={
-                    "h-9 rounded-lg px-3 text-sm font-medium " +
-                    (canSubmit
+                  className={[
+                    "h-9 rounded-lg px-3 text-sm font-medium",
+                    canSubmit
                       ? "bg-slate-100 text-slate-900 hover:bg-white"
-                      : "bg-slate-800 text-slate-500 cursor-not-allowed")
-                  }
+                      : "bg-slate-800 text-slate-500 cursor-not-allowed",
+                  ].join(" ")}
                 >
                   {uploading ? "Caricamento…" : "Conferma upload"}
                 </button>

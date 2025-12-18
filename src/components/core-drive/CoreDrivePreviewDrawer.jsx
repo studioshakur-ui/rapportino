@@ -1,15 +1,9 @@
-// /src/components/core-drive/CoreDrivePreviewDrawer.jsx
+// /src/components/core-drive/docs/CoreDrivePreviewDrawer.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { getSignedUrl } from "../../services/coreDriveApi";
-import { fmtDateTimeLong } from "./coreDriveUi";
+import { getSignedUrl } from "../../services/coreDrive.api";
+import Badge from "./ui/Badge";
+import { bytes, formatDate, formatDateTime } from "./docs/coreDriveDocsUi";
 
-function Badge({ children }) {
-  return (
-    <span className="inline-flex items-center rounded-full border border-slate-800 bg-slate-950/60 px-2 py-0.5 text-[11px] font-medium text-slate-200">
-      {children}
-    </span>
-  );
-}
 
 export default function CoreDrivePreviewDrawer({ file, onClose }) {
   const [url, setUrl] = useState(null);
@@ -52,14 +46,15 @@ export default function CoreDrivePreviewDrawer({ file, onClose }) {
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold text-slate-100">{file.filename}</div>
 
-            <div className="mt-1 flex flex-wrap gap-1">
-              {file.categoria && <Badge>{file.categoria}</Badge>}
-              {file.origine && <Badge>{file.origine}</Badge>}
-              {file.stato_doc && <Badge>{file.stato_doc}</Badge>}
-              {file.commessa && <Badge>Commessa: {file.commessa}</Badge>}
+            <div className="mt-2 flex flex-wrap gap-2">
+              {file.cantiere ? <Badge>{file.cantiere}</Badge> : null}
+              {file.categoria ? <Badge>{file.categoria}</Badge> : null}
+              {file.origine ? <Badge tone="info">{file.origine}</Badge> : null}
+              {file.stato_doc ? <Badge tone="ok">{file.stato_doc}</Badge> : null}
+              {file.commessa ? <Badge tone="neutral">{file.commessa}</Badge> : null}
             </div>
 
-            <div className="mt-1 text-xs text-slate-500">{fmtDateTimeLong(file.created_at)}</div>
+            <div className="mt-1 text-xs text-slate-500">{formatDateTime(file.created_at)}</div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -98,9 +93,8 @@ export default function CoreDrivePreviewDrawer({ file, onClose }) {
 
           {url && (
             <div className="h-full overflow-hidden rounded-xl border border-slate-800 bg-white">
-              {/* PDF ou autres: iframe suffit (simple, robuste) */}
               {isPdf ? (
-                <iframe src={url} className="h-full w-full" title="CORE Drive Preview" />
+                <iframe src={url} className="h-full w-full" title="CORE Drive Preview PDF" />
               ) : (
                 <iframe src={url} className="h-full w-full" title="CORE Drive Preview" />
               )}
@@ -117,9 +111,9 @@ export default function CoreDrivePreviewDrawer({ file, onClose }) {
               )}
 
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-300">
-                {file.rapportino_id && <Badge>Rapportino</Badge>}
-                {file.inca_file_id && <Badge>INCA File</Badge>}
-                {file.inca_cavo_id && <Badge>INCA Cavo</Badge>}
+                {file.rapportino_id ? <Badge>Rapportino</Badge> : null}
+                {file.inca_file_id ? <Badge>INCA File</Badge> : null}
+                {file.inca_cavo_id ? <Badge>INCA Cavo</Badge> : null}
               </div>
             </div>
           )}

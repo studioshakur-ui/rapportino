@@ -2,8 +2,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
-import { listCoreFiles } from "../services/coreDriveApi";
-import CoreDrivePreview from "../components/drive/CoreDrivePreview";
+import { listCoreFiles } from "../services/coreDrive.api";
+
 
 function safeText(value) {
   if (value == null) return "";

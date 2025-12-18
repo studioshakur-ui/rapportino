@@ -18,7 +18,7 @@ export default function AppShell() {
   const isCoreDrive = pathname.startsWith("/app/archive");
   const pageLabel = isCoreDrive ? "CORE Drive" : "Rapportino";
 
-  // Sidebar dynamique (compact + peek)
+  // Sidebar dynamique (compact par défaut + peek hover)
   const [sidebarPeek, setSidebarPeek] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
@@ -71,35 +71,25 @@ export default function AppShell() {
     : "bg-transparent";
 
   return (
-    <div className={["min-h-screen flex flex-col", coreLayout.pageShell(isDark)].join(" ")}>
-      {/* TOP BAR — 1 ligne, Logout top-right */}
+    <div
+      className={[
+        "min-h-screen flex flex-col",
+        coreLayout.pageShell(isDark),
+      ].join(" ")}
+    >
+      {/* TOP BAR — cockpit: aucune commande à gauche */}
       <header
         className={[
           "no-print sticky top-0 z-30 border-b backdrop-blur",
-          "h-12 md:h-14",
+          "h-11 md:h-12",
           "flex items-center justify-between",
           "px-3 sm:px-4 md:px-6",
           coreLayout.header(isDark),
           driveTopGlow,
         ].join(" ")}
       >
-        {/* Left: CORE + role + page */}
-        <div className="flex items-center gap-2.5 min-w-0">
-          <button
-            type="button"
-            onClick={() => setSidebarCollapsed((v) => !v)}
-            className={[
-              "hidden md:inline-flex items-center justify-center",
-              "h-9 w-9 rounded-full border",
-              "border-slate-800 text-slate-200 hover:bg-slate-900/40",
-              "transition-colors",
-            ].join(" ")}
-            aria-label={effectiveCollapsed ? "Espandi menu" : "Riduci menu"}
-            title={effectiveCollapsed ? "Espandi menu" : "Riduci menu"}
-          >
-            ☰
-          </button>
-
+        {/* Left: identité minimale */}
+        <div className="flex items-center gap-2 min-w-0">
           <span className="text-[10px] uppercase tracking-[0.22em] text-slate-500 whitespace-nowrap">
             CORE
           </span>
@@ -127,7 +117,7 @@ export default function AppShell() {
           </span>
         </div>
 
-        {/* Right: ONLY status + user + logout (plus jamais à gauche) */}
+        {/* Right: contrôles uniquement */}
         <div className="flex items-center gap-2.5">
           <div className="flex items-center" title="Connessione">
             <ConnectionIndicator compact />
@@ -173,7 +163,7 @@ export default function AppShell() {
       </header>
 
       <div className="flex flex-1 min-h-0">
-        {/* SIDEBAR — premium, compacte */}
+        {/* SIDEBAR — premium, toggle dans la sidebar (pas dans top bar) */}
         <aside
           className={[
             "no-print border-r hidden md:flex flex-col",
@@ -186,17 +176,36 @@ export default function AppShell() {
           onFocusCapture={() => setSidebarPeek(true)}
           onBlurCapture={() => setSidebarPeek(false)}
         >
+          {/* Toggle discret en haut de sidebar */}
+          <div className={["mb-3", effectiveCollapsed ? "px-0" : "px-1"].join(" ")}>
+            <button
+              type="button"
+              onClick={() => setSidebarCollapsed((v) => !v)}
+              className={[
+                "w-full inline-flex items-center gap-2",
+                "rounded-xl border px-3 py-2",
+                "text-[11px] uppercase tracking-[0.18em]",
+                "transition-colors",
+                "border-slate-800 bg-slate-950/20 text-slate-300 hover:bg-slate-900/35",
+                effectiveCollapsed ? "justify-center px-0" : "justify-start",
+              ].join(" ")}
+              title={sidebarCollapsed ? "Espandi menu" : "Riduci menu"}
+              aria-label={sidebarCollapsed ? "Espandi menu" : "Riduci menu"}
+            >
+              <span className="text-slate-400">☰</span>
+              {!effectiveCollapsed && (
+                <span>{sidebarCollapsed ? "Espandi" : "Compatto"}</span>
+              )}
+            </button>
+          </div>
+
           <nav className={["space-y-1.5", effectiveCollapsed ? "px-0" : "px-1"].join(" ")}>
             <NavLink
               to="/app"
               end
               className={({ isActive }) =>
                 [
-                  corePills(
-                    isDark,
-                    "sky",
-                    "w-full flex items-center gap-2 justify-start"
-                  ),
+                  corePills(isDark, "sky", "w-full flex items-center gap-2 justify-start"),
                   isActive ? "" : "opacity-85 hover:opacity-100",
                   effectiveCollapsed ? "justify-center px-0" : "",
                 ].join(" ")
@@ -211,11 +220,7 @@ export default function AppShell() {
               to="/app/archive"
               className={({ isActive }) =>
                 [
-                  corePills(
-                    isDark,
-                    "violet",
-                    "w-full flex items-center gap-2 justify-start font-semibold"
-                  ),
+                  corePills(isDark, "violet", "w-full flex items-center gap-2 justify-start font-semibold"),
                   isActive
                     ? "bg-violet-950/35 border-violet-500/65 text-violet-100 shadow-[0_18px_60px_rgba(139,92,246,0.18)]"
                     : "bg-violet-950/18 border-violet-500/50 text-violet-100/90 hover:bg-violet-950/25",

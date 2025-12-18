@@ -592,10 +592,7 @@ export default function CorePresentation() {
                   <span className="h-2 w-2 rounded-full bg-slate-200/70" style={{ animation: "glow 2.4s ease-in-out infinite" }} />
                   CNCS — Cognitive Naval Control System
                 </Pill>
-                <Pill className="border-violet-500/40 bg-violet-950/15 text-violet-200">
-                  <span className="h-2 w-2 rounded-full bg-violet-300" />
-                  Percorso · modulo flagship (fase successiva)
-                </Pill>
+                
               </div>
 
               <div className="text-[13px] sm:text-[14px] text-slate-400 max-w-3xl leading-relaxed">
