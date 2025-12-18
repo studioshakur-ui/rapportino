@@ -6,16 +6,9 @@ import { useAuth } from '../auth/AuthProvider';
 
 const STATUS_LABELS = {
   DRAFT: 'Bozza',
-  VALIDATED_CAPO: 'Validato Capo',
-  APPROVED_UFFICIO: 'Approvato Ufficio',
+  VALIDATED_CAPO: 'In verifica',
+  APPROVED_UFFICIO: 'Archiviato',
   RETURNED: 'Rimandato',
-};
-
-const STATUS_BADGE_CLASS = {
-  DRAFT: 'bg-gray-200 text-gray-800',
-  VALIDATED_CAPO: 'bg-yellow-100 text-yellow-800',
-  APPROVED_UFFICIO: 'bg-green-100 text-green-800',
-  RETURNED: 'bg-red-100 text-red-800',
 };
 
 function formatDate(value) {
@@ -54,16 +47,47 @@ function safeNum(v) {
 function formatMeters(v) {
   if (v == null) return '—';
   const n = safeNum(v);
-  // Affichage compact (terrain)
   if (!n) return '0';
   if (Math.abs(n) >= 1000) return `${(n / 1000).toFixed(2)} km`;
-  // Garder 0 décimale si entier, sinon 1 décimale
   const isInt = Math.abs(n - Math.round(n)) < 1e-9;
   return isInt ? `${Math.round(n)}` : `${n.toFixed(1)}`;
 }
 
 function clamp(n, a, b) {
   return Math.max(a, Math.min(b, n));
+}
+
+function statusTone(status) {
+  switch (status) {
+    case 'VALIDATED_CAPO':
+      return {
+        pill: 'bg-amber-500/15 text-amber-200 border border-amber-400/60',
+        panel: 'bg-amber-950/25 border-amber-500/30',
+        title: 'DOCUMENTO IN VERIFICA',
+        subtitle: 'Controllo Ufficio · in attesa di certificazione',
+      };
+    case 'RETURNED':
+      return {
+        pill: 'bg-rose-500/15 text-rose-200 border border-rose-400/60',
+        panel: 'bg-rose-950/25 border-rose-500/30',
+        title: 'DOCUMENTO RIMANDATO AL CAPO',
+        subtitle: 'Richiesta correzione · nota Ufficio presente',
+      };
+    case 'APPROVED_UFFICIO':
+      return {
+        pill: 'bg-emerald-500/15 text-emerald-200 border border-emerald-400/60',
+        panel: 'bg-emerald-950/20 border-emerald-500/25',
+        title: 'DOCUMENTO ARCHIVIATO',
+        subtitle: 'Documento ufficiale · bloccato in sola lettura',
+      };
+    default:
+      return {
+        pill: 'bg-slate-700/70 text-slate-200 border border-slate-600/60',
+        panel: 'bg-slate-900/40 border-slate-700/60',
+        title: 'DOCUMENTO',
+        subtitle: '',
+      };
+  }
 }
 
 export default function UfficioRapportinoDetail() {
@@ -91,6 +115,10 @@ export default function UfficioRapportinoDetail() {
   const isUfficio = profile?.app_role === 'UFFICIO';
   const isDirezione = profile?.app_role === 'DIREZIONE';
   const isAdmin = profile?.app_role === 'ADMIN';
+
+  const isArchived = header?.status === 'APPROVED_UFFICIO';
+  const isReturned = header?.status === 'RETURNED';
+  const isValidated = header?.status === 'VALIDATED_CAPO';
 
   useEffect(() => {
     if (authLoading) return;
@@ -158,7 +186,6 @@ export default function UfficioRapportinoDetail() {
       setRows(rowsData || []);
 
       // 4) Cavi INCA associati (SOURCE CORRETTA)
-      // NB: filtrare SOLO per rapportino_id (robusto) e leggere da view archivio.
       const { data: incaData, error: incaErr } = await supabase
         .from('archive_rapportino_inca_cavi_v1')
         .select(
@@ -194,6 +221,9 @@ export default function UfficioRapportinoDetail() {
     load();
   }, [authLoading, profile, id, isUfficio, isDirezione, isManager, isAdmin]);
 
+  // Verrouillage “archiviato” (Option A) :
+  // - Approver uniquement quand VALIDATED_CAPO
+  // - Rimandare uniquement quand VALIDATED_CAPO (pas de retour depuis un archiviato)
   const canApprove =
     header &&
     header.status === 'VALIDATED_CAPO' &&
@@ -202,11 +232,12 @@ export default function UfficioRapportinoDetail() {
 
   const canReturn =
     header &&
-    (header.status === 'VALIDATED_CAPO' || header.status === 'APPROVED_UFFICIO') &&
+    header.status === 'VALIDATED_CAPO' &&
     (isUfficio || isDirezione || isAdmin) &&
     !saving;
 
   const statusLabel = header ? STATUS_LABELS[header.status] || header.status : '—';
+  const tone = statusTone(header?.status);
 
   const capoResolved =
     capoDisplayName ||
@@ -242,7 +273,8 @@ export default function UfficioRapportinoDetail() {
       setError("Errore durante l'approvazione del rapportino.");
     } else {
       setHeader((prev) => (prev ? { ...prev, ...updatePayload } : prev));
-      setFeedback('Rapportino approvato con successo.');
+      // Message court (pas de répétition)
+      setFeedback('Documento archiviato.');
     }
 
     setSaving(false);
@@ -280,7 +312,7 @@ export default function UfficioRapportinoDetail() {
       setError('Errore durante il rinvio del rapportino.');
     } else {
       setHeader((prev) => (prev ? { ...prev, ...updatePayload } : prev));
-      setFeedback('Rapportino rimandato al Capo con nota.');
+      setFeedback('Documento rimandato al Capo.');
     }
 
     setSaving(false);
@@ -329,118 +361,147 @@ export default function UfficioRapportinoDetail() {
   }
 
   return (
-    <div className="p-4 md:p-5 space-y-4">
+    <div className={['p-4 md:p-5 space-y-4', isArchived ? 'opacity-90' : ''].join(' ')}>
+      {/* CARTOUCHE STATUT (source de vérité) */}
+      <div
+        className={[
+          'rounded-2xl border px-4 py-3',
+          tone.panel,
+        ].join(' ')}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="flex flex-col">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-300">
+              {tone.title}
+            </div>
+            {tone.subtitle ? (
+              <div className="text-xs text-slate-400">{tone.subtitle}</div>
+            ) : null}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span
+              className={[
+                'inline-flex items-center px-2.5 py-1 rounded-full text-[11px] uppercase tracking-[0.14em] font-medium',
+                tone.pill,
+              ].join(' ')}
+            >
+              {statusLabel}
+              {isArchived && (
+                <span className="ml-1.5 text-[10px] tracking-[0.14em] text-emerald-200/90">
+                  · BLOCCATO
+                </span>
+              )}
+            </span>
+
+            <button
+              type="button"
+              onClick={handleBack}
+              className="px-3 py-1.5 rounded-full border border-slate-700 text-slate-100 text-xs hover:bg-slate-900/60"
+            >
+              ← Lista
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* HEADER (info utili, pas de répétition) */}
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
         <div className="space-y-1 text-sm text-slate-100">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-            Dettaglio rapportino
-          </div>
           <div className="text-base font-semibold">
             COSTR {header.costr || '—'} · Commessa {header.commessa || '—'}
           </div>
           <div className="text-xs text-slate-400">
-            Data:{' '}
+            Data:&nbsp;
             <span className="text-slate-100">
               {formatDate(header.report_date || header.data)}
             </span>
           </div>
           <div className="text-xs text-slate-400">
-            Capo squadra:{' '}
+            Capo:&nbsp;
             <span className="text-slate-100">{capoResolved}</span>
           </div>
           <div className="text-xs text-slate-400">
-            Tipo squadra:{' '}
-            <span className="text-slate-100">
-              {header.crew_role || '—'}
-            </span>
+            Squadra:&nbsp;
+            <span className="text-slate-100">{header.crew_role || '—'}</span>
+          </div>
+
+          {/* Meta-dati compatti (secondaires) */}
+          <div className="pt-2 text-[11px] text-slate-500 space-y-0.5">
+            {header.validated_by_capo_at ? (
+              <div>
+                Validato Capo: <span className="text-slate-300">{formatDateTime(header.validated_by_capo_at)}</span>
+              </div>
+            ) : null}
+            {header.approved_by_ufficio_at ? (
+              <div>
+                Archiviato: <span className="text-slate-300">{formatDateTime(header.approved_by_ufficio_at)}</span>
+              </div>
+            ) : null}
+            {header.returned_by_ufficio_at ? (
+              <div>
+                Rimandato: <span className="text-slate-300">{formatDateTime(header.returned_by_ufficio_at)}</span>
+              </div>
+            ) : null}
           </div>
         </div>
 
+        {/* ACTIONS (rituel + verrouillage) */}
         <div className="flex flex-col items-end gap-2 text-xs">
-          <span
-            className={[
-              'inline-flex items-center px-2.5 py-1 rounded-full font-medium',
-              STATUS_BADGE_CLASS[header.status] ||
-                'bg-slate-700 text-slate-100',
-            ].join(' ')}
-          >
-            Stato: {statusLabel}
-          </span>
+          {!isArchived && (
+            <div className="flex flex-wrap gap-2 justify-end">
+              <button
+                type="button"
+                onClick={handleReturn}
+                disabled={!canReturn}
+                className={[
+                  'px-3 py-1.5 rounded-md border text-xs font-medium',
+                  canReturn
+                    ? 'border-amber-500 text-amber-100 bg-amber-900/40 hover:bg-amber-900/60'
+                    : 'border-slate-700 text-slate-500 bg-slate-900/60 cursor-not-allowed',
+                ].join(' ')}
+              >
+                Rimanda al Capo
+              </button>
 
-          <div className="text-[11px] text-slate-400 space-y-0.5 text-right">
-            <div>
-              Validato Capo:{' '}
-              <span className="text-slate-100">
-                {formatDateTime(header.validated_by_capo_at)}
-              </span>
+              <button
+                type="button"
+                onClick={handleApprove}
+                disabled={!canApprove}
+                className={[
+                  'px-3 py-1.5 rounded-md border text-xs font-medium',
+                  canApprove
+                    ? 'border-emerald-500 text-emerald-100 bg-emerald-900/40 hover:bg-emerald-900/60'
+                    : 'border-slate-700 text-slate-500 bg-slate-900/60 cursor-not-allowed',
+                ].join(' ')}
+              >
+                Approva e archivia
+              </button>
             </div>
-            <div>
-              Approvato Ufficio:{' '}
-              <span className="text-slate-100">
-                {formatDateTime(header.approved_by_ufficio_at)}
-              </span>
-            </div>
-            <div>
-              Rimandato:{' '}
-              <span className="text-slate-100">
-                {formatDateTime(header.returned_by_ufficio_at)}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2 justify-end">
-            <button
-              type="button"
-              onClick={handleBack}
-              className="px-3 py-1.5 rounded-md border border-slate-500 text-slate-100 text-xs hover:bg-slate-800"
-            >
-              ← Torna alla lista
-            </button>
-
-            <button
-              type="button"
-              onClick={handleReturn}
-              disabled={!canReturn}
-              className={[
-                'px-3 py-1.5 rounded-md border text-xs font-medium',
-                canReturn
-                  ? 'border-amber-500 text-amber-100 bg-amber-900/40 hover:bg-amber-900/60'
-                  : 'border-slate-700 text-slate-500 bg-slate-900/60 cursor-not-allowed',
-              ].join(' ')}
-            >
-              Rimanda al Capo
-            </button>
-
-            <button
-              type="button"
-              onClick={handleApprove}
-              disabled={!canApprove}
-              className={[
-                'px-3 py-1.5 rounded-md border text-xs font-medium',
-                canApprove
-                  ? 'border-emerald-500 text-emerald-100 bg-emerald-900/40 hover:bg-emerald-900/60'
-                  : 'border-slate-700 text-slate-500 bg-slate-900/60 cursor-not-allowed',
-              ].join(' ')}
-            >
-              Approva rapportino
-            </button>
-          </div>
+          )}
 
           {isManager && (
             <div className="text-[10px] text-slate-500">
-              Accesso Manager in sola lettura · azioni bloccate
+              Accesso in sola lettura
             </div>
           )}
 
-          {feedback && (
-            <div className="mt-1 text-[11px] text-emerald-300">{feedback}</div>
-          )}
+          {feedback ? (
+            <div
+              className={[
+                'mt-1 text-[11px]',
+                isReturned ? 'text-rose-300' : 'text-emerald-300',
+              ].join(' ')}
+            >
+              {feedback}
+            </div>
+          ) : null}
         </div>
       </div>
 
       <div className="border border-slate-800 rounded-xl overflow-hidden">
         <div className="bg-slate-900/80 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-400">
-          Attività giornaliere
+          Attività
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full border-t border-slate-800 text-[12px]">
@@ -496,7 +557,7 @@ export default function UfficioRapportinoDetail() {
                     colSpan={8}
                     className="px-3 py-2 text-center text-[12px] text-slate-500"
                   >
-                    Nessuna riga attività trovata per questo rapportino.
+                    Nessuna riga attività.
                   </td>
                 </tr>
               )}
@@ -508,7 +569,7 @@ export default function UfficioRapportinoDetail() {
       {isElett && (
         <div className="border border-slate-800 rounded-xl overflow-hidden">
           <div className="bg-slate-900/80 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-400">
-            Lista cavi associati (INCA)
+            Cavi associati (INCA)
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full border-t border-slate-800 text-[12px]">
@@ -527,7 +588,6 @@ export default function UfficioRapportinoDetail() {
                   const metriTot = safeNum(c.metri_teo ?? c.metri_dis);
                   const metriPos = safeNum(c.metri_posati);
 
-                  // %: priorité à progress_percent (terrain), sinon fallback calculé
                   const pctFromField =
                     c.progress_percent != null && c.progress_percent !== ''
                       ? safeNum(c.progress_percent)
@@ -542,7 +602,6 @@ export default function UfficioRapportinoDetail() {
                     100
                   );
 
-                  // Metri posati: priorité au champ si >0, sinon calcul depuis % et metriTot
                   const metriPosDisplay =
                     metriPos > 0 ? metriPos : metriTot > 0 ? (metriTot * pct) / 100 : 0;
 
@@ -570,7 +629,7 @@ export default function UfficioRapportinoDetail() {
                 {!incaCavi.length && (
                   <tr>
                     <td colSpan={5} className="px-3 py-2 text-center text-[12px] text-slate-500">
-                      Nessun cavo associato a questo rapportino.
+                      Nessun cavo associato.
                     </td>
                   </tr>
                 )}
@@ -583,28 +642,35 @@ export default function UfficioRapportinoDetail() {
       <div className="border border-slate-800 rounded-xl p-3 space-y-2">
         <div className="flex items-center justify-between gap-2">
           <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
-            Nota di ritorno Ufficio → Capo
+            Nota Ufficio → Capo
           </div>
           {isManager && (
-            <span className="text-[10px] text-slate-500">Manager · sola lettura</span>
+            <span className="text-[10px] text-slate-500">Sola lettura</span>
+          )}
+          {isArchived && (
+            <span className="text-[10px] uppercase tracking-[0.14em] text-emerald-300">
+              Archiviato · bloccato
+            </span>
           )}
         </div>
 
         <textarea
           value={returnNote}
           onChange={(e) => setReturnNote(e.target.value)}
-          disabled={isManager}
+          disabled={isManager || isArchived}
           rows={4}
           className={[
             'w-full text-[12px] rounded-md border px-2 py-1.5 bg-slate-950/60 text-slate-100 resize-y',
-            isManager
-              ? 'border-slate-700 cursor-not-allowed'
+            (isManager || isArchived)
+              ? 'border-slate-800 cursor-not-allowed opacity-80'
               : 'border-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500',
           ].join(' ')}
           placeholder={
-            isManager
-              ? 'Nota visibile in sola lettura (solo Ufficio/Direzione può modificarla).'
-              : 'Scrivi qui la nota che verrà inviata al Capo (obbligatoria per il rimando).'
+            isArchived
+              ? 'Documento archiviato (nota in sola lettura).'
+              : isManager
+              ? 'Nota in sola lettura.'
+              : 'Nota obbligatoria per il rimando.'
           }
         />
       </div>

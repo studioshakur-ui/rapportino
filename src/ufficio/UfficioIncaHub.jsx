@@ -1,73 +1,66 @@
-// src/pages/ufficio/UfficioIncaHub.jsx
+// src/ufficio/UfficioIncaHub.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 import LoadingScreen from "../components/LoadingScreen";
 import IncaCockpitModal from "../inca/IncaCockpitModal";
-import LoadingScreen from "../components/LoadingScreen";
+import IncaImportModal from "../inca/IncaImportModal";
 
 export default function UfficioIncaHub() {
   const [files, setFiles] = useState([]);
   const [loadingFiles, setLoadingFiles] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
   const [selectedFileId, setSelectedFileId] = useState("");
   const [cockpitOpen, setCockpitOpen] = useState(false);
 
-  const DEV = import.meta?.env?.DEV;
-  const logDev = (...args) => DEV && console.log(...args);
-  const errDev = (...args) => DEV && console.error(...args);
-
-  const loadFiles = useCallback(async ({ keepSelection = true } = {}) => {
-    setError(null);
-    try {
-      const { data, error: e } = await supabase
-        .from("inca_files")
-        .select("*")
-        .order("uploaded_at", { ascending: false });
-
-      if (e) throw e;
-
-      const list = data || [];
-      setFiles(list);
-
-      // Selection logic
-      if (!keepSelection) {
-        // Force select first if present
-        if (list.length > 0) setSelectedFileId(list[0].id);
-        else setSelectedFileId("");
-        return;
-      }
-
-      // Keep current selection if still exists; else select first
-      if (selectedFileId) {
-        const exists = list.some((f) => f.id === selectedFileId);
-        if (!exists) {
-          setSelectedFileId(list.length > 0 ? list[0].id : "");
-        }
-      } else {
-        if (list.length > 0) setSelectedFileId(list[0].id);
-      }
-    } catch (err) {
-      errDev("[UfficioIncaHub] loadFiles error:", err);
-      setError("Impossibile caricare i file INCA.");
-      setFiles([]);
-      setSelectedFileId("");
-    } finally {
-      setLoadingFiles(false);
-    }
-  }, [selectedFileId]);
+  const [importOpen, setImportOpen] = useState(false);
 
   useEffect(() => {
-    // Initial load only
-    loadFiles({ keepSelection: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    let alive = true;
+
+    async function loadFiles() {
+      setLoadingFiles(true);
+      setError(null);
+
+      try {
+        const { data, error: e } = await supabase
+          .from("inca_files")
+          .select("*")
+          .order("uploaded_at", { ascending: false });
+
+        if (e) throw e;
+        if (!alive) return;
+
+        const list = data || [];
+        setFiles(list);
+
+        if (!selectedFileId && list.length > 0) {
+          setSelectedFileId(list[0].id);
+        }
+      } catch (err) {
+        console.error("[UfficioIncaHub] loadFiles error:", err);
+        if (!alive) return;
+        setError("Impossibile caricare i file INCA.");
+        setFiles([]);
+      } finally {
+        if (alive) setLoadingFiles(false);
+      }
+    }
+
+    loadFiles();
+
+    return () => {
+      alive = false;
+    };
+  }, [selectedFileId]);
 
   const selectedFile = useMemo(() => {
     return (files || []).find((f) => f.id === selectedFileId) || null;
   }, [files, selectedFileId]);
+
+  const headerCostr = (selectedFile?.costr || "").trim();
+  const headerCommessa = (selectedFile?.commessa || "").trim();
 
   if (loadingFiles) {
     return <LoadingScreen message="Caricamento modulo INCA…" />;
@@ -92,6 +85,15 @@ export default function UfficioIncaHub() {
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={() => setImportOpen(true)}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/40 px-4 py-2 text-[13px] font-semibold text-slate-200 hover:bg-slate-900/60"
+            title="Importa un file INCA (XLSX/PDF)"
+          >
+            Importa INCA
+          </button>
+
+          <button
+            type="button"
             onClick={() => setCockpitOpen(true)}
             disabled={!selectedFileId}
             className={[
@@ -104,21 +106,6 @@ export default function UfficioIncaHub() {
           >
             <span className="text-lg leading-none">+</span>
             Apri cockpit
-          </button>
-
-          <button
-            type="button"
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className={[
-              "rounded-xl border px-4 py-2 text-[13px] font-semibold transition",
-              refreshing
-                ? "border-slate-800 bg-slate-950/40 text-slate-500 cursor-not-allowed"
-                : "border-slate-700 bg-slate-900/40 text-slate-200 hover:bg-slate-900/60",
-            ].join(" ")}
-            title="Aggiorna lista file"
-          >
-            {refreshing ? "Aggiorno…" : "Aggiorna"}
           </button>
         </div>
       </div>
@@ -139,19 +126,16 @@ export default function UfficioIncaHub() {
                 Import INCA
               </div>
               <div className="text-[13px] text-slate-200 font-semibold">
-                XLSX / PDF → Analisi → Commit
+                XLSX (PDF in fase successiva)
               </div>
             </div>
 
             <button
               type="button"
               className="rounded-xl border border-slate-700 bg-slate-900/40 px-3 py-2 text-[12px] text-slate-200 hover:bg-slate-900/60"
-              onClick={() => {
-                // TODO: connecte ici ton IncaImportModal
-                alert("Collega qui il tuo Import INCA (modal).");
-              }}
+              onClick={() => setImportOpen(true)}
             >
-              Apri Import (modal)
+              Importa file INCA
             </button>
           </div>
 
@@ -172,7 +156,7 @@ export default function UfficioIncaHub() {
               </div>
             </div>
             <div className="text-[11px] text-slate-500">
-              {files.length} file · {projectsCount} progetti
+              {files.length} file
             </div>
           </div>
 
@@ -192,23 +176,6 @@ export default function UfficioIncaHub() {
               </div>
             )}
           </div>
-
-          {selectedFile && (
-            <div className="mt-3 rounded-xl border border-slate-800 bg-slate-950/35 px-3 py-3">
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                Selezionato
-              </div>
-              <div className="mt-1 text-[13px] text-slate-100 font-semibold">
-                {(selectedFile.costr || "—").trim()} · {(selectedFile.commessa || "—").trim()}
-              </div>
-              <div className="mt-1 text-[12px] text-slate-400">
-                {selectedFile.file_name || "—"} · {selectedFile.file_type || "—"}
-              </div>
-              <div className="mt-1 text-[11px] text-slate-500">
-                Importato: {fmtTs(selectedFile.uploaded_at)}
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
@@ -224,9 +191,13 @@ export default function UfficioIncaHub() {
             </div>
           </div>
 
-          <div className="text-[11px] text-slate-500">
-            {files.length} file
-          </div>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="rounded-xl border border-slate-700 bg-slate-900/40 px-3 py-2 text-[12px] text-slate-200 hover:bg-slate-900/60"
+          >
+            Aggiorna
+          </button>
         </div>
 
         <div className="max-h-[52vh] overflow-auto">
@@ -272,9 +243,7 @@ export default function UfficioIncaHub() {
                       {f.file_type || "—"}
                     </td>
                     <td className="px-4 py-2 text-[12px] text-slate-500">
-                      {f.uploaded_at
-                        ? new Date(f.uploaded_at).toLocaleString()
-                        : "—"}
+                      {f.uploaded_at ? new Date(f.uploaded_at).toLocaleString() : "—"}
                     </td>
                   </tr>
                 );
@@ -317,10 +286,25 @@ export default function UfficioIncaHub() {
         )}
       </div>
 
+      {/* IMPORT MODAL */}
+      <IncaImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        defaultCostr={headerCostr || ""}
+        defaultCommessa={headerCommessa || ""}
+        onImported={(data) => {
+          // si commit renvoie inca_file_id, on le sélectionne direct
+          const newId = data?.inca_file_id || null;
+          setImportOpen(false);
+          if (newId) setSelectedFileId(newId);
+          window.location.reload(); // simple & fiable (tu améliorera ensuite)
+        }}
+      />
+
       {/* FULLSCREEN COCKPIT MODAL */}
       <IncaCockpitModal
         open={cockpitOpen}
-        fileId={selectedFileId}
+        incaFileId={selectedFileId}
         onClose={() => setCockpitOpen(false)}
       />
     </div>

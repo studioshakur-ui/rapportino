@@ -6,8 +6,8 @@ import { useAuth } from '../auth/AuthProvider';
 
 const STATUS_LABELS = {
   DRAFT: 'Bozza',
-  VALIDATED_CAPO: 'Validato Capo',
-  APPROVED_UFFICIO: 'Approvato Ufficio',
+  VALIDATED_CAPO: 'In verifica',
+  APPROVED_UFFICIO: 'Archiviato',
   RETURNED: 'Rimandato',
 };
 
@@ -20,11 +20,25 @@ const STATUS_BADGE_CLASS = {
   RETURNED: 'bg-rose-500/15 text-rose-200 border border-rose-400/60',
 };
 
+// Priorità lavoro (front-only)
+const STATUS_RANK = {
+  RETURNED: 0,
+  VALIDATED_CAPO: 1,
+  APPROVED_UFFICIO: 2,
+  DRAFT: 3,
+};
+
 function formatDate(value) {
   if (!value) return '';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return String(value);
   return d.toLocaleDateString('it-IT');
+}
+
+function toDateValue(row) {
+  const v = row?.report_date || row?.data;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? 0 : d.getTime();
 }
 
 function formatProdotto(row) {
@@ -160,8 +174,25 @@ export default function UfficioRapportiniList() {
     });
   }, [rapportini, statusFilter, capoFilter, roleFilter, capoNameById]);
 
-  const handleRowClick = (id) => {
-    navigate(`/ufficio/rapportini/${id}`);
+  const sortedRapportini = useMemo(() => {
+    const rows = [...(filteredRapportini || [])];
+    rows.sort((a, b) => {
+      const ra = STATUS_RANK[a.status] ?? 99;
+      const rb = STATUS_RANK[b.status] ?? 99;
+      if (ra !== rb) return ra - rb;
+
+      // à rang égal : plus récent en haut
+      const da = toDateValue(a);
+      const db = toDateValue(b);
+      return db - da;
+    });
+    return rows;
+  }, [filteredRapportini]);
+
+  const handleRowClick = (row) => {
+    // Ligne ARCHIVIATA = lecture possible, mais pas d'interaction "file de travail"
+    if (row?.status === 'APPROVED_UFFICIO') return;
+    navigate(`/ufficio/rapportini/${row.id}`);
   };
 
   if (authLoading || loading) {
@@ -187,11 +218,9 @@ export default function UfficioRapportiniList() {
       <header className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-lg md:text-xl font-semibold text-slate-50">
-            Rapportini – Ufficio
+            Rapportini · Ufficio
           </h1>
-          <p className="text-xs text-slate-400">
-            Controllo e approvazione delle giornate validate dai Capi.
-          </p>
+          {/* Texte explicatif supprimé (redondant) */}
         </div>
         <div className="flex flex-wrap gap-2 text-xs text-slate-400">
           <span>
@@ -216,9 +245,9 @@ export default function UfficioRapportiniList() {
               onChange={(e) => setStatusFilter(e.target.value)}
             >
               <option value="ALL">Tutti</option>
-              <option value="VALIDATED_CAPO">In attesa di verifica</option>
-              <option value="APPROVED_UFFICIO">Approvati</option>
+              <option value="VALIDATED_CAPO">In verifica</option>
               <option value="RETURNED">Rimandati</option>
+              <option value="APPROVED_UFFICIO">Archiviati</option>
             </select>
           </div>
 
@@ -241,11 +270,11 @@ export default function UfficioRapportiniList() {
 
         <div className="flex flex-col text-xs min-w-[180px]">
           <label className="mb-1 font-medium text-slate-300">
-            Filtra per Capo
+            Capo
           </label>
           <input
             type="text"
-            placeholder="Nome Capo…"
+            placeholder="Nome…"
             className="border border-slate-700 rounded-md px-2 py-1 text-xs bg-slate-900/70 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
             value={capoFilter}
             onChange={(e) => setCapoFilter(e.target.value)}
@@ -270,29 +299,29 @@ export default function UfficioRapportiniList() {
                 Commessa
               </th>
               <th className="px-3 py-2 text-left font-medium text-slate-300">
-                Prodotto totale
+                Prodotto
               </th>
               <th className="px-3 py-2 text-left font-medium text-slate-300">
                 Stato
               </th>
               <th className="px-3 py-2 text-right font-medium text-slate-300">
-                Dettaglio
+                Apri
               </th>
             </tr>
           </thead>
           <tbody>
-            {filteredRapportini.length === 0 && (
+            {sortedRapportini.length === 0 && (
               <tr>
                 <td
                   colSpan={7}
                   className="px-3 py-4 text-center text-xs text-slate-500"
                 >
-                  Nessun rapportino trovato per i filtri selezionati.
+                  Nessun risultato.
                 </td>
               </tr>
             )}
 
-            {filteredRapportini.map((r) => {
+            {sortedRapportini.map((r) => {
               const prodotto = formatProdotto(r);
               const statusLabel = STATUS_LABELS[r.status] || r.status;
               const badgeClass =
@@ -308,11 +337,18 @@ export default function UfficioRapportiniList() {
                   : null) ||
                 (r.capo_id ? `CAPO ${String(r.capo_id).slice(0, 8)}` : '—');
 
+              const isArchived = r.status === 'APPROVED_UFFICIO';
+
               return (
                 <tr
                   key={r.id}
-                  className="border-b border-slate-800 hover:bg-slate-900/80 cursor-pointer transition-colors"
-                  onClick={() => handleRowClick(r.id)}
+                  className={[
+                    'border-b border-slate-800 transition-colors',
+                    isArchived
+                      ? 'opacity-60'
+                      : 'hover:bg-slate-900/80 cursor-pointer',
+                  ].join(' ')}
+                  onClick={() => handleRowClick(r)}
                 >
                   <td className="px-3 py-2 whitespace-nowrap text-slate-100">
                     {formatDate(dateToShow)}
@@ -334,9 +370,17 @@ export default function UfficioRapportiniList() {
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">
                     <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] ${badgeClass}`}
+                      className={[
+                        'inline-flex items-center px-2 py-0.5 rounded-full text-[11px] uppercase tracking-[0.14em] font-medium',
+                        badgeClass,
+                      ].join(' ')}
                     >
                       {statusLabel}
+                      {isArchived && (
+                        <span className="ml-1.5 text-[10px] tracking-[0.14em] text-emerald-200/90">
+                          · BLOCCATO
+                        </span>
+                      )}
                     </span>
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap text-right">

@@ -1,56 +1,72 @@
-// src/components/DirectionDashboard.jsx
-import React, { useEffect, useMemo, useState } from 'react';
-import { supabase } from '../lib/supabaseClient';
-import { useAuth } from '../auth/AuthProvider';
+// /src/components/DirectionDashboard.jsx
+import React, { useEffect, useMemo, useState } from "react";
+import { supabase } from "../lib/supabaseClient";
+import { useAuth } from "../auth/AuthProvider";
 
-// Recharts – timeline & bar "operativi"
+// Recharts – timeline
 import {
   ResponsiveContainer,
   LineChart,
   Line,
-  BarChart,
   Bar,
   CartesianGrid,
   XAxis,
   YAxis,
   Tooltip,
   Legend,
-} from 'recharts';
+} from "recharts";
 
-// ECharts – vue INCA premium
-import ReactECharts from 'echarts-for-react';
+// ECharts – INCA
+import ReactECharts from "echarts-for-react";
 
 // Utils dates / format
 function toISODate(d) {
-  if (!(d instanceof Date)) return '';
+  if (!(d instanceof Date)) return "";
   const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const da = String(d.getDate()).padStart(2, '0');
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const da = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${da}`;
 }
 
 function formatDateLabel(dateString) {
-  if (!dateString) return '';
+  if (!dateString) return "";
   const d = new Date(dateString);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('it-IT');
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("it-IT");
+}
+
+function toNumber(v) {
+  if (v == null) return 0;
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+
+  if (typeof v === "string") {
+    const s = v.trim();
+    if (!s) return 0;
+    const normalized = s
+      .replace(/\s/g, "")
+      .replace(/\.(?=\d{3}(\D|$))/g, "")
+      .replace(",", ".");
+    const n = Number.parseFloat(normalized);
+    return Number.isFinite(n) ? n : 0;
+  }
+  return 0;
 }
 
 function formatNumber(value) {
-  if (value == null || Number.isNaN(value)) return '0';
-  return new Intl.NumberFormat('it-IT', {
-    maximumFractionDigits: 2,
-  }).format(Number(value));
+  if (value == null || Number.isNaN(value)) return "0";
+  return new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 }).format(
+    Number(value)
+  );
 }
 
 export default function DirectionDashboard() {
   const { profile } = useAuth();
 
   // Filtres globaux
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [costrFilter, setCostrFilter] = useState('');
-  const [commessaFilter, setCommessaFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [costrFilter, setCostrFilter] = useState("");
+  const [commessaFilter, setCommessaFilter] = useState("");
 
   // État data
   const [loading, setLoading] = useState(true);
@@ -90,19 +106,15 @@ export default function DirectionDashboard() {
       try {
         // 1) Fenêtre actuelle
         let qNow = supabase
-          .from('rapportini')
-          .select('*')
-          .gte('report_date', dateFrom)
-          .lte('report_date', dateTo)
-          .order('report_date', { ascending: true });
+          .from("rapportini")
+          .select("*")
+          .gte("report_date", dateFrom)
+          .lte("report_date", dateTo)
+          .order("report_date", { ascending: true });
 
-        if (costrFilter.trim()) {
-          // Dans rapportini on a costr + cost, on filtre sur costr si présent
-          qNow = qNow.eq('costr', costrFilter.trim());
-        }
-        if (commessaFilter.trim()) {
-          qNow = qNow.eq('commessa', commessaFilter.trim());
-        }
+        if (costrFilter.trim()) qNow = qNow.eq("costr", costrFilter.trim());
+        if (commessaFilter.trim())
+          qNow = qNow.eq("commessa", commessaFilter.trim());
 
         const { data: rapNow, error: rapNowErr } = await qNow;
         if (rapNowErr) throw rapNowErr;
@@ -116,29 +128,24 @@ export default function DirectionDashboard() {
         const prevFrom = new Date(prevTo.getTime() - diffMs);
 
         let qPrev = supabase
-          .from('rapportini')
-          .select('*')
-          .gte('report_date', toISODate(prevFrom))
-          .lte('report_date', toISODate(prevTo));
+          .from("rapportini")
+          .select("*")
+          .gte("report_date", toISODate(prevFrom))
+          .lte("report_date", toISODate(prevTo));
 
-        if (costrFilter.trim()) {
-          qPrev = qPrev.eq('costr', costrFilter.trim());
-        }
-        if (commessaFilter.trim()) {
-          qPrev = qPrev.eq('commessa', commessaFilter.trim());
-        }
+        if (costrFilter.trim()) qPrev = qPrev.eq("costr", costrFilter.trim());
+        if (commessaFilter.trim())
+          qPrev = qPrev.eq("commessa", commessaFilter.trim());
 
         const { data: rapPrev, error: rapPrevErr } = await qPrev;
         if (rapPrevErr) throw rapPrevErr;
 
-        // 3) INCA teorico – vue dédiée Direction
-        let incaQ = supabase.from('direzione_inca_teorico').select('*');
-        if (costrFilter.trim()) {
-          incaQ = incaQ.eq('costr', costrFilter.trim());
-        }
-        if (commessaFilter.trim()) {
-          incaQ = incaQ.eq('commessa', commessaFilter.trim());
-        }
+        // 3) INCA (agrégé) – vue dédiée Direction
+        let incaQ = supabase.from("direzione_inca_teorico").select("*");
+        if (costrFilter.trim()) incaQ = incaQ.eq("costr", costrFilter.trim());
+        if (commessaFilter.trim())
+          incaQ = incaQ.eq("commessa", commessaFilter.trim());
+
         const { data: incaRows, error: incaErr } = await incaQ;
         if (incaErr) throw incaErr;
 
@@ -148,7 +155,7 @@ export default function DirectionDashboard() {
           setIncaTeorico(incaRows || []);
         }
       } catch (err) {
-        console.error('[DirectionDashboard] Errore caricamento dati:', err);
+        console.error("[DirectionDashboard] Errore caricamento dati:", err);
         if (!cancelled) {
           setError(
             "Errore nel caricamento dei dati Direzione. Riprova o contatta l’Ufficio."
@@ -163,7 +170,6 @@ export default function DirectionDashboard() {
     }
 
     load();
-
     return () => {
       cancelled = true;
     };
@@ -177,15 +183,7 @@ export default function DirectionDashboard() {
     const prevCount = rapportiniPrevious.length;
 
     const sumProd = (rows) =>
-      rows.reduce((sum, r) => {
-        const v =
-          typeof r.prodotto_totale === 'number'
-            ? r.prodotto_totale
-            : typeof r.prodotto_totale === 'string'
-            ? Number.parseFloat(r.prodotto_totale) || 0
-            : 0;
-        return sum + v;
-      }, 0);
+      rows.reduce((sum, r) => sum + toNumber(r.prodotto_totale), 0);
 
     const currProd = sumProd(rapportiniCurrent);
     const prevProd = sumProd(rapportiniPrevious);
@@ -197,16 +195,18 @@ export default function DirectionDashboard() {
     let incaRealizzati = 0;
     let incaPosati = 0;
 
+    let caviTotali = 0;
+    let caviConPrevisti = 0;
+    let caviConRealizzati = 0;
+
     incaTeorico.forEach((row) => {
-      if (typeof row.metri_previsti_totali === 'number') {
-        incaPrevisti += row.metri_previsti_totali;
-      }
-      if (typeof row.metri_realizzati === 'number') {
-        incaRealizzati += row.metri_realizzati;
-      }
-      if (typeof row.metri_posati === 'number') {
-        incaPosati += row.metri_posati;
-      }
+      incaPrevisti += toNumber(row.metri_previsti_totali);
+      incaRealizzati += toNumber(row.metri_realizzati);
+      incaPosati += toNumber(row.metri_posati);
+
+      caviTotali += Number(row.cavi_totali || 0);
+      caviConPrevisti += Number(row.cavi_con_metri_previsti || 0);
+      caviConRealizzati += Number(row.cavi_con_metri_realizzati || 0);
     });
 
     const incaCover =
@@ -214,6 +214,23 @@ export default function DirectionDashboard() {
 
     const deltaProd = currProd - prevProd;
     const deltaProdPerc = prevProd > 0 ? (deltaProd / prevProd) * 100 : null;
+
+    const pctPrevistiCompilati =
+      caviTotali > 0 ? (caviConPrevisti / caviTotali) * 100 : 0;
+
+    const pctRealizzatiCompilati =
+      caviTotali > 0 ? (caviConRealizzati / caviTotali) * 100 : 0;
+
+    const incaDataQuality =
+      caviTotali > 0
+        ? {
+            caviTotali,
+            caviConPrevisti,
+            caviConRealizzati,
+            pctPrevistiCompilati,
+            pctRealizzatiCompilati,
+          }
+        : null;
 
     return {
       currCount,
@@ -226,6 +243,7 @@ export default function DirectionDashboard() {
       incaRealizzati,
       incaPosati,
       incaCover,
+      incaDataQuality,
       deltaProd,
       deltaProdPerc,
     };
@@ -242,6 +260,7 @@ export default function DirectionDashboard() {
     rapportiniCurrent.forEach((r) => {
       const key = r.report_date || r.data || r.created_at?.slice(0, 10);
       if (!key) return;
+
       if (!map.has(key)) {
         map.set(key, {
           date: key,
@@ -250,17 +269,10 @@ export default function DirectionDashboard() {
           prodotto: 0,
         });
       }
+
       const entry = map.get(key);
       entry.rapportini += 1;
-
-      const prod =
-        typeof r.prodotto_totale === 'number'
-          ? r.prodotto_totale
-          : typeof r.prodotto_totale === 'string'
-          ? Number.parseFloat(r.prodotto_totale) || 0
-          : 0;
-
-      entry.prodotto += prod;
+      entry.prodotto += toNumber(r.prodotto_totale);
     });
 
     return Array.from(map.values()).sort(
@@ -269,179 +281,229 @@ export default function DirectionDashboard() {
   }, [rapportiniCurrent]);
 
   // ───────────────────────────
-  // INCA – ECharts
+  // INCA – ECharts (anti-bruit)
   // ───────────────────────────
   const incaOption = useMemo(() => {
-    if (!incaTeorico.length) {
+    const hasRows = incaTeorico.length > 0;
+    const hasAnyMetric =
+      toNumber(kpi.incaPrevisti) > 0 ||
+      toNumber(kpi.incaRealizzati) > 0 ||
+      toNumber(kpi.incaPosati) > 0;
+
+    if (!hasRows) {
       return {
         title: {
-          text: 'INCA · nessun dato disponibile',
-          textStyle: { color: '#9ca3af', fontSize: 12 },
+          text: "INCA · nessun dato",
+          textStyle: { color: "#9ca3af", fontSize: 12 },
         },
         grid: { left: 40, right: 10, top: 30, bottom: 30 },
-        xAxis: { type: 'category', data: [] },
-        yAxis: { type: 'value' },
+        xAxis: { type: "category", data: [] },
+        yAxis: { type: "value" },
         series: [],
-        backgroundColor: 'transparent',
+        backgroundColor: "transparent",
+      };
+    }
+
+    if (!hasAnyMetric) {
+      const q = kpi.incaDataQuality;
+      const qLine = q
+        ? `Import parziale · ${formatNumber(q.pctPrevistiCompilati)}% previsti · ${formatNumber(
+            q.pctRealizzatiCompilati
+          )}% realizzati`
+        : "Import parziale";
+
+      return {
+        title: {
+          text: "INCA · dati parziali",
+          subtext: qLine,
+          textStyle: { color: "#e5e7eb", fontSize: 12 },
+          subtextStyle: { color: "#9ca3af", fontSize: 11 },
+          left: "center",
+          top: 10,
+        },
+        grid: { left: 40, right: 10, top: 70, bottom: 30 },
+        xAxis: { type: "category", data: [] },
+        yAxis: { type: "value" },
+        series: [],
+        backgroundColor: "transparent",
       };
     }
 
     const sorted = [...incaTeorico].sort(
-      (a, b) => (b.metri_previsti_totali || 0) - (a.metri_previsti_totali || 0)
+      (a, b) =>
+        toNumber(b.metri_previsti_totali) - toNumber(a.metri_previsti_totali)
     );
     const top = sorted.slice(0, 12);
 
-    const labels = top.map(
-      (row) =>
-        row.nome_file ||
-        (row.commessa && `${row.costr || ''} · ${row.commessa}`.trim()) ||
-        row.costr ||
-        (row.caricato_il ? formatDateLabel(row.caricato_il) : '')
-    );
+    const labels = top.map((row) => {
+      const file = row.nome_file || "";
+      if (file) return file.length > 26 ? `${file.slice(0, 26)}…` : file;
+      if (row.commessa)
+        return `${(row.costr || "").trim()} · ${String(row.commessa).trim()}`.trim();
+      if (row.costr) return String(row.costr).trim();
+      if (row.caricato_il) return formatDateLabel(row.caricato_il);
+      return "";
+    });
 
-    const previsti = top.map((r) => r.metri_previsti_totali || 0);
-    const realizzati = top.map((r) => r.metri_realizzati || 0);
-    const posati = top.map((r) => r.metri_posati || 0);
+    const previsti = top.map((r) => toNumber(r.metri_previsti_totali));
+    const realizzati = top.map((r) => toNumber(r.metri_realizzati));
+    const posati = top.map((r) => toNumber(r.metri_posati));
 
     return {
-      backgroundColor: 'transparent',
-      tooltip: {
-        trigger: 'axis',
-      },
+      backgroundColor: "transparent",
+      tooltip: { trigger: "axis" },
       legend: {
-        data: ['Previsti', 'Realizzati', 'Posati'],
-        textStyle: { color: '#e5e7eb', fontSize: 11 },
+        data: ["Previsti", "Realizzati", "Posati"],
+        textStyle: { color: "#e5e7eb", fontSize: 11 },
       },
-      grid: {
-        left: 40,
-        right: 10,
-        top: 40,
-        bottom: 40,
-      },
+      grid: { left: 40, right: 10, top: 40, bottom: 40 },
       xAxis: {
-        type: 'category',
+        type: "category",
         data: labels,
-        axisLabel: {
-          color: '#9ca3af',
-          fontSize: 10,
-          rotate: 30,
-        },
-        axisLine: { lineStyle: { color: '#1f2937' } },
+        axisLabel: { color: "#9ca3af", fontSize: 10, rotate: 30 },
+        axisLine: { lineStyle: { color: "#1f2937" } },
       },
       yAxis: {
-        type: 'value',
-        axisLabel: { color: '#9ca3af', fontSize: 10 },
-        axisLine: { lineStyle: { color: '#1f2937' } },
-        splitLine: { lineStyle: { color: '#111827' } },
+        type: "value",
+        axisLabel: { color: "#9ca3af", fontSize: 10 },
+        axisLine: { lineStyle: { color: "#1f2937" } },
+        splitLine: { lineStyle: { color: "#111827" } },
       },
       series: [
-        {
-          name: 'Previsti',
-          type: 'bar',
-          data: previsti,
-          emphasis: { focus: 'series' },
-        },
-        {
-          name: 'Realizzati',
-          type: 'bar',
-          data: realizzati,
-          emphasis: { focus: 'series' },
-        },
-        {
-          name: 'Posati',
-          type: 'line',
-          data: posati,
-          smooth: true,
-        },
+        { name: "Previsti", type: "bar", data: previsti, emphasis: { focus: "series" } },
+        { name: "Realizzati", type: "bar", data: realizzati, emphasis: { focus: "series" } },
+        { name: "Posati", type: "line", data: posati, smooth: true },
       ],
-      color: ['#38bdf8', '#22c55e', '#f97316'],
+      color: ["#38bdf8", "#22c55e", "#f97316"],
     };
-  }, [incaTeorico]);
+  }, [incaTeorico, kpi]);
 
   // ───────────────────────────
-  // RISQUES & NEXT ACTIONS
+  // RISKS & ACTIONS (génération)
   // ───────────────────────────
   const risks = useMemo(() => {
     const out = [];
 
-    // 1) Baisse de production
     if (kpi.prevProd > 0 && kpi.deltaProdPerc != null && kpi.deltaProdPerc < -10) {
       out.push({
-        level: 'ALTA',
-        title: 'Produzione in calo',
-        detail: `~${formatNumber(Math.abs(kpi.deltaProdPerc))}% in meno rispetto alla finestra precedente.`,
-        hint: 'Verifica commesse critiche e blocchi eventuali in cantiere.',
+        level: "ALTA",
+        title: "Produzione in calo",
+        detail: `-${formatNumber(Math.abs(kpi.deltaProdPerc))}%`,
+        hint: "Verifica commesse critiche",
       });
     }
 
-    // 2) Peu de rapportini
     if (kpi.currCount > 0 && kpi.currCount < kpi.prevCount) {
       out.push({
-        level: 'MEDIA',
-        title: 'Meno rapportini registrati',
-        detail: `${kpi.currCount} vs ${kpi.prevCount} nella finestra precedente.`,
-        hint: 'Controlla eventuali giornate mancanti o squadre non allineate al digitale.',
+        level: "MEDIA",
+        title: "Meno rapportini",
+        detail: `${kpi.currCount} vs ${kpi.prevCount}`,
+        hint: "Controlla giornate mancanti",
       });
     }
 
-    // 3) Copertura INCA basse
     if (kpi.incaCover > 0 && kpi.incaCover < 50) {
       out.push({
-        level: 'ALTA',
-        title: 'Copertura INCA bassa',
-        detail: `Copertura stimata ~${formatNumber(kpi.incaCover)}% rispetto ai metri previsti.`,
-        hint: 'Individua i cavi più critici in INCA Cockpit e pianifica un recupero mirato.',
+        level: "ALTA",
+        title: "Copertura INCA bassa",
+        detail: `${formatNumber(kpi.incaCover)}%`,
+        hint: "Recovery mirato",
+      });
+    }
+
+    if (kpi.incaDataQuality && kpi.incaPrevisti === 0 && kpi.incaRealizzati === 0) {
+      out.push({
+        level: "MEDIA",
+        title: "INCA parziale",
+        detail: `${formatNumber(kpi.incaDataQuality.pctPrevistiCompilati)}% prev · ${formatNumber(
+          kpi.incaDataQuality.pctRealizzatiCompilati
+        )}% real`,
+        hint: "Note import / parsing",
       });
     }
 
     if (!out.length && (rapportiniCurrent.length || incaTeorico.length)) {
       out.push({
-        level: 'BASSA',
-        title: 'Nessun rischio evidente',
-        detail: 'Indicatori principali allineati rispetto al periodo precedente.',
-        hint: 'Usa i filtri per analizzare singole navi / commesse.',
+        level: "BASSA",
+        title: "Sotto controllo",
+        detail: "OK",
+        hint: "",
       });
     }
 
     if (!out.length) {
       out.push({
-        level: 'INFO',
-        title: 'Nessun dato nel range selezionato',
-        detail: 'Seleziona un periodo con attività per vedere rischi e KPI.',
-        hint: 'Inizia con gli ultimi 7–30 giorni su una nave attiva.',
+        level: "INFO",
+        title: "Nessun dato",
+        detail: "Range vuoto",
+        hint: "",
       });
     }
 
-    return out;
+    return out.slice(0, 2);
   }, [kpi, rapportiniCurrent.length, incaTeorico.length]);
 
   const nextActions = useMemo(() => {
     const actions = [];
 
     if (kpi.deltaProdPerc != null && kpi.deltaProdPerc < -10) {
-      actions.push(
-        'Programmare un allineamento rapido con i Capi sulle commesse con produzione in calo.'
-      );
+      actions.push("Allineamento Capi oggi");
     }
 
     if (kpi.incaCover > 0 && kpi.incaCover < 60) {
-      actions.push(
-        'Richiedere una review INCA–campo con Ufficio per verificare cavi scoperti / incompleti.'
-      );
+      actions.push("Review INCA–campo");
+    }
+
+    if (kpi.incaDataQuality && kpi.incaPrevisti === 0 && kpi.incaRealizzati === 0) {
+      actions.push("Fix import INCA (metri)");
     }
 
     if (!actions.length && rapportiniCurrent.length) {
-      actions.push(
-        'Mantenere la pianificazione attuale; monitorare solo eventuali scostamenti nei prossimi giorni.'
-      );
+      actions.push("Nessuna azione richiesta");
     }
 
     if (!actions.length) {
-      actions.push('Applica un filtro periodo con dati per sbloccare le raccomandazioni.');
+      actions.push("Seleziona un range con dati");
     }
 
-    return actions;
+    return actions.slice(0, 2);
   }, [kpi, rapportiniCurrent.length]);
+
+  // ───────────────────────────
+  // BRIEF DIREZIONE (ultra-compact)
+  // ───────────────────────────
+  const brief = useMemo(() => {
+    const r0 = risks[0] || { level: "INFO", title: "Nessun dato", detail: "" };
+    const a0 = nextActions[0] || "—";
+
+    const level =
+      r0.level === "ALTA" ? "ALTA" : r0.level === "MEDIA" ? "MEDIA" : "BASSA";
+
+    const levelTone =
+      level === "ALTA"
+        ? "border-rose-500/60 text-rose-200 bg-rose-900/20"
+        : level === "MEDIA"
+        ? "border-amber-400/60 text-amber-200 bg-amber-900/20"
+        : "border-emerald-400/60 text-emerald-200 bg-emerald-900/20";
+
+    const riskLine =
+      r0.level === "BASSA"
+        ? "Stato: sotto controllo · Rischio: BASSO"
+        : `${r0.title}${r0.detail ? ` · ${r0.detail}` : ""} · Livello: ${level}`;
+
+    const actionLine =
+      a0 === "Nessuna azione richiesta" ? "Azione: nessuna" : `Azione: ${a0}`;
+
+ return {
+  riskLine,
+  actionLine,
+  levelTone,
+  level,
+};
+
+
+
+  }, [risks, nextActions]);
 
   // ───────────────────────────
   // RENDER
@@ -457,21 +519,20 @@ export default function DirectionDashboard() {
           <h1 className="text-2xl md:text-3xl font-semibold text-slate-50">
             Dashboard Direzione
           </h1>
-          <p className="mt-1 text-[12px] text-slate-400 max-w-xl">
-            Vista sintetica di produzione, avanzamento cavi INCA e rischi operativi.
-            Filtri per periodo, nave e commessa. Tutto in sola lettura.
-          </p>
         </div>
 
         <div className="flex flex-col items-end gap-2 text-[11px]">
           <div className="inline-flex items-center gap-2">
             <span className="px-2 py-0.5 rounded-full border border-emerald-500/70 bg-emerald-900/40 text-emerald-100">
-              Direzione · sola lettura
+              Sola lettura
             </span>
-            <span className="px-2 py-0.5 rounded-full border border-sky-500/70 bg-sky-900/40 text-sky-100">
-              Pronto per drill-down verso Ufficio / Capo
-            </span>
+            {kpi.incaDataQuality && kpi.incaPrevisti === 0 && kpi.incaRealizzati === 0 && (
+              <span className="px-2 py-0.5 rounded-full border border-amber-400/70 bg-amber-900/30 text-amber-100">
+                INCA parziale
+              </span>
+            )}
           </div>
+
           <div className="flex items-center gap-2">
             <span className="text-slate-500">Finestra:</span>
             <input
@@ -499,26 +560,28 @@ export default function DirectionDashboard() {
             type="text"
             value={costrFilter}
             onChange={(e) => setCostrFilter(e.target.value)}
-            placeholder="es. C001"
+            placeholder="es. 6368"
             className="flex-1 rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1 text-slate-100 placeholder:text-slate-600"
           />
         </div>
+
         <div className="flex items-center gap-2">
           <span className="text-slate-400 min-w-[72px]">Commessa</span>
           <input
             type="text"
             value={commessaFilter}
             onChange={(e) => setCommessaFilter(e.target.value)}
-            placeholder="es. ICING"
+            placeholder="es. SDC"
             className="flex-1 rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1 text-slate-100 placeholder:text-slate-600"
           />
         </div>
+
         <div className="flex items-center justify-end gap-2">
           <button
             type="button"
             onClick={() => {
-              setCostrFilter('');
-              setCommessaFilter('');
+              setCostrFilter("");
+              setCommessaFilter("");
             }}
             className="px-3 py-1.5 rounded-full border border-slate-700 bg-slate-950/80 text-[11px] text-slate-300 hover:bg-slate-900"
           >
@@ -535,155 +598,106 @@ export default function DirectionDashboard() {
       )}
       {loading && !error && (
         <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-4 py-2 text-[12px] text-slate-300">
-          Caricamento dati Direzione…
+          Caricamento…
         </div>
       )}
 
       {/* STRIP KPI (6 tuiles) */}
       <section className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        {/* KPI 1 – Rapportini */}
         <div className="rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3">
           <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
             Rapportini
           </div>
-          <div className="mt-1 text-2xl font-semibold text-slate-50">
-            {kpi.currCount}
-          </div>
+          <div className="mt-1 text-2xl font-semibold text-slate-50">{kpi.currCount}</div>
           <div className="mt-1 text-[11px] text-slate-500">
-            {kpi.prevCount
-              ? `${kpi.prevCount} nella finestra precedente`
-              : 'Nessun storico precedente sul range selezionato.'}
+            {kpi.prevCount ? `Prev: ${kpi.prevCount}` : "Prev: —"}
           </div>
         </div>
 
-        {/* KPI 2 – Prodotto totale */}
         <div className="rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3">
           <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-            Prodotto totale
+            Prodotto
           </div>
           <div className="mt-1 text-2xl font-semibold text-emerald-300">
             {formatNumber(kpi.currProd)}
           </div>
           <div className="mt-1 text-[11px] text-slate-500 flex items-center justify-between">
-            <span>vs periodo precedente</span>
+            <span>vs prev</span>
             {kpi.deltaProdPerc != null && (
               <span
                 className={[
-                  'ml-1 inline-flex items-center px-2 py-0.5 rounded-full border text-[10px]',
+                  "ml-1 inline-flex items-center px-2 py-0.5 rounded-full border text-[10px]",
                   kpi.deltaProdPerc > 0
-                    ? 'border-emerald-500 text-emerald-300'
-                    : 'border-rose-500 text-rose-300',
-                ].join(' ')}
+                    ? "border-emerald-500 text-emerald-300"
+                    : "border-rose-500 text-rose-300",
+                ].join(" ")}
               >
-                {kpi.deltaProdPerc > 0 ? '▲' : '▼'}{' '}
+                {kpi.deltaProdPerc > 0 ? "▲" : "▼"}{" "}
                 {formatNumber(Math.abs(kpi.deltaProdPerc))}%
               </span>
             )}
           </div>
         </div>
 
-        {/* KPI 3 – Prod moyen / rapportino */}
         <div className="rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3">
           <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-            Prod. medio / rapportino
+            Media
           </div>
-          <div className="mt-1 text-2xl font-semibold text-sky-300">
-            {formatNumber(kpi.currAvg)}
-          </div>
+          <div className="mt-1 text-2xl font-semibold text-sky-300">{formatNumber(kpi.currAvg)}</div>
           <div className="mt-1 text-[11px] text-slate-500">
-            {kpi.prevAvg
-              ? `Prev: ${formatNumber(kpi.prevAvg)}`
-              : 'Nessun valore medio precedente.'}
+            {kpi.prevAvg ? `Prev: ${formatNumber(kpi.prevAvg)}` : "Prev: —"}
           </div>
         </div>
 
-        {/* KPI 4 – INCA previsti */}
         <div className="rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3">
           <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-            INCA · metri previsti
+            INCA prev
           </div>
-          <div className="mt-1 text-2xl font-semibold text-slate-50">
-            {formatNumber(kpi.incaPrevisti)}
-          </div>
-          <div className="mt-1 text-[11px] text-slate-500">
-            Somma metri teorici sui file INCA filtrati.
-          </div>
+          <div className="mt-1 text-2xl font-semibold text-slate-50">{formatNumber(kpi.incaPrevisti)}</div>
+          <div className="mt-1 text-[11px] text-slate-500">metri</div>
         </div>
 
-        {/* KPI 5 – INCA realizzati */}
         <div className="rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3">
           <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-            INCA · metri realizzati
+            INCA real
           </div>
-          <div className="mt-1 text-2xl font-semibold text-emerald-300">
-            {formatNumber(kpi.incaRealizzati)}
-          </div>
-          <div className="mt-1 text-[11px] text-slate-500">
-            Metri marcati come completati / realizzati.
-          </div>
+          <div className="mt-1 text-2xl font-semibold text-emerald-300">{formatNumber(kpi.incaRealizzati)}</div>
+          <div className="mt-1 text-[11px] text-slate-500">metri</div>
         </div>
 
-        {/* KPI 6 – Copertura INCA */}
         <div className="rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3">
           <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-            Copertura INCA stimata
+            Copertura
           </div>
           <div className="mt-1 text-2xl font-semibold text-fuchsia-300">
-            {kpi.incaCover ? `${formatNumber(kpi.incaCover)}%` : '—'}
+            {kpi.incaCover ? `${formatNumber(kpi.incaCover)}%` : "—"}
           </div>
-          <div className="mt-1 text-[11px] text-slate-500">
-            Rapporto metri realizzati / previsti.
-          </div>
+          <div className="mt-1 text-[11px] text-slate-500">stimata</div>
         </div>
       </section>
 
       {/* LIGNE PRINCIPALE : Timeline + INCA */}
       <section className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1.4fr)] gap-4">
-        {/* Timeline Recharts */}
         <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
           <div className="flex items-center justify-between mb-2">
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                Timeline produzione
-              </div>
-              <div className="text-xs text-slate-300">
-                Rapportini e prodotto giornaliero nel periodo selezionato.
-              </div>
+            <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+              Timeline
             </div>
           </div>
+
           <div className="h-60 w-full">
             {timelineData.length ? (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={timelineData}>
                   <CartesianGrid stroke="#1f2937" strokeDasharray="3 3" vertical={false} />
-                  <XAxis
-                    dataKey="label"
-                    tick={{ fontSize: 10, fill: '#9ca3af' }}
-                  />
-                  <YAxis
-                    yAxisId="left"
-                    tick={{ fontSize: 10, fill: '#9ca3af' }}
-                  />
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    tick={{ fontSize: 10, fill: '#9ca3af' }}
-                  />
+                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#9ca3af" }} />
+                  <YAxis yAxisId="left" tick={{ fontSize: 10, fill: "#9ca3af" }} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: "#9ca3af" }} />
                   <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#020617',
-                      borderColor: '#1e293b',
-                      fontSize: 11,
-                    }}
+                    contentStyle={{ backgroundColor: "#020617", borderColor: "#1e293b", fontSize: 11 }}
                   />
-                  <Legend wrapperStyle={{ fontSize: 11, color: '#e5e7eb' }} />
-                  <Bar
-                    yAxisId="left"
-                    dataKey="prodotto"
-                    name="Prodotto"
-                    fill="#38bdf8"
-                    barSize={18}
-                  />
+                  <Legend wrapperStyle={{ fontSize: 11, color: "#e5e7eb" }} />
+                  <Bar yAxisId="left" dataKey="prodotto" name="Prodotto" fill="#38bdf8" barSize={18} />
                   <Line
                     yAxisId="right"
                     type="monotone"
@@ -697,95 +711,60 @@ export default function DirectionDashboard() {
               </ResponsiveContainer>
             ) : (
               <div className="flex h-full items-center justify-center text-[12px] text-slate-500">
-                Nessun dato disponibile per il periodo selezionato.
+                Nessun dato
               </div>
             )}
           </div>
         </div>
 
-        {/* INCA – ECharts */}
         <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
           <div className="flex items-center justify-between mb-2">
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                INCA · confronto teorico / reale
-              </div>
-              <div className="text-xs text-slate-300">
-                Prime commesse / file INCA per metri previsti, realizzati e posati.
-              </div>
+            <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+              INCA
             </div>
           </div>
+
           <div className="h-60 w-full">
-            <ReactECharts
-              option={incaOption}
-              style={{ width: '100%', height: '100%' }}
-              notMerge
-              lazyUpdate
-            />
+            <ReactECharts option={incaOption} style={{ width: "100%", height: "100%" }} notMerge lazyUpdate />
           </div>
         </div>
       </section>
 
-      {/* RISCHI + NEXT ACTIONS */}
-      <section className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)] gap-4">
-        {/* Panneau Risques */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-[12px]">
-          <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500 mb-1">
-            Pannello rischi
+      {/* BRIEF DIREZIONE (ultra-compact, zéro bruit) */}
+      <section className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+            Brief Direzione
           </div>
-          <p className="text-slate-400 mb-2">
-            Elenco sintetico dei rischi principali derivati da produzione e INCA
-            nel periodo selezionato.
-          </p>
-          <ul className="space-y-2">
-            {risks.map((r, idx) => (
-              <li
-                key={idx}
-                className="rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2"
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-semibold text-slate-100">
-                    {r.title}
-                  </span>
-                  <span
-                    className={[
-                      'px-2 py-0.5 rounded-full text-[10px] border',
-                      r.level === 'ALTA'
-                        ? 'border-rose-500 text-rose-300'
-                        : r.level === 'MEDIA'
-                        ? 'border-amber-400 text-amber-200'
-                        : 'border-emerald-400 text-emerald-200',
-                    ].join(' ')}
-                  >
-                    {r.level}
-                  </span>
-                </div>
-                <div className="text-slate-300">{r.detail}</div>
-                <div className="mt-1 text-[11px] text-slate-400">
-                  Suggerimento: {r.hint}
-                </div>
-              </li>
-            ))}
-          </ul>
+          <span
+            className={[
+              "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em]",
+              risks[0]?.level === "ALTA"
+                ? "border-rose-500/60 text-rose-200 bg-rose-900/20"
+                : risks[0]?.level === "MEDIA"
+                ? "border-amber-400/60 text-amber-200 bg-amber-900/20"
+                : "border-emerald-400/60 text-emerald-200 bg-emerald-900/20",
+            ].join(" ")}
+          >
+            {risks[0]?.level === "ALTA"
+              ? "ALTA"
+              : risks[0]?.level === "MEDIA"
+              ? "MEDIA"
+              : "BASSA"}
+          </span>
         </div>
 
-        {/* Next actions */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-[12px]">
-          <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500 mb-1">
-            Next actions · Direzione
+        <div className="mt-3 space-y-2">
+          <div className="text-[13px] text-slate-100 font-medium">
+            {risks[0]?.level === "BASSA"
+              ? "Stato: sotto controllo · Rischio: BASSO"
+              : `${risks[0]?.title || "Rischio"}${risks[0]?.detail ? ` · ${risks[0].detail}` : ""}`}
           </div>
-          <p className="text-slate-400 mb-2">
-            Piccolo elenco operativo per la Direzione, basato sugli indicatori
-            attuali. Perfetto per la riunione mattutina.
-          </p>
-          <ol className="list-decimal list-inside space-y-1 text-slate-300">
-            {nextActions.map((a, idx) => (
-              <li key={idx}>{a}</li>
-            ))}
-          </ol>
-          <div className="mt-3 border-t border-slate-800 pt-2 text-[11px] text-slate-500">
-            In futuro questo pannello potrà aprire direttamente le viste Manager /
-            Ufficio filtrate (drill-down sulle commesse critiche).
+
+          <div className="text-[12px] text-slate-300">
+            {nextActions[0] === "Nessuna azione richiesta"
+              ? "Azione: nessuna"
+              : `Azione: ${nextActions[0] || "—"}`}
           </div>
         </div>
       </section>

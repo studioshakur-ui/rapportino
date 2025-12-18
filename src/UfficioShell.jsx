@@ -102,12 +102,12 @@ export default function UfficioShell() {
   };
 
   const isInca = location.pathname.startsWith('/ufficio/inca');
-  const isCoreDrive = location.pathname.startsWith('/ufficio/archive'); // route technique
+  const isCoreDrive = location.pathname.startsWith('/ufficio/archive');
 
   if (!profile) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-400">
-        Caricamento profilo Ufficio…
+        Caricamento profilo…
       </div>
     );
   }
@@ -119,7 +119,6 @@ export default function UfficioShell() {
         coreLayout.pageShell(isDark),
       ].join(' ')}
     >
-      {/* HEADER HARMONISÉ CORE */}
       <header
         className={[
           'no-print border-b backdrop-blur flex items-center justify-between px-4 md:px-6 py-2',
@@ -131,15 +130,11 @@ export default function UfficioShell() {
             CORE · Sistema centrale di cantiere
           </div>
           <div className="text-xs text-slate-400">
-            Modulo Ufficio ·{' '}
-            <span className="font-semibold">
-              Controllo rapportini · INCA · CORE Drive
-            </span>
+            Modulo Ufficio · <span className="font-semibold">Certificazione · Archivio</span>
           </div>
         </div>
 
         <div className="flex items-center gap-3 text-[11px]">
-          {/* Switch Dark/Light */}
           <button
             type="button"
             onClick={toggleTheme}
@@ -161,7 +156,6 @@ export default function UfficioShell() {
             </span>
           </button>
 
-          {/* CORE Drive synchronisé */}
           <span
             className={corePills(
               isDark,
@@ -175,7 +169,6 @@ export default function UfficioShell() {
             </span>
           </span>
 
-          {/* User info */}
           <div className="hidden sm:flex flex-col text-right">
             <span className="text-slate-400">
               Utente:{' '}
@@ -183,12 +176,8 @@ export default function UfficioShell() {
                 {displayName}
               </span>
             </span>
-            <span className="text-slate-500">
-              Area Ufficio · Validazione &amp; controllo
-            </span>
           </div>
 
-          {/* Logout */}
           <button
             type="button"
             onClick={handleLogout}
@@ -204,26 +193,22 @@ export default function UfficioShell() {
         </div>
       </header>
 
-      {/* LAYOUT Mission Control */}
       <div className="flex flex-1 min-h-0">
-        {/* SIDEBAR */}
         <aside
           className={[
             'no-print hidden md:flex md:flex-col w-64 border-r px-3 py-4',
             coreLayout.sidebar(isDark),
           ].join(' ')}
         >
-          {/* Pannello di controllo */}
           <div className="px-1 pb-3 border-b border-slate-800/60">
             <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400 mb-1">
-              Pannello di controllo
+              Pannello
             </div>
             <div className="text-xs text-slate-300">
-              Rapportini · stati · INCA · CORE Drive tecnico
+              Rapportini · INCA · CORE Drive
             </div>
           </div>
 
-          {/* Nav principale */}
           <nav className="px-1 py-3 space-y-1.5">
             <NavLink
               to="/ufficio"
@@ -231,7 +216,7 @@ export default function UfficioShell() {
               className={({ isActive }) => navItemClasses(isActive)}
             >
               <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
-              <span>Rapportini giornalieri</span>
+              <span>Rapportini</span>
             </NavLink>
 
             <NavLink
@@ -241,7 +226,7 @@ export default function UfficioShell() {
               }
             >
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              <span>Percorso cavi · INCA</span>
+              <span>INCA</span>
             </NavLink>
 
             <NavLink
@@ -251,20 +236,15 @@ export default function UfficioShell() {
               }
             >
               <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
-              <span>CORE Drive · storico tecnico</span>
+              <span>CORE Drive</span>
             </NavLink>
           </nav>
 
-          {/* Bas de sidebar */}
           <div className="mt-auto pt-4 border-t border-slate-800 text-[10px] text-slate-500">
             <div>CORE · SHAKUR Engineering</div>
-            <div className="text-slate-600">
-              Ufficio · Sedi operative
-            </div>
           </div>
         </aside>
 
-        {/* CONTENT */}
         <main
           className={[
             'flex-1 min-h-0 overflow-y-auto',
@@ -272,27 +252,18 @@ export default function UfficioShell() {
           ].join(' ')}
         >
           <section className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
-            {/* Bandeau contextuel */}
             <div className="mb-4 flex items-center justify-between gap-3">
               <div className="flex flex-col">
                 <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
                   {isInca
-                    ? 'Tracciamento INCA'
+                    ? 'INCA'
                     : isCoreDrive
-                    ? 'CORE Drive · storico certificato'
-                    : 'Gestione rapportini'}
-                </span>
-                <span className="text-xs text-slate-400">
-                  {isInca
-                    ? 'Confronto INCA · percorsi · avanzamento cavi'
-                    : isCoreDrive
-                    ? 'Consultazione in sola lettura · memoria certificata · audit'
-                    : 'Validazione, note di ritorno e archivio digitale'}
+                    ? 'CORE Drive'
+                    : 'Rapportini'}
                 </span>
               </div>
             </div>
 
-            {/* Panneau principal */}
             <div
               className={[
                 'border rounded-2xl overflow-hidden',

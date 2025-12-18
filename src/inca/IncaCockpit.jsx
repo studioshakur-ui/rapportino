@@ -56,6 +56,87 @@ function isoWeek(dateLike) {
   }
 }
 
+/**
+ * Fetch paginé "ALL ROWS" pour éviter la fenêtre implicite (≈1000) de PostgREST.
+ * - range() est obligatoire
+ * - order stable (codice + id) pour éviter pages qui bougent
+ * - on boucle jusqu'à batch < pageSize
+ */
+async function fetchAllIncaCavi({
+  fileId,
+  costr,
+  commessa,
+  pageSize = 1000,
+  signal,
+}) {
+  const rows = [];
+  let from = 0;
+
+  // Colonnes réellement utilisées par l'UI (table + recherche + détails)
+  // Réduire le payload évite de saturer le réseau sur gros fichiers.
+  const SELECT_COLS = [
+    "id",
+    "inca_file_id",
+    "costr",
+    "commessa",
+    "codice",
+    "rev_inca",
+    "descrizione",
+    "impianto",
+    "tipo",
+    "sezione",
+    "zona_da",
+    "zona_a",
+    "apparato_da",
+    "apparato_a",
+    "descrizione_da",
+    "descrizione_a",
+    "marca_cavo",
+    "livello",
+    "wbs",
+    "situazione",
+    "metri_totali",
+    "metri_teo",
+    "metri_dis",
+    "metri_posati_teorici",
+    "metri_sta",
+    "metri_sit_cavo",
+    "metri_sit_tec",
+  ].join(",");
+
+  while (true) {
+    let q = supabase
+      .from("inca_cavi")
+      .select(SELECT_COLS)
+      .order("codice", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (fileId) q = q.eq("inca_file_id", fileId);
+    if (costr) q = q.eq("costr", costr);
+    if (commessa) q = q.eq("commessa", commessa);
+
+    // Supabase JS ne propage pas toujours AbortSignal au fetch interne selon versions,
+    // mais on garde le signal pour cohérence et futur upgrade.
+    const { data, error } = await q;
+    if (error) throw error;
+
+    const batch = data || [];
+    rows.push(...batch);
+
+    if (batch.length < pageSize) break;
+    from += pageSize;
+
+    if (signal?.aborted) {
+      const err = new Error("Aborted");
+      err.name = "AbortError";
+      throw err;
+    }
+  }
+
+  return rows;
+}
+
 export default function IncaCockpit({
   mode, // "modal" | undefined
   fileId: fileIdProp, // pilotage externe
@@ -86,6 +167,13 @@ export default function IncaCockpit({
 
   // KPI / computed
   const [lunghezzaMax, setLunghezzaMax] = useState(0); // 0 = no limit
+
+  // UX: progress (utile sur gros fichiers)
+  const [loadInfo, setLoadInfo] = useState({
+    loaded: 0,
+    pageSize: 1000,
+    running: false,
+  });
 
   const isModal = mode === "modal";
 
@@ -201,32 +289,36 @@ export default function IncaCockpit({
 
   // ---------------------------
   // Load cavi (inca_cavi) for selected file/costr/commessa
+  // FIX: paginated fetch to avoid implicit ~1000 window
   // ---------------------------
   useEffect(() => {
     let alive = true;
+    const ac = new AbortController();
 
     async function loadCavi() {
       if (!fileId && !costr && !commessa) return;
 
       setLoading(true);
       setError(null);
+      setLoadInfo({ loaded: 0, pageSize: 1000, running: true });
 
       try {
-        let q = supabase.from("inca_cavi").select("*");
+        // On reset selection on dataset change
+        setSelectedCable(null);
 
-        if (fileId) q = q.eq("inca_file_id", fileId);
-        if (costr) q = q.eq("costr", costr);
-        if (commessa) q = q.eq("commessa", commessa);
-
-        q = q.order("codice", { ascending: true });
-
-        const { data, error: e } = await q;
-        if (e) throw e;
+        // Fetch ALL rows, but by pages.
+        const rows = await fetchAllIncaCavi({
+          fileId,
+          costr,
+          commessa,
+          pageSize: 1000,
+          signal: ac.signal,
+        });
 
         if (!alive) return;
 
-        const rows = data || [];
         setCavi(rows);
+        setLoadInfo({ loaded: rows.length, pageSize: 1000, running: false });
 
         // compute max length
         const maxM = rows.reduce((acc, r) => {
@@ -235,10 +327,12 @@ export default function IncaCockpit({
         }, 0);
         setLunghezzaMax(maxM);
       } catch (err) {
+        if (err?.name === "AbortError") return;
         console.error("[IncaCockpit] loadCavi error:", err);
         if (!alive) return;
         setError("Impossible de charger les câbles INCA.");
         setCavi([]);
+        setLoadInfo({ loaded: 0, pageSize: 1000, running: false });
       } finally {
         if (alive) setLoading(false);
       }
@@ -248,6 +342,7 @@ export default function IncaCockpit({
 
     return () => {
       alive = false;
+      ac.abort();
     };
   }, [fileId, costr, commessa]);
 
@@ -377,7 +472,9 @@ export default function IncaCockpit({
             </div>
             <div className="text-[12px] text-slate-300">
               {selectedFile?.costr || "—"} · {selectedFile?.commessa || "—"} ·{" "}
-              <span className="text-slate-400">{selectedFile?.file_name || "—"}</span>
+              <span className="text-slate-400">
+                {selectedFile?.file_name || "—"}
+              </span>
             </div>
           </div>
 
@@ -416,6 +513,22 @@ export default function IncaCockpit({
             <span className="text-slate-300">
               {selectedFile?.file_name || "—"}
             </span>
+          </div>
+
+          {/* Load info */}
+          <div className="text-[11px] text-slate-500 mt-1">
+            {loading ? (
+              <span className="text-slate-400">
+                Caricamento cavi (batch {loadInfo.pageSize})…
+              </span>
+            ) : (
+              <span className="text-slate-400">
+                Cavi caricati:{" "}
+                <span className="text-slate-200 font-semibold">
+                  {cavi?.length || 0}
+                </span>
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -561,7 +674,9 @@ export default function IncaCockpit({
               </div>
               <div className="text-slate-400">
                 Non posati (NP):{" "}
-                <span className="text-purple-300 font-semibold">{nonPosati}</span>
+                <span className="text-purple-300 font-semibold">
+                  {nonPosati}
+                </span>
               </div>
               <div className="text-slate-400">
                 Tot. metri dis.:{" "}
@@ -825,11 +940,15 @@ export default function IncaCockpit({
                 </div>
                 <div className="text-[12px] text-slate-400 mt-1">
                   Totale:{" "}
-                  <span className="text-slate-100 font-semibold">{totalCavi}</span>{" "}
+                  <span className="text-slate-100 font-semibold">
+                    {totalCavi}
+                  </span>{" "}
                   · Posati (P):{" "}
                   <span className="text-emerald-300 font-semibold">{done}</span>{" "}
                   · Non posati (NP):{" "}
-                  <span className="text-purple-300 font-semibold">{nonPosati}</span>
+                  <span className="text-purple-300 font-semibold">
+                    {nonPosati}
+                  </span>
                 </div>
               </div>
 
@@ -848,7 +967,10 @@ export default function IncaCockpit({
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={distrib}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                      <XAxis dataKey="code" tick={{ fontSize: 12, fill: "#94a3b8" }} />
+                      <XAxis
+                        dataKey="code"
+                        tick={{ fontSize: 12, fill: "#94a3b8" }}
+                      />
                       <YAxis tick={{ fontSize: 12, fill: "#94a3b8" }} />
                       <Tooltip
                         contentStyle={{
@@ -860,7 +982,8 @@ export default function IncaCockpit({
                         }}
                         formatter={(value) => {
                           const count = Number(value || 0);
-                          const pct = distribTotal > 0 ? (count / distribTotal) * 100 : 0;
+                          const pct =
+                            distribTotal > 0 ? (count / distribTotal) * 100 : 0;
                           return [`${count} (${pct.toFixed(1)}%)`, "Cavi"];
                         }}
                       />
@@ -875,7 +998,8 @@ export default function IncaCockpit({
 
                 <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2">
                   {distrib.map((d) => {
-                    const pct = distribTotal > 0 ? (d.count / distribTotal) * 100 : 0;
+                    const pct =
+                      distribTotal > 0 ? (d.count / distribTotal) * 100 : 0;
                     return (
                       <div
                         key={d.code}
