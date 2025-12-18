@@ -11,32 +11,24 @@ export default function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // CORE 1.0: on reste sobre et stable (dark-only ici).
+  // CAPO: dark-only (CORE 1.0)
   const isDark = true;
 
-  const pathname = location.pathname;
+  const pathname = location.pathname || "";
   const isCoreDrive = pathname.startsWith("/app/archive");
-  const isRapportino = !isCoreDrive;
+  const isInca = pathname.includes("/inca");
+  const pageLabel = isCoreDrive ? "CORE Drive" : isInca ? "INCA" : "Rapportino";
 
-  // Sidebar UX:
-  // - Sur la feuille Rapportino: sidebar rétractée par défaut.
-  // - Hover / focus: "peek" temporaire pour lire les labels.
+  // Sidebar dynamique: collapsed + peek
   const [sidebarPeek, setSidebarPeek] = useState(false);
-
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
       const v = window.localStorage.getItem("core-sidebar-collapsed");
       if (v === "1" || v === "0") return v === "1";
     } catch {}
-    return isRapportino;
+    // par défaut: compact
+    return true;
   });
-
-  useEffect(() => {
-    if (isRapportino) setSidebarCollapsed(true);
-  }, [isRapportino]);
-
-  const effectiveCollapsed =
-    (isRapportino ? true : sidebarCollapsed) && !sidebarPeek;
 
   useEffect(() => {
     try {
@@ -46,6 +38,8 @@ export default function AppShell() {
       );
     } catch {}
   }, [sidebarCollapsed]);
+
+  const effectiveCollapsed = sidebarCollapsed && !sidebarPeek;
 
   const handleLogout = async () => {
     try {
@@ -66,8 +60,6 @@ export default function AppShell() {
     [profile]
   );
 
-  const pageLabel = isCoreDrive ? "Archivio" : "Rapportino";
-
   if (!profile) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-400">
@@ -76,20 +68,31 @@ export default function AppShell() {
     );
   }
 
+  // Styles “CORE Drive premium mauve”
+  const driveTopGlow = isCoreDrive
+    ? "bg-gradient-to-r from-violet-950/55 via-slate-950/35 to-slate-950/20"
+    : "bg-transparent";
+
   return (
-    <div className={["min-h-screen flex flex-col", coreLayout.pageShell(isDark)].join(" ")}>
-      {/* TOP BAR — mince, premium, silencieuse */}
+    <div
+      className={[
+        "min-h-screen flex flex-col",
+        coreLayout.pageShell(isDark),
+        isCoreDrive ? "bg-[#05050e]" : "",
+      ].join(" ")}
+    >
+      {/* TOP BAR — mince / premium / 1 ligne */}
       <header
         className={[
-          "no-print border-b backdrop-blur",
-          "sticky top-0 z-30",
+          "no-print sticky top-0 z-30 border-b backdrop-blur",
           "h-12 md:h-14",
           "flex items-center justify-between",
           "px-3 sm:px-4 md:px-6",
           coreLayout.header(isDark),
+          driveTopGlow,
         ].join(" ")}
       >
-        {/* Left: identité + contexte */}
+        {/* Left */}
         <div className="flex items-center gap-2.5 min-w-0">
           <button
             type="button"
@@ -111,40 +114,47 @@ export default function AppShell() {
               CORE
             </span>
 
-            <span className={corePills(isDark, "sky", "px-2 py-0.5 text-[10px] uppercase tracking-[0.14em]")}>
+            <span
+              className={corePills(
+                isDark,
+                "sky",
+                "px-2 py-0.5 text-[10px] uppercase tracking-[0.14em]"
+              )}
+            >
               CAPO
             </span>
 
-            <span className="text-slate-600">·</span>
+            <span className="text-slate-700">·</span>
 
-            <span className="text-[14px] md:text-[15px] font-semibold text-slate-100 truncate">
+            <span
+              className={[
+                "text-[14px] md:text-[15px] font-semibold truncate",
+                isCoreDrive ? "text-violet-100" : "text-slate-100",
+              ].join(" ")}
+              title={pageLabel}
+            >
               {pageLabel}
             </span>
           </div>
         </div>
 
-        {/* Right: statuts + actions (icônes / compact) */}
+        {/* Right (Logout toujours ici) */}
         <div className="flex items-center gap-2.5 text-[11px]">
-          {/* ConnectionIndicator (déjà existant) */}
-          <div className="flex items-center" title="Stato connessione">
+          <div className="flex items-center" title="Connessione">
             <ConnectionIndicator />
           </div>
 
-          {/* Nom (discret) */}
-          <div className="hidden sm:flex items-center gap-2 min-w-0">
-            <span
-              className={corePills(
-                isDark,
-                "neutral",
-                "max-w-[220px] truncate px-2 py-0.5 text-[10px]"
-              )}
-              title={displayName}
-            >
-              {displayName}
-            </span>
-          </div>
+          <span
+            className={corePills(
+              isDark,
+              "neutral",
+              "hidden sm:inline-flex max-w-[220px] truncate px-2 py-0.5 text-[10px]"
+            )}
+            title={displayName}
+          >
+            {displayName}
+          </span>
 
-          {/* Logout compact */}
           <button
             type="button"
             onClick={handleLogout}
@@ -159,7 +169,13 @@ export default function AppShell() {
             title="Logout"
             aria-label="Logout"
           >
-            <span className={themeIconBg(isDark, "neutral", "h-4 w-4 text-[9px] border-slate-700")}>
+            <span
+              className={themeIconBg(
+                isDark,
+                "neutral",
+                "h-4 w-4 text-[9px] border-slate-700"
+              )}
+            >
               ⏻
             </span>
             <span className="hidden md:inline">Logout</span>
@@ -168,10 +184,10 @@ export default function AppShell() {
       </header>
 
       <div className="flex flex-1 min-h-0">
-        {/* Sidebar (desktop only) */}
+        {/* SIDEBAR — dynamique (desktop) */}
         <aside
           className={[
-            "no-print border-r flex flex-col gap-4",
+            "no-print border-r flex flex-col",
             coreLayout.sidebar(isDark),
             effectiveCollapsed ? "w-[84px] px-2 py-4" : "w-64 px-3 py-4",
             "transition-[width] duration-200",
@@ -182,20 +198,14 @@ export default function AppShell() {
           onFocusCapture={() => setSidebarPeek(true)}
           onBlurCapture={() => setSidebarPeek(false)}
         >
-          <div className={["pb-3 border-b border-slate-800/60", effectiveCollapsed ? "px-0" : "px-1"].join(" ")}>
-            <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
-              {effectiveCollapsed ? "CAPO" : "Pannello"}
-            </div>
-          </div>
-
-          <nav className={["py-2 space-y-1.5", effectiveCollapsed ? "px-0" : "px-1"].join(" ")}>
+          <nav className={["space-y-1.5", effectiveCollapsed ? "px-0" : "px-1"].join(" ")}>
             <NavLink
               to="/app"
               end
               className={({ isActive }) =>
                 [
                   corePills(isDark, "sky", "w-full flex items-center gap-2 justify-start"),
-                  isActive ? "" : "opacity-80 hover:opacity-100",
+                  isActive ? "" : "opacity-85 hover:opacity-100",
                   effectiveCollapsed ? "justify-center px-0" : "",
                 ].join(" ")
               }
@@ -209,50 +219,42 @@ export default function AppShell() {
               to="/app/archive"
               className={({ isActive }) =>
                 [
-                  corePills(isDark, "violet", "w-full flex items-center gap-2 justify-start"),
-                  isActive ? "" : "opacity-75 hover:opacity-100",
+                  corePills(
+                    isDark,
+                    "violet",
+                    "w-full flex items-center gap-2 justify-start font-semibold"
+                  ),
+                  isActive
+                    ? "shadow-[0_18px_60px_rgba(139,92,246,0.18)]"
+                    : "opacity-90 hover:opacity-100",
                   effectiveCollapsed ? "justify-center px-0" : "",
+                  // mauve sombre puissant
+                  isActive ? "bg-violet-950/35" : "bg-violet-950/18",
+                  "border-violet-500/60",
                 ].join(" ")
               }
-              title="Archivio"
+              title="CORE Drive"
             >
-              <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
-              {!effectiveCollapsed && <span>Archivio</span>}
+              <span className="h-1.5 w-1.5 rounded-full bg-violet-400 shadow-[0_0_10px_rgba(167,139,250,0.45)]" />
+              {!effectiveCollapsed && <span>CORE Drive</span>}
             </NavLink>
           </nav>
 
-          <div className="mt-auto pt-4 border-t border-slate-800 text-[10px] text-slate-500">
+          <div className="mt-auto pt-4 border-t border-slate-800 text-[10px] text-slate-600">
             <div>CORE</div>
           </div>
         </aside>
 
-        {/* Main */}
-        <main className={["flex-1 min-h-0 overflow-y-auto", coreLayout.mainBg(isDark)].join(" ")}>
-          <section
-            className={[
-              "mx-auto",
-              isRapportino ? "max-w-none px-0" : "max-w-5xl px-3 sm:px-4",
-              "py-0 sm:py-0",
-            ].join(" ")}
-          >
-            {/* En mode nettoyage: on retire les sous-textes marketing. */}
-            {!isRapportino && (
-              <div className="pt-4 pb-3">
-                <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                  {isCoreDrive ? "ARCHIVIO" : "RAPPORTINO"}
-                </div>
-              </div>
-            )}
-
-            <div
-              className={[
-                "border rounded-2xl overflow-hidden",
-                coreLayout.primaryPanel(isDark),
-                isRapportino ? "rounded-none border-0" : "",
-              ].join(" ")}
-            >
-              <Outlet />
-            </div>
+        {/* MAIN */}
+        <main
+          className={[
+            "flex-1 min-h-0 overflow-y-auto",
+            coreLayout.mainBg(isDark),
+            isCoreDrive ? "bg-[#070714]" : "",
+          ].join(" ")}
+        >
+          <section className="mx-auto max-w-none px-0 py-0">
+            <Outlet />
           </section>
         </main>
       </div>
