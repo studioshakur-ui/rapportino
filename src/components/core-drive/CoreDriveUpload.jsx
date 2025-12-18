@@ -1,6 +1,6 @@
 // /src/components/core-drive/CoreDriveUpload.jsx
 import React, { useMemo, useState } from "react";
-import { uploadCoreFile } from "../../services/coreDrive.api";
+import { uploadCoreFile } from "../../services/coreDriveApi";
 import { bytes } from "./coreDriveUi";
 
 export default function CoreDriveUpload({ defaultCantiere = "", defaultOrigine = "UFFICIO", onUploaded }) {
