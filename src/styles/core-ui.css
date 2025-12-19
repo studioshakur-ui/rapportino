@@ -58,25 +58,9 @@
 
 .btn-inca {
   background-color: transparent;
-  border: 1px solid var(--inca-400);
+  border: 1px solid rgba(129, 140, 248, 0.55);
   color: var(--inca-300);
 }
 .btn-inca:hover {
   background-color: rgba(99, 102, 241, 0.08);
-}
-
-/* =========================
-   Status badges
-   ========================= */
-.badge-capo {
-  background: rgba(47, 191, 113, 0.12);
-  color: var(--capo-400);
-}
-.badge-alert {
-  background: rgba(251, 191, 36, 0.12);
-  color: var(--alert-400);
-}
-.badge-inca {
-  background: rgba(99, 102, 241, 0.12);
-  color: var(--inca-300);
 }

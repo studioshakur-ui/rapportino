@@ -25,13 +25,19 @@ function Chip({ active, children, onClick, title }) {
       className={[
         "px-3 py-1.5 rounded-full text-[12px] font-semibold border transition",
         active
-          ? "bg-emerald-600 text-white border-emerald-500"
+          ? "bg-[rgba(99,102,241,0.18)] text-[var(--inca-300)] border-[rgba(129,140,248,0.55)]"
           : "bg-slate-900/40 text-slate-100 border-slate-700 hover:bg-slate-900/70",
       ].join(" ")}
     >
       {children}
     </button>
   );
+}
+
+function pickDaA(row) {
+  const da = norm(row?.zona_da) || norm(row?.apparato_da) || "—";
+  const a = norm(row?.zona_a) || norm(row?.apparato_a) || "—";
+  return { da, a };
 }
 
 /**
@@ -264,7 +270,7 @@ export default function RapportinoIncaCaviSection({ rapportinoId, reportDate, co
     () => {
       let q = supabase
         .from("inca_cavi")
-        .select("id,codice,descrizione,metri_teo,metri_dis,situazione,marca_cavo")
+        .select("id,codice,descrizione,metri_teo,situazione,marca_cavo,zona_da,zona_a,apparato_da,apparato_a")
         .eq("costr", norm(costr))
         .eq("commessa", norm(commessa))
         .order("codice", { ascending: true });
@@ -466,58 +472,43 @@ export default function RapportinoIncaCaviSection({ rapportinoId, reportDate, co
   // -----------------------------
   if (!rapportinoId) {
     return (
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
-        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-          Cavi INCA collegati al rapportino
+      <div className="rounded-2xl border-core bg-core-card p-3">
+        <div className="text-[11px] uppercase tracking-[0.22em] text-muted">
+          <span className="text-inca font-semibold">INCA</span> · Cavi collegati
         </div>
-        <div className="mt-1 text-[13px] text-slate-200 font-semibold">Rapportino non disponibile</div>
-        <div className="mt-1 text-[12px] text-slate-400">
-          Manca <span className="text-slate-200 font-semibold">rapportinoId</span>.
-        </div>
+        <div className="mt-1 text-[13px] text-core font-semibold">Rapportino non disponibile</div>
       </div>
     );
   }
 
   return (
     <>
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-              Cavi INCA collegati al rapportino
-            </div>
-            <div className="text-[12px] text-slate-400 mt-1">
-              Seleziona i cavi da INCA e indica l&apos;avanzamento del turno.
-              <span className="text-slate-500"> POSA: 50/70/100. RIPRESA: 100 (una sola volta).</span>
-            </div>
-            <div className="mt-1 text-[11px] text-slate-500">
-              Filtro INCA: <span className="text-slate-200 font-semibold">COSTR {norm(costr) || "—"}</span>{" "}
-              · <span className="text-slate-200 font-semibold">COMMESSA {norm(commessa) || "—"}</span>
+      <div className="rounded-2xl border-core bg-core-card p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[11px] uppercase tracking-[0.22em] text-muted">
+              <span className="text-inca font-semibold">INCA</span> · Cavi collegati
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="text-[11px] text-slate-400">
-              Cavi: <span className="text-slate-100 font-semibold">{displayRows.length}</span>
-            </div>
+            <div className="text-[11px] text-muted">{displayRows.length}</div>
 
             <button
               type="button"
               onClick={openPicker}
               className={[
-                "inline-flex items-center gap-2 rounded-full border px-3 py-2 text-[12px] font-medium",
-                canUsePicker
-                  ? "border-emerald-500/40 bg-emerald-950/20 text-emerald-200 hover:bg-emerald-950/30"
-                  : "border-slate-800 bg-slate-950/40 text-slate-500 cursor-not-allowed",
+                "inline-flex items-center gap-2 rounded-full px-3 py-2 text-[12px] font-semibold transition",
+                canUsePicker ? "btn-inca" : "btn-core opacity-50 cursor-not-allowed",
               ].join(" ")}
               disabled={!canUsePicker}
               title={
                 canUsePicker
-                  ? "Aggiungi cavo da INCA"
-                  : "Per aprire il picker servono COSTR + COMMESSA (per filtrare INCA)."
+                  ? "Collega cavo INCA"
+                  : "Per aprire il picker servono COSTR + COMMESSA (filtro INCA)."
               }
             >
-              + Aggiungi cavo da INCA
+              + Collega cavo INCA
             </button>
           </div>
         </div>
@@ -528,7 +519,12 @@ export default function RapportinoIncaCaviSection({ rapportinoId, reportDate, co
           </div>
         )}
 
-        <div className="mt-3 overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/30">
+        <div
+          className={[
+            "mt-3 overflow-x-auto rounded-2xl border border-slate-800",
+            displayRows.length === 0 && !loading ? "bg-transparent" : "bg-slate-950/30",
+          ].join(" ")}
+        >
           <table className="min-w-[980px] w-full">
             <thead className="bg-slate-950/60 border-b border-slate-800">
               <tr className="text-left text-[11px] text-slate-500">
@@ -551,9 +547,7 @@ export default function RapportinoIncaCaviSection({ rapportinoId, reportDate, co
                 </tr>
               ) : displayRows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-3 py-10 text-center text-[12px] text-slate-500">
-                    Nessun cavo INCA collegato a questo rapportino.
-                  </td>
+                  <td colSpan={7} className="px-3 py-10" />
                 </tr>
               ) : (
                 displayRows.map((r) => {
@@ -642,19 +636,16 @@ export default function RapportinoIncaCaviSection({ rapportinoId, reportDate, co
       {/* PICKER DRAWER */}
       {isPickerOpen ? (
         <div className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center">
-          <div className="w-full sm:max-w-5xl sm:rounded-2xl rounded-t-3xl border border-slate-800 bg-slate-950 shadow-2xl overflow-hidden">
+          <div className="w-full sm:max-w-5xl sm:rounded-2xl rounded-t-3xl border-core bg-core-card shadow-2xl overflow-hidden">
             {/* Drawer header */}
-            <div className="px-4 py-3 border-b border-slate-800 bg-slate-950/90">
+            <div className="px-4 py-3 border-b border-slate-800 bg-core-section">
               <div className="flex items-start gap-3">
                 <div className="min-w-0">
-                  <div className="text-[11px] uppercase tracking-[0.22em] text-slate-300">
-                    Seleziona cavi da INCA
+                  <div className="text-[11px] uppercase tracking-[0.22em] text-muted">
+                    <span className="text-inca font-semibold">INCA</span> · Selezione cavo
                   </div>
-                  <div className="mt-1 text-[13px] font-semibold text-slate-50 truncate">
+                  <div className="mt-1 text-[13px] font-semibold text-core truncate">
                     COSTR {norm(costr)} · COMMESSA {norm(commessa)}
-                  </div>
-                  <div className="mt-1 text-[11px] text-slate-400">
-                    Aggancia i cavi al rapportino con 1 tap. Filtri e ricerca istantanei.
                   </div>
                 </div>
 
@@ -662,7 +653,7 @@ export default function RapportinoIncaCaviSection({ rapportinoId, reportDate, co
                   <button
                     type="button"
                     onClick={closePicker}
-                    className="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-950/60 hover:bg-slate-950 text-[12px] font-semibold"
+                    className="px-3 py-1.5 rounded-lg btn-core text-[12px] font-semibold"
                   >
                     Chiudi
                   </button>
@@ -675,7 +666,7 @@ export default function RapportinoIncaCaviSection({ rapportinoId, reportDate, co
                   value={pickerQuery}
                   onChange={(e) => setPickerQuery(e.target.value)}
                   placeholder="Cerca marca/codice/descrizione…"
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950/60 text-slate-50 px-3 py-2 text-[13px] outline-none focus:ring-2 focus:ring-emerald-500/60"
+                  className="w-full rounded-xl border-core bg-core-card text-core px-3 py-2 text-[13px] outline-none focus:ring-2 focus:ring-[var(--inca-400)]"
                 />
 
                 <div className="flex items-center gap-2">
@@ -685,8 +676,8 @@ export default function RapportinoIncaCaviSection({ rapportinoId, reportDate, co
                     className={[
                       "px-3 py-2 rounded-xl border text-[12px] font-semibold transition",
                       pickerOnlyNonP
-                        ? "bg-sky-600 text-white border-sky-500"
-                        : "bg-slate-950/60 text-slate-100 border-slate-700 hover:bg-slate-950",
+                        ? "bg-[rgba(99,102,241,0.18)] text-[var(--inca-300)] border-[rgba(129,140,248,0.55)]"
+                        : "btn-core",
                     ].join(" ")}
                     title="Escludi POSA (P)"
                   >
@@ -696,7 +687,7 @@ export default function RapportinoIncaCaviSection({ rapportinoId, reportDate, co
                   <button
                     type="button"
                     onClick={resetPickerFilters}
-                    className="px-3 py-2 rounded-xl border border-slate-700 bg-slate-950/60 hover:bg-slate-950 text-[12px] font-semibold"
+                    className="px-3 py-2 rounded-xl btn-core text-[12px] font-semibold"
                   >
                     Reset
                   </button>
@@ -724,24 +715,18 @@ export default function RapportinoIncaCaviSection({ rapportinoId, reportDate, co
             </div>
 
             {/* List */}
-            <div
-              ref={pickerListRef}
-              onScroll={onPickerScroll}
-              className="max-h-[72vh] overflow-y-auto"
-            >
+            <div ref={pickerListRef} onScroll={onPickerScroll} className="max-h-[72vh] overflow-y-auto">
               <div className="p-3">
                 {pickerRows.length === 0 && !pickerLoading ? (
-                  <div className="text-center text-[13px] text-slate-300 py-10">
-                    Nessun cavo disponibile (filtri attuali o già agganciati).
-                  </div>
+                  <div className="py-10" />
                 ) : (
-                  <div className="rounded-2xl border border-slate-800 overflow-hidden">
+                  <div className="rounded-2xl border-core overflow-hidden">
                     <table className="w-full text-[12px]">
-                      <thead className="bg-slate-950/70 sticky top-0 z-10">
-                        <tr className="text-slate-200">
+                      <thead className="bg-core-section sticky top-0 z-10 border-b border-slate-800">
+                        <tr className="text-core">
                           <th className="px-3 py-2 text-left">Marca / codice</th>
+                          <th className="px-3 py-2 text-left">Da / A</th>
                           <th className="px-3 py-2 text-right">Lung. disegno</th>
-                          <th className="px-3 py-2 text-right">Metri posati</th>
                           <th className="px-3 py-2 text-center">Situazione</th>
                           <th className="px-3 py-2 text-right">Azione</th>
                         </tr>
@@ -749,33 +734,45 @@ export default function RapportinoIncaCaviSection({ rapportinoId, reportDate, co
                       <tbody>
                         {pickerRows.map((r) => {
                           const k = situazioneKey(r.situazione);
+                          const { da, a } = pickDaA(r);
+
                           return (
-                            <tr key={r.id} className="border-t border-slate-800 bg-slate-950/30 hover:bg-slate-950/55">
+                            <tr key={r.id} className="border-t border-slate-800 bg-core-card/40 hover:bg-core-card/70">
                               <td className="px-3 py-2">
-                                <div className="text-[12px] text-slate-100 font-semibold">
+                                <div className="text-[12px] text-core font-semibold">
                                   {norm(r.codice) || norm(r.marca_cavo) || "—"}
                                 </div>
-                                <div className="text-[11px] text-slate-500 truncate max-w-[520px]">
+                                <div className="text-[11px] text-muted truncate max-w-[520px]">
                                   {norm(r.descrizione) || "—"}
                                 </div>
                               </td>
-                              <td className="px-3 py-2 text-right text-slate-100">
+
+                              <td className="px-3 py-2">
+                                <div className="text-[12px] text-core">
+                                  <span className="text-muted font-semibold">DA</span>{" "}
+                                  <span className="text-core">{da}</span>{" "}
+                                  <span className="text-muted">→</span>{" "}
+                                  <span className="text-muted font-semibold">A</span>{" "}
+                                  <span className="text-core">{a}</span>
+                                </div>
+                              </td>
+
+                              <td className="px-3 py-2 text-right text-core">
                                 {Number(r.metri_teo ?? 0) || 0}
                               </td>
-                              <td className="px-3 py-2 text-right text-slate-100">
-                                {Number(r.metri_dis ?? 0) || 0}
-                              </td>
+
                               <td className="px-3 py-2 text-center">
-                                <span className="inline-flex px-2 py-1 rounded-full text-[11px] font-semibold border border-slate-700 bg-slate-950/60">
+                                <span className="inline-flex px-2 py-1 rounded-full text-[11px] font-semibold border border-slate-700 bg-core-section">
                                   {k}
                                 </span>
                               </td>
+
                               <td className="px-3 py-2 text-right">
                                 <button
                                   type="button"
                                   disabled={pickerLoading}
                                   onClick={() => addOne(r.id)}
-                                  className="px-3 py-1.5 rounded-lg border border-emerald-600 bg-emerald-600/15 hover:bg-emerald-600/25 text-[12px] font-semibold text-emerald-100"
+                                  className="px-3 py-1.5 rounded-lg border border-[rgba(129,140,248,0.55)] bg-[rgba(99,102,241,0.12)] hover:bg-[rgba(99,102,241,0.18)] text-[12px] font-semibold text-core"
                                 >
                                   Aggancia
                                 </button>
@@ -786,7 +783,7 @@ export default function RapportinoIncaCaviSection({ rapportinoId, reportDate, co
 
                         {pickerLoading ? (
                           <tr>
-                            <td colSpan={5} className="px-3 py-4 text-center text-[12px] text-amber-300">
+                            <td colSpan={5} className="px-3 py-4 text-center text-[12px] text-muted">
                               Caricamento…
                             </td>
                           </tr>
@@ -794,7 +791,7 @@ export default function RapportinoIncaCaviSection({ rapportinoId, reportDate, co
 
                         {!pickerHasMore && pickerRows.length > 0 ? (
                           <tr>
-                            <td colSpan={5} className="px-3 py-4 text-center text-[12px] text-slate-400">
+                            <td colSpan={5} className="px-3 py-4 text-center text-[12px] text-muted">
                               Fine lista
                             </td>
                           </tr>
@@ -806,11 +803,7 @@ export default function RapportinoIncaCaviSection({ rapportinoId, reportDate, co
 
                 {pickerHasMore && !pickerLoading ? (
                   <div className="mt-3 flex items-center justify-end">
-                    <button
-                      type="button"
-                      onClick={loadPickerMore}
-                      className="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-950/60 hover:bg-slate-950 text-[12px] font-semibold"
-                    >
+                    <button type="button" onClick={loadPickerMore} className="px-3 py-1.5 rounded-lg btn-core text-[12px] font-semibold">
                       Carica altri
                     </button>
                   </div>
@@ -819,15 +812,8 @@ export default function RapportinoIncaCaviSection({ rapportinoId, reportDate, co
             </div>
 
             {/* Drawer footer */}
-            <div className="px-4 py-3 border-t border-slate-800 bg-slate-950/90 flex items-center justify-between">
-              <div className="text-[12px] text-slate-300">
-                Suggerimento: usa filtri P/T/R/B/E/NP per selezionare velocemente.
-              </div>
-              <button
-                type="button"
-                onClick={closePicker}
-                className="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-950/60 hover:bg-slate-950 text-[12px] font-semibold"
-              >
+            <div className="px-4 py-3 border-t border-slate-800 bg-core-section flex items-center justify-end">
+              <button type="button" onClick={closePicker} className="px-3 py-1.5 rounded-lg btn-core text-[12px] font-semibold">
                 Chiudi
               </button>
             </div>

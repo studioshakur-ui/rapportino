@@ -584,8 +584,9 @@ export default function RapportinoPage() {
             <div className="mt-6 no-print">
               <RapportinoIncaCaviSection
                 rapportinoId={rapportinoId}
-                shipCostr={costr}
-                disabled={!canEditInca}
+                reportDate={reportDate}
+                costr={costr}
+                commessa={commessa}
               />
             </div>
 

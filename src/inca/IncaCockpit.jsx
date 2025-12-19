@@ -13,6 +13,7 @@ import {
 } from "recharts";
 
 import LoadingScreen from "../components/LoadingScreen";
+import IncaCaviTable from "./IncaCaviTable";
 
 // =====================================================
 // INCA COCKPIT (UFFICIO) — Percorso-level UI
@@ -102,6 +103,7 @@ async function fetchAllIncaCavi({
     "metri_sta",
     "metri_sit_cavo",
     "metri_sit_tec",
+    "pagina_pdf",
   ].join(",");
 
   while (true) {
@@ -116,8 +118,6 @@ async function fetchAllIncaCavi({
     if (costr) q = q.eq("costr", costr);
     if (commessa) q = q.eq("commessa", commessa);
 
-    // Supabase JS ne propage pas toujours AbortSignal au fetch interne selon versions,
-    // mais on garde le signal pour cohérence et futur upgrade.
     const { data, error } = await q;
     if (error) throw error;
 
@@ -158,9 +158,6 @@ export default function IncaCockpit({
   // Data
   const [files, setFiles] = useState([]);
   const [cavi, setCavi] = useState([]);
-
-  // Selection
-  const [selectedCable, setSelectedCable] = useState(null);
 
   // UI — modal (zoom) pour le graphe de distribution
   const [isDistribModalOpen, setIsDistribModalOpen] = useState(false);
@@ -203,10 +200,7 @@ export default function IncaCockpit({
   // ---------------------------
   useEffect(() => {
     if (!fileIdProp) return;
-    // Avoid resetting repeatedly
     setFileId((current) => (current === fileIdProp ? current : fileIdProp));
-    // Also reset selection on file change
-    setSelectedCable(null);
   }, [fileIdProp]);
 
   // ---------------------------
@@ -249,10 +243,6 @@ export default function IncaCockpit({
         const list = data || [];
         setFiles(list);
 
-        // Priority:
-        // 1) external fileIdProp
-        // 2) current fileId
-        // 3) first file
         const prefer = fileIdProp || fileId;
         if (prefer) {
           const exists = list.find((x) => x.id === prefer);
@@ -303,10 +293,6 @@ export default function IncaCockpit({
       setLoadInfo({ loaded: 0, pageSize: 1000, running: true });
 
       try {
-        // On reset selection on dataset change
-        setSelectedCable(null);
-
-        // Fetch ALL rows, but by pages.
         const rows = await fetchAllIncaCavi({
           fileId,
           costr,
@@ -320,7 +306,6 @@ export default function IncaCockpit({
         setCavi(rows);
         setLoadInfo({ loaded: rows.length, pageSize: 1000, running: false });
 
-        // compute max length
         const maxM = rows.reduce((acc, r) => {
           const m = safeNum(r.metri_teo) || safeNum(r.metri_dis) || 0;
           return Math.max(acc, m);
@@ -515,7 +500,6 @@ export default function IncaCockpit({
             </span>
           </div>
 
-          {/* Load info */}
           <div className="text-[11px] text-slate-500 mt-1">
             {loading ? (
               <span className="text-slate-400">
@@ -674,9 +658,7 @@ export default function IncaCockpit({
               </div>
               <div className="text-slate-400">
                 Non posati (NP):{" "}
-                <span className="text-purple-300 font-semibold">
-                  {nonPosati}
-                </span>
+                <span className="text-purple-300 font-semibold">{nonPosati}</span>
               </div>
               <div className="text-slate-400">
                 Tot. metri dis.:{" "}
@@ -772,149 +754,10 @@ export default function IncaCockpit({
         </div>
       </div>
 
-      {/* Table */}
-      <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/40 overflow-hidden">
-        <div className="flex items-center justify-between gap-3 px-3 py-2 border-b border-slate-800">
-          <div className="text-[11px] text-slate-500 uppercase tracking-wide">
-            Cavi ({filteredCavi.length})
-          </div>
-          <div className="text-[11px] text-slate-500">Click riga → dettagli</div>
-        </div>
-
-        {loading ? (
-          <div className="p-4">
-            <LoadingScreen message="Caricamento cavi…" />
-          </div>
-        ) : (
-          <div className="max-h-[62vh] overflow-auto">
-            <table className="w-full">
-              <thead className="sticky top-0 bg-slate-950/90 backdrop-blur border-b border-slate-800">
-                <tr className="text-left text-[11px] text-slate-500">
-                  <th className="px-3 py-2">Codice</th>
-                  <th className="px-3 py-2">Rev</th>
-                  <th className="px-3 py-2">Zona</th>
-                  <th className="px-3 py-2">Da → A</th>
-                  <th className="px-3 py-2">Marca</th>
-                  <th className="px-3 py-2">Situaz.</th>
-                  <th className="px-3 py-2 text-right">m teo</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredCavi.map((r) => {
-                  const s = (r.situazione || "").trim();
-                  const situ = s && SITUAZIONI_ORDER.includes(s) ? s : "NP";
-
-                  return (
-                    <tr
-                      key={r.id}
-                      className="border-b border-slate-900/80 hover:bg-slate-900/40 cursor-pointer"
-                      onClick={() => setSelectedCable(r)}
-                    >
-                      <td className="px-3 py-2 text-[12px] text-slate-100 font-semibold">
-                        {r.codice}
-                      </td>
-                      <td className="px-3 py-2 text-[12px] text-slate-300">
-                        {r.rev_inca || "—"}
-                      </td>
-                      <td className="px-3 py-2 text-[12px] text-slate-300">
-                        {r.zona_da || r.zona_a || "—"}
-                      </td>
-                      <td className="px-3 py-2 text-[12px] text-slate-400">
-                        {(r.apparato_da || "—") + " → " + (r.apparato_a || "—")}
-                      </td>
-                      <td className="px-3 py-2 text-[12px] text-slate-300">
-                        {r.marca_cavo || "—"}
-                      </td>
-                      <td className="px-3 py-2">
-                        <span className="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/60 px-2 py-0.5 text-[11px]">
-                          <span
-                            className="h-2 w-2 rounded-full"
-                            style={{ backgroundColor: colorForSituazione(situ) }}
-                          />
-                          <span className="text-slate-200 font-semibold">
-                            {situ}
-                          </span>
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-[12px] text-slate-200 text-right">
-                        {formatMeters(r.metri_teo || r.metri_dis)}
-                      </td>
-                    </tr>
-                  );
-                })}
-
-                {filteredCavi.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={7}
-                      className="px-3 py-10 text-center text-[12px] text-slate-500"
-                    >
-                      Nessun cavo trovato con i filtri correnti.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
+      {/* ✅ NEW TABLE (clic APP → popup) */}
+      <div className="mt-3">
+        <IncaCaviTable cavi={filteredCavi} loading={loading} incaFileId={fileId} />
       </div>
-
-      {/* Details panel */}
-      {selectedCable && (
-        <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-[11px] text-slate-500 uppercase tracking-wide">
-                Dettaglio cavo
-              </div>
-              <div className="text-lg font-semibold text-slate-50">
-                {selectedCable.codice}
-              </div>
-              <div className="text-[12px] text-slate-400">
-                {selectedCable.descrizione || "—"}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setSelectedCable(null)}
-              className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[12px] text-slate-200 hover:bg-slate-950/80"
-            >
-              Chiudi
-            </button>
-          </div>
-
-          <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2">
-            <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wide">
-                Situazione
-              </div>
-              <div className="text-[13px] text-slate-100 font-semibold">
-                {(selectedCable.situazione || "NP").trim() || "NP"}
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wide">
-                Metri teo
-              </div>
-              <div className="text-[13px] text-slate-100 font-semibold">
-                {formatMeters(selectedCable.metri_teo || selectedCable.metri_dis)}
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wide">
-                Marca / Tipo
-              </div>
-              <div className="text-[13px] text-slate-100 font-semibold">
-                {(selectedCable.marca_cavo || "—") +
-                  " · " +
-                  (selectedCable.tipo || "—")}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ===================================================== */}
       {/* MODAL — zoom graphe distribuzione (giant glass) */}
@@ -940,15 +783,11 @@ export default function IncaCockpit({
                 </div>
                 <div className="text-[12px] text-slate-400 mt-1">
                   Totale:{" "}
-                  <span className="text-slate-100 font-semibold">
-                    {totalCavi}
-                  </span>{" "}
+                  <span className="text-slate-100 font-semibold">{totalCavi}</span>{" "}
                   · Posati (P):{" "}
                   <span className="text-emerald-300 font-semibold">{done}</span>{" "}
                   · Non posati (NP):{" "}
-                  <span className="text-purple-300 font-semibold">
-                    {nonPosati}
-                  </span>
+                  <span className="text-purple-300 font-semibold">{nonPosati}</span>
                 </div>
               </div>
 
@@ -967,10 +806,7 @@ export default function IncaCockpit({
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={distrib}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                      <XAxis
-                        dataKey="code"
-                        tick={{ fontSize: 12, fill: "#94a3b8" }}
-                      />
+                      <XAxis dataKey="code" tick={{ fontSize: 12, fill: "#94a3b8" }} />
                       <YAxis tick={{ fontSize: 12, fill: "#94a3b8" }} />
                       <Tooltip
                         contentStyle={{
@@ -982,8 +818,7 @@ export default function IncaCockpit({
                         }}
                         formatter={(value) => {
                           const count = Number(value || 0);
-                          const pct =
-                            distribTotal > 0 ? (count / distribTotal) * 100 : 0;
+                          const pct = distribTotal > 0 ? (count / distribTotal) * 100 : 0;
                           return [`${count} (${pct.toFixed(1)}%)`, "Cavi"];
                         }}
                       />
@@ -998,8 +833,7 @@ export default function IncaCockpit({
 
                 <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2">
                   {distrib.map((d) => {
-                    const pct =
-                      distribTotal > 0 ? (d.count / distribTotal) * 100 : 0;
+                    const pct = distribTotal > 0 ? (d.count / distribTotal) * 100 : 0;
                     return (
                       <div
                         key={d.code}
@@ -1012,18 +846,12 @@ export default function IncaCockpit({
                           />
                           <span className="text-[12px] text-slate-200">
                             <span className="font-semibold">{d.code}</span>{" "}
-                            <span className="text-slate-500">
-                              {d.label ? `· ${d.label}` : ""}
-                            </span>
+                            <span className="text-slate-500">{d.label ? `· ${d.label}` : ""}</span>
                           </span>
                         </div>
                         <div className="text-right">
-                          <div className="text-[12px] font-semibold text-slate-100">
-                            {d.count}
-                          </div>
-                          <div className="text-[11px] text-slate-500">
-                            {pct.toFixed(1)}%
-                          </div>
+                          <div className="text-[12px] font-semibold text-slate-100">{d.count}</div>
+                          <div className="text-[11px] text-slate-500">{pct.toFixed(1)}%</div>
                         </div>
                       </div>
                     );
