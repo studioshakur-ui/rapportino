@@ -106,6 +106,7 @@ function UfficioView({ isDark }) {
             Vista integrata: non esci mai dalla Direzione.
           </div>
         </div>
+
         <Link
           to="/direction"
           className="rounded-full border border-slate-700 bg-slate-950/30 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-200 hover:bg-slate-900/40"
@@ -182,6 +183,7 @@ export default function DirectionShell() {
     try {
       const stored = window.localStorage.getItem("core-sidebar-collapsed-direction");
       if (stored === "1") setSidebarCollapsed(true);
+      if (stored === "0") setSidebarCollapsed(false);
     } catch {}
   }, []);
 
@@ -214,6 +216,11 @@ export default function DirectionShell() {
     if (path === "/direction") return p === "/direction" || p === "/direction/";
     return p === path || p.startsWith(path + "/");
   };
+
+  // --- Presentation context (CAPO button)
+  const pathname = location.pathname || "";
+  const isInPresentation = pathname.startsWith("/direction/presentazione");
+  const isInCapoPresentation = pathname.startsWith("/direction/presentazione/capo");
 
   const navItemClasses = (active) => {
     const base =
@@ -286,6 +293,7 @@ export default function DirectionShell() {
                   </div>
                 )}
               </div>
+
               <button
                 type="button"
                 onClick={() => setSidebarCollapsed((v) => !v)}
@@ -384,6 +392,7 @@ export default function DirectionShell() {
                 </div>
                 <div className="text-sm font-semibold">Dashboard Direzione</div>
               </div>
+
               <button
                 type="button"
                 onClick={handleLogout}
@@ -394,6 +403,47 @@ export default function DirectionShell() {
               </button>
             </div>
           </header>
+
+          {/* PRESENTATION CONTEXT BAR (restore CAPO button) */}
+          {isInPresentation ? (
+            <div className="no-print mt-3 rounded-2xl border border-slate-800 bg-slate-950/20 px-3 py-2">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
+                  Presentazione
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {!isInCapoPresentation ? (
+                    <Link
+                      to="/direction/presentazione/capo"
+                      className="
+                        relative rounded-full px-4 py-2
+                        text-[11px] uppercase tracking-[0.22em] font-semibold
+                        text-sky-100
+                        bg-sky-500/15
+                        border border-sky-400/60
+                        shadow-[0_0_0_1px_rgba(56,189,248,0.25),0_10px_30px_rgba(56,189,248,0.15)]
+                        hover:bg-sky-500/25
+                        hover:shadow-[0_0_0_1px_rgba(56,189,248,0.45),0_16px_40px_rgba(56,189,248,0.25)]
+                        transition-all duration-200
+                      "
+                      title="Apri Vista CAPO (solo lettura)"
+                    >
+                      Vista CAPO · solo lettura
+                    </Link>
+                  ) : (
+                    <Link
+                      to="/direction/presentazione"
+                      className="rounded-full border border-slate-800 bg-slate-950/20 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-200 hover:bg-slate-900/35"
+                      title="Torna a Presentazione"
+                    >
+                      ← Torna a Presentazione
+                    </Link>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           <div className="max-w-6xl mx-auto space-y-4 pt-4">
             <Routes>
@@ -407,10 +457,7 @@ export default function DirectionShell() {
 
           {/* POPUP — only when needed */}
           {showPresentationModal && (
-            <CorePresentationPopup
-              onOpen={handleOpenPresentation}
-              onClose={handleDismissPresentation}
-            />
+            <CorePresentationPopup onOpen={handleOpenPresentation} onClose={handleDismissPresentation} />
           )}
         </main>
       </div>
