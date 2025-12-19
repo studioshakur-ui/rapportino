@@ -1,3 +1,4 @@
+// src/main.jsx
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
@@ -8,20 +9,18 @@ import { ShipProvider } from "./context/ShipContext";
 import { I18nProvider } from "./i18n/I18nProvider";
 
 import "./index.css";
-import "./styles/core-colors.css";
-import "./styles/core-ui.css";
-import "./styles/inca-popover-polish.css";
+import "./styles/inca-percorso-search.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <AuthProvider>
-        <I18nProvider>
-          <ShipProvider>
+    <AuthProvider>
+      <I18nProvider>
+        <ShipProvider>
+          <BrowserRouter>
             <AppRoutes />
-          </ShipProvider>
-        </I18nProvider>
-      </AuthProvider>
-    </BrowserRouter>
+          </BrowserRouter>
+        </ShipProvider>
+      </I18nProvider>
+    </AuthProvider>
   </React.StrictMode>
 );

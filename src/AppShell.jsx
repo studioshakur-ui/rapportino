@@ -77,7 +77,7 @@ export default function AppShell() {
         coreLayout.pageShell(isDark),
       ].join(" ")}
     >
-      {/* TOP BAR — cockpit: aucune commande à gauche */}
+      {/* TOP BAR — fine, horizontale, minimal */}
       <header
         className={[
           "no-print sticky top-0 z-30 border-b backdrop-blur",
@@ -118,7 +118,9 @@ export default function AppShell() {
         </div>
 
         {/* Right: contrôles uniquement */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
+          <span className="sr-only">Logout</span>
+
           <div className="flex items-center" title="Connessione">
             <ConnectionIndicator compact />
           </div>
@@ -163,7 +165,7 @@ export default function AppShell() {
       </header>
 
       <div className="flex flex-1 min-h-0">
-        {/* SIDEBAR — premium, toggle dans la sidebar (pas dans top bar) */}
+        {/* SIDEBAR — aucun logout ici */}
         <aside
           className={[
             "no-print border-r hidden md:flex flex-col",
@@ -176,7 +178,6 @@ export default function AppShell() {
           onFocusCapture={() => setSidebarPeek(true)}
           onBlurCapture={() => setSidebarPeek(false)}
         >
-          {/* Toggle discret en haut de sidebar */}
           <div className={["mb-3", effectiveCollapsed ? "px-0" : "px-1"].join(" ")}>
             <button
               type="button"
@@ -239,7 +240,6 @@ export default function AppShell() {
           </div>
         </aside>
 
-        {/* MAIN */}
         <main className={["flex-1 min-h-0 overflow-y-auto", coreLayout.mainBg(isDark)].join(" ")}>
           <section className="mx-auto max-w-none px-0 py-0">
             <Outlet />

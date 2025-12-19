@@ -11,7 +11,10 @@ function getInitialTheme() {
   try {
     const stored = window.localStorage.getItem("core-theme");
     if (stored === "dark" || stored === "light") return stored;
-    if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+    if (
+      window.matchMedia &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches
+    ) {
       return "dark";
     }
   } catch {}
@@ -87,7 +90,7 @@ export default function UfficioShell() {
 
   return (
     <div className={["min-h-screen flex flex-col", coreLayout.pageShell(isDark)].join(" ")}>
-      {/* TOP BAR — cockpit */}
+      {/* TOP BAR — fine, cockpit */}
       <header
         className={[
           "no-print sticky top-0 z-30 border-b backdrop-blur",
@@ -103,7 +106,13 @@ export default function UfficioShell() {
             CORE
           </span>
 
-          <span className={corePills(isDark, "sky", "px-2 py-0.5 text-[10px] uppercase tracking-[0.14em]")}>
+          <span
+            className={corePills(
+              isDark,
+              "sky",
+              "px-2 py-0.5 text-[10px] uppercase tracking-[0.14em]"
+            )}
+          >
             UFFICIO
           </span>
 
@@ -126,7 +135,9 @@ export default function UfficioShell() {
           </span>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
+          <span className="sr-only">Logout</span>
+
           <div className="flex items-center" title="Connessione">
             <ConnectionIndicator compact />
           </div>

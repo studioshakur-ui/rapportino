@@ -111,7 +111,6 @@ export default function RapportinoPage() {
     }, 0);
   }, [rows]);
 
-  // INCA éditable uniquement si rapportino déjà créé et état editable
   const canEditInca =
     !!rapportinoId && (status === "DRAFT" || status === "RETURNED");
 
@@ -124,7 +123,6 @@ export default function RapportinoPage() {
 
     setReturnedLoading(true);
     try {
-      // Count (HEAD request) — léger et rapide
       const { count, error: countError } = await supabase
         .from("rapportini")
         .select("id", { count: "exact", head: true })
@@ -134,7 +132,6 @@ export default function RapportinoPage() {
 
       if (countError) throw countError;
 
-      // Dernier RETURNED
       const { data: last, error: lastError } = await supabase
         .from("rapportini")
         .select("id, report_date, costr, commessa, updated_at")
@@ -151,7 +148,6 @@ export default function RapportinoPage() {
       setLatestReturned(last || null);
     } catch (e) {
       console.warn("[Rapportino] returned inbox load failed:", e);
-      // Ne bloque pas la page principale
       setReturnedCount(0);
       setLatestReturned(null);
     } finally {
@@ -159,7 +155,6 @@ export default function RapportinoPage() {
     }
   };
 
-  // Charger l'inbox RETURNED indépendamment de la date affichée.
   useEffect(() => {
     let active = true;
     (async () => {
@@ -395,8 +390,6 @@ export default function RapportinoPage() {
       setStatus(newStatus);
       setSuccessMessage("Salvataggio riuscito.");
 
-      // Si le rapport était RETURNED et vient d'être corrigé/validé,
-      // on rafraîchit l'inbox pour enlever immédiatement la bannière.
       await loadReturnedInbox();
       return true;
     } catch (err) {
@@ -413,12 +406,10 @@ export default function RapportinoPage() {
     await handleSave("VALIDATED_CAPO");
   };
 
-  // PRINT: même page, A4 landscape via index.css (@page size: A4 landscape)
   const handlePrint = async () => {
     const ok = await handleSave(status);
     if (!ok) return;
 
-    // Laisser React peindre puis imprimer
     setTimeout(() => {
       try {
         window.print();
@@ -465,31 +456,22 @@ export default function RapportinoPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-900/80">
-      <header className="no-print border-b border-slate-700 bg-slate-900 text-slate-50 sticky top-0 z-20">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-          <div className="flex flex-col">
-            <span className="text-[11px] uppercase tracking-[0.25em] text-slate-400">
-              CORE · MODULO RAPPORTINO
-            </span>
-            <span className="text-sm font-semibold text-slate-50">
-              COSTR {costr} · {crewLabel}
+      {/* TOP BAR — fine, sobre, 1 seule action */}
+      <header className="no-print sticky top-0 z-20 border-b border-slate-800 bg-slate-950/70 backdrop-blur">
+        <div className="h-12 max-w-6xl mx-auto px-4 flex items-center justify-between">
+          <div className="min-w-0 flex items-center gap-2">
+            <span className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
+              CORE · CAPO · RAPPORTINO
             </span>
           </div>
-          <div className="flex items-center gap-2 text-[11px]">
-            <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-900 font-semibold">
-              Stato: {statusLabel}
-            </span>
-            <span className="px-3 py-1 rounded-full bg-slate-800 border border-slate-400">
-              Prodotto totale: {prodottoTotale.toFixed(2)}
-            </span>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="px-3 py-1.5 rounded-md border border-rose-400 text-rose-50 bg-rose-600/90 hover:bg-rose-600"
-            >
-              Logout
-            </button>
-          </div>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="px-3 py-1.5 rounded-full border border-rose-400/40 text-rose-100 bg-rose-600/75 hover:bg-rose-600 transition text-[12px] font-semibold"
+          >
+            Logout
+          </button>
         </div>
       </header>
 
@@ -574,6 +556,23 @@ export default function RapportinoPage() {
               onChangeCommessa={setCommessa}
               onChangeDate={setReportDate}
             />
+
+            {/* META (déplacé depuis la top bar) */}
+            <div className="no-print mt-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="text-[11px] text-slate-500">
+                <span className="font-semibold text-slate-700">Ruolo:</span>{" "}
+                {crewLabel}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-900 border border-slate-200 text-[11px] font-semibold">
+                  Stato: {statusLabel}
+                </span>
+                <span className="px-3 py-1 rounded-full bg-slate-50 text-slate-700 border border-slate-200 text-[11px] font-semibold">
+                  Prodotto totale: {prodottoTotale.toFixed(2)}
+                </span>
+              </div>
+            </div>
 
             <RapportinoTable
               rows={rows}

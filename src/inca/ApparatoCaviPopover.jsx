@@ -135,12 +135,11 @@ export default function ApparatoCaviPopover({
 
       {/* panel */}
       <div
-        className="inca-popover absolute rounded-2xl border border-white/10 bg-slate-950/70 shadow-2xl backdrop-blur-xl overflow-hidden"
-        style={{ top: position.top, left: position.left, width: position.width }}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Dettaglio apparato"
-      >
+        
+  className="inca-popover fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-white/10 bg-slate-950/70 shadow-2xl backdrop-blur-xl overflow-hidden w-[min(680px,calc(100vw-32px))]"
+>
+
+      
         {/* header */}
         <div className="inca-popover-header px-4 py-3 flex items-start justify-between gap-3">
           <div className="min-w-0">

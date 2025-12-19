@@ -1,0 +1,51 @@
+/* =========================================
+   INCA — Percorso Search (Option A) — Mini polish
+   Clin d'oeil au futur module PERCORSO
+   ========================================= */
+
+.percorso-search-shell {
+  background: linear-gradient(
+    180deg,
+    rgba(2, 6, 23, 0.60),
+    rgba(2, 6, 23, 0.38)
+  );
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.percorso-search-signal {
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    rgba(16, 185, 129, 0.0),
+    rgba(16, 185, 129, 0.55),
+    rgba(56, 189, 248, 0.35),
+    rgba(168, 85, 247, 0.0)
+  );
+  opacity: 0.9;
+}
+
+.percorso-search-dropdown {
+  background: rgba(2, 6, 23, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.45);
+}
+
+.percorso-search-item {
+  transition: background-color 140ms ease;
+}
+
+.percorso-search-item:hover {
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.percorso-chip {
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.percorso-chip:hover {
+  background: rgba(15, 23, 42, 0.75);
+}

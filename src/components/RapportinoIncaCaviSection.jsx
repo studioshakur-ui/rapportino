@@ -40,6 +40,45 @@ function pickDaA(row) {
   return { da, a };
 }
 
+function lampDotClass(k) {
+  switch (k) {
+    case "P":
+      return "bg-emerald-400 shadow-[0_0_14px_rgba(52,211,153,0.55)] ring-emerald-300/25";
+    case "T":
+      return "bg-sky-400 shadow-[0_0_14px_rgba(56,189,248,0.55)] ring-sky-300/25";
+    case "R":
+      return "bg-amber-400 shadow-[0_0_14px_rgba(251,191,36,0.55)] ring-amber-300/25";
+    case "B":
+      return "bg-rose-400 shadow-[0_0_14px_rgba(251,113,133,0.55)] ring-rose-300/25";
+    case "E":
+      return "bg-violet-400 shadow-[0_0_14px_rgba(167,139,250,0.55)] ring-violet-300/25";
+    case "NP":
+    default:
+      return "bg-slate-500 shadow-[0_0_10px_rgba(148,163,184,0.20)] ring-slate-400/15";
+  }
+}
+
+function SituazioneLamp({ k, compact = false }) {
+  return (
+    <span
+      title={`Situazione: ${k}`}
+      className={[
+        "inline-flex items-center gap-2 rounded-full border border-slate-700 bg-core-section",
+        compact ? "px-2 py-1 text-[11px]" : "px-2 py-0.5 text-[11px]",
+        "font-semibold text-slate-100",
+      ].join(" ")}
+    >
+      <span
+        className={[
+          "h-2.5 w-2.5 rounded-full ring-1 ring-white/10",
+          lampDotClass(k),
+        ].join(" ")}
+      />
+      <span>{k}</span>
+    </span>
+  );
+}
+
 /**
  * CAPO — Section "CAVI INCA COLLEGATI AL RAPPORTINO"
  *
@@ -210,10 +249,15 @@ export default function RapportinoIncaCaviSection({ rapportinoId, reportDate, co
         posa_date: normalizedReportDate,
       };
 
-      const { error: e } = await supabase.from("rapportino_inca_cavi").update(payload).eq("id", linkId);
+      const { error: e } = await supabase
+        .from("rapportino_inca_cavi")
+        .update(payload)
+        .eq("id", linkId);
       if (e) throw e;
 
-      setLinks((prev) => (prev || []).map((x) => (x.id === linkId ? { ...x, ...payload } : x)));
+      setLinks((prev) =>
+        (prev || []).map((x) => (x.id === linkId ? { ...x, ...payload } : x))
+      );
     } catch (err) {
       console.error("[RapportinoIncaCaviSection] updateLinkProgress error:", err);
       setError("Errore aggiornando avanzamento INCA (salvataggio fallito).");
@@ -232,7 +276,10 @@ export default function RapportinoIncaCaviSection({ rapportinoId, reportDate, co
     setError(null);
 
     try {
-      const { error: e } = await supabase.from("rapportino_inca_cavi").delete().eq("id", linkId);
+      const { error: e } = await supabase
+        .from("rapportino_inca_cavi")
+        .delete()
+        .eq("id", linkId);
       if (e) throw e;
 
       setLinks((prev) => (prev || []).filter((x) => x.id !== linkId));
@@ -264,51 +311,45 @@ export default function RapportinoIncaCaviSection({ rapportinoId, reportDate, co
   }, []);
 
   // -----------------------------
-  // Picker: load page
+  // Picker: build query
   // -----------------------------
-  const buildPickerQuery = useCallback(
-    () => {
-      let q = supabase
-        .from("inca_cavi")
-        .select("id,codice,descrizione,metri_teo,situazione,marca_cavo,zona_da,zona_a,apparato_da,apparato_a")
-        .eq("costr", norm(costr))
-        .eq("commessa", norm(commessa))
-        .order("codice", { ascending: true });
+  const buildPickerQuery = useCallback(() => {
+    let q = supabase
+      .from("inca_cavi")
+      .select(
+        "id,codice,descrizione,metri_teo,situazione,marca_cavo,zona_da,zona_a,apparato_da,apparato_a"
+      )
+      .eq("costr", norm(costr))
+      .eq("commessa", norm(commessa))
+      .order("codice", { ascending: true });
 
-      const search = norm(pickerQuery).toLowerCase();
-      if (search) {
-        q = q.or(
-          [
-            `codice.ilike.%${search}%`,
-            `descrizione.ilike.%${search}%`,
-            `marca_cavo.ilike.%${search}%`,
-          ].join(",")
-        );
-      }
+    const search = norm(pickerQuery).toLowerCase();
+    if (search) {
+      q = q.or(
+        [
+          `codice.ilike.%${search}%`,
+          `descrizione.ilike.%${search}%`,
+          `marca_cavo.ilike.%${search}%`,
+        ].join(",")
+      );
+    }
 
-      // situation filtering:
-      // - NP == situazione is null OR empty
-      // - others == eq
-      if (pickerSituazioni.length > 0) {
-        const nonNP = pickerSituazioni.filter((x) => x !== "NP");
-        const hasNP = pickerSituazioni.includes("NP");
+    if (pickerSituazioni.length > 0) {
+      const nonNP = pickerSituazioni.filter((x) => x !== "NP");
+      const hasNP = pickerSituazioni.includes("NP");
 
-        const ors = [];
-        if (nonNP.length > 0) ors.push(`situazione.in.(${nonNP.join(",")})`);
-        if (hasNP) ors.push("situazione.is.null", "situazione.eq.");
-        q = q.or(ors.join(","));
-      }
+      const ors = [];
+      if (nonNP.length > 0) ors.push(`situazione.in.(${nonNP.join(",")})`);
+      if (hasNP) ors.push("situazione.is.null", "situazione.eq.");
+      q = q.or(ors.join(","));
+    }
 
-      // onlyNonP: exclude P (situazione = 'P')
-      // Note: si situazione null => NP => reste.
-      if (pickerOnlyNonP) {
-        q = q.or("situazione.is.null,situazione.neq.P,situazione.eq.");
-      }
+    if (pickerOnlyNonP) {
+      q = q.or("situazione.is.null,situazione.neq.P,situazione.eq.");
+    }
 
-      return q;
-    },
-    [costr, commessa, pickerQuery, pickerSituazioni, pickerOnlyNonP]
-  );
+    return q;
+  }, [costr, commessa, pickerQuery, pickerSituazioni, pickerOnlyNonP]);
 
   const loadPickerFirstPage = useCallback(async () => {
     if (!isPickerOpen) return;
@@ -451,11 +492,12 @@ export default function RapportinoIncaCaviSection({ rapportinoId, reportDate, co
           posa_date: normalizedReportDate,
         };
 
-        const { error: e2 } = await supabase.from("rapportino_inca_cavi").insert(payload);
+        const { error: e2 } = await supabase
+          .from("rapportino_inca_cavi")
+          .insert(payload);
         if (e2) throw e2;
 
         await reloadLinks();
-        // remove from picker list (instant feedback)
         setPickerRows((prev) => prev.filter((r) => r.id !== incaId));
       } catch (err) {
         console.error("[RapportinoIncaCaviSection] addOne error:", err);
@@ -476,7 +518,9 @@ export default function RapportinoIncaCaviSection({ rapportinoId, reportDate, co
         <div className="text-[11px] uppercase tracking-[0.22em] text-muted">
           <span className="text-inca font-semibold">INCA</span> · Cavi collegati
         </div>
-        <div className="mt-1 text-[13px] text-core font-semibold">Rapportino non disponibile</div>
+        <div className="mt-1 text-[13px] text-core font-semibold">
+          Rapportino non disponibile
+        </div>
       </div>
     );
   }
@@ -552,6 +596,7 @@ export default function RapportinoIncaCaviSection({ rapportinoId, reportDate, co
               ) : (
                 displayRows.map((r) => {
                   const isSaving = savingId === r.linkId;
+                  const k = situazioneKey(r.situazione);
 
                   return (
                     <tr key={r.linkId} className="hover:bg-slate-900/25">
@@ -606,12 +651,12 @@ export default function RapportinoIncaCaviSection({ rapportinoId, reportDate, co
                         </select>
                       </td>
 
-                      <td className="px-3 py-2 text-[12px] text-slate-100">{Math.round(r.metriPosati)}</td>
+                      <td className="px-3 py-2 text-[12px] text-slate-100">
+                        {Math.round(r.metriPosati)}
+                      </td>
 
-                      <td className="px-3 py-2 text-[12px] text-slate-200">
-                        <span className="inline-flex px-2 py-0.5 rounded-full border border-slate-700 bg-slate-950/60 text-[11px]">
-                          {situazioneKey(r.situazione)}
-                        </span>
+                      <td className="px-3 py-2">
+                        <SituazioneLamp k={k} />
                       </td>
 
                       <td className="px-3 py-2 text-right">
@@ -715,7 +760,11 @@ export default function RapportinoIncaCaviSection({ rapportinoId, reportDate, co
             </div>
 
             {/* List */}
-            <div ref={pickerListRef} onScroll={onPickerScroll} className="max-h-[72vh] overflow-y-auto">
+            <div
+              ref={pickerListRef}
+              onScroll={onPickerScroll}
+              className="max-h-[72vh] overflow-y-auto"
+            >
               <div className="p-3">
                 {pickerRows.length === 0 && !pickerLoading ? (
                   <div className="py-10" />
@@ -737,7 +786,10 @@ export default function RapportinoIncaCaviSection({ rapportinoId, reportDate, co
                           const { da, a } = pickDaA(r);
 
                           return (
-                            <tr key={r.id} className="border-t border-slate-800 bg-core-card/40 hover:bg-core-card/70">
+                            <tr
+                              key={r.id}
+                              className="border-t border-slate-800 bg-core-card/40 hover:bg-core-card/70"
+                            >
                               <td className="px-3 py-2">
                                 <div className="text-[12px] text-core font-semibold">
                                   {norm(r.codice) || norm(r.marca_cavo) || "—"}
@@ -762,9 +814,9 @@ export default function RapportinoIncaCaviSection({ rapportinoId, reportDate, co
                               </td>
 
                               <td className="px-3 py-2 text-center">
-                                <span className="inline-flex px-2 py-1 rounded-full text-[11px] font-semibold border border-slate-700 bg-core-section">
-                                  {k}
-                                </span>
+                                <div className="inline-flex items-center justify-center">
+                                  <SituazioneLamp k={k} compact />
+                                </div>
                               </td>
 
                               <td className="px-3 py-2 text-right">
@@ -803,7 +855,11 @@ export default function RapportinoIncaCaviSection({ rapportinoId, reportDate, co
 
                 {pickerHasMore && !pickerLoading ? (
                   <div className="mt-3 flex items-center justify-end">
-                    <button type="button" onClick={loadPickerMore} className="px-3 py-1.5 rounded-lg btn-core text-[12px] font-semibold">
+                    <button
+                      type="button"
+                      onClick={loadPickerMore}
+                      className="px-3 py-1.5 rounded-lg btn-core text-[12px] font-semibold"
+                    >
                       Carica altri
                     </button>
                   </div>
@@ -813,7 +869,11 @@ export default function RapportinoIncaCaviSection({ rapportinoId, reportDate, co
 
             {/* Drawer footer */}
             <div className="px-4 py-3 border-t border-slate-800 bg-core-section flex items-center justify-end">
-              <button type="button" onClick={closePicker} className="px-3 py-1.5 rounded-lg btn-core text-[12px] font-semibold">
+              <button
+                type="button"
+                onClick={closePicker}
+                className="px-3 py-1.5 rounded-lg btn-core text-[12px] font-semibold"
+              >
                 Chiudi
               </button>
             </div>
