@@ -1,8 +1,7 @@
 // src/AppShell.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "./auth/AuthProvider";
-import ConnectionIndicator from "./components/ConnectionIndicator";
 import { coreLayout } from "./ui/coreLayout";
 import { corePills, themeIconBg } from "./ui/designSystem";
 
@@ -49,15 +48,6 @@ export default function AppShell() {
     }
   };
 
-  const displayName = useMemo(() => {
-    return (
-      profile?.display_name ||
-      profile?.full_name ||
-      profile?.email ||
-      "Capo"
-    );
-  }, [profile]);
-
   if (!profile) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-400">
@@ -77,38 +67,22 @@ export default function AppShell() {
         coreLayout.pageShell(isDark),
       ].join(" ")}
     >
-      {/* TOP BAR — fine, horizontale, minimal */}
+      {/* TOP BAR — fine, horizontale, ultra minimal (Logout only à droite) */}
       <header
         className={[
           "no-print sticky top-0 z-30 border-b backdrop-blur",
-          "h-11 md:h-12",
+          "h-10",
           "flex items-center justify-between",
           "px-3 sm:px-4 md:px-6",
           coreLayout.header(isDark),
           driveTopGlow,
         ].join(" ")}
       >
-        {/* Left: identité minimale */}
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-[10px] uppercase tracking-[0.22em] text-slate-500 whitespace-nowrap">
-            CORE
-          </span>
-
-          <span
-            className={corePills(
-              isDark,
-              "sky",
-              "px-2 py-0.5 text-[10px] uppercase tracking-[0.14em]"
-            )}
-          >
-            CAPO
-          </span>
-
-          <span className="text-slate-700">·</span>
-
+        {/* Left: page label only */}
+        <div className="min-w-0">
           <span
             className={[
-              "text-[14px] md:text-[15px] font-semibold truncate",
+              "text-[13px] md:text-[14px] font-semibold truncate",
               isCoreDrive ? "text-violet-100" : "text-slate-100",
             ].join(" ")}
             title={pageLabel}
@@ -117,25 +91,8 @@ export default function AppShell() {
           </span>
         </div>
 
-        {/* Right: contrôles uniquement */}
-        <div className="flex items-center gap-2">
-          <span className="sr-only">Logout</span>
-
-          <div className="flex items-center" title="Connessione">
-            <ConnectionIndicator compact />
-          </div>
-
-          <span
-            className={corePills(
-              isDark,
-              "neutral",
-              "hidden sm:inline-flex max-w-[220px] truncate px-2 py-0.5 text-[10px]"
-            )}
-            title={displayName}
-          >
-            {displayName}
-          </span>
-
+        {/* Right: Logout only */}
+        <div className="flex items-center">
           <button
             type="button"
             onClick={handleLogout}
@@ -200,13 +157,21 @@ export default function AppShell() {
             </button>
           </div>
 
-          <nav className={["space-y-1.5", effectiveCollapsed ? "px-0" : "px-1"].join(" ")}>
+          <nav
+            className={["space-y-1.5", effectiveCollapsed ? "px-0" : "px-1"].join(
+              " "
+            )}
+          >
             <NavLink
               to="/app"
               end
               className={({ isActive }) =>
                 [
-                  corePills(isDark, "sky", "w-full flex items-center gap-2 justify-start"),
+                  corePills(
+                    isDark,
+                    "sky",
+                    "w-full flex items-center gap-2 justify-start"
+                  ),
                   isActive ? "" : "opacity-85 hover:opacity-100",
                   effectiveCollapsed ? "justify-center px-0" : "",
                 ].join(" ")
@@ -221,7 +186,11 @@ export default function AppShell() {
               to="/app/archive"
               className={({ isActive }) =>
                 [
-                  corePills(isDark, "violet", "w-full flex items-center gap-2 justify-start font-semibold"),
+                  corePills(
+                    isDark,
+                    "violet",
+                    "w-full flex items-center gap-2 justify-start font-semibold"
+                  ),
                   isActive
                     ? "bg-violet-950/35 border-violet-500/65 text-violet-100 shadow-[0_18px_60px_rgba(139,92,246,0.18)]"
                     : "bg-violet-950/18 border-violet-500/50 text-violet-100/90 hover:bg-violet-950/25",
@@ -240,7 +209,12 @@ export default function AppShell() {
           </div>
         </aside>
 
-        <main className={["flex-1 min-h-0 overflow-y-auto", coreLayout.mainBg(isDark)].join(" ")}>
+        <main
+          className={[
+            "flex-1 min-h-0 overflow-y-auto",
+            coreLayout.mainBg(isDark),
+          ].join(" ")}
+        >
           <section className="mx-auto max-w-none px-0 py-0">
             <Outlet />
           </section>

@@ -1,4 +1,4 @@
-// src/inca/IncaCockpit.jsx
+// /src/inca/IncaCockpit.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import {
@@ -14,6 +14,7 @@ import {
 
 import LoadingScreen from "../components/LoadingScreen";
 import PercorsoSearchBar from "../components/PercorsoSearchBar";
+import ApparatoCaviPopover from "./ApparatoCaviPopover";
 
 // =====================================================
 // INCA COCKPIT (UFFICIO) — Percorso-level UI
@@ -38,9 +39,7 @@ function safeNum(v) {
 function formatMeters(v) {
   const n = Number(v);
   if (!Number.isFinite(n)) return "—";
-  return new Intl.NumberFormat("it-IT", {
-    maximumFractionDigits: 2,
-  }).format(n);
+  return new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 }).format(n);
 }
 
 function colorForSituazione(code) {
@@ -61,10 +60,112 @@ function colorForSituazione(code) {
   }
 }
 
-export default function IncaCockpit({
-  defaultCostr = "",
-  defaultCommessa = "",
+// ---------------------------------------------
+// Premium chip DA/A (WOW, lisible, indiscutable)
+// ---------------------------------------------
+function ApparatoChip({
+  side, // "DA" | "A"
+  value,
+  onClick,
+  disabled,
 }) {
+  const isDA = side === "DA";
+
+  const base =
+    "group relative inline-flex items-center gap-2 rounded-xl border px-2.5 py-1.5 " +
+    "text-[11px] leading-none select-none transition " +
+    "focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/40";
+
+  const tone = isDA
+    ? "border-amber-400/20 bg-amber-500/10 text-amber-100 hover:bg-amber-500/14"
+    : "border-emerald-400/18 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/14";
+
+  const disabledTone =
+    "border-white/10 bg-white/5 text-slate-400 cursor-not-allowed";
+
+  return (
+    <button
+      type="button"
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      className={[
+        base,
+        disabled ? disabledTone : tone,
+        disabled ? "" : "cursor-pointer",
+      ].join(" ")}
+      aria-label={
+        disabled
+          ? `Apparato ${side} non disponibile`
+          : `Apri apparato ${side}: ${value || ""}`
+      }
+      title={disabled ? "Non disponibile" : `Apri ${side}`}
+    >
+      {/* mini badge DA/A */}
+      <span
+        className={[
+          "inline-flex items-center justify-center rounded-lg border px-1.5 py-[2px] font-semibold tracking-[0.14em]",
+          disabled
+            ? "border-white/10 bg-white/5 text-slate-400"
+            : isDA
+              ? "border-amber-300/25 bg-amber-400/10 text-amber-200"
+              : "border-emerald-300/20 bg-emerald-400/10 text-emerald-200",
+        ].join(" ")}
+      >
+        {side}
+      </span>
+
+      {/* label */}
+      <span className="max-w-[210px] truncate font-semibold">
+        {value || "—"}
+      </span>
+
+      {/* chevron */}
+      <span
+        className={[
+          "ml-0.5 text-[12px] opacity-70 transition",
+          disabled ? "opacity-40" : "group-hover:opacity-100",
+        ].join(" ")}
+        aria-hidden="true"
+      >
+        ›
+      </span>
+
+      {/* halo */}
+      {!disabled && (
+        <span
+          className={[
+            "pointer-events-none absolute -inset-[1px] rounded-xl opacity-0 transition-opacity duration-200",
+            "group-hover:opacity-100",
+          ].join(" ")}
+          style={{
+            boxShadow: isDA
+              ? "0 0 0 1px rgba(251,191,36,0.22), 0 0 18px rgba(251,191,36,0.12)"
+              : "0 0 0 1px rgba(52,211,153,0.18), 0 0 18px rgba(52,211,153,0.10)",
+          }}
+        />
+      )}
+
+      {/* scanline (courant électrique discret) */}
+      {!disabled && (
+        <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">
+          <span
+            className={[
+              "inca-scanline absolute top-0 h-full w-[42%] -translate-x-full opacity-0",
+              "group-hover:opacity-100",
+            ].join(" ")}
+            style={{
+              background: isDA
+                ? "linear-gradient(90deg, rgba(251,191,36,0) 0%, rgba(251,191,36,0.18) 45%, rgba(251,191,36,0) 100%)"
+                : "linear-gradient(90deg, rgba(52,211,153,0) 0%, rgba(52,211,153,0.16) 45%, rgba(52,211,153,0) 100%)",
+            }}
+          />
+        </span>
+      )}
+    </button>
+  );
+}
+
+export default function IncaCockpit({ defaultCostr = "", defaultCommessa = "" }) {
   // Filters
   const [costr, setCostr] = useState("");
   const [commessa, setCommessa] = useState("");
@@ -94,6 +195,12 @@ export default function IncaCockpit({
   // UI — modal (zoom) pour le graphe de distribution
   const [isDistribModalOpen, setIsDistribModalOpen] = useState(false);
 
+  // UI — popover apparato (DA/A)
+  const [apparatoPopoverOpen, setApparatoPopoverOpen] = useState(false);
+  const [apparatoPopoverSide, setApparatoPopoverSide] = useState("DA"); // "DA" | "A"
+  const [apparatoPopoverName, setApparatoPopoverName] = useState("");
+  const [apparatoAnchorRect, setApparatoAnchorRect] = useState(null);
+
   // KPI / computed
   const totalMetri = useMemo(() => {
     return (cavi || []).reduce((acc, r) => {
@@ -119,10 +226,16 @@ export default function IncaCockpit({
     }, 0);
   }, [cavi]);
 
+  /**
+   * IMPORTANT:
+   * Supabase/PostgREST est souvent configuré avec un "max rows" = 1000.
+   * Donc si tu demandes une range > 1000, la réponse est quand même tronquée à 1000.
+   * => pageSize DOIT être <= 1000, sinon ton break "chunk < pageSize" s'arrête trop tôt.
+   */
   const loadInfo = useMemo(() => {
     return {
-      pageSize: 2500,
-      maxPages: 20,
+      pageSize: 1000, // <= 1000 (canon)
+      maxPages: 50, // 50*1000 = 50k (safe)
     };
   }, []);
 
@@ -203,8 +316,7 @@ export default function IncaCockpit({
           const { data, error: e } = await supabase
             .from("inca_cavi")
             .select(
-              "id,inc a_file_id,costr,commessa,codice,rev_inca,descrizione,impianto,tipo,sezione,zona_da,zona_a,apparato_da,apparato_a,descrizione_da,descrizione_a,metri_teo,metri_dis,metri_totali,marca_cavo,livello,wbs,situazione"
-                .replace(/\s+/g, "")
+              "id,inca_file_id,costr,commessa,codice,rev_inca,descrizione,impianto,tipo,sezione,zona_da,zona_a,apparato_da,apparato_a,descrizione_da,descrizione_a,metri_teo,metri_dis,metri_totali,marca_cavo,livello,wbs,situazione"
             )
             .eq("inca_file_id", fileId)
             .order("codice", { ascending: true })
@@ -216,7 +328,9 @@ export default function IncaCockpit({
           const chunk = Array.isArray(data) ? data : [];
           all.push(...chunk);
 
+          if (chunk.length === 0) break;
           if (chunk.length < loadInfo.pageSize) break;
+
           page++;
         }
 
@@ -239,7 +353,7 @@ export default function IncaCockpit({
       alive = false;
       ac.abort();
     };
-  }, [fileId, costr, commessa, loadInfo.maxPages, loadInfo.pageSize]);
+  }, [fileId, loadInfo.maxPages, loadInfo.pageSize]);
 
   // ---------------------------
   // Percorso Search (Option A)
@@ -255,7 +369,6 @@ export default function IncaCockpit({
             .filter(Boolean)
         : [];
 
-      // No file or no nodes => disable
       if (!fileId || nodes.length === 0) {
         setPercorsoLoading(false);
         setPercorsoError(null);
@@ -305,13 +418,11 @@ export default function IncaCockpit({
   // ---------------------------
   const filteredCavi = useMemo(() => {
     const q = (query || "").trim().toLowerCase();
-
     const nodesActive = Array.isArray(percorsoNodes) && percorsoNodes.length > 0;
 
     return (cavi || []).filter((r) => {
-      // Percorso filter (AND)
       if (nodesActive) {
-        if (!percorsoMatchIds) return false; // pending / reset
+        if (!percorsoMatchIds) return false;
         if (!percorsoMatchIds.has(r.id)) return false;
       }
 
@@ -387,8 +498,43 @@ export default function IncaCockpit({
     return (done / distribTotal) * 100;
   }, [done, distribTotal]);
 
+  // ---------------------------
+  // Open popover (DA/A) — STOP BUBBLING (CRITIQUE)
+  // ---------------------------
+  function openApparatoPopover(e, side, apparatoName) {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation(); // IMPORTANT: empêche le click sur la ligne
+    }
+
+    const name = String(apparatoName || "").trim();
+    if (!name) return;
+
+    const rect = e?.currentTarget?.getBoundingClientRect
+      ? e.currentTarget.getBoundingClientRect()
+      : null;
+
+    setApparatoAnchorRect(rect);
+    setApparatoPopoverSide(side);
+    setApparatoPopoverName(name);
+    setApparatoPopoverOpen(true);
+  }
+
   return (
     <div className="p-3">
+      {/* Local CSS (scanline + micro motion) */}
+      <style>{`
+        @keyframes inca_scan {
+          0% { transform: translateX(-120%); opacity: 0; }
+          10% { opacity: 1; }
+          100% { transform: translateX(320%); opacity: 0.9; }
+        }
+        .inca-scanline {
+          animation: inca_scan 1.35s linear infinite;
+          filter: blur(0.2px);
+        }
+      `}</style>
+
       {/* Title + meta */}
       <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
         <div className="flex items-start justify-between gap-3">
@@ -691,6 +837,7 @@ export default function IncaCockpit({
             <div className="text-[11px] text-slate-500 uppercase tracking-wide">
               Cavi ({filteredCavi.length})
             </div>
+
             {Array.isArray(percorsoNodes) && percorsoNodes.length > 0 && (
               <span className="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/60 px-2 py-0.5 text-[11px]">
                 <span className="h-2 w-2 rounded-full bg-emerald-400/70" />
@@ -703,7 +850,9 @@ export default function IncaCockpit({
               </span>
             )}
           </div>
-          <div className="text-[11px] text-slate-500">Click riga → dettagli</div>
+          <div className="text-[11px] text-slate-500">
+            Click riga → dettagli
+          </div>
         </div>
 
         {loading ? (
@@ -724,10 +873,14 @@ export default function IncaCockpit({
                   <th className="px-3 py-2 text-right">m teo</th>
                 </tr>
               </thead>
+
               <tbody>
                 {filteredCavi.map((r) => {
                   const s = (r.situazione || "").trim();
                   const situ = s && SITUAZIONI_ORDER.includes(s) ? s : "NP";
+
+                  const appDA = (r.apparato_da || "").trim();
+                  const appA = (r.apparato_a || "").trim();
 
                   return (
                     <tr
@@ -738,18 +891,43 @@ export default function IncaCockpit({
                       <td className="px-3 py-2 text-[12px] text-slate-100 font-semibold">
                         {r.codice}
                       </td>
+
                       <td className="px-3 py-2 text-[12px] text-slate-300">
                         {r.rev_inca || "—"}
                       </td>
+
                       <td className="px-3 py-2 text-[12px] text-slate-300">
                         {r.zona_da || r.zona_a || "—"}
                       </td>
-                      <td className="px-3 py-2 text-[12px] text-slate-400">
-                        {(r.apparato_da || "—") + " → " + (r.apparato_a || "—")}
+
+                      {/* DA → A : CHIPS premium (click DA/A ouvre popover) */}
+                      <td className="px-3 py-2">
+                        <div className="flex flex-col md:flex-row md:items-center gap-2">
+                          <ApparatoChip
+                            side="DA"
+                            value={appDA || "—"}
+                            disabled={!appDA}
+                            onClick={(e) => openApparatoPopover(e, "DA", appDA)}
+                          />
+                          <span
+                            className="hidden md:inline text-slate-600"
+                            aria-hidden="true"
+                          >
+                            →
+                          </span>
+                          <ApparatoChip
+                            side="A"
+                            value={appA || "—"}
+                            disabled={!appA}
+                            onClick={(e) => openApparatoPopover(e, "A", appA)}
+                          />
+                        </div>
                       </td>
+
                       <td className="px-3 py-2 text-[12px] text-slate-300">
                         {r.marca_cavo || "—"}
                       </td>
+
                       <td className="px-3 py-2">
                         <span className="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/60 px-2 py-0.5 text-[11px]">
                           <span
@@ -761,6 +939,7 @@ export default function IncaCockpit({
                           </span>
                         </span>
                       </td>
+
                       <td className="px-3 py-2 text-[12px] text-slate-200 text-right">
                         {formatMeters(r.metri_teo || r.metri_dis)}
                       </td>
@@ -841,9 +1020,7 @@ export default function IncaCockpit({
         </div>
       )}
 
-      {/* ===================================================== */}
-      {/* MODAL — zoom graphe distribuzione (giant glass) */}
-      {/* ===================================================== */}
+      {/* MODAL — zoom graphe distribuzione */}
       {isDistribModalOpen && (
         <div
           className="fixed inset-0 z-[80] flex items-center justify-center bg-black/35 backdrop-blur-md p-2"
@@ -865,15 +1042,11 @@ export default function IncaCockpit({
                 </div>
                 <div className="text-[12px] text-slate-400 mt-1">
                   Totale:{" "}
-                  <span className="text-slate-100 font-semibold">
-                    {totalCavi}
-                  </span>{" "}
+                  <span className="text-slate-100 font-semibold">{totalCavi}</span>{" "}
                   · Posati (P):{" "}
                   <span className="text-emerald-300 font-semibold">{done}</span>{" "}
                   · Non posati (NP):{" "}
-                  <span className="text-purple-300 font-semibold">
-                    {nonPosati}
-                  </span>
+                  <span className="text-purple-300 font-semibold">{nonPosati}</span>
                 </div>
               </div>
 
@@ -892,10 +1065,7 @@ export default function IncaCockpit({
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={distrib}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                      <XAxis
-                        dataKey="code"
-                        tick={{ fontSize: 12, fill: "#94a3b8" }}
-                      />
+                      <XAxis dataKey="code" tick={{ fontSize: 12, fill: "#94a3b8" }} />
                       <YAxis tick={{ fontSize: 12, fill: "#94a3b8" }} />
                       <Tooltip
                         contentStyle={{
@@ -935,12 +1105,23 @@ export default function IncaCockpit({
               </div>
 
               <div className="mt-3 text-[11px] text-slate-500 px-1">
-                Nota: i filtri (Ricerca / Solo P / Solo NP / Percorso Search) influenzano il grafico.
+                Nota: i filtri (Ricerca / Solo P / Solo NP / Percorso Search)
+                influenzano il grafico.
               </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* APPARATO POPOVER (DA/A) */}
+      <ApparatoCaviPopover
+        open={apparatoPopoverOpen}
+        anchorRect={apparatoAnchorRect}
+        incaFileId={fileId}
+        side={apparatoPopoverSide}
+        apparato={apparatoPopoverName}
+        onClose={() => setApparatoPopoverOpen(false)}
+      />
     </div>
   );
 }

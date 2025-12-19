@@ -124,7 +124,7 @@ export default function IncaImportModal({
             <input
               ref={fileInputRef}
               type="file"
-              accept=".xlsx,.xls,.pdf,application/pdf"
+              accept=".xlsx,.xls,.pdf"
               hidden
               onChange={(e) => handleFile(e.target.files?.[0] || null)}
             />

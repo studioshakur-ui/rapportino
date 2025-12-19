@@ -1,3 +1,4 @@
+// /src/inca/ApparatoCaviPopover.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -36,21 +37,20 @@ export default function ApparatoCaviPopover({
   const [filter, setFilter] = useState(""); // "" | "P" | "NP" | "T" | "R" | "B" | "E"
 
   const position = useMemo(() => {
-    // fallback safe
-    const base = { top: 120, left: 24, width: 680 };
+    const base = { top: 96, left: 24, width: 700 };
     if (!anchorRect) return base;
 
-    const w = 680;
+    const w = 700;
     const pad = 16;
 
     const left = Math.min(
-      Math.max(pad, anchorRect.left - 180),
+      Math.max(pad, anchorRect.left - 240),
       Math.max(pad, window.innerWidth - w - pad)
     );
 
     const top = Math.min(
-      anchorRect.bottom + 10,
-      Math.max(pad, window.innerHeight - 520 - pad)
+      Math.max(pad, anchorRect.bottom + 10),
+      Math.max(pad, window.innerHeight - 560 - pad)
     );
 
     return { top, left, width: w };
@@ -118,6 +118,52 @@ export default function ApparatoCaviPopover({
     });
   }, [rows, q, filter]);
 
+  // ------------------------------
+  // Statut sémantique (3 couleurs)
+  // Vert  = tous visibles
+  // Jaune = partiel (filtre/recherche masque)
+  // Rouge = 0 visible
+  // ------------------------------
+  const totalForApparato = Array.isArray(rows) ? rows.length : 0;
+  const visibleNow = Array.isArray(filtered) ? filtered.length : 0;
+
+  let status = "NEUTRAL";
+  if (!loading) {
+    if (visibleNow === 0) status = "RED";
+    else if (totalForApparato > 0 && visibleNow < totalForApparato) status = "YELLOW";
+    else status = "GREEN";
+  }
+
+  const statusPillClass =
+    status === "GREEN"
+      ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200"
+      : status === "YELLOW"
+        ? "border-amber-300/25 bg-amber-400/10 text-amber-200"
+        : status === "RED"
+          ? "border-rose-300/25 bg-rose-400/10 text-rose-200"
+          : "border-white/10 bg-white/5 text-slate-300";
+
+  const statusDotClass =
+    status === "GREEN"
+      ? "bg-emerald-400"
+      : status === "YELLOW"
+        ? "bg-amber-400"
+        : status === "RED"
+          ? "bg-rose-400"
+          : "bg-slate-400";
+
+  const headerBorderClass =
+    status === "GREEN"
+      ? "border-emerald-500/12"
+      : status === "YELLOW"
+        ? "border-amber-500/12"
+        : status === "RED"
+          ? "border-rose-500/12"
+          : "border-white/10";
+
+  const sideLabel = side === "DA" ? "APP PARTENZA" : "APP ARRIVO";
+
+  // IMPORTANT: return conditionnel seulement APRÈS les hooks
   if (!open) return null;
 
   return (
@@ -133,27 +179,67 @@ export default function ApparatoCaviPopover({
         aria-label="Chiudi popup"
       />
 
-      {/* panel */}
+      {/* panel — mobile: centré ; desktop: ancré */}
       <div
-        
-  className="inca-popover fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-white/10 bg-slate-950/70 shadow-2xl backdrop-blur-xl overflow-hidden w-[min(680px,calc(100vw-32px))]"
->
-
-      
+        className={[
+          "fixed rounded-2xl border bg-slate-950/70 shadow-2xl backdrop-blur-xl overflow-hidden",
+          headerBorderClass,
+          "w-[min(720px,calc(100vw-24px))]",
+          "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2",
+          "md:left-auto md:top-auto md:translate-x-0 md:translate-y-0",
+        ].join(" ")}
+        style={{
+          ...(anchorRect
+            ? { left: position.left, top: position.top, width: position.width }
+            : {}),
+        }}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Dettaglio apparato ${side}`}
+      >
         {/* header */}
-        <div className="inca-popover-header px-4 py-3 flex items-start justify-between gap-3">
+        <div className="px-4 py-3 flex items-start justify-between gap-3 border-b border-white/10">
           <div className="min-w-0">
-            <div className="inca-popover-title text-[11px] uppercase text-slate-400">
-              {side === "DA" ? "APP PARTENZA" : "APP ARRIVO"}
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] uppercase text-slate-400">
+                {sideLabel}
+              </span>
+
+              {/* Statut 3 états */}
+              <span
+                className={[
+                  "inline-flex items-center gap-2 rounded-lg border px-2 py-[2px] text-[10px] font-semibold tracking-[0.14em]",
+                  statusPillClass,
+                ].join(" ")}
+                title={
+                  status === "GREEN"
+                    ? "Tous les câbles visibles"
+                    : status === "YELLOW"
+                      ? "Des câbles sont masqués (filtre/recherche)"
+                      : status === "RED"
+                        ? "0 câble avec les filtres/recherche"
+                        : "Chargement"
+                }
+              >
+                <span className={["h-1.5 w-1.5 rounded-full", statusDotClass].join(" ")} />
+                {loading ? "…" : status === "GREEN" ? "OK" : status === "YELLOW" ? "PARZ" : "0"}
+              </span>
+
+              <span className="inline-flex items-center justify-center rounded-lg border border-white/10 bg-white/5 px-2 py-[2px] text-[10px] font-semibold tracking-[0.14em] text-slate-200">
+                {side}
+              </span>
             </div>
-            <div className="text-lg font-semibold text-slate-100 truncate">
+
+            <div className="text-lg font-semibold text-slate-100 truncate mt-0.5">
               {apparato}
             </div>
+
             <div className="text-[11px] text-slate-400 mt-1">
-              Cavi:{" "}
-              <span className="text-slate-200 font-semibold">
-                {filtered.length}
-              </span>
+              Visibili:{" "}
+              <span className="text-slate-200 font-semibold">{visibleNow}</span>
+              <span className="text-slate-600"> / </span>
+              Totali:{" "}
+              <span className="text-slate-200 font-semibold">{totalForApparato}</span>
               {loading ? <span className="text-slate-500"> · carico…</span> : null}
             </div>
           </div>
@@ -193,54 +279,37 @@ export default function ApparatoCaviPopover({
         {/* list */}
         <div className="max-h-[420px] overflow-auto">
           <table className="w-full border-collapse text-[13px]">
-            <thead className="inca-popover-table">
-              <tr className="text-[11px] uppercase tracking-wide text-slate-300/70">
-                <th className="text-left px-4 py-2 font-medium w-[58%]">
-                  Marca cavo
-                </th>
-                <th className="text-left px-4 py-2 font-medium w-[16%]">
-                  Situaz.
-                </th>
-                <th className="text-right px-4 py-2 font-medium w-[16%]">
-                  m teo
-                </th>
-                <th className="text-right px-4 py-2 font-medium w-[10%]">
-                  PDF
-                </th>
+            <thead>
+              <tr className="text-[11px] uppercase tracking-wide text-slate-300/70 bg-slate-950/30">
+                <th className="text-left px-4 py-2 font-medium w-[58%]">Marca cavo</th>
+                <th className="text-left px-4 py-2 font-medium w-[16%]">Situaz.</th>
+                <th className="text-right px-4 py-2 font-medium w-[16%]">m teo</th>
+                <th className="text-right px-4 py-2 font-medium w-[10%]">PDF</th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-white/10">
               {loading ? (
                 <tr>
-                  <td
-                    colSpan={4}
-                    className="px-4 py-6 text-slate-200/80 text-[13px]"
-                  >
+                  <td colSpan={4} className="px-4 py-6 text-slate-200/80 text-[13px]">
                     Caricamento…
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan={4}
-                    className="px-4 py-6 text-slate-200/70 text-[13px]"
-                  >
-                    Nessun cavo.
+                  <td colSpan={4} className="px-4 py-6 text-slate-200/70 text-[13px]">
+                    Nessun cavo con i filtri correnti.
                   </td>
                 </tr>
               ) : (
                 filtered.map((r) => {
                   const s = r.situazione ? r.situazione : "NP";
                   return (
-                    <tr key={r.id} className="inca-popover-row">
+                    <tr key={r.id} className="hover:bg-white/[0.03] transition">
                       <td className="px-4 py-3 text-slate-100 font-medium">
                         {r.marca_cavo || r.codice || "—"}
                         {r.marca_cavo && r.codice ? (
-                          <span className="text-slate-400/70 font-normal">
-                            {" "}
-                            · {r.codice}
-                          </span>
+                          <span className="text-slate-400/70 font-normal"> · {r.codice}</span>
                         ) : null}
                       </td>
 
@@ -269,16 +338,24 @@ export default function ApparatoCaviPopover({
           </table>
         </div>
 
-        {/* footer résumé (premium, utile) */}
-        <div className="inca-popover-footer px-4 py-2 flex justify-between text-[11px] text-slate-400">
+        {/* footer */}
+        <div className="px-4 py-2 flex justify-between text-[11px] text-slate-400 border-t border-white/10">
           <span>
-            Cavi:{" "}
-            <strong className="text-slate-200">{filtered.length}</strong>
+            Visibili: <strong className="text-slate-200">{visibleNow}</strong>
+            <span className="text-slate-600"> / </span>
+            Totali: <strong className="text-slate-200">{totalForApparato}</strong>
           </span>
-          <span>
-            Posati:{" "}
-            <strong className="text-emerald-300">
-              {filtered.filter((r) => r.situazione === "P").length}
+
+          <span className="inline-flex items-center gap-2">
+            <span className={["h-2 w-2 rounded-full", statusDotClass].join(" ")} />
+            <strong className="text-slate-200">
+              {loading
+                ? "Caricamento…"
+                : status === "GREEN"
+                  ? "Tutti presenti"
+                  : status === "YELLOW"
+                    ? "Mancano alcuni"
+                    : "0 presenti"}
             </strong>
           </span>
         </div>

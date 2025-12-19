@@ -5,11 +5,12 @@ import { supabase } from "../lib/supabaseClient";
 /**
  * Import INCA via Edge Function (XLSX / PDF).
  * AUCUN parsing PDF/XLSX ici.
+ * Le front envoie juste le fichier brut.
  */
 export function useIncaImporter() {
   const [phase, setPhase] = useState("idle"); // idle | analyzing | importing
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState(null); // Error | string | null
   const [result, setResult] = useState(null);
 
   const run = useCallback(async ({ file, costr, commessa, projectCode, note, mode }) => {
@@ -23,49 +24,42 @@ export function useIncaImporter() {
 
       const costrTrim = String(costr ?? "").trim();
       const commessaTrim = String(commessa ?? "").trim();
+      const projectTrim = String(projectCode ?? "").trim();
+      const noteTrim = String(note ?? "").trim();
 
       if (!costrTrim) throw new Error("COSTR obbligatorio.");
       if (!commessaTrim) throw new Error("COMMESSA obbligatorio.");
-      if (mode !== "DRY_RUN" && mode !== "COMMIT") throw new Error('Mode invalido ("DRY_RUN" o "COMMIT").');
-
-      const { data: sess } = await supabase.auth.getSession();
-      const token = sess?.session?.access_token;
-      if (!token) throw new Error("Sessione non valida. Rifai login.");
-
-      const baseUrl = import.meta.env.VITE_SUPABASE_URL;
-      if (!baseUrl) throw new Error("VITE_SUPABASE_URL mancante.");
+      if (mode !== "DRY_RUN" && mode !== "COMMIT") {
+        throw new Error('Mode invalido ("DRY_RUN" o "COMMIT").');
+      }
 
       const form = new FormData();
       form.append("file", file);
       form.append("fileName", file?.name || "inca");
       form.append("costr", costrTrim);
       form.append("commessa", commessaTrim);
-      if (projectCode) form.append("projectCode", String(projectCode).trim());
-      if (note) form.append("note", String(note).trim());
+      if (projectTrim) form.append("projectCode", projectTrim);
+      if (noteTrim) form.append("note", noteTrim);
       form.append("mode", mode);
 
-      const res = await fetch(`${baseUrl}/functions/v1/inca-import`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+      // IMPORTANT: invoke gère Authorization automatiquement via la session Supabase.
+      const { data, error: fnError } = await supabase.functions.invoke("inca-import", {
         body: form,
       });
 
-      const text = await res.text();
-      let data = null;
-      try {
-        data = text ? JSON.parse(text) : null;
-      } catch {
-        throw new Error(`Risposta non-JSON (${res.status})`);
+      if (fnError) {
+        // fnError.message est souvent plus clair que res.ok
+        throw new Error(fnError.message || "Errore Edge Function (inca-import).");
       }
 
-      if (!res.ok) throw new Error(data?.error || `Errore import (${res.status})`);
-
+      // data = réponse JSON de la Function
       setResult(data);
       return data;
     } catch (e) {
       console.error("[INCA Import]", e);
-      setError(e);
-      throw e;
+      const err = e instanceof Error ? e : new Error(String(e));
+      setError(err);
+      throw err;
     } finally {
       setLoading(false);
       setPhase("idle");
