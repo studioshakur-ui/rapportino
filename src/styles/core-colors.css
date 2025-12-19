@@ -1,0 +1,44 @@
+:root {
+  /* =========================
+     Neutrals – CORE base
+     ========================= */
+  --core-bg-900: #0a0f1c;   /* fond global */
+  --core-bg-800: #0f1629;   /* sections */
+  --core-bg-700: #141c33;   /* cartes */
+  --core-bg-600: #1b2442;   /* hover doux */
+
+  --core-border-600: #263155;
+  --core-border-500: #2f3b66;
+
+  --core-text-100: #ffffff;
+  --core-text-200: #e5e7eb;
+  --core-text-300: #c7cad4;
+  --core-text-400: #9aa0b3;
+  --core-text-500: #7b829a;
+
+  /* =========================
+     CAPO – vert signature
+     ========================= */
+  --capo-500: #2fbf71;
+  --capo-400: #46d687;
+  --capo-300: #6fe6a2;
+
+  /* =========================
+     UFFICIO – bleu froid
+     ========================= */
+  --ufficio-500: #3b82f6;
+  --ufficio-400: #60a5fa;
+
+  /* =========================
+     ATTENZIONE – ambre
+     ========================= */
+  --alert-500: #fbbf24;
+  --alert-400: #fcd34d;
+
+  /* =========================
+     INCA – accent technique
+     ========================= */
+  --inca-500: #6366f1;   /* violet froid */
+  --inca-400: #818cf8;
+  --inca-300: #a5b4fc;
+}

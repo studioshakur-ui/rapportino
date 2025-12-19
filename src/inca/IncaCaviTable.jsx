@@ -1,242 +1,224 @@
-import React, { useMemo, useState } from 'react';
-import AppCaviModal from './AppCaviModal';
+import React, { useMemo, useState } from "react";
+import ApparatoCaviPopover from "../components/inca/ApparatoCaviPopover";
 
-export default function IncaCaviTable({ cavi, loading }) {
-  const [search, setSearch] = useState('');
-  const [statoFilter, setStatoFilter] = useState('');
-  const [livelloFilter, setLivelloFilter] = useState('');
+function badgeClass(s) {
+  switch (s) {
+    case "P":
+      return "bg-emerald-500/15 text-emerald-200 border-emerald-500/25";
+    case "T":
+      return "bg-sky-500/15 text-sky-200 border-sky-500/25";
+    case "R":
+      return "bg-amber-500/15 text-amber-200 border-amber-500/25";
+    case "B":
+      return "bg-fuchsia-500/15 text-fuchsia-200 border-fuchsia-500/25";
+    case "E":
+      return "bg-rose-500/15 text-rose-200 border-rose-500/25";
+    default:
+      return "bg-slate-500/15 text-slate-200 border-slate-500/25";
+  }
+}
 
-  // popup APP
-  const [appModal, setAppModal] = useState(null);
-  // { app: string, role: "PARTENZA" | "ARRIVO" }
+function labelSituazione(s) {
+  return s ? s : "NP";
+}
 
-  const {
-    filtered,
-    distinctStato,
-    distinctLivello,
-  } = useMemo(() => {
+function fmtNum(v) {
+  if (v === null || v === undefined || Number.isNaN(Number(v))) return "—";
+  const n = Number(v);
+  return new Intl.NumberFormat("it-IT", { maximumFractionDigits: 1 }).format(n);
+}
+
+/**
+ * Props:
+ * - cavi: array of inca_cavi rows (déjà chargés)
+ * - loading: boolean
+ * - incaFileId: uuid (filtre actif) — requis pour le popover
+ */
+export default function IncaCaviTable({ cavi, loading, incaFileId }) {
+  const [search, setSearch] = useState("");
+  const [statoFilter, setStatoFilter] = useState(""); // P/T/R/B/E/NP
+  const [openPop, setOpenPop] = useState(false);
+  const [popSide, setPopSide] = useState("DA"); // "DA" | "A"
+  const [popApp, setPopApp] = useState("");
+  const [anchorRect, setAnchorRect] = useState(null);
+
+  const { filtered, distinctStati } = useMemo(() => {
     const list = Array.isArray(cavi) ? cavi : [];
-    const norm = (v) => (v || '').toString().toLowerCase();
+    const norm = (v) => (v || "").toString().toLowerCase();
 
-    const statoSet = new Set(
-      list
-        .map((c) => (c.stato_cantiere || '').trim())
-        .filter((v) => v && v !== '-')
-    );
-    const livelloSet = new Set(
-      list
-        .map((c) => (c.livello || '').trim())
-        .filter((v) => v && v !== '-')
-    );
+    const stati = new Set(["P", "T", "R", "B", "E", "NP"]);
+    const q = norm(search).trim();
 
-    const distinctStato = Array.from(statoSet).sort((a, b) =>
-      a.localeCompare(b, 'it-IT')
-    );
-    const distinctLivello = Array.from(livelloSet).sort((a, b) =>
-      a.localeCompare(b, 'it-IT')
-    );
+    let out = list;
 
-    const s = norm(search);
+    if (q) {
+      out = out.filter((r) => {
+        const hay = [
+          r.marca_cavo,
+          r.codice,
+          r.apparato_da,
+          r.apparato_a,
+          r.zona_da,
+          r.zona_a,
+          r.descrizione_da,
+          r.descrizione_a,
+        ]
+          .map(norm)
+          .join(" | ");
+        return hay.includes(q);
+      });
+    }
 
-    const filtered = list.filter((c) => {
-      if (statoFilter && (c.stato_cantiere || '').trim() !== statoFilter) {
-        return false;
-      }
-      if (livelloFilter && (c.livello || '').trim() !== livelloFilter) {
-        return false;
-      }
-      if (!s) return true;
+    if (statoFilter) {
+      out = out.filter((r) => {
+        const s = r.situazione ? r.situazione : "NP";
+        return s === statoFilter;
+      });
+    }
 
-      return (
-        norm(c.codice).includes(s) ||
-        norm(c.descrizione).includes(s) ||
-        norm(c.marca_cavo).includes(s) ||
-        norm(c.tipo).includes(s) ||
-        norm(c.sezione).includes(s)
-      );
-    });
+    return {
+      filtered: out,
+      distinctStati: Array.from(stati),
+    };
+  }, [cavi, search, statoFilter]);
 
-    return { filtered, distinctStato, distinctLivello };
-  }, [cavi, search, statoFilter, livelloFilter]);
+  function openAppPopover(e, side, apparato) {
+    if (!apparato) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    setAnchorRect(rect);
+    setPopSide(side);
+    setPopApp(apparato);
+    setOpenPop(true);
+  }
 
   return (
-    <>
-      <div className="mt-3 rounded-xl border border-slate-800 bg-slate-950/80 overflow-hidden">
-        {/* Barre filtres */}
-        <div className="px-3 py-2 border-b border-slate-800 flex flex-wrap items-center gap-2 text-[11px]">
-          <div className="text-slate-400">
-            Lista cavi ·{' '}
-            <span className="text-slate-200">
-              {Array.isArray(cavi) ? cavi.length : 0}
-            </span>
+    <div className="rounded-2xl border border-white/10 bg-slate-950/40 overflow-hidden">
+      {/* Toolbar */}
+      <div className="px-4 py-3 border-b border-white/10 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-2">
+          <div className="text-[11px] uppercase tracking-wide text-slate-300/70">
+            Cavi
           </div>
+          <div className="text-slate-100 text-[13px]">
+            {Array.isArray(cavi) ? cavi.length : 0}
+          </div>
+        </div>
 
-          <div className="flex-1" />
-
+        <div className="flex flex-col gap-2 md:flex-row md:items-center">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Cerca marca cavo / app / zona / descrizione…"
+            className="w-full md:w-[360px] rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[13px] text-slate-100 placeholder:text-slate-400/70 outline-none focus:border-emerald-400/40"
+          />
           <select
             value={statoFilter}
             onChange={(e) => setStatoFilter(e.target.value)}
-            className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+            className="w-full md:w-[160px] rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[13px] text-slate-100 outline-none focus:border-emerald-400/40"
           >
-            <option value="">Tutti gli stati cantiere</option>
-            {distinctStato.map((s) => (
+            <option value="">Tutte</option>
+            {distinctStati.map((s) => (
               <option key={s} value={s}>
                 {s}
               </option>
             ))}
           </select>
-
-          <select
-            value={livelloFilter}
-            onChange={(e) => setLivelloFilter(e.target.value)}
-            className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
-          >
-            <option value="">Tutti i livelli</option>
-            {distinctLivello.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-
-          <input
-            type="text"
-            placeholder="Cerca per codice, descrizione, tipo…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 w-48 md:w-64"
-          />
-        </div>
-
-        {/* Table cavi */}
-        <div className="max-h-[420px] overflow-auto text-[11px]">
-          <table className="w-full border-collapse">
-            <thead className="bg-slate-900 sticky top-0 z-10 border-b border-slate-800">
-              <tr className="text-slate-400">
-                <th className="px-3 py-2 text-left font-normal w-40">Codice</th>
-                <th className="px-3 py-2 text-left font-normal w-44">
-                  Descrizione
-                </th>
-                <th className="px-3 py-2 text-left font-normal w-40">
-                  APP DA / A
-                </th>
-                <th className="px-3 py-2 text-left font-normal w-32">
-                  Tipo / Sezione
-                </th>
-                <th className="px-3 py-2 text-right font-normal w-28">
-                  Metri teo
-                </th>
-                <th className="px-3 py-2 text-left font-normal w-32">
-                  Stato cantiere
-                </th>
-                <th className="px-3 py-2 text-left font-normal">
-                  Situazione cavo
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {!loading && filtered.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={7}
-                    className="px-3 py-4 text-center text-slate-500"
-                  >
-                    Nessun cavo trovato con questi filtri.
-                  </td>
-                </tr>
-              )}
-
-              {filtered.map((cavo) => (
-                <tr
-                  key={cavo.id}
-                  className="border-t border-slate-900 hover:bg-slate-900/60"
-                >
-                  <td className="px-3 py-2 text-slate-100 font-mono">
-                    {cavo.codice || '—'}
-                  </td>
-
-                  <td className="px-3 py-2 text-slate-200">
-                    {cavo.descrizione || '—'}
-                  </td>
-
-                  {/* APP DA / A cliccables */}
-                  <td className="px-3 py-2 text-slate-300">
-                    <div
-                      className="text-sky-400 underline cursor-pointer"
-                      onClick={() =>
-                        cavo.apparato_da &&
-                        setAppModal({
-                          app: cavo.apparato_da,
-                          role: 'PARTENZA',
-                        })
-                      }
-                    >
-                      {cavo.apparato_da || '—'}
-                    </div>
-                    <div
-                      className="text-sky-400 underline cursor-pointer text-[10px]"
-                      onClick={() =>
-                        cavo.apparato_a &&
-                        setAppModal({
-                          app: cavo.apparato_a,
-                          role: 'ARRIVO',
-                        })
-                      }
-                    >
-                      → {cavo.apparato_a || '—'}
-                    </div>
-                  </td>
-
-                  <td className="px-3 py-2 text-slate-300">
-                    <div>{cavo.tipo || '—'}</div>
-                    <div className="text-[10px] text-slate-500">
-                      Sezione: {cavo.sezione || '—'}
-                    </div>
-                  </td>
-
-                  <td className="px-3 py-2 text-right text-slate-100">
-                    {cavo.metri_teo != null
-                      ? Number(cavo.metri_teo).toLocaleString('it-IT', {
-                          maximumFractionDigits: 1,
-                        })
-                      : '—'}
-                  </td>
-
-                  <td className="px-3 py-2 text-slate-200">
-                    {cavo.stato_cantiere || '—'}
-                  </td>
-
-                  <td className="px-3 py-2 text-slate-300">
-                    {cavo.situazione || 'NP'}
-                  </td>
-                </tr>
-              ))}
-
-              {loading && (
-                <tr>
-                  <td
-                    colSpan={7}
-                    className="px-3 py-4 text-center text-slate-500"
-                  >
-                    Caricamento cavi INCA…
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
         </div>
       </div>
 
-      {/* MODAL APP */}
-      {appModal && (
-        <AppCaviModal
-          open={true}
-          app={appModal.app}
-          role={appModal.role}
-          cavi={cavi}
-          onClose={() => setAppModal(null)}
-        />
-      )}
-    </>
+      {/* Table */}
+      <div className="overflow-auto">
+        <div className="min-w-[980px]">
+          <div className="grid grid-cols-12 gap-0 px-4 py-2 bg-white/5 text-[11px] uppercase tracking-wide text-slate-300/70">
+            <div className="col-span-4">Marca cavo</div>
+            <div className="col-span-3">Da → A</div>
+            <div className="col-span-2">Situaz.</div>
+            <div className="col-span-1 text-right">m teo</div>
+            <div className="col-span-1 text-right">m posa</div>
+            <div className="col-span-1 text-right">PDF</div>
+          </div>
+
+          {loading ? (
+            <div className="px-4 py-6 text-slate-200/80 text-[13px]">Caricamento…</div>
+          ) : filtered.length === 0 ? (
+            <div className="px-4 py-6 text-slate-200/70 text-[13px]">
+              Nessun cavo trovato.
+            </div>
+          ) : (
+            <div className="divide-y divide-white/10">
+              {filtered.map((r) => (
+                <div
+                  key={r.id || `${r.cca || ""}-${r.codice || ""}-${r.marca_cavo || ""}`}
+                  className="grid grid-cols-12 gap-0 px-4 py-3 hover:bg-white/5"
+                >
+                  {/* Marca cavo */}
+                  <div className="col-span-4 text-slate-100 text-[13px] font-medium">
+                    {r.marca_cavo || r.codice || "—"}
+                  </div>
+
+                  {/* Da → A (cliquable sur chaque côté) */}
+                  <div className="col-span-3 text-[13px] text-slate-100 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={(e) => openAppPopover(e, "DA", r.apparato_da)}
+                      className="max-w-[48%] truncate rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 px-2 py-1 text-left"
+                      title={r.apparato_da || ""}
+                      aria-label="Apri popup apparato partenza"
+                    >
+                      {r.apparato_da || "—"}
+                    </button>
+                    <span className="text-slate-300/70">→</span>
+                    <button
+                      type="button"
+                      onClick={(e) => openAppPopover(e, "A", r.apparato_a)}
+                      className="max-w-[48%] truncate rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 px-2 py-1 text-left"
+                      title={r.apparato_a || ""}
+                      aria-label="Apri popup apparato arrivo"
+                    >
+                      {r.apparato_a || "—"}
+                    </button>
+                  </div>
+
+                  {/* Situazione */}
+                  <div className="col-span-2">
+                    <span
+                      className={`inline-flex items-center justify-center rounded-lg border px-2 py-[2px] text-[12px] ${badgeClass(
+                        r.situazione
+                      )}`}
+                      title="Situazione"
+                    >
+                      {labelSituazione(r.situazione)}
+                    </span>
+                  </div>
+
+                  {/* metri */}
+                  <div className="col-span-1 text-right text-slate-200/80 text-[13px]">
+                    {fmtNum(r.metri_teo)}
+                  </div>
+                  <div className="col-span-1 text-right text-slate-200/80 text-[13px]">
+                    {fmtNum(r.metri_dis)}
+                  </div>
+
+                  {/* PDF page */}
+                  <div className="col-span-1 text-right text-slate-200/70 text-[13px]">
+                    {r.pagina_pdf ? `p.${r.pagina_pdf}` : "—"}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Popup glass */}
+      <ApparatoCaviPopover
+        open={openPop}
+        anchorRect={anchorRect}
+        incaFileId={incaFileId}
+        side={popSide}
+        apparato={popApp}
+        onClose={() => setOpenPop(false)}
+      />
+    </div>
   );
 }

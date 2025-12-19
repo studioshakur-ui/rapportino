@@ -1,0 +1,82 @@
+/* =========================
+   Backgrounds
+   ========================= */
+.bg-core {
+  background-color: var(--core-bg-900);
+}
+.bg-core-card {
+  background-color: var(--core-bg-700);
+}
+.bg-core-section {
+  background-color: var(--core-bg-800);
+}
+
+/* =========================
+   Text
+   ========================= */
+.text-core {
+  color: var(--core-text-200);
+}
+.text-muted {
+  color: var(--core-text-400);
+}
+
+/* =========================
+   Borders
+   ========================= */
+.border-core {
+  border: 1px solid var(--core-border-600);
+}
+
+/* =========================
+   Role accents
+   ========================= */
+.text-capo {
+  color: var(--capo-500);
+}
+.text-ufficio {
+  color: var(--ufficio-500);
+}
+.text-alert {
+  color: var(--alert-500);
+}
+.text-inca {
+  color: var(--inca-400);
+}
+
+/* =========================
+   Buttons
+   ========================= */
+.btn-core {
+  background-color: var(--core-bg-600);
+  border: 1px solid var(--core-border-500);
+  color: var(--core-text-200);
+}
+.btn-core:hover {
+  background-color: var(--core-bg-700);
+}
+
+.btn-inca {
+  background-color: transparent;
+  border: 1px solid var(--inca-400);
+  color: var(--inca-300);
+}
+.btn-inca:hover {
+  background-color: rgba(99, 102, 241, 0.08);
+}
+
+/* =========================
+   Status badges
+   ========================= */
+.badge-capo {
+  background: rgba(47, 191, 113, 0.12);
+  color: var(--capo-400);
+}
+.badge-alert {
+  background: rgba(251, 191, 36, 0.12);
+  color: var(--alert-400);
+}
+.badge-inca {
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--inca-300);
+}

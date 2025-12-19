@@ -1,4 +1,3 @@
-// src/main.jsx
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
@@ -9,17 +8,19 @@ import { ShipProvider } from "./context/ShipContext";
 import { I18nProvider } from "./i18n/I18nProvider";
 
 import "./index.css";
+import "./styles/core-colors.css";
+import "./styles/core-ui.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <AuthProvider>
-      <I18nProvider>
-        <ShipProvider>
-          <BrowserRouter>
+    <BrowserRouter>
+      <AuthProvider>
+        <I18nProvider>
+          <ShipProvider>
             <AppRoutes />
-          </BrowserRouter>
-        </ShipProvider>
-      </I18nProvider>
-    </AuthProvider>
+          </ShipProvider>
+        </I18nProvider>
+      </AuthProvider>
+    </BrowserRouter>
   </React.StrictMode>
 );
