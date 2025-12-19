@@ -1,885 +1,577 @@
 // src/components/RapportinoIncaCaviSection.jsx
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { calcMetriPosati, formatMeters, getBaseMetri, safeNum } from "../inca/incaMath";
 
-const SITUAZIONI = ["P", "T", "R", "B", "E", "NP"];
-const PICKER_PAGE_SIZE = 120;
+// =====================================================
+// RAPPORTINO — INCA CAVI (collegati) — Screen: dark premium
+// Note: on force certains styles avec "!" pour éviter que du CSS legacy
+// (ex: styles globaux tables/rapportino) ne "blanchisse" la section.
+// =====================================================
 
-function norm(v) {
-  return String(v ?? "").trim();
+const SITUAZIONI_ORDER = ["T", "P", "R", "B", "E", "NP"];
+
+const SITUAZIONI_LABEL = {
+  T: "Teorico",
+  P: "Posato",
+  R: "Rimosso",
+  B: "Bloccato",
+  E: "Eseguito",
+  NP: "Non posato",
+};
+
+function safeNum(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
 }
 
-function situazioneKey(v) {
-  const s = norm(v);
-  if (!s) return "NP";
-  return SITUAZIONI.includes(s) ? s : "NP";
+function clamp01(x) {
+  const n = safeNum(x);
+  return Math.max(0, Math.min(1, n));
 }
 
-function Chip({ active, children, onClick, title }) {
-  return (
-    <button
-      type="button"
-      title={title}
-      onClick={onClick}
-      className={[
-        "px-3 py-1.5 rounded-full text-[12px] font-semibold border transition",
-        active
-          ? "bg-[rgba(99,102,241,0.18)] text-[var(--inca-300)] border-[rgba(129,140,248,0.55)]"
-          : "bg-slate-900/40 text-slate-100 border-slate-700 hover:bg-slate-900/70",
-      ].join(" ")}
-    >
-      {children}
-    </button>
-  );
+function percent(x) {
+  return Math.round(clamp01(x) * 100);
 }
 
-function pickDaA(row) {
-  const da = norm(row?.zona_da) || norm(row?.apparato_da) || "—";
-  const a = norm(row?.zona_a) || norm(row?.apparato_a) || "—";
-  return { da, a };
+function normalizeCode(v) {
+  return (v || "").toString().trim();
 }
 
-function lampDotClass(k) {
-  switch (k) {
-    case "P":
-      return "bg-emerald-400 shadow-[0_0_14px_rgba(52,211,153,0.55)] ring-emerald-300/25";
-    case "T":
-      return "bg-sky-400 shadow-[0_0_14px_rgba(56,189,248,0.55)] ring-sky-300/25";
-    case "R":
-      return "bg-amber-400 shadow-[0_0_14px_rgba(251,191,36,0.55)] ring-amber-300/25";
-    case "B":
-      return "bg-rose-400 shadow-[0_0_14px_rgba(251,113,133,0.55)] ring-rose-300/25";
-    case "E":
-      return "bg-violet-400 shadow-[0_0_14px_rgba(167,139,250,0.55)] ring-violet-300/25";
-    case "NP":
-    default:
-      return "bg-slate-500 shadow-[0_0_10px_rgba(148,163,184,0.20)] ring-slate-400/15";
-  }
+function matchSearch(code, q) {
+  if (!q) return true;
+  return normalizeCode(code).toLowerCase().includes(q.toLowerCase().trim());
 }
 
-function SituazioneLamp({ k, compact = false }) {
-  return (
-    <span
-      title={`Situazione: ${k}`}
-      className={[
-        "inline-flex items-center gap-2 rounded-full border border-slate-700 bg-core-section",
-        compact ? "px-2 py-1 text-[11px]" : "px-2 py-0.5 text-[11px]",
-        "font-semibold text-slate-100",
-      ].join(" ")}
-    >
-      <span
-        className={[
-          "h-2.5 w-2.5 rounded-full ring-1 ring-white/10",
-          lampDotClass(k),
-        ].join(" ")}
-      />
-      <span>{k}</span>
-    </span>
-  );
+function lampClass(k) {
+  // Lamps (visibles) — palette cohérente
+  // NP = neutre, T = bleu, P = vert, R = rose, B = amber, E = violet
+  const base =
+    "inline-flex h-6 w-6 items-center justify-center rounded-full border text-[11px] font-bold transition-all";
+  const map = {
+    NP: "bg-slate-900/40 border-slate-700 text-slate-300",
+    T: "bg-sky-950/40 border-sky-700/60 text-sky-200",
+    P: "bg-emerald-950/40 border-emerald-700/60 text-emerald-200",
+    R: "bg-rose-950/40 border-rose-700/60 text-rose-200",
+    B: "bg-amber-950/40 border-amber-700/60 text-amber-200",
+    E: "bg-violet-950/40 border-violet-700/60 text-violet-200",
+  };
+  return [base, map[k] || map.NP].join(" ");
 }
 
-/**
- * CAPO — Section "CAVI INCA COLLEGATI AL RAPPORTINO"
- *
- * Props:
- * - rapportinoId (required)
- * - reportDate (optional)
- * - costr (required for picker)
- * - commessa (required for picker)
- */
-export default function RapportinoIncaCaviSection({ rapportinoId, reportDate, costr, commessa }) {
+function pillClassForSituazione(k) {
+  const base =
+    "inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors";
+  const map = {
+    NP: "border-slate-700 text-slate-200 hover:bg-slate-900/30",
+    T: "border-sky-700/70 text-sky-100 hover:bg-sky-950/30",
+    P: "border-emerald-700/70 text-emerald-100 hover:bg-emerald-950/30",
+    R: "border-rose-700/70 text-rose-100 hover:bg-rose-950/30",
+    B: "border-amber-700/70 text-amber-100 hover:bg-amber-950/30",
+    E: "border-violet-700/70 text-violet-100 hover:bg-violet-950/30",
+  };
+  return [base, map[k] || map.NP].join(" ");
+}
+
+export default function RapportinoIncaCaviSection({ rapportinoId, shipCostr }) {
   const [loading, setLoading] = useState(true);
-  const [savingId, setSavingId] = useState(null);
-  const [error, setError] = useState(null);
+  const [rows, setRows] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
 
-  const [links, setLinks] = useState([]);
+  // Picker / UX
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerRowId, setPickerRowId] = useState(null);
+  const [pickerValue, setPickerValue] = useState("NP");
+  const [pickerSearch, setPickerSearch] = useState("");
 
-  // picker drawer
-  const [isPickerOpen, setIsPickerOpen] = useState(false);
-  const [pickerLoading, setPickerLoading] = useState(false);
-  const [pickerError, setPickerError] = useState(null);
+  // Option 2: ajout "DA/A" (range code) dans le picker
+  const [rangeDa, setRangeDa] = useState("");
+  const [rangeA, setRangeA] = useState("");
 
-  const [pickerQuery, setPickerQuery] = useState("");
-  const [pickerSituazioni, setPickerSituazioni] = useState([]);
-  const [pickerOnlyNonP, setPickerOnlyNonP] = useState(false);
+  const closePicker = () => {
+    setPickerOpen(false);
+    setPickerRowId(null);
+    setPickerSearch("");
+    setRangeDa("");
+    setRangeA("");
+  };
 
-  const [pickerRows, setPickerRows] = useState([]);
-  const [pickerOffset, setPickerOffset] = useState(0);
-  const [pickerHasMore, setPickerHasMore] = useState(true);
+  const openPickerForRow = (rowId, cur) => {
+    setPickerRowId(rowId);
+    setPickerValue(cur || "NP");
+    setPickerOpen(true);
+  };
 
-  const pickerListRef = useRef(null);
-  const abortRef = useRef({ cancelled: false });
-
-  const percentOptions = useMemo(() => [0, 50, 70, 100], []);
-  const canUsePicker = Boolean(norm(costr) && norm(commessa)); // STRICT
-
-  const normalizedReportDate = useMemo(() => {
-    try {
-      if (reportDate) {
-        const d = new Date(reportDate);
-        if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10);
-      }
-    } catch {
-      // ignore
-    }
-    return new Date().toISOString().slice(0, 10);
-  }, [reportDate]);
-
-  // -----------------------------
-  // Load linked INCA for rapportino
-  // -----------------------------
-  const reloadLinks = useCallback(async () => {
-    if (!rapportinoId) return;
-
+  const fetchData = async () => {
     setLoading(true);
-    setError(null);
-
+    setErr("");
     try {
-      const { data, error: e } = await supabase
+      if (!rapportinoId) {
+        setRows([]);
+        return;
+      }
+
+      /**
+       * IMPORTANT:
+       * La table "rapportino_inca_cavi" n'a souvent PAS la colonne "codice".
+       * Le "codice" est sur "inca_cavi.codice".
+       * Donc on fait un select relationnel + order sur la foreignTable.
+       *
+       * Pré-requis: FK rapportino_inca_cavi.inca_cavo_id -> inca_cavi.id
+       */
+      const { data, error } = await supabase
         .from("rapportino_inca_cavi")
         .select(
           `
-          id,
-          rapportino_id,
-          inca_cavo_id,
-          step_type,
-          progress_percent,
-          metri_posati,
-          posa_date,
-          note,
-          inca_cavi:inca_cavo_id (
             id,
-            codice,
-            descrizione,
+            rapportino_id,
+            inca_cavo_id,
             metri_teo,
             metri_dis,
+            step,
             situazione,
-            marca_cavo,
-            zona_da,
-            zona_a,
-            apparato_da,
-            apparato_a
-          )
-        `
+            inca_cavi:inca_cavo_id (
+              codice
+            )
+          `
         )
         .eq("rapportino_id", rapportinoId)
-        .order("created_at", { ascending: true });
+        .order("codice", { ascending: true, foreignTable: "inca_cavi" });
 
-      if (e) throw e;
-      setLinks(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error("[RapportinoIncaCaviSection] loadLinks error:", err);
-      setError("Impossibile caricare i cavi INCA collegati al rapportino.");
-      setLinks([]);
+      if (error) throw error;
+
+      const list = Array.isArray(data) ? data : [];
+      setRows(
+        list.map((r) => ({
+          id: r.id,
+          rapportino_id: r.rapportino_id,
+          inca_cavo_id: r.inca_cavo_id,
+          // codice pris depuis la table INCA (relation)
+          codice: r?.inca_cavi?.codice || "",
+          metri_teo: safeNum(r.metri_teo),
+          metri_dis: safeNum(r.metri_dis),
+          step: r.step || "",
+          situazione: r.situazione ?? null, // null => NP
+        }))
+      );
+    } catch (e) {
+      console.error("INCA collegati fetch error:", e);
+      setErr("Impossibile caricare i cavi INCA collegati.");
+      setRows([]);
     } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rapportinoId]);
 
-  useEffect(() => {
-    if (!rapportinoId) {
-      setLinks([]);
-      setLoading(false);
-      return;
-    }
-    reloadLinks();
-  }, [rapportinoId, reloadLinks]);
-
-  const linkedIncaIds = useMemo(() => {
-    const s = new Set();
-    for (const l of links || []) if (l?.inca_cavo_id) s.add(l.inca_cavo_id);
-    return s;
-  }, [links]);
-
-  // -----------------------------
-  // Derived display rows
-  // -----------------------------
   const displayRows = useMemo(() => {
-    return (links || []).map((l) => {
-      const inca = l.inca_cavi || null;
-      const base = getBaseMetri(inca);
-      const pct =
-        l.progress_percent != null && l.progress_percent !== ""
-          ? safeNum(l.progress_percent)
-          : 0;
-
-      const storedPosati = safeNum(l.metri_posati);
-      const computedPosati = calcMetriPosati(base, pct);
-      const posati = storedPosati > 0 ? storedPosati : computedPosati;
-
+    return rows.map((r) => {
+      const situazioneKey = r.situazione || "NP";
+      const adv = r.metri_teo > 0 ? r.metri_dis / r.metri_teo : 0;
       return {
-        linkId: l.id,
-        incaId: l.inca_cavo_id,
-        codice: inca?.codice || l.codice_cache || "—",
-        descrizione: inca?.descrizione || "—",
-        baseMetri: base,
-        percent: pct,
-        metriPosati: posati,
-        stepType: (l.step_type || "POSA").toUpperCase(),
-        situazione: inca?.situazione || "—",
-        ripresaLocked: String((l.step_type || "")).toUpperCase() === "RIPRESA",
+        ...r,
+        situazioneKey,
+        avanzamentoPct: percent(adv),
       };
     });
-  }, [links]);
+  }, [rows]);
 
-  // -----------------------------
-  // Update link progress
-  // -----------------------------
-  async function updateLinkProgress({ linkId, newPercent, newStepType }) {
-    const row = (links || []).find((x) => x.id === linkId);
-    if (!row) return;
+  const count = displayRows.length;
 
-    const inca = row.inca_cavi || null;
-    const base = getBaseMetri(inca);
+  const handleUpdateSituazioneSingle = async (rowId, newSituazioneKey) => {
+    const key = newSituazioneKey === "NP" ? null : newSituazioneKey;
 
-    const step = String(newStepType || row.step_type || "POSA").toUpperCase();
-    const forcedPercent = step === "RIPRESA" ? 100 : safeNum(newPercent);
+    setRows((prev) => prev.map((r) => (r.id === rowId ? { ...r, situazione: key } : r)));
 
-    const metriPosati = calcMetriPosati(base, forcedPercent);
-
-    setSavingId(linkId);
-    setError(null);
-
+    setSaving(true);
     try {
-      const payload = {
-        step_type: step,
-        progress_percent: forcedPercent,
-        metri_posati: metriPosati,
-        posa_date: normalizedReportDate,
-      };
-
-      const { error: e } = await supabase
+      const { error } = await supabase
         .from("rapportino_inca_cavi")
-        .update(payload)
-        .eq("id", linkId);
-      if (e) throw e;
+        .update({ situazione: key })
+        .eq("id", rowId);
 
-      setLinks((prev) =>
-        (prev || []).map((x) => (x.id === linkId ? { ...x, ...payload } : x))
-      );
-    } catch (err) {
-      console.error("[RapportinoIncaCaviSection] updateLinkProgress error:", err);
-      setError("Errore aggiornando avanzamento INCA (salvataggio fallito).");
+      if (error) throw error;
+    } catch (e) {
+      console.error(e);
+      await fetchData();
     } finally {
-      setSavingId(null);
+      setSaving(false);
     }
-  }
+  };
 
-  // -----------------------------
-  // Delete link
-  // -----------------------------
-  async function removeLink(linkId) {
-    if (!linkId) return;
+  const handleApplySituazioneRange = async (situazioneKey) => {
+    const da = normalizeCode(rangeDa);
+    const a = normalizeCode(rangeA);
 
-    setSavingId(linkId);
-    setError(null);
+    if (!da || !a) return;
 
-    try {
-      const { error: e } = await supabase
-        .from("rapportino_inca_cavi")
-        .delete()
-        .eq("id", linkId);
-      if (e) throw e;
+    const lo = da.toLowerCase();
+    const hi = a.toLowerCase();
 
-      setLinks((prev) => (prev || []).filter((x) => x.id !== linkId));
-    } catch (err) {
-      console.error("[RapportinoIncaCaviSection] removeLink error:", err);
-      setError("Errore rimuovendo il cavo INCA dal rapportino.");
-    } finally {
-      setSavingId(null);
-    }
-  }
-
-  // -----------------------------
-  // Picker: open/close/reset
-  // -----------------------------
-  const openPicker = useCallback(() => {
-    if (!canUsePicker) return;
-    setIsPickerOpen(true);
-  }, [canUsePicker]);
-
-  const closePicker = useCallback(() => {
-    setIsPickerOpen(false);
-    setPickerQuery("");
-    setPickerSituazioni([]);
-    setPickerOnlyNonP(false);
-    setPickerRows([]);
-    setPickerError(null);
-    setPickerOffset(0);
-    setPickerHasMore(true);
-  }, []);
-
-  // -----------------------------
-  // Picker: build query
-  // -----------------------------
-  const buildPickerQuery = useCallback(() => {
-    let q = supabase
-      .from("inca_cavi")
-      .select(
-        "id,codice,descrizione,metri_teo,situazione,marca_cavo,zona_da,zona_a,apparato_da,apparato_a"
-      )
-      .eq("costr", norm(costr))
-      .eq("commessa", norm(commessa))
-      .order("codice", { ascending: true });
-
-    const search = norm(pickerQuery).toLowerCase();
-    if (search) {
-      q = q.or(
-        [
-          `codice.ilike.%${search}%`,
-          `descrizione.ilike.%${search}%`,
-          `marca_cavo.ilike.%${search}%`,
-        ].join(",")
-      );
-    }
-
-    if (pickerSituazioni.length > 0) {
-      const nonNP = pickerSituazioni.filter((x) => x !== "NP");
-      const hasNP = pickerSituazioni.includes("NP");
-
-      const ors = [];
-      if (nonNP.length > 0) ors.push(`situazione.in.(${nonNP.join(",")})`);
-      if (hasNP) ors.push("situazione.is.null", "situazione.eq.");
-      q = q.or(ors.join(","));
-    }
-
-    if (pickerOnlyNonP) {
-      q = q.or("situazione.is.null,situazione.neq.P,situazione.eq.");
-    }
-
-    return q;
-  }, [costr, commessa, pickerQuery, pickerSituazioni, pickerOnlyNonP]);
-
-  const loadPickerFirstPage = useCallback(async () => {
-    if (!isPickerOpen) return;
-    if (!canUsePicker) return;
-
-    setPickerLoading(true);
-    setPickerError(null);
-    setPickerRows([]);
-    setPickerOffset(0);
-    setPickerHasMore(true);
-
-    abortRef.current.cancelled = false;
-    const localAbort = abortRef.current;
-
-    try {
-      const from = 0;
-      const to = PICKER_PAGE_SIZE - 1;
-
-      const q = buildPickerQuery().range(from, to);
-      const { data, error: e } = await q;
-
-      if (e) throw e;
-      if (localAbort.cancelled) return;
-
-      const rows = (data || []).filter((r) => !linkedIncaIds.has(r.id));
-      setPickerRows(rows);
-      setPickerOffset((data || []).length);
-      setPickerHasMore((data || []).length === PICKER_PAGE_SIZE);
-
-      requestAnimationFrame(() => {
-        if (pickerListRef.current) pickerListRef.current.scrollTop = 0;
-      });
-    } catch (err) {
-      console.error("[RapportinoIncaCaviSection] picker first page error:", err);
-      setPickerError("Impossibile caricare la lista INCA (picker).");
-      setPickerRows([]);
-      setPickerHasMore(false);
-    } finally {
-      if (!localAbort.cancelled) setPickerLoading(false);
-    }
-  }, [isPickerOpen, canUsePicker, buildPickerQuery, linkedIncaIds]);
-
-  const loadPickerMore = useCallback(async () => {
-    if (!isPickerOpen) return;
-    if (!canUsePicker) return;
-    if (pickerLoading) return;
-    if (!pickerHasMore) return;
-
-    setPickerLoading(true);
-    setPickerError(null);
-
-    abortRef.current.cancelled = false;
-    const localAbort = abortRef.current;
-
-    try {
-      const from = pickerOffset;
-      const to = pickerOffset + PICKER_PAGE_SIZE - 1;
-
-      const q = buildPickerQuery().range(from, to);
-      const { data, error: e } = await q;
-
-      if (e) throw e;
-      if (localAbort.cancelled) return;
-
-      const chunk = (data || []).filter((r) => !linkedIncaIds.has(r.id));
-      setPickerRows((prev) => prev.concat(chunk));
-      setPickerOffset((prev) => prev + (data || []).length);
-      setPickerHasMore((data || []).length === PICKER_PAGE_SIZE);
-    } catch (err) {
-      console.error("[RapportinoIncaCaviSection] picker load more error:", err);
-      setPickerError("Errore caricando altri cavi INCA.");
-      setPickerHasMore(false);
-    } finally {
-      if (!localAbort.cancelled) setPickerLoading(false);
-    }
-  }, [isPickerOpen, canUsePicker, pickerLoading, pickerHasMore, pickerOffset, buildPickerQuery, linkedIncaIds]);
-
-  useEffect(() => {
-    if (!isPickerOpen) return;
-    loadPickerFirstPage();
-    return () => {
-      abortRef.current.cancelled = true;
+    const inRange = (code) => {
+      const c = normalizeCode(code).toLowerCase();
+      return c >= lo && c <= hi;
     };
-  }, [isPickerOpen, pickerQuery, pickerSituazioni, pickerOnlyNonP, costr, commessa, loadPickerFirstPage]);
 
-  const onPickerScroll = useCallback(
-    (e) => {
-      const el = e.currentTarget;
-      const threshold = 260;
-      const remaining = el.scrollHeight - el.scrollTop - el.clientHeight;
-      if (remaining < threshold) loadPickerMore();
-    },
-    [loadPickerMore]
-  );
+    const targetIds = displayRows.filter((r) => inRange(r.codice)).map((r) => r.id);
+    if (targetIds.length === 0) return;
 
-  const togglePickerSituazione = useCallback((k) => {
-    setPickerSituazioni((prev) => {
-      const s = new Set(prev);
-      if (s.has(k)) s.delete(k);
-      else s.add(k);
-      return Array.from(s);
-    });
-  }, []);
+    const key = situazioneKey === "NP" ? null : situazioneKey;
 
-  const resetPickerFilters = useCallback(() => {
-    setPickerQuery("");
-    setPickerSituazioni([]);
-    setPickerOnlyNonP(false);
-  }, []);
+    setRows((prev) => prev.map((r) => (targetIds.includes(r.id) ? { ...r, situazione: key } : r)));
 
-  // -----------------------------
-  // Add single cable (1 tap)
-  // -----------------------------
-  const addOne = useCallback(
-    async (incaId) => {
-      if (!rapportinoId || !incaId) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("rapportino_inca_cavi")
+        .update({ situazione: key })
+        .in("id", targetIds);
 
-      setPickerLoading(true);
-      setPickerError(null);
+      if (error) throw error;
+      closePicker();
+    } catch (e) {
+      console.error(e);
+      await fetchData();
+    } finally {
+      setSaving(false);
+    }
+  };
 
-      try {
-        const { data: incaRow, error: e1 } = await supabase
-          .from("inca_cavi")
-          .select("id,metri_teo,metri_dis")
-          .eq("id", incaId)
-          .single();
-
-        if (e1) throw e1;
-
-        const base = getBaseMetri(incaRow);
-        const pct = 0;
-        const posati = calcMetriPosati(base, pct);
-
-        const payload = {
-          rapportino_id: rapportinoId,
-          inca_cavo_id: incaId,
-          step_type: "POSA",
-          progress_percent: pct,
-          metri_posati: posati,
-          posa_date: normalizedReportDate,
-        };
-
-        const { error: e2 } = await supabase
-          .from("rapportino_inca_cavi")
-          .insert(payload);
-        if (e2) throw e2;
-
-        await reloadLinks();
-        setPickerRows((prev) => prev.filter((r) => r.id !== incaId));
-      } catch (err) {
-        console.error("[RapportinoIncaCaviSection] addOne error:", err);
-        setPickerError("Errore aggiungendo il cavo INCA al rapportino.");
-      } finally {
-        setPickerLoading(false);
-      }
-    },
-    [rapportinoId, normalizedReportDate, reloadLinks]
-  );
-
-  // -----------------------------
-  // UI
-  // -----------------------------
-  if (!rapportinoId) {
-    return (
-      <div className="rounded-2xl border-core bg-core-card p-3">
-        <div className="text-[11px] uppercase tracking-[0.22em] text-muted">
-          <span className="text-inca font-semibold">INCA</span> · Cavi collegati
-        </div>
-        <div className="mt-1 text-[13px] text-core font-semibold">
-          Rapportino non disponibile
-        </div>
-      </div>
-    );
-  }
+  const pickerRows = useMemo(() => {
+    const q = pickerSearch.trim();
+    if (!q) return displayRows;
+    return displayRows.filter((r) => matchSearch(r.codice, q));
+  }, [displayRows, pickerSearch]);
 
   return (
-    <>
-      <div className="rounded-2xl border-core bg-core-card p-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-[11px] uppercase tracking-[0.22em] text-muted">
-              <span className="text-inca font-semibold">INCA</span> · Cavi collegati
-            </div>
+    <div className="mt-6">
+      {/* HEADER */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[11px] uppercase tracking-[0.22em] !text-slate-400">
+            INCA · CAVI COLLEGATI
           </div>
-
-          <div className="flex items-center gap-2">
-            <div className="text-[11px] text-muted">{displayRows.length}</div>
-
-            <button
-              type="button"
-              onClick={openPicker}
-              className={[
-                "inline-flex items-center gap-2 rounded-full px-3 py-2 text-[12px] font-semibold transition",
-                canUsePicker ? "btn-inca" : "btn-core opacity-50 cursor-not-allowed",
-              ].join(" ")}
-              disabled={!canUsePicker}
-              title={
-                canUsePicker
-                  ? "Collega cavo INCA"
-                  : "Per aprire il picker servono COSTR + COMMESSA (filtro INCA)."
-              }
-            >
-              + Collega cavo INCA
-            </button>
+          <div className="mt-0.5 text-[12px] !text-slate-300">
+            {shipCostr ? (
+              <span className="opacity-90">
+                Costr: <span className="font-semibold">{shipCostr}</span>
+              </span>
+            ) : (
+              <span className="opacity-70">—</span>
+            )}
           </div>
         </div>
 
-        {error && (
-          <div className="mt-3 rounded-xl border border-rose-600/40 bg-rose-950/25 px-3 py-2 text-[12px] text-rose-200">
-            {error}
-          </div>
-        )}
-
-        <div
-          className={[
-            "mt-3 overflow-x-auto rounded-2xl border border-slate-800",
-            displayRows.length === 0 && !loading ? "bg-transparent" : "bg-slate-950/30",
-          ].join(" ")}
-        >
-          <table className="min-w-[980px] w-full">
-            <thead className="bg-slate-950/60 border-b border-slate-800">
-              <tr className="text-left text-[11px] text-slate-500">
-                <th className="px-3 py-2">Marca / codice</th>
-                <th className="px-3 py-2">Lung. disegno</th>
-                <th className="px-3 py-2">Step</th>
-                <th className="px-3 py-2">Avanzamento (%)</th>
-                <th className="px-3 py-2">Metri posati</th>
-                <th className="px-3 py-2">Situazione</th>
-                <th className="px-3 py-2 text-right">Azioni</th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-slate-800">
-              {loading ? (
-                <tr>
-                  <td colSpan={7} className="px-3 py-10 text-center text-[12px] text-slate-500">
-                    Caricamento…
-                  </td>
-                </tr>
-              ) : displayRows.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-3 py-10" />
-                </tr>
-              ) : (
-                displayRows.map((r) => {
-                  const isSaving = savingId === r.linkId;
-                  const k = situazioneKey(r.situazione);
-
-                  return (
-                    <tr key={r.linkId} className="hover:bg-slate-900/25">
-                      <td className="px-3 py-2">
-                        <div className="text-[12px] text-slate-100 font-semibold">{r.codice}</div>
-                        <div className="text-[11px] text-slate-500">
-                          {r.descrizione && r.descrizione !== "—" ? r.descrizione : "—"}
-                        </div>
-                      </td>
-
-                      <td className="px-3 py-2 text-[12px] text-slate-100">
-                        {r.baseMetri ? formatMeters(r.baseMetri) : "—"}
-                      </td>
-
-                      <td className="px-3 py-2">
-                        <select
-                          value={r.stepType}
-                          disabled={isSaving}
-                          onChange={(e) =>
-                            updateLinkProgress({
-                              linkId: r.linkId,
-                              newStepType: e.target.value,
-                              newPercent: r.percent,
-                            })
-                          }
-                          className="rounded-lg border border-slate-700 bg-slate-950/60 text-slate-50 px-2 py-1 text-[12px] outline-none"
-                        >
-                          <option value="POSA">POSA</option>
-                          <option value="RIPRESA">RIPRESA</option>
-                        </select>
-                      </td>
-
-                      <td className="px-3 py-2">
-                        <select
-                          value={r.percent}
-                          disabled={isSaving || r.ripresaLocked}
-                          onChange={(e) =>
-                            updateLinkProgress({
-                              linkId: r.linkId,
-                              newStepType: r.stepType,
-                              newPercent: Number(e.target.value),
-                            })
-                          }
-                          className="rounded-lg border border-slate-700 bg-slate-950/60 text-slate-50 px-2 py-1 text-[12px] outline-none"
-                          title={r.ripresaLocked ? "RIPRESA è bloccata a 100%" : "Seleziona avanzamento"}
-                        >
-                          {percentOptions.map((p) => (
-                            <option key={p} value={p}>
-                              {p}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-
-                      <td className="px-3 py-2 text-[12px] text-slate-100">
-                        {Math.round(r.metriPosati)}
-                      </td>
-
-                      <td className="px-3 py-2">
-                        <SituazioneLamp k={k} />
-                      </td>
-
-                      <td className="px-3 py-2 text-right">
-                        <button
-                          type="button"
-                          disabled={isSaving}
-                          onClick={() => removeLink(r.linkId)}
-                          className="px-3 py-1.5 rounded-lg border border-rose-600/50 bg-rose-950/20 hover:bg-rose-950/35 text-[12px] text-rose-200"
-                        >
-                          Rimuovi
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+        <div className="flex items-center gap-2">
+          <span className="text-[12px] !text-slate-300">{count}</span>
+          <button
+            type="button"
+            className={[
+              "inline-flex items-center gap-2 rounded-full border px-3 py-1.5",
+              "text-[12px] font-semibold transition-colors",
+              "border-slate-700 !text-slate-200 hover:bg-slate-900/35",
+            ].join(" ")}
+            title="Collega cavo INCA"
+            onClick={() => {
+              // Hook futur: ouvrir picker / modal di collegamento
+            }}
+          >
+            <span className="text-slate-300">+</span>
+            <span>Collega cavo INCA</span>
+          </button>
         </div>
       </div>
 
-      {/* PICKER DRAWER */}
-      {isPickerOpen ? (
-        <div className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center">
-          <div className="w-full sm:max-w-5xl sm:rounded-2xl rounded-t-3xl border-core bg-core-card shadow-2xl overflow-hidden">
-            {/* Drawer header */}
-            <div className="px-4 py-3 border-b border-slate-800 bg-core-section">
-              <div className="flex items-start gap-3">
-                <div className="min-w-0">
-                  <div className="text-[11px] uppercase tracking-[0.22em] text-muted">
-                    <span className="text-inca font-semibold">INCA</span> · Selezione cavo
-                  </div>
-                  <div className="mt-1 text-[13px] font-semibold text-core truncate">
-                    COSTR {norm(costr)} · COMMESSA {norm(commessa)}
-                  </div>
-                </div>
+      {/* ERROR */}
+      {err ? (
+        <div className="mt-3 rounded-xl border border-rose-900/40 bg-rose-950/25 px-3 py-2 text-[12px] text-rose-100">
+          {err}
+        </div>
+      ) : null}
 
-                <div className="ml-auto flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={closePicker}
-                    className="px-3 py-1.5 rounded-lg btn-core text-[12px] font-semibold"
-                  >
-                    Chiudi
-                  </button>
-                </div>
-              </div>
+      {/* TABLE */}
+      <div
+        className={[
+          "mt-3 overflow-x-auto rounded-2xl border border-slate-800",
+          displayRows.length === 0 && !loading ? "!bg-transparent" : "!bg-slate-950/35",
+        ].join(" ")}
+      >
+        <table className="min-w-[980px] w-full !text-slate-200">
+          <thead className="!bg-slate-950/70 !border-b !border-slate-800">
+            <tr className="text-left text-[11px] !text-slate-400">
+              <th className="px-3 py-2 !text-slate-300">Marca / codice</th>
+              <th className="px-3 py-2 !text-slate-300">Lung. disegno</th>
+              <th className="px-3 py-2 !text-slate-300">Step</th>
+              <th className="px-3 py-2 !text-slate-300">Avanzamento (%)</th>
+              <th className="px-3 py-2 !text-slate-300">Metri posati</th>
+              <th className="px-3 py-2 !text-slate-300">Situazione</th>
+              <th className="px-3 py-2 text-right !text-slate-300">Azioni</th>
+            </tr>
+          </thead>
 
-              {/* Filters */}
-              <div className="mt-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2">
-                <input
-                  value={pickerQuery}
-                  onChange={(e) => setPickerQuery(e.target.value)}
-                  placeholder="Cerca marca/codice/descrizione…"
-                  className="w-full rounded-xl border-core bg-core-card text-core px-3 py-2 text-[13px] outline-none focus:ring-2 focus:ring-[var(--inca-400)]"
-                />
+          <tbody className="divide-y divide-slate-800">
+            {loading ? (
+              <tr>
+                <td colSpan={7} className="px-3 py-4 text-[12px] !text-slate-400">
+                  Caricamento…
+                </td>
+              </tr>
+            ) : displayRows.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-3 py-5 text-[12px] !text-slate-500">
+                  Nessun cavo INCA collegato a questo rapportino.
+                </td>
+              </tr>
+            ) : (
+              displayRows.map((r) => (
+                <tr key={r.id} className="hover:!bg-slate-900/30">
+                  <td className="px-3 py-2">
+                    <div className="text-[12px] !text-slate-100 font-semibold">{r.codice || "—"}</div>
+                  </td>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPickerOnlyNonP((v) => !v)}
-                    className={[
-                      "px-3 py-2 rounded-xl border text-[12px] font-semibold transition",
-                      pickerOnlyNonP
-                        ? "bg-[rgba(99,102,241,0.18)] text-[var(--inca-300)] border-[rgba(129,140,248,0.55)]"
-                        : "btn-core",
-                    ].join(" ")}
-                    title="Escludi POSA (P)"
-                  >
-                    Solo non P
-                  </button>
+                  <td className="px-3 py-2">
+                    <div className="text-[12px] !text-slate-200">{safeNum(r.metri_teo).toFixed(2)}</div>
+                  </td>
 
-                  <button
-                    type="button"
-                    onClick={resetPickerFilters}
-                    className="px-3 py-2 rounded-xl btn-core text-[12px] font-semibold"
-                  >
-                    Reset
-                  </button>
-                </div>
-              </div>
+                  <td className="px-3 py-2">
+                    <div className="text-[12px] !text-slate-200">{r.step || "—"}</div>
+                  </td>
 
-              <div className="mt-2 flex flex-wrap gap-2">
-                {SITUAZIONI.map((k) => (
-                  <Chip
-                    key={k}
-                    active={pickerSituazioni.includes(k)}
-                    onClick={() => togglePickerSituazione(k)}
-                    title={`Filtra situazione ${k}`}
-                  >
-                    {k}
-                  </Chip>
-                ))}
-              </div>
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-28 rounded-full bg-slate-800 overflow-hidden">
+                        <div className="h-full bg-sky-500/60" style={{ width: `${r.avanzamentoPct}%` }} />
+                      </div>
+                      <div className="text-[12px] !text-slate-200 w-10 text-right tabular-nums">
+                        {r.avanzamentoPct}%
+                      </div>
+                    </div>
+                  </td>
 
-              {pickerError ? (
-                <div className="mt-2 text-[12px] text-rose-200 bg-rose-500/10 border border-rose-500/40 rounded-lg px-2 py-2">
-                  {pickerError}
-                </div>
-              ) : null}
-            </div>
+                  <td className="px-3 py-2">
+                    <div className="text-[12px] !text-slate-200 tabular-nums">
+                      {safeNum(r.metri_dis).toFixed(2)}
+                    </div>
+                  </td>
 
-            {/* List */}
-            <div
-              ref={pickerListRef}
-              onScroll={onPickerScroll}
-              className="max-h-[72vh] overflow-y-auto"
-            >
-              <div className="p-3">
-                {pickerRows.length === 0 && !pickerLoading ? (
-                  <div className="py-10" />
-                ) : (
-                  <div className="rounded-2xl border-core overflow-hidden">
-                    <table className="w-full text-[12px]">
-                      <thead className="bg-core-section sticky top-0 z-10 border-b border-slate-800">
-                        <tr className="text-core">
-                          <th className="px-3 py-2 text-left">Marca / codice</th>
-                          <th className="px-3 py-2 text-left">Da / A</th>
-                          <th className="px-3 py-2 text-right">Lung. disegno</th>
-                          <th className="px-3 py-2 text-center">Situazione</th>
-                          <th className="px-3 py-2 text-right">Azione</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {pickerRows.map((r) => {
-                          const k = situazioneKey(r.situazione);
-                          const { da, a } = pickDaA(r);
-
-                          return (
-                            <tr
-                              key={r.id}
-                              className="border-t border-slate-800 bg-core-card/40 hover:bg-core-card/70"
-                            >
-                              <td className="px-3 py-2">
-                                <div className="text-[12px] text-core font-semibold">
-                                  {norm(r.codice) || norm(r.marca_cavo) || "—"}
-                                </div>
-                                <div className="text-[11px] text-muted truncate max-w-[520px]">
-                                  {norm(r.descrizione) || "—"}
-                                </div>
-                              </td>
-
-                              <td className="px-3 py-2">
-                                <div className="text-[12px] text-core">
-                                  <span className="text-muted font-semibold">DA</span>{" "}
-                                  <span className="text-core">{da}</span>{" "}
-                                  <span className="text-muted">→</span>{" "}
-                                  <span className="text-muted font-semibold">A</span>{" "}
-                                  <span className="text-core">{a}</span>
-                                </div>
-                              </td>
-
-                              <td className="px-3 py-2 text-right text-core">
-                                {Number(r.metri_teo ?? 0) || 0}
-                              </td>
-
-                              <td className="px-3 py-2 text-center">
-                                <div className="inline-flex items-center justify-center">
-                                  <SituazioneLamp k={k} compact />
-                                </div>
-                              </td>
-
-                              <td className="px-3 py-2 text-right">
-                                <button
-                                  type="button"
-                                  disabled={pickerLoading}
-                                  onClick={() => addOne(r.id)}
-                                  className="px-3 py-1.5 rounded-lg border border-[rgba(129,140,248,0.55)] bg-[rgba(99,102,241,0.12)] hover:bg-[rgba(99,102,241,0.18)] text-[12px] font-semibold text-core"
-                                >
-                                  Aggancia
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-
-                        {pickerLoading ? (
-                          <tr>
-                            <td colSpan={5} className="px-3 py-4 text-center text-[12px] text-muted">
-                              Caricamento…
-                            </td>
-                          </tr>
-                        ) : null}
-
-                        {!pickerHasMore && pickerRows.length > 0 ? (
-                          <tr>
-                            <td colSpan={5} className="px-3 py-4 text-center text-[12px] text-muted">
-                              Fine lista
-                            </td>
-                          </tr>
-                        ) : null}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-
-                {pickerHasMore && !pickerLoading ? (
-                  <div className="mt-3 flex items-center justify-end">
+                  <td className="px-3 py-2">
                     <button
                       type="button"
-                      onClick={loadPickerMore}
-                      className="px-3 py-1.5 rounded-lg btn-core text-[12px] font-semibold"
+                      onClick={() => openPickerForRow(r.id, r.situazioneKey)}
+                      className={pillClassForSituazione(r.situazioneKey)}
+                      title="Imposta situazione"
                     >
-                      Carica altri
+                      <span className={lampClass(r.situazioneKey)}>{r.situazioneKey}</span>
+                      <span className="whitespace-nowrap">
+                        {SITUAZIONI_LABEL[r.situazioneKey] || "—"}
+                      </span>
                     </button>
-                  </div>
-                ) : null}
-              </div>
-            </div>
+                  </td>
 
-            {/* Drawer footer */}
-            <div className="px-4 py-3 border-t border-slate-800 bg-core-section flex items-center justify-end">
+                  <td className="px-3 py-2 text-right">
+                    <button
+                      type="button"
+                      className="inline-flex items-center rounded-full border border-slate-700 px-2.5 py-1 text-[11px] font-semibold !text-slate-200 hover:bg-slate-900/35 transition-colors"
+                      title="Scollega"
+                      onClick={async () => {
+                        setSaving(true);
+                        try {
+                          const { error } = await supabase
+                            .from("rapportino_inca_cavi")
+                            .delete()
+                            .eq("id", r.id);
+                          if (error) throw error;
+                          setRows((prev) => prev.filter((x) => x.id !== r.id));
+                        } catch (e) {
+                          console.error(e);
+                          await fetchData();
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                    >
+                      Rimuovi
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Saving hint */}
+      {saving ? <div className="mt-2 text-[11px] !text-slate-500">Salvataggio…</div> : null}
+
+      {/* PICKER — bottom sheet premium */}
+      {pickerOpen ? (
+        <div className="fixed inset-0 z-40" role="dialog" aria-modal="true" aria-label="Situazione cavo">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/60"
+            onClick={closePicker}
+            aria-label="Chiudi"
+            title="Chiudi"
+          />
+
+          <div
+            className={[
+              "absolute bottom-0 left-0 right-0",
+              "rounded-t-3xl border-t border-slate-800",
+              "bg-slate-950",
+              "shadow-[0_-40px_120px_rgba(0,0,0,0.65)]",
+              "px-4 pb-4 pt-3",
+            ].join(" ")}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[11px] uppercase tracking-[0.22em] !text-slate-500">Situazione</div>
+                <div className="mt-0.5 text-[13px] font-semibold !text-slate-100 truncate">
+                  Seleziona stato · {pickerRowId ? "cavo" : ""}
+                </div>
+              </div>
+
               <button
                 type="button"
                 onClick={closePicker}
-                className="px-3 py-1.5 rounded-lg btn-core text-[12px] font-semibold"
+                className="inline-flex items-center justify-center rounded-full border border-slate-700 px-3 py-1.5 text-[12px] font-semibold !text-slate-200 hover:bg-slate-900/35 transition-colors"
               >
                 Chiudi
               </button>
             </div>
+
+            <div className="mt-3">
+              <input
+                value={pickerSearch}
+                onChange={(e) => setPickerSearch(e.target.value)}
+                placeholder="Cerca marca/codice…"
+                className={[
+                  "w-full rounded-2xl border",
+                  "border-slate-800 bg-slate-900/40",
+                  "px-3 py-2 text-[13px] !text-slate-100",
+                  "placeholder:text-slate-500",
+                  "outline-none focus:ring-2 focus:ring-sky-500/40",
+                ].join(" ")}
+              />
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              {SITUAZIONI_ORDER.map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => {
+                    setPickerValue(k);
+                    if (pickerRowId) handleUpdateSituazioneSingle(pickerRowId, k);
+                  }}
+                  className={[
+                    pillClassForSituazione(k),
+                    pickerValue === k ? "ring-2 ring-white/10" : "",
+                  ].join(" ")}
+                  title={SITUAZIONI_LABEL[k]}
+                >
+                  <span className={lampClass(k)}>{k}</span>
+                  <span>{SITUAZIONI_LABEL[k]}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-900/25 p-3">
+              <div className="text-[11px] uppercase tracking-[0.22em] !text-slate-500">
+                Applica a intervallo (DA / A)
+              </div>
+
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <input
+                  value={rangeDa}
+                  onChange={(e) => setRangeDa(e.target.value)}
+                  placeholder="DA (codice)"
+                  className={[
+                    "w-full rounded-xl border",
+                    "border-slate-800 bg-slate-950/40",
+                    "px-3 py-2 text-[13px] !text-slate-100",
+                    "placeholder:text-slate-500",
+                    "outline-none focus:ring-2 focus:ring-sky-500/35",
+                  ].join(" ")}
+                />
+                <input
+                  value={rangeA}
+                  onChange={(e) => setRangeA(e.target.value)}
+                  placeholder="A (codice)"
+                  className={[
+                    "w-full rounded-xl border",
+                    "border-slate-800 bg-slate-950/40",
+                    "px-3 py-2 text-[13px] !text-slate-100",
+                    "placeholder:text-slate-500",
+                    "outline-none focus:ring-2 focus:ring-sky-500/35",
+                  ].join(" ")}
+                />
+              </div>
+
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <div className="text-[12px] !text-slate-400">
+                  Stato selezionato:{" "}
+                  <span className="font-semibold !text-slate-200">{pickerValue}</span>
+                </div>
+
+                <button
+                  type="button"
+                  className={[
+                    "inline-flex items-center gap-2 rounded-full border px-3 py-1.5",
+                    "text-[12px] font-semibold transition-colors",
+                    "border-sky-700/60 text-sky-100 hover:bg-sky-950/35",
+                    "disabled:opacity-50 disabled:cursor-not-allowed",
+                  ].join(" ")}
+                  disabled={!normalizeCode(rangeDa) || !normalizeCode(rangeA)}
+                  onClick={() => handleApplySituazioneRange(pickerValue)}
+                  title="Applica situazione all’intervallo"
+                >
+                  <span className={lampClass(pickerValue)}>{pickerValue}</span>
+                  <span>Applica</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <div className="text-[11px] uppercase tracking-[0.22em] !text-slate-500">
+                Anteprima (filtrata)
+              </div>
+
+              <div className="mt-2 max-h-[220px] overflow-auto rounded-2xl border border-slate-800">
+                {pickerRows.length === 0 ? (
+                  <div className="px-3 py-3 text-[12px] !text-slate-500">
+                    Nessun cavo corrispondente.
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-slate-800">
+                    {pickerRows.slice(0, 60).map((r) => (
+                      <li key={r.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                        <div className="min-w-0">
+                          <div className="text-[12px] !text-slate-100 font-semibold truncate">
+                            {r.codice || "—"}
+                          </div>
+                          <div className="text-[11px] !text-slate-400">
+                            {r.metri_dis.toFixed(2)} / {r.metri_teo.toFixed(2)} · {r.avanzamentoPct}%
+                          </div>
+                        </div>
+                        <span className={lampClass(r.situazioneKey)}>{r.situazioneKey}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <div className="mt-2 text-[11px] !text-slate-500">
+                Mostro max 60 righe in anteprima.
+              </div>
+            </div>
           </div>
         </div>
       ) : null}
-    </>
+    </div>
   );
 }

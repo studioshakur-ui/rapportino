@@ -12,15 +12,13 @@ import "./index.css";
 import "./styles/inca-percorso-search.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
-    <AuthProvider>
-      <I18nProvider>
-        <ShipProvider>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
-        </ShipProvider>
-      </I18nProvider>
-    </AuthProvider>
-  </React.StrictMode>
+  <AuthProvider>
+    <I18nProvider>
+      <ShipProvider>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </ShipProvider>
+    </I18nProvider>
+  </AuthProvider>
 );
