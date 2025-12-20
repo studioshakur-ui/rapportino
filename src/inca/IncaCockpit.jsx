@@ -20,16 +20,20 @@ import ApparatoCaviPopover from "./ApparatoCaviPopover";
 // INCA COCKPIT (UFFICIO) — Percorso-level UI
 // =====================================================
 
-const SITUAZIONI_ORDER = ["T", "P", "R", "B", "E", "NP"];
+// src/inca/incaSituazioni.js
+// Source de vérité unique pour les situazioni INCA (labels + ordre)
 
-const SITUAZIONI_LABEL = {
+export const SITUAZIONI_ORDER = ["NP", "T", "P", "R", "B", "E"];
+
+export const SITUAZIONI_LABEL = {
+  NP: "Non posato",
   T: "Teorico",
   P: "Posato",
   R: "Rimosso",
   B: "Bloccato",
-  E: "Eseguito",
-  NP: "Non posato",
+  E: "Eliminato", // ✅ IMPORTANT: E = ELIMINATO (pas Eseguito)
 };
+
 
 function safeNum(v) {
   const n = Number(v);

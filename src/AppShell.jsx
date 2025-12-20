@@ -17,7 +17,6 @@ export default function AppShell() {
   const isCoreDrive = pathname.startsWith("/app/archive");
   const pageLabel = isCoreDrive ? "CORE Drive" : "Rapportino";
 
-  // Sidebar dynamique (compact par défaut + peek hover)
   const [sidebarPeek, setSidebarPeek] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
@@ -61,48 +60,40 @@ export default function AppShell() {
     : "bg-transparent";
 
   return (
-    <div
-      className={[
-        "min-h-screen flex flex-col",
-        coreLayout.pageShell(isDark),
-      ].join(" ")}
-    >
-      {/* TOP BAR — fine, horizontale, ultra minimal (Logout only à droite) */}
+    <div className={["min-h-screen flex flex-col", coreLayout.pageShell(isDark)].join(" ")}>
+      {/* TOP BAR */}
       <header
         className={[
           "no-print sticky top-0 z-30 border-b backdrop-blur",
-          "h-10",
-          "flex items-center justify-between",
-          "px-3 sm:px-4 md:px-6",
+          "h-10 flex items-center",
           coreLayout.header(isDark),
           driveTopGlow,
         ].join(" ")}
       >
-        {/* Left: page label only */}
-        <div className="min-w-0">
-          <span
-            className={[
-              "text-[13px] md:text-[14px] font-semibold truncate",
-              isCoreDrive ? "text-violet-100" : "text-slate-100",
-            ].join(" ")}
-            title={pageLabel}
-          >
-            {pageLabel}
-          </span>
-        </div>
+        {/* ✅ GRILLE COMMUNE */}
+        <div className="w-full max-w-6xl mx-auto px-3 sm:px-4 md:px-6 flex items-center justify-between">
+          {/* Left */}
+          <div className="min-w-0">
+            <span
+              className={[
+                "text-[13px] md:text-[14px] font-semibold truncate",
+                isCoreDrive ? "text-violet-100" : "text-slate-100",
+              ].join(" ")}
+              title={pageLabel}
+            >
+              {pageLabel}
+            </span>
+          </div>
 
-        {/* Right: Logout only */}
-        <div className="flex items-center">
+          {/* Right */}
           <button
             type="button"
             onClick={handleLogout}
             className={[
               "inline-flex items-center gap-2",
-              "rounded-full border",
-              "px-2.5 py-1",
-              "text-[11px] font-medium",
+              "rounded-full border px-2.5 py-1",
+              "text-[11px] font-medium transition-colors",
               "border-rose-500/80 text-rose-100 hover:bg-rose-600/20",
-              "transition-colors",
             ].join(" ")}
             title="Logout"
             aria-label="Logout"
@@ -122,7 +113,7 @@ export default function AppShell() {
       </header>
 
       <div className="flex flex-1 min-h-0">
-        {/* SIDEBAR — aucun logout ici */}
+        {/* SIDEBAR */}
         <aside
           className={[
             "no-print border-r hidden md:flex flex-col",
@@ -142,13 +133,10 @@ export default function AppShell() {
               className={[
                 "w-full inline-flex items-center gap-2",
                 "rounded-xl border px-3 py-2",
-                "text-[11px] uppercase tracking-[0.18em]",
-                "transition-colors",
+                "text-[11px] uppercase tracking-[0.18em] transition-colors",
                 "border-slate-800 bg-slate-950/20 text-slate-300 hover:bg-slate-900/35",
                 effectiveCollapsed ? "justify-center px-0" : "justify-start",
               ].join(" ")}
-              title={sidebarCollapsed ? "Espandi menu" : "Riduci menu"}
-              aria-label={sidebarCollapsed ? "Espandi menu" : "Riduci menu"}
             >
               <span className="text-slate-400">☰</span>
               {!effectiveCollapsed && (
@@ -157,26 +145,17 @@ export default function AppShell() {
             </button>
           </div>
 
-          <nav
-            className={["space-y-1.5", effectiveCollapsed ? "px-0" : "px-1"].join(
-              " "
-            )}
-          >
+          <nav className={["space-y-1.5", effectiveCollapsed ? "px-0" : "px-1"].join(" ")}>
             <NavLink
               to="/app"
               end
               className={({ isActive }) =>
                 [
-                  corePills(
-                    isDark,
-                    "sky",
-                    "w-full flex items-center gap-2 justify-start"
-                  ),
+                  corePills(isDark, "sky", "w-full flex items-center gap-2 justify-start"),
                   isActive ? "" : "opacity-85 hover:opacity-100",
                   effectiveCollapsed ? "justify-center px-0" : "",
                 ].join(" ")
               }
-              title="Rapportino"
             >
               <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
               {!effectiveCollapsed && <span>Rapportino</span>}
@@ -186,18 +165,13 @@ export default function AppShell() {
               to="/app/archive"
               className={({ isActive }) =>
                 [
-                  corePills(
-                    isDark,
-                    "violet",
-                    "w-full flex items-center gap-2 justify-start font-semibold"
-                  ),
+                  corePills(isDark, "violet", "w-full flex items-center gap-2 justify-start font-semibold"),
                   isActive
                     ? "bg-violet-950/35 border-violet-500/65 text-violet-100 shadow-[0_18px_60px_rgba(139,92,246,0.18)]"
                     : "bg-violet-950/18 border-violet-500/50 text-violet-100/90 hover:bg-violet-950/25",
                   effectiveCollapsed ? "justify-center px-0" : "",
                 ].join(" ")
               }
-              title="CORE Drive"
             >
               <span className="h-1.5 w-1.5 rounded-full bg-violet-400 shadow-[0_0_10px_rgba(167,139,250,0.45)]" />
               {!effectiveCollapsed && <span>CORE Drive</span>}
@@ -205,16 +179,11 @@ export default function AppShell() {
           </nav>
 
           <div className="mt-auto pt-4 border-t border-slate-800 text-[10px] text-slate-600">
-            <div>CORE</div>
+            CORE
           </div>
         </aside>
 
-        <main
-          className={[
-            "flex-1 min-h-0 overflow-y-auto",
-            coreLayout.mainBg(isDark),
-          ].join(" ")}
-        >
+        <main className={["flex-1 min-h-0 overflow-y-auto", coreLayout.mainBg(isDark)].join(" ")}>
           <section className="mx-auto max-w-none px-0 py-0">
             <Outlet />
           </section>

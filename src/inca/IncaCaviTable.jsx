@@ -1,8 +1,13 @@
+// src/inca/IncaCaviTable.jsx
 import React, { useMemo, useState } from "react";
 import ApparatoCaviPopover from "./ApparatoCaviPopover";
+import {
+  normalizeSituazione,
+  SITUAZIONI_LABEL,
+} from "./incaSituazioni";
 
-function badgeClass(s) {
-  switch (s) {
+function badgeClass(k) {
+  switch (k) {
     case "P":
       return "bg-emerald-500/15 text-emerald-200 border-emerald-500/25";
     case "T":
@@ -13,13 +18,10 @@ function badgeClass(s) {
       return "bg-fuchsia-500/15 text-fuchsia-200 border-fuchsia-500/25";
     case "E":
       return "bg-rose-500/15 text-rose-200 border-rose-500/25";
+    case "NP":
     default:
       return "bg-slate-500/15 text-slate-200 border-slate-500/25";
   }
-}
-
-function labelSituazione(s) {
-  return s ? s : "NP";
 }
 
 function fmtNum(v) {
@@ -85,8 +87,7 @@ export default function IncaCaviTable({ cavi, loading, incaFileId }) {
             ) : (
               <div className="divide-y divide-slate-900/80">
                 {cavi.map((r) => {
-                  const s = (r.situazione || "").trim();
-                  const situ = s ? s : "NP";
+                  const situ = normalizeSituazione(r.situazione);
 
                   return (
                     <div
@@ -97,7 +98,10 @@ export default function IncaCaviTable({ cavi, loading, incaFileId }) {
                       <div className="col-span-4 text-slate-100 text-[13px] font-medium">
                         {r.marca_cavo || r.codice || "—"}
                         {r.marca_cavo && r.codice ? (
-                          <span className="text-slate-400/70 font-normal"> · {r.codice}</span>
+                          <span className="text-slate-400/70 font-normal">
+                            {" "}
+                            · {r.codice}
+                          </span>
                         ) : null}
                       </div>
 
@@ -127,11 +131,14 @@ export default function IncaCaviTable({ cavi, loading, incaFileId }) {
                       {/* Situazione */}
                       <div className="col-span-2">
                         <span
-                          className={`inline-flex items-center justify-center rounded-lg border px-2 py-[2px] text-[12px] ${
-                            situ === "NP" ? badgeClass(null) : badgeClass(situ)
-                          }`}
+                          className={[
+                            "inline-flex items-center gap-2 rounded-lg border px-2 py-[2px] text-[12px]",
+                            badgeClass(situ),
+                          ].join(" ")}
+                          title={SITUAZIONI_LABEL[situ] || situ}
                         >
-                          {labelSituazione(situ === "NP" ? null : situ)}
+                          <span className="font-semibold">{situ}</span>
+                          <span className="opacity-80">{SITUAZIONI_LABEL[situ] || ""}</span>
                         </span>
                       </div>
 

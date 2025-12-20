@@ -31,7 +31,7 @@ const CREW_LABELS = {
 
 export default function RapportinoPage() {
   const { shipId } = useParams(); // shipId sert à la navigation UX, PAS à la table rapportini
-  const { profile, signOut } = useAuth();
+  const { profile } = useAuth(); // ✅ Logout géré par AppShell (CAPO) — pas ici
   const navigate = useNavigate();
 
   const [crewRole, setCrewRole] = useState(() => {
@@ -73,7 +73,6 @@ export default function RapportinoPage() {
   const [successMessage, setSuccessMessage] = useState(null);
 
   // Inbox RETURNED (rapporto rimandato dall'Ufficio):
-  // rende impossibile "mancare" un ritorno anche se la data corrente è diversa.
   const [returnedCount, setReturnedCount] = useState(0);
   const [latestReturned, setLatestReturned] = useState(null);
   const [returnedLoading, setReturnedLoading] = useState(false);
@@ -419,16 +418,6 @@ export default function RapportinoPage() {
     }, 120);
   };
 
-  const handleLogout = async () => {
-    try {
-      await signOut?.();
-    } catch (err) {
-      console.error("Errore logout capo:", err);
-    } finally {
-      navigate("/login");
-    }
-  };
-
   if (initialLoading || loading) {
     return <LoadingScreen message="Caricamento del rapportino in corso." />;
   }
@@ -456,24 +445,7 @@ export default function RapportinoPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-900/80">
-      {/* TOP BAR — fine, sobre, 1 seule action */}
-      <header className="no-print sticky top-0 z-20 border-b border-slate-800 bg-slate-950/70 backdrop-blur">
-        <div className="h-12 max-w-6xl mx-auto px-4 flex items-center justify-between">
-          <div className="min-w-0 flex items-center gap-2">
-            <span className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
-              CORE · CAPO · RAPPORTINO
-            </span>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="px-3 py-1.5 rounded-full border border-rose-400/40 text-rose-100 bg-rose-600/75 hover:bg-rose-600 transition text-[12px] font-semibold"
-          >
-            Logout
-          </button>
-        </div>
-      </header>
+      {/* ✅ Pas de topbar interne (Logout géré par AppShell) */}
 
       <main className="flex-1 px-2 md:px-4 py-4 md:py-6">
         {/* Banner RETURNED — impossible à manquer */}
@@ -557,7 +529,7 @@ export default function RapportinoPage() {
               onChangeDate={setReportDate}
             />
 
-            {/* META (déplacé depuis la top bar) */}
+            {/* META */}
             <div className="no-print mt-3 flex flex-wrap items-center justify-between gap-2">
               <div className="text-[11px] text-slate-500">
                 <span className="font-semibold text-slate-700">Ruolo:</span>{" "}
@@ -586,6 +558,7 @@ export default function RapportinoPage() {
                 reportDate={reportDate}
                 costr={costr}
                 commessa={commessa}
+                canEdit={canEditInca}
               />
             </div>
 

@@ -1,88 +1,412 @@
-// src/pages/ShipSelector.jsx
-import React, { useEffect, useState } from "react";
+// /src/pages/ShipSelector.jsx
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import ReactECharts from "echarts-for-react";
 import { supabase } from "../lib/supabaseClient";
 import { useShip } from "../context/ShipContext";
 import { corePills } from "../ui/designSystem";
 
-const FALLBACK_SHIPS = [
-  {
-    id: "C001",
-    code: "C001",
-    name: "COMM01",
-    yard: "Sede operativa",
-    progress_inca: 62,
-    deadline_date: "2026-02-15",
-    recent_reports: 34,
-  },
-    {
-    id: "C002",
-    code: "C002",
-    name: "COMM02",
-    yard: "Sede operativa",
-    progress_inca: 48,
-    deadline_date: "2026-03-10",
-    recent_reports: 21,
-  },
-];
+/* -----------------------------
+   Utils dates / numbers
+----------------------------- */
+function toISODate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const da = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${da}`;
+}
+
+function addDaysISO(iso, days) {
+  const d = new Date(`${iso}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return toISODate(d);
+}
 
 function formatDate(itDateString) {
   if (!itDateString) return "—";
-  const d = new Date(itDateString);
+  const d = new Date(`${itDateString}T00:00:00`);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("it-IT");
 }
 
+function safeNum(x) {
+  const n = typeof x === "number" ? x : Number(x);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function roundInt(n) {
+  return Math.round(safeNum(n));
+}
+
+/* -----------------------------
+   Donut INCA (mini, no fake)
+   centre = total cavi (pas de %)
+----------------------------- */
+function IncaDonut({ summary, loading }) {
+  if (loading) {
+    return (
+      <div className="h-[88px] w-[88px] rounded-xl border border-white/10 bg-white/5 flex items-center justify-center text-[11px] text-slate-400">
+        INCA…
+      </div>
+    );
+  }
+
+  if (!summary || summary.total === 0) {
+    return (
+      <div className="h-[88px] w-[88px] rounded-xl border border-white/10 bg-white/5 flex flex-col items-center justify-center text-[10px] text-slate-400">
+        <span>INCA</span>
+        <span className="text-slate-500">non disponibile</span>
+      </div>
+    );
+  }
+
+  const option = {
+    backgroundColor: "transparent",
+    tooltip: {
+      trigger: "item",
+      formatter: ({ name, value }) => `${name}: ${value}`,
+    },
+    series: [
+      {
+        type: "pie",
+        radius: ["62%", "82%"],
+        center: ["50%", "50%"],
+        avoidLabelOverlap: true,
+        label: { show: false },
+        labelLine: { show: false },
+        data: [
+          { name: "P", value: summary.p, itemStyle: { color: "#34d399" } }, // emerald
+          { name: "T", value: summary.t, itemStyle: { color: "#38bdf8" } }, // sky
+          { name: "B", value: summary.b, itemStyle: { color: "#f59e0b" } }, // amber
+          { name: "NP", value: summary.np, itemStyle: { color: "#64748b" } }, // slate
+        ].filter((d) => d.value > 0),
+      },
+    ],
+    graphic: [
+      {
+        type: "text",
+        left: "center",
+        top: "center",
+        style: {
+          text: String(summary.total),
+          fill: "#e5e7eb",
+          fontSize: 14,
+          fontWeight: 700,
+        },
+      },
+      {
+        type: "text",
+        left: "center",
+        top: "56%",
+        style: {
+          text: "cavi",
+          fill: "#94a3b8",
+          fontSize: 10,
+        },
+      },
+    ],
+  };
+
+  return (
+    <div className="h-[88px] w-[88px]">
+      <ReactECharts
+        option={option}
+        style={{ height: "100%", width: "100%" }}
+        notMerge
+        lazyUpdate
+      />
+    </div>
+  );
+}
+
+/* -----------------------------
+   Page
+----------------------------- */
 export default function ShipSelector() {
   const navigate = useNavigate();
   const { currentShip, setCurrentShip } = useShip();
-  const [ships, setShips] = useState(FALLBACK_SHIPS);
-  const [loading, setLoading] = useState(true);
+
+  const [ships, setShips] = useState([]);
+  const [incaByCostr, setIncaByCostr] = useState({}); // donut counts
+  const [etaByCostr, setEtaByCostr] = useState({}); // deadline estimate + rate
+  const [loadingShips, setLoadingShips] = useState(true);
+  const [loadingInca, setLoadingInca] = useState(true);
+  const [loadingEta, setLoadingEta] = useState(true);
   const [error, setError] = useState(null);
 
-  // Tentative de chargement depuis Supabase (soft-fail : on garde le fallback)
+  const todayISO = useMemo(() => toISODate(new Date()), []);
+
+  /* -----------------------------
+     Load ships (no fake)
+  ----------------------------- */
   useEffect(() => {
-    let isMounted = true;
+    let alive = true;
 
-    const load = async () => {
-      setLoading(true);
+    async function loadShips() {
+      setLoadingShips(true);
       setError(null);
-
       try {
-        // Ajuste le nom de la table si tu crées "ships" côté DB
         const { data, error: qError } = await supabase
           .from("ships")
-          .select(
-            "id, code, name, yard, deadline_date, progress_inca, recent_reports"
-          )
-          .eq("is_active", true);
+          .select("id, code, name, yard")
+          .eq("is_active", true)
+          .order("code", { ascending: true });
 
         if (qError) throw qError;
-
-        if (isMounted && data && data.length > 0) {
-          setShips(data);
-        }
-      } catch (err) {
-        console.warn("[ShipSelector] Errore caricamento ships:", err);
-        setError(
-          "Impossibile recuperare le navi dal server. Uso della configurazione locale."
-        );
+        if (alive) setShips(Array.isArray(data) ? data : []);
+      } catch (e) {
+        console.error("[ShipSelector] load ships error:", e);
+        if (alive) setError("Impossibile recuperare le navi.");
       } finally {
-        if (isMounted) setLoading(false);
+        if (alive) setLoadingShips(false);
       }
-    };
+    }
 
-    load();
+    loadShips();
     return () => {
-      isMounted = false;
+      alive = false;
     };
   }, []);
+
+  /* -----------------------------
+     INCA donut summary via EXACT COUNTS (no 1000 limit)
+     For each ship:
+       total = count(*)
+       p/t/b = count where situazione = 'P'/'T'/'B'
+       np = count where situazione IS NULL
+  ----------------------------- */
+  useEffect(() => {
+    if (!ships.length) {
+      setLoadingInca(false);
+      return;
+    }
+
+    let alive = true;
+
+    async function loadCounts() {
+      setLoadingInca(true);
+      try {
+        const tasks = ships.map(async (ship) => {
+          const costr = ship.code;
+
+          const qTotal = supabase
+            .from("inca_cavi")
+            .select("id", { count: "exact", head: true })
+            .eq("costr", costr);
+
+          const qP = supabase
+            .from("inca_cavi")
+            .select("id", { count: "exact", head: true })
+            .eq("costr", costr)
+            .eq("situazione", "P");
+
+          const qT = supabase
+            .from("inca_cavi")
+            .select("id", { count: "exact", head: true })
+            .eq("costr", costr)
+            .eq("situazione", "T");
+
+          const qB = supabase
+            .from("inca_cavi")
+            .select("id", { count: "exact", head: true })
+            .eq("costr", costr)
+            .eq("situazione", "B");
+
+          const qNP = supabase
+            .from("inca_cavi")
+            .select("id", { count: "exact", head: true })
+            .eq("costr", costr)
+            .is("situazione", null);
+
+          const [rTotal, rP, rT, rB, rNP] = await Promise.all([
+            qTotal,
+            qP,
+            qT,
+            qB,
+            qNP,
+          ]);
+
+          // on tolère des erreurs partielles : si total fail, pas de summary
+          if (rTotal.error) {
+            console.warn("[ShipSelector] INCA count error for", costr, rTotal.error);
+            return [costr, null];
+          }
+
+          const total = safeNum(rTotal.count);
+          const p = safeNum(rP.count);
+          const t = safeNum(rT.count);
+          const b = safeNum(rB.count);
+          const np = safeNum(rNP.count);
+
+          return [costr, { total, p, t, b, np }];
+        });
+
+        const pairs = await Promise.all(tasks);
+        const map = {};
+        for (const [costr, summary] of pairs) {
+          if (summary) map[costr] = summary;
+        }
+
+        if (alive) setIncaByCostr(map);
+      } catch (e) {
+        console.error("[ShipSelector] load INCA counts error:", e);
+      } finally {
+        if (alive) setLoadingInca(false);
+      }
+    }
+
+    loadCounts();
+    return () => {
+      alive = false;
+    };
+  }, [ships]);
+
+  /* -----------------------------
+     ETA / Deadline estimate from delta di produzione
+
+     Charge:
+       total_m = sum(inca_cavi.metri_teo) for costr
+     Done:
+       done_m = sum(rapportino_inca_cavi.metri_posati) for costr_cache
+     Rate (7g):
+       last7_m = sum(metri_posati) for costr_cache and report_date_cache >= today-6
+       workingDays = distinct report_date_cache where metri_posati > 0
+       rate_m_per_day = last7_m / workingDays
+     Remaining:
+       rem_m = max(total_m - done_m, 0)
+     ETA days:
+       ceil(rem_m / rate_m_per_day)
+     deadline_est:
+       today + etaDays
+
+     If missing/zero:
+       deadline_est = null
+  ----------------------------- */
+  useEffect(() => {
+    if (!ships.length) {
+      setLoadingEta(false);
+      return;
+    }
+
+    let alive = true;
+
+    async function loadEta() {
+      setLoadingEta(true);
+
+      try {
+        const fromISO = addDaysISO(todayISO, -6); // 7 jours incluant today
+
+        const tasks = ships.map(async (ship) => {
+          const costr = ship.code;
+
+          // 1) total_m (aggregate sum metri_teo)
+          const totalRes = await supabase
+            .from("inca_cavi")
+            .select("metri_teo.sum()")
+            .eq("costr", costr)
+            .maybeSingle();
+
+          if (totalRes.error) {
+            console.warn("[ShipSelector] total_m error for", costr, totalRes.error);
+            return [costr, null];
+          }
+
+          const total_m = safeNum(totalRes.data?.sum ?? totalRes.data?.["metri_teo.sum"] ?? 0);
+
+          // 2) done_m (all time, sum metri_posati)
+          const doneRes = await supabase
+            .from("rapportino_inca_cavi")
+            .select("metri_posati.sum()")
+            .eq("costr_cache", costr)
+            .maybeSingle();
+
+          if (doneRes.error) {
+            console.warn("[ShipSelector] done_m error for", costr, doneRes.error);
+            return [costr, { total_m, done_m: 0, rem_m: total_m, rate_m_per_day: 0, eta_days: null, deadline_est: null }];
+          }
+
+          const done_m = safeNum(doneRes.data?.sum ?? doneRes.data?.["metri_posati.sum"] ?? 0);
+
+          // 3) last7 rows (small set) to compute working days + last7 sum
+          const last7RowsRes = await supabase
+            .from("rapportino_inca_cavi")
+            .select("report_date_cache, metri_posati")
+            .eq("costr_cache", costr)
+            .gte("report_date_cache", fromISO);
+
+          if (last7RowsRes.error) {
+            console.warn("[ShipSelector] last7 rows error for", costr, last7RowsRes.error);
+            const rem_m = Math.max(total_m - done_m, 0);
+            return [costr, { total_m, done_m, rem_m, rate_m_per_day: 0, eta_days: null, deadline_est: null }];
+          }
+
+          const rows = Array.isArray(last7RowsRes.data) ? last7RowsRes.data : [];
+
+          let last7_m = 0;
+          const days = new Set();
+          for (const r of rows) {
+            const m = safeNum(r.metri_posati);
+            if (m > 0 && r.report_date_cache) {
+              last7_m += m;
+              days.add(r.report_date_cache);
+            }
+          }
+
+          const workingDays = days.size;
+          const rate_m_per_day = workingDays > 0 ? last7_m / workingDays : 0;
+
+          const rem_m = Math.max(total_m - done_m, 0);
+
+          if (rate_m_per_day <= 0 || rem_m <= 0 || total_m <= 0) {
+            return [
+              costr,
+              {
+                total_m,
+                done_m,
+                rem_m,
+                rate_m_per_day: rate_m_per_day,
+                eta_days: rem_m <= 0 && total_m > 0 ? 0 : null,
+                deadline_est: rem_m <= 0 && total_m > 0 ? todayISO : null,
+              },
+            ];
+          }
+
+          const eta_days = Math.ceil(rem_m / rate_m_per_day);
+          const deadline_est = addDaysISO(todayISO, eta_days);
+
+          return [
+            costr,
+            { total_m, done_m, rem_m, rate_m_per_day, eta_days, deadline_est },
+          ];
+        });
+
+        const pairs = await Promise.all(tasks);
+        const map = {};
+        for (const [costr, eta] of pairs) {
+          if (eta) map[costr] = eta;
+        }
+        if (alive) setEtaByCostr(map);
+      } catch (e) {
+        console.error("[ShipSelector] load ETA error:", e);
+      } finally {
+        if (alive) setLoadingEta(false);
+      }
+    }
+
+    loadEta();
+    return () => {
+      alive = false;
+    };
+  }, [ships, todayISO]);
 
   const handleSelectShip = (ship) => {
     setCurrentShip(ship);
     navigate(`/app/ship/${ship.id}`);
   };
 
+  /* -----------------------------
+     Render
+  ----------------------------- */
   return (
     <div className="p-4 sm:p-6 space-y-4">
       {/* Header */}
@@ -94,12 +418,11 @@ export default function ShipSelector() {
           Seleziona la nave su cui stai lavorando
         </h1>
         <p className="text-sm text-slate-400 max-w-2xl">
-          Ogni rapportino e ogni dato INCA saranno agganciati alla nave
-          corretta. Le navi visibili sono quelle assegnate al tuo profilo.
+          Rapportini e dati INCA sono sempre legati alla nave selezionata.
         </p>
         {currentShip && (
           <div className="mt-1 text-xs text-slate-500">
-            Nave attualmente selezionata:{" "}
+            Nave attuale:{" "}
             <span className="font-semibold text-slate-200">
               {currentShip.code} · {currentShip.name}
             </span>
@@ -113,82 +436,125 @@ export default function ShipSelector() {
         </div>
       )}
 
-      {/* Grille de cartes bateaux */}
+      {/* Empty */}
+      {!loadingShips && ships.length === 0 && (
+        <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+          Nessuna nave assegnata al tuo profilo.
+        </div>
+      )}
+
+      {/* Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {ships.map((ship) => (
-          <button
-            key={ship.id}
-            type="button"
-            onClick={() => handleSelectShip(ship)}
-            className={[
-              "group relative overflow-hidden rounded-2xl border px-4 py-4 text-left transition-all",
-              "bg-slate-950/70 border-slate-800 hover:border-sky-500/70 hover:bg-slate-900/80",
-              "shadow-[0_18px_45px_rgba(15,23,42,0.85)] hover:shadow-[0_22px_60px_rgba(8,47,73,0.95)]",
-            ].join(" ")}
-          >
-            {/* Glow top */}
-            <div className="pointer-events-none absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-sky-400/80 to-transparent" />
+        {loadingShips
+          ? Array.from({ length: 2 }).map((_, i) => (
+              <div
+                key={i}
+                className="rounded-2xl border border-white/10 bg-white/5 h-[170px]"
+              />
+            ))
+          : ships.map((ship) => {
+              const summary = incaByCostr[ship.code];
+              const eta = etaByCostr[ship.code];
 
-            <div className="flex items-start justify-between gap-2 mb-2">
-              <div>
-                <div className="text-[11px] uppercase tracking-[0.16em] text-sky-300 mb-1">
-                  NAVE {ship.code}
-                </div>
-                <div className="text-lg font-semibold text-slate-50">
-                  {ship.name}
-                </div>
-                <div className="text-xs text-slate-400">
-                  Cantiere:{" "}
-                  <span className="text-slate-200">{ship.yard}</span>
-                </div>
-              </div>
-              <div className="flex flex-col items-end gap-1">
-                <span
-                  className={corePills(
-                    true,
-                    "sky",
-                    "text-[10px] px-2 py-0.5"
-                  )}
+              const incaConnected = !!summary && summary.total > 0;
+
+              // Deadline estimate display:
+              // - if eta.deadline_est exists => show date
+              // - else "—"
+              const deadlineText =
+                eta?.deadline_est ? formatDate(eta.deadline_est) : "—";
+
+              // Secondary line: rate / remaining (only if meaningful, no fake)
+              const rateText =
+                eta && eta.rate_m_per_day > 0
+                  ? `${roundInt(eta.rate_m_per_day)} m/g`
+                  : null;
+
+              const remText =
+                eta && eta.total_m > 0
+                  ? `${roundInt(eta.rem_m)} m rimanenti`
+                  : null;
+
+              return (
+                <button
+                  key={ship.id}
+                  type="button"
+                  aria-label={`Seleziona nave ${ship.code}`}
+                  onClick={() => handleSelectShip(ship)}
+                  className={[
+                    "group relative overflow-hidden rounded-2xl border px-4 py-4 text-left transition-all",
+                    "bg-slate-950/70 border-slate-800 hover:border-sky-500/70 hover:bg-slate-900/80",
+                  ].join(" ")}
                 >
-                  Seleziona nave
-                </span>
-                <span className="text-[11px] text-slate-500">
-                  Rapporto ultimi 7g:{" "}
-                  <span className="text-slate-200 font-medium">
-                    {ship.recent_reports ?? "—"}
-                  </span>
-                </span>
-              </div>
-            </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-[11px] uppercase tracking-[0.16em] text-sky-300 mb-1">
+                        NAVE {ship.code}
+                      </div>
 
-            {/* Progress + deadline */}
-            <div className="mt-2 space-y-1.5">
-              <div className="flex items-center justify-between text-[11px] text-slate-400">
-                <span>Avanzamento INCA</span>
-                <span className="text-slate-200 font-medium">
-                  {ship.progress_inca ?? 0}%
-                </span>
-              </div>
-              <div className="h-1.5 rounded-full bg-slate-900 overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-sky-500 transition-all"
-                  style={{
-                    width: `${Math.min(
-                      Math.max(ship.progress_inca ?? 0, 0),
-                      100
-                    )}%`,
-                  }}
-                />
-              </div>
-              <div className="flex items-center justify-between text-[11px] text-slate-500">
-                <span>Deadline INCA</span>
-                <span className="text-slate-300">
-                  {formatDate(ship.deadline_date)}
-                </span>
-              </div>
-            </div>
-          </button>
-        ))}
+                      <div className="text-lg font-semibold text-slate-50 truncate">
+                        {ship.name}
+                      </div>
+
+                      <div className="text-xs text-slate-400">
+                        Cantiere:{" "}
+                        <span className="text-slate-200">{ship.yard ?? "—"}</span>
+                      </div>
+
+                      {/* INCA status pill */}
+                      <div className="mt-2">
+                        <span
+                          className={corePills(
+                            true,
+                            incaConnected ? "emerald" : "slate",
+                            "text-[10px] px-2 py-0.5"
+                          )}
+                          title={
+                            incaConnected
+                              ? "INCA presente (cavi importati)"
+                              : "INCA non disponibile"
+                          }
+                        >
+                          {incaConnected ? "INCA connesso" : "INCA non disponibile"}
+                        </span>
+                      </div>
+
+                      {/* Deadline estimate from delta produzione */}
+                      <div className="mt-2 text-[11px] text-slate-500">
+                        Deadline INCA (stima):{" "}
+                        <span className="text-slate-300">{deadlineText}</span>
+                      </div>
+
+                      {/* Small diagnostic line (only if real) */}
+                      <div className="mt-1 text-[11px] text-slate-600">
+                        {loadingEta ? (
+                          <span>Calcolo produzione…</span>
+                        ) : eta && eta.total_m > 0 ? (
+                          <span className="text-slate-500">
+                            {remText}
+                            {rateText ? (
+                              <>
+                                <span className="text-slate-700"> · </span>
+                                <span className="text-slate-500">Δ 7g: {rateText}</span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-slate-700"> · </span>
+                                <span className="text-slate-500">Δ 7g: —</span>
+                              </>
+                            )}
+                          </span>
+                        ) : (
+                          <span>Produzione/INCA metri non disponibili</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <IncaDonut summary={summary} loading={loadingInca} />
+                  </div>
+                </button>
+              );
+            })}
       </div>
     </div>
   );
