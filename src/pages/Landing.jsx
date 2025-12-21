@@ -17,17 +17,13 @@ const COPY = {
     valueLines: ["Rapportini validati.", "Evidenze consultabili."],
     accessNote: "Accesso riservato · visibilità per ruoli autorizzati",
     ctaPrimary: "Accedi",
-    ctaSecondary: "Richiedi demo",
-
+    ctaSecondary: "Richiedi accesso",
     spec: "Un solo flusso · Un solo dato · Nessuna ricostruzione",
-
     nodes: ["CAPO", "UFFICIO", "CORE DRIVE", "DIREZIONE"],
     nodeSubs: ["Inserisce", "Valida", "Archivia", "Legge"],
-
     closureTitle: "CORE non è un software.",
     closureSub: "È un organo operativo del cantiere.",
     closureLine: "Il sistema si ferma. La decisione inizia.",
-
     footerLeft: "Accesso riservato a personale e partner autorizzati.",
     footerRight: "CORE · Operazioni di cantiere",
   },
@@ -39,17 +35,13 @@ const COPY = {
     valueLines: ["Rapportini validés.", "Preuves consultables."],
     accessNote: "Accès réservé · visibilité par rôles autorisés",
     ctaPrimary: "Accéder",
-    ctaSecondary: "Demander une démo",
-
+    ctaSecondary: "Demander l’accès",
     spec: "Un seul flux · Une seule donnée · Aucune reconstruction",
-
     nodes: ["CAPO", "UFFICIO", "CORE DRIVE", "DIREZIONE"],
     nodeSubs: ["Saisit", "Valide", "Archive", "Lit"],
-
     closureTitle: "CORE n’est pas un logiciel.",
     closureSub: "C’est un organe opérationnel du chantier.",
     closureLine: "Quand le système s’arrête, la décision commence.",
-
     footerLeft: "Accès réservé au personnel et partenaires autorisés.",
     footerRight: "CORE · Opérations de chantier",
   },
@@ -61,17 +53,13 @@ const COPY = {
     valueLines: ["Validated reports.", "Consultable evidence."],
     accessNote: "Restricted access · authorized roles",
     ctaPrimary: "Login",
-    ctaSecondary: "Request demo",
-
+    ctaSecondary: "Request access",
     spec: "One flow · One data · No reconstruction",
-
     nodes: ["CAPO", "UFFICIO", "CORE DRIVE", "DIREZIONE"],
     nodeSubs: ["Inputs", "Validates", "Archives", "Reads"],
-
     closureTitle: "CORE is not software.",
     closureSub: "It is an operational organ of the shipyard.",
     closureLine: "When the system stops, the decision begins.",
-
     footerLeft: "Restricted access to staff and authorized partners.",
     footerRight: "CORE · Shipyard operations",
   },
@@ -91,7 +79,7 @@ function safeGetInitialLang() {
 }
 
 /* =========================================================
-   Electric Flow (SVG + WAAPI) — industrial, slow, thick
+   Electric Flow (SVG + WAAPI) — slow, industrial
    ========================================================= */
 function ElectricFlow({ t }) {
   const dashRef = useRef(null);
@@ -110,7 +98,6 @@ function ElectricFlow({ t }) {
   const x2 = x0 + (x3 - x0) * 0.66;
 
   const d = useMemo(() => {
-    // Gentle industrial curve (controlled, not playful)
     const c1y = y - 16;
     const c2y = y + 12;
     return `
@@ -118,7 +105,9 @@ function ElectricFlow({ t }) {
       C ${x0 + 84} ${c1y}, ${x1 - 84} ${c1y}, ${x1} ${y}
       S ${x2 - 84} ${c2y}, ${x2} ${y}
       S ${x3 - 84} ${c1y}, ${x3} ${y}
-    `.replace(/\s+/g, " ").trim();
+    `
+      .replace(/\s+/g, " ")
+      .trim();
   }, [x0, x1, x2, x3, y]);
 
   useEffect(() => {
@@ -129,7 +118,6 @@ function ElectricFlow({ t }) {
     const sparkEl = sparkRef.current;
     if (!dashEl || !sparkEl) return;
 
-    // SLOW + CONSTANT (SpaceX-like, not loader)
     const dashAnim = dashEl.animate(
       [{ strokeDashoffset: 0 }, { strokeDashoffset: -320 }],
       { duration: 6800, iterations: Infinity, easing: "linear" }
@@ -162,7 +150,6 @@ function ElectricFlow({ t }) {
   return (
     <div className="relative">
       <style>{`
-        /* PANEL: metal, bevel, depth (no flashy) */
         .metalPanel {
           position: relative;
           border-radius: 20px;
@@ -183,11 +170,9 @@ function ElectricFlow({ t }) {
           inset: 0;
           pointer-events: none;
           border-radius: 20px;
-          /* bevel ring */
           background:
             linear-gradient(to bottom, rgba(226,232,240,0.06), transparent 18%),
             linear-gradient(to top, rgba(2,6,23,0.55), transparent 22%);
-          mix-blend-mode: normal;
           opacity: 1;
         }
         .metalPanel::after {
@@ -196,7 +181,6 @@ function ElectricFlow({ t }) {
           inset: 0;
           pointer-events: none;
           border-radius: 20px;
-          /* micro-grain (subtle) */
           background-image:
             repeating-linear-gradient(
               0deg,
@@ -214,24 +198,19 @@ function ElectricFlow({ t }) {
             );
           opacity: 0.35;
         }
-
-        /* Glow filter */
         .softGlow {
           filter: drop-shadow(0 0 10px rgba(56,189,248,0.14))
                   drop-shadow(0 0 22px rgba(56,189,248,0.08));
         }
-
-        @media (prefers-reduced-motion: reduce) {
-          .noMotionNote { display: none; }
-        }
       `}</style>
 
       <div className="metalPanel p-6 md:p-7">
-        {/* Spec strip (one line, no extra text) */}
         <div className="flex items-center justify-between gap-4 mb-5">
-          <div className="min-w-0 text-[12px] uppercase tracking-[0.28em] text-slate-500">
+          <div className="min-w-0 text-[11px] uppercase tracking-[0.28em] text-slate-500">
             {t.spec}
           </div>
+
+          {/* Badge “système” (démo-grade, discret) */}
           <div className="shrink-0 inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/55 px-3 py-1.5">
             <span className="text-[11px] uppercase tracking-[0.20em] text-slate-400">
               CORE 1.0
@@ -242,18 +221,13 @@ function ElectricFlow({ t }) {
           </div>
         </div>
 
-        <svg
-          viewBox={`0 0 ${W} ${H}`}
-          className="w-full h-[190px] md:h-[210px]"
-          aria-hidden="true"
-        >
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[190px] md:h-[210px]" aria-hidden="true">
           <defs>
             <linearGradient id="railGrad" x1="0" y1="0" x2="1" y2="0">
               <stop offset="0%" stopColor="rgba(148,163,184,0.18)" />
               <stop offset="50%" stopColor="rgba(148,163,184,0.28)" />
               <stop offset="100%" stopColor="rgba(148,163,184,0.18)" />
             </linearGradient>
-
             <linearGradient id="currentGrad" x1="0" y1="0" x2="1" y2="0">
               <stop offset="0%" stopColor="rgba(56,189,248,0.22)" />
               <stop offset="55%" stopColor="rgba(56,189,248,0.92)" />
@@ -261,17 +235,7 @@ function ElectricFlow({ t }) {
             </linearGradient>
           </defs>
 
-          {/* BASE RAIL (thicker) */}
-          <path
-            d={d}
-            fill="none"
-            stroke="url(#railGrad)"
-            strokeWidth="3"
-            strokeLinecap="round"
-            opacity="0.95"
-          />
-
-          {/* POWER HALO (thicker but subtle) */}
+          <path d={d} fill="none" stroke="url(#railGrad)" strokeWidth="3" strokeLinecap="round" opacity="0.95" />
           <path
             d={d}
             fill="none"
@@ -281,8 +245,6 @@ function ElectricFlow({ t }) {
             opacity="0.55"
             className="softGlow"
           />
-
-          {/* REGULAR CURRENT (slow pulses) */}
           <path
             ref={dashRef}
             d={d}
@@ -295,8 +257,6 @@ function ElectricFlow({ t }) {
             opacity="0.95"
             className="softGlow"
           />
-
-          {/* SINGLE SPARK (rare, controlled) */}
           <path
             ref={sparkRef}
             d={d}
@@ -310,14 +270,11 @@ function ElectricFlow({ t }) {
             className="softGlow"
           />
 
-          {/* NODES (hardware-like) */}
           <Node x={x0} y={y} label={t.nodes[0]} sub={t.nodeSubs[0]} />
           <Node x={x1} y={y} label={t.nodes[1]} sub={t.nodeSubs[1]} />
           <Node x={x2} y={y} label={t.nodes[2]} sub={t.nodeSubs[2]} />
           <Node x={x3} y={y} label={t.nodes[3]} sub={t.nodeSubs[3]} />
         </svg>
-
-        {/* No extra paragraphs. Keep silence. */}
       </div>
     </div>
   );
@@ -326,7 +283,6 @@ function ElectricFlow({ t }) {
 function Node({ x, y, label, sub }) {
   return (
     <>
-      {/* Outer ring */}
       <circle
         cx={x}
         cy={y}
@@ -335,7 +291,6 @@ function Node({ x, y, label, sub }) {
         stroke="rgba(56,189,248,0.72)"
         strokeWidth="2"
       />
-      {/* Inner ring */}
       <circle
         cx={x}
         cy={y}
@@ -344,7 +299,6 @@ function Node({ x, y, label, sub }) {
         stroke="rgba(226,232,240,0.22)"
         strokeWidth="1"
       />
-      {/* LED core */}
       <circle cx={x} cy={y} r="2.6" fill="rgba(226,232,240,0.92)" />
       <circle cx={x} cy={y} r="6.5" fill="rgba(56,189,248,0.06)" />
 
@@ -358,13 +312,7 @@ function Node({ x, y, label, sub }) {
       >
         {label}
       </text>
-      <text
-        x={x}
-        y={y + 48}
-        textAnchor="middle"
-        fontSize="11"
-        fill="rgba(148,163,184,0.92)"
-      >
+      <text x={x} y={y + 48} textAnchor="middle" fontSize="11" fill="rgba(148,163,184,0.92)">
         {sub}
       </text>
     </>
@@ -372,11 +320,10 @@ function Node({ x, y, label, sub }) {
 }
 
 /* =========================================================
-   LANDING — Option 1 (instrument industriel)
+   LANDING — Démo-grade (header CNCS + CTA accesso)
    ========================================================= */
 export default function Landing() {
   useEffect(() => {
-    // Dark-only
     document.documentElement.classList.add("dark");
   }, []);
 
@@ -389,15 +336,18 @@ export default function Landing() {
     } catch {}
   }, [lang]);
 
-  const demoHref = useMemo(() => {
-    const subject = encodeURIComponent("Richiesta demo CORE");
-    const body = encodeURIComponent("Buongiorno,\n\nVorrei una demo di CORE.\n\nGrazie.");
+  // “Richiedi accesso” = posture institutionnelle (pas “demo”)
+  const accessHref = useMemo(() => {
+    const subject = encodeURIComponent("Richiesta accesso CORE");
+    const body = encodeURIComponent(
+      "Buongiorno,\n\nVorrei richiedere l’accesso a CORE.\n\nNome:\nRuolo:\nCantiere/Sito:\nTelefono:\n\nGrazie."
+    );
     return `mailto:info@core.local?subject=${subject}&body=${body}`;
   }, []);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
-      {/* BACKDROP: metal depth + subtle grain (global) */}
+      {/* BACKDROP: profondeur + grain global (stable, non flashy) */}
       <div
         className="pointer-events-none fixed inset-0"
         style={{
@@ -425,47 +375,51 @@ export default function Landing() {
         }}
       />
 
-      {/* HEADER */}
-      <header className="relative z-10 border-b border-slate-800 bg-slate-950/90 backdrop-blur">
-        <div className="mx-auto max-w-7xl px-6 py-3 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className={cx(headerPill(true), "border-slate-700 text-slate-200 bg-slate-900/40")}>
-              <span className={themeIconBg(true, "sky")}>●</span>
-              <span>CORE</span>
-            </div>
-            <span className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
-              {t.eyebrow}
-            </span>
-          </div>
+      {/* HEADER — aligné CNCSTopbar (rounded + blur + border) */}
+      <header className="relative z-20 px-3 pt-3">
+        <div className="mx-auto max-w-7xl">
+          <div className="no-print sticky top-0 z-30 rounded-2xl border border-slate-800 bg-[#050910]/70 backdrop-blur px-3 py-2">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0 flex items-center gap-3">
+                <div className={cx(headerPill(true), "border-slate-700 text-slate-200 bg-slate-900/40")}>
+                  <span className={themeIconBg(true, "sky")}>●</span>
+                  <span>CORE</span>
+                </div>
+                <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500 truncate">
+                  {t.eyebrow}
+                </div>
+              </div>
 
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-950/45 px-2 py-1">
-              {LANGS.map((l) => (
-                <button
-                  key={l}
-                  type="button"
-                  onClick={() => setLang(l)}
+              <div className="flex items-center gap-2">
+                <div className="hidden sm:flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-950/45 px-2 py-1">
+                  {LANGS.map((l) => (
+                    <button
+                      key={l}
+                      type="button"
+                      onClick={() => setLang(l)}
+                      className={cx(
+                        "px-2.5 py-1.5 rounded-lg text-[11px] uppercase tracking-[0.18em] transition",
+                        l === lang ? "text-sky-200" : "text-slate-500 hover:text-slate-300"
+                      )}
+                      aria-label={`Language ${l}`}
+                      title={l.toUpperCase()}
+                    >
+                      {l}
+                    </button>
+                  ))}
+                </div>
+
+                <Link
+                  to="/login"
                   className={cx(
-                    "px-2.5 py-1.5 rounded-lg text-[11px] uppercase tracking-[0.18em] transition",
-                    l === lang ? "text-sky-200" : "text-slate-500 hover:text-slate-300"
+                    buttonPrimary(true),
+                    "h-9 px-4 rounded-xl shadow-[0_18px_45px_rgba(56,189,248,0.14)]"
                   )}
-                  aria-label={`Language ${l}`}
-                  title={l.toUpperCase()}
                 >
-                  {l}
-                </button>
-              ))}
+                  {t.ctaPrimary}
+                </Link>
+              </div>
             </div>
-
-            <Link
-              to="/login"
-              className={cx(
-                buttonPrimary(true),
-                "h-9 px-4 rounded-xl shadow-[0_18px_45px_rgba(56,189,248,0.14)]"
-              )}
-            >
-              {t.ctaPrimary}
-            </Link>
           </div>
         </div>
       </header>
@@ -473,22 +427,16 @@ export default function Landing() {
       {/* MAIN */}
       <main className="relative z-10">
         <div className="mx-auto max-w-7xl px-6 py-16 md:py-20">
-          {/* ONE SCREEN: HERO + INSTRUMENT PANEL */}
           <section className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
-            {/* LEFT: silence, big type, 2 lines max */}
             <div className="lg:col-span-6 space-y-9">
               <div className="space-y-3">
-                <div className="text-[12px] uppercase tracking-[0.30em] text-slate-500">
-                  {t.eyebrow}
-                </div>
+                <div className="text-[12px] uppercase tracking-[0.30em] text-slate-500">{t.eyebrow}</div>
 
                 <h1 className="text-7xl md:text-7xl font-semibold tracking-tight leading-[0.95]">
                   {t.title}
                 </h1>
 
-                <div className="text-2xl text-slate-300 tracking-tight">
-                  {t.subtitle}
-                </div>
+                <div className="text-2xl text-slate-300 tracking-tight">{t.subtitle}</div>
               </div>
 
               <div className="space-y-2 text-[22px] leading-relaxed">
@@ -511,7 +459,7 @@ export default function Landing() {
                 </Link>
 
                 <a
-                  href={demoHref}
+                  href={accessHref}
                   className={cx(
                     "inline-flex items-center justify-center rounded-xl border border-slate-800 bg-slate-950/45 px-7 py-3",
                     "text-sm text-slate-200 hover:bg-slate-950/70 transition"
@@ -524,22 +472,18 @@ export default function Landing() {
               </div>
             </div>
 
-            {/* RIGHT: instrument proof (no paragraphs) */}
             <div className="lg:col-span-6">
               <ElectricFlow t={t} />
             </div>
           </section>
 
-          {/* MANIFESTO (keep strong, keep short) */}
           <section className="pt-16 mt-16 border-t border-slate-800/70">
             <div className="text-5xl font-semibold tracking-tight leading-[1.05]">
               {t.closureTitle}
               <br />
               {t.closureSub}
             </div>
-            <div className="mt-4 text-base text-slate-400 max-w-3xl leading-relaxed">
-              {t.closureLine}
-            </div>
+            <div className="mt-4 text-base text-slate-400 max-w-3xl leading-relaxed">{t.closureLine}</div>
           </section>
         </div>
       </main>

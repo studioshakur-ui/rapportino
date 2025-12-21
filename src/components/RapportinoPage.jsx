@@ -29,31 +29,34 @@ const CREW_LABELS = {
   MONTAGGIO: "Montaggio",
 };
 
+function normalizeCrewRole(value) {
+  if (
+    value === "ELETTRICISTA" ||
+    value === "CARPENTERIA" ||
+    value === "MONTAGGIO"
+  )
+    return value;
+  return "ELETTRICISTA";
+}
+
+function readRoleFromLocalStorage() {
+  try {
+    const stored = window.localStorage.getItem("core-current-role");
+    return normalizeCrewRole(stored);
+  } catch {
+    return "ELETTRICISTA";
+  }
+}
+
 export default function RapportinoPage() {
   const { shipId } = useParams(); // shipId sert à la navigation UX, PAS à la table rapportini
   const { profile } = useAuth(); // ✅ Logout géré par AppShell (CAPO) — pas ici
   const navigate = useNavigate();
 
-  const [crewRole, setCrewRole] = useState(() => {
-    try {
-      const stored = window.localStorage.getItem("core-current-role");
-      if (
-        stored === "ELETTRICISTA" ||
-        stored === "CARPENTERIA" ||
-        stored === "MONTAGGIO"
-      )
-        return stored;
-    } catch {}
-    return "ELETTRICISTA";
-  });
+  // Rôle "UI" choisi (CapoRoleSelector) — sert à charger/filtrer le rapportino
+  const [crewRole, setCrewRole] = useState(() => readRoleFromLocalStorage());
 
-  const normalizedCrewRole =
-    crewRole === "ELETTRICISTA" ||
-    crewRole === "CARPENTERIA" ||
-    crewRole === "MONTAGGIO"
-      ? crewRole
-      : "ELETTRICISTA";
-
+  const normalizedCrewRole = normalizeCrewRole(crewRole);
   const crewLabel = CREW_LABELS[normalizedCrewRole] || normalizedCrewRole;
 
   const [costr, setCostr] = useState("");
@@ -61,6 +64,9 @@ export default function RapportinoPage() {
   const [rapportinoId, setRapportinoId] = useState(null);
   const [reportDate, setReportDate] = useState(getTodayISO());
   const [status, setStatus] = useState("DRAFT");
+
+  // Source de vérité "rapportino.crew_role" (si rapportino existe)
+  const [rapportinoCrewRole, setRapportinoCrewRole] = useState(null);
 
   const [rows, setRows] = useState(() => getBaseRows(normalizedCrewRole));
 
@@ -112,6 +118,16 @@ export default function RapportinoPage() {
 
   const canEditInca =
     !!rapportinoId && (status === "DRAFT" || status === "RETURNED");
+
+  // ✅ Rôle effectif pour gating INCA (A)
+  // priorité: rapportino.crew_role -> localStorage -> fallback ELETTRICISTA
+  const effectiveCrewRoleForInca = useMemo(() => {
+    const fromRap = normalizeCrewRole(rapportinoCrewRole);
+    if (rapportinoCrewRole) return fromRap;
+    return readRoleFromLocalStorage();
+  }, [rapportinoCrewRole]);
+
+  const showIncaBlock = effectiveCrewRoleForInca === "ELETTRICISTA";
 
   const loadReturnedInbox = async () => {
     if (!profile?.id) {
@@ -198,12 +214,16 @@ export default function RapportinoPage() {
 
         if (!rap) {
           setRapportinoId(null);
+          setRapportinoCrewRole(null);
           setCostr("");
           setCommessa("");
           setStatus("DRAFT");
           setRows(getBaseRows(normalizedCrewRole));
         } else {
           setRapportinoId(rap.id);
+          // ✅ source de vérité pour gating INCA
+          setRapportinoCrewRole(rap.crew_role || null);
+
           setCostr(rap.costr || "");
           setCommessa(rap.commessa || "");
           setStatus(rap.status || "DRAFT");
@@ -352,6 +372,8 @@ export default function RapportinoPage() {
         if (insertError) throw insertError;
         newId = inserted.id;
         setRapportinoId(inserted.id);
+        // ✅ rapportino créé => source de vérité role
+        setRapportinoCrewRole(inserted.crew_role || normalizedCrewRole);
       } else {
         const { error: updateError } = await supabase
           .from("rapportini")
@@ -445,7 +467,7 @@ export default function RapportinoPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-900/80">
-      {/* ✅ Pas de topbar interne (Logout géré par AppShell) */}
+      {/* ✅ Pas de topbar interne (Logout géré par AppShell) — pas ici */}
 
       <main className="flex-1 px-2 md:px-4 py-4 md:py-6">
         {/* Banner RETURNED — impossible à manquer */}
@@ -552,15 +574,18 @@ export default function RapportinoPage() {
               onRemoveRow={handleRemoveRow}
             />
 
-            <div className="mt-6 no-print">
-              <RapportinoIncaCaviSection
-                rapportinoId={rapportinoId}
-                reportDate={reportDate}
-                costr={costr}
-                commessa={commessa}
-                canEdit={canEditInca}
-              />
-            </div>
+            {/* ✅ GATING INCA STRICT: uniquement ELETTRICISTA */}
+            {showIncaBlock && (
+              <div className="mt-6 no-print">
+                <RapportinoIncaCaviSection
+                  rapportinoId={rapportinoId}
+                  reportDate={reportDate}
+                  costr={costr}
+                  commessa={commessa}
+                  canEdit={canEditInca}
+                />
+              </div>
+            )}
 
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-[11px] no-print">
               <div className="flex flex-wrap items-center gap-2">

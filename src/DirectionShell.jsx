@@ -14,6 +14,7 @@ import UfficioRapportinoDetail from "./ufficio/UfficioRapportinoDetail";
 import UfficioIncaHub from "./ufficio/UfficioIncaHub";
 
 import CNCSSidebar from "./components/shell/CNCSSidebar";
+import CNCSTopbar from "./components/shell/CNCSTopbar";
 
 /* =========================
    Theme init
@@ -31,7 +32,7 @@ function getInitialTheme() {
 }
 
 /* =========================
-   Ufficio View (inside Direzione)
+   Ufficio View (within Direction)
    ========================= */
 function UfficioView({ isDark }) {
   const location = useLocation();
@@ -132,7 +133,14 @@ export default function DirectionShell() {
   const [theme, setTheme] = useState(getInitialTheme());
   const isDark = theme === "dark";
 
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Sidebar state (same behaviour as Ufficio/App: collapsed + hover-peek)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      const v = window.localStorage.getItem("core-sidebar-collapsed-direction");
+      if (v === "1" || v === "0") return v === "1";
+    } catch {}
+    return false;
+  });
   const [sidebarPeek, setSidebarPeek] = useState(false);
 
   // Presentation modal state
@@ -146,15 +154,10 @@ export default function DirectionShell() {
 
   useEffect(() => {
     try {
-      const stored = window.localStorage.getItem("core-sidebar-collapsed-direction");
-      if (stored === "1") setSidebarCollapsed(true);
-      if (stored === "0") setSidebarCollapsed(false);
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem("core-sidebar-collapsed-direction", sidebarCollapsed ? "1" : "0");
+      window.localStorage.setItem(
+        "core-sidebar-collapsed-direction",
+        sidebarCollapsed ? "1" : "0"
+      );
     } catch {}
   }, [sidebarCollapsed]);
 
@@ -166,9 +169,7 @@ export default function DirectionShell() {
 
       const lastSeen = window.localStorage.getItem("core-presentation-last-seen");
       if (!lastSeen) setShowPresentationModal(true);
-    } catch {
-      // ignore
-    }
+    } catch {}
   }, []);
 
   const handleLogout = async () => {
@@ -202,35 +203,33 @@ export default function DirectionShell() {
   const pathname = location.pathname || "";
   const isInPresentation = pathname.startsWith("/direction/presentazione");
   const isInCapoPresentation = pathname.startsWith("/direction/presentazione/capo");
+  const isInUfficioView = pathname.startsWith("/direction/ufficio-view");
 
-  // Page label (Topbar)
-  const pageLabel = useMemo(() => {
-    if (pathname.startsWith("/direction/core-drive") || pathname.startsWith("/direction/archive")) return "CORE Drive";
-    if (pathname.startsWith("/direction/ufficio-view")) return "Vista Ufficio";
+  const topTitle = useMemo(() => {
     if (pathname.startsWith("/direction/presentazione")) return "Presentazione";
+    if (pathname.startsWith("/direction/ufficio-view")) return "Vista Ufficio";
+    if (pathname.startsWith("/direction/core-drive") || pathname.startsWith("/direction/archive")) return "CORE Drive";
     return "Dashboard Direzione";
   }, [pathname]);
-
-  const driveTopGlow =
-    pathname.startsWith("/direction/core-drive") || pathname.startsWith("/direction/archive")
-      ? "bg-gradient-to-r from-violet-950/55 via-slate-950/35 to-slate-950/20"
-      : "bg-transparent";
 
   return (
     <div className={isDark ? "min-h-screen bg-[#050910] text-slate-100" : "min-h-screen bg-slate-50 text-slate-900"}>
       <div className="flex">
-        {/* SIDEBAR — unified with Ufficio/App (collapse + peek) */}
+        {/* SIDEBAR (CNCS, shared behaviour) */}
         <CNCSSidebar
           isDark={isDark}
-          title="Direzione"
+          title="CNCS"
+          subtitle="Direzione"
           roleLabel={roleLabel}
           collapsed={sidebarCollapsed}
           setCollapsed={setSidebarCollapsed}
           sidebarPeek={sidebarPeek}
           setSidebarPeek={setSidebarPeek}
+          storageKey="core-sidebar-collapsed-direction"
           navItems={[
             { to: "/direction", label: "Dashboard", icon: "dashboard", colorClass: "text-sky-400", end: true },
             { to: "/direction/presentazione", label: "Presentazione", icon: "presentation", colorClass: "text-violet-400" },
+            // CRITIQUE: on reste DANS direction (pas /ufficio)
             { to: "/direction/ufficio-view", label: "Vista Ufficio", icon: "ufficio", colorClass: "text-emerald-400" },
             { to: "/direction/core-drive", label: "CORE Drive", icon: "archive", colorClass: "text-amber-400" },
           ]}
@@ -238,40 +237,44 @@ export default function DirectionShell() {
 
         {/* MAIN */}
         <main className="flex-1 px-4 sm:px-6 py-6">
-          {/* TOP BAR — same family as others */}
-          <header
-            className={[
-              "no-print sticky top-0 z-30 rounded-2xl border backdrop-blur px-3 py-2",
-              isDark ? "border-slate-800 bg-[#050910]/70" : "border-slate-200 bg-white/70",
-              driveTopGlow,
-            ].join(" ")}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500 truncate">
-                  DIREZIONE · CNCS / CORE
-                </div>
-                <div className={["text-sm font-semibold truncate", isDark ? "text-slate-100" : "text-slate-900"].join(" ")} title={pageLabel}>
-                  {pageLabel}
-                </div>
-              </div>
+          {/* TOP BAR (CNCS unified) */}
+          <CNCSTopbar
+            isDark={isDark}
+            kickerLeft="DIREZIONE · CNCS / CORE"
+            title={topTitle}
+            right={
+              <>
+                {isInUfficioView ? (
+                  <Link
+                    to="/direction"
+                    className="rounded-full border border-slate-800 bg-slate-950/20 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-200 hover:bg-slate-900/35"
+                    title="Torna a Direzione"
+                  >
+                    ← Torna a Direzione
+                  </Link>
+                ) : null}
 
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="inline-flex items-center gap-2 rounded-full border border-rose-500/40 bg-rose-950/20 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-rose-200 hover:bg-rose-900/25 transition"
-              >
-                <span className="h-1.5 w-1.5 rounded-full bg-rose-400" />
-                Logout
-              </button>
-            </div>
-          </header>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="inline-flex items-center gap-2 rounded-full border border-rose-500/40 bg-rose-950/20 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-rose-200 hover:bg-rose-900/25 transition"
+                  title="Logout"
+                  aria-label="Logout"
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-rose-400" />
+                  Logout
+                </button>
+              </>
+            }
+          />
 
-          {/* PRESENTATION CONTEXT BAR (restore CAPO button) */}
+          {/* PRESENTATION CONTEXT BAR (CAPO button) */}
           {isInPresentation ? (
             <div className="no-print mt-3 rounded-2xl border border-slate-800 bg-slate-950/20 px-3 py-2">
               <div className="flex items-center justify-between gap-3">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Presentazione</div>
+                <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
+                  Presentazione
+                </div>
 
                 <div className="flex items-center gap-2">
                   {!isInCapoPresentation ? (
@@ -321,9 +324,9 @@ export default function DirectionShell() {
           </div>
 
           {/* POPUP — only when needed */}
-          {showPresentationModal && (
+          {showPresentationModal ? (
             <CorePresentationPopup onOpen={handleOpenPresentation} onClose={handleDismissPresentation} />
-          )}
+          ) : null}
         </main>
       </div>
     </div>
