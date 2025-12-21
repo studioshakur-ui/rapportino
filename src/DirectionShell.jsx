@@ -16,6 +16,9 @@ import UfficioIncaHub from "./ufficio/UfficioIncaHub";
 import CNCSSidebar from "./components/shell/CNCSSidebar";
 import CNCSTopbar from "./components/shell/CNCSTopbar";
 
+// NEW
+import Evoluzione from "./data/Evoluzione";
+
 /* =========================
    Theme init
    ========================= */
@@ -154,10 +157,7 @@ export default function DirectionShell() {
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(
-        "core-sidebar-collapsed-direction",
-        sidebarCollapsed ? "1" : "0"
-      );
+      window.localStorage.setItem("core-sidebar-collapsed-direction", sidebarCollapsed ? "1" : "0");
     } catch {}
   }, [sidebarCollapsed]);
 
@@ -206,6 +206,7 @@ export default function DirectionShell() {
   const isInUfficioView = pathname.startsWith("/direction/ufficio-view");
 
   const topTitle = useMemo(() => {
+    if (pathname.startsWith("/direction/evoluzione")) return "Suivi & Evoluzione";
     if (pathname.startsWith("/direction/presentazione")) return "Presentazione";
     if (pathname.startsWith("/direction/ufficio-view")) return "Vista Ufficio";
     if (pathname.startsWith("/direction/core-drive") || pathname.startsWith("/direction/archive")) return "CORE Drive";
@@ -229,8 +230,8 @@ export default function DirectionShell() {
           navItems={[
             { to: "/direction", label: "Dashboard", icon: "dashboard", colorClass: "text-sky-400", end: true },
             { to: "/direction/presentazione", label: "Presentazione", icon: "presentation", colorClass: "text-violet-400" },
-            // CRITIQUE: on reste DANS direction (pas /ufficio)
             { to: "/direction/ufficio-view", label: "Vista Ufficio", icon: "ufficio", colorClass: "text-emerald-400" },
+            { to: "/direction/evoluzione", label: "Evoluzione", icon: "history", colorClass: "text-amber-400" },
             { to: "/direction/core-drive", label: "CORE Drive", icon: "archive", colorClass: "text-amber-400" },
           ]}
         />
@@ -314,6 +315,10 @@ export default function DirectionShell() {
               <Route path="/" element={<DirectionDashboard isDark={isDark} />} />
               <Route path="presentazione" element={<CorePresentation />} />
               <Route path="presentazione/capo" element={<CapoPresentation />} />
+
+              {/* NEW */}
+              <Route path="evoluzione" element={<Evoluzione />} />
+
               <Route path="ufficio-view/*" element={<UfficioView isDark={isDark} />} />
 
               {/* CANONIQUE */}

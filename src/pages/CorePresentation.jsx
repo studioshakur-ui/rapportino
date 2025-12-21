@@ -1,18 +1,60 @@
 // src/pages/CorePresentation.jsx
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 /**
  * CORE Presentation (Direzione-only)
  *
- * UX upgrades:
- * - Default mode: ATTUALE
- * - Bottom transformation bar sticky (only when ATTUALE) to force click to CORE
- * - Bigger typography for executive readability
- * - CNCS definition (one-shot) + disciplined wink to Percorso
+ * Applied decisions:
+ * 1) CTA unique: only the sticky BottomTransformBar (no duplicate “PASSA A CORE” elsewhere).
+ * 2) Controls aligned with HERO (no floating panel on the right).
+ *
+ * Robustness upgrades:
+ * - Global keyframes (no dependency on MissionFlow mount order)
+ * - prefers-reduced-motion compliance (no animations if reduce)
+ * - Tooltip fallback for touch/coarse pointer (tap-to-toggle)
+ * - Dash animation replays only when mode changes (not on hover re-renders)
  */
 
 function cx(...parts) {
   return parts.filter(Boolean).join(" ");
+}
+
+function usePrefersReducedMotion() {
+  const [reduced, setReduced] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const onChange = () => setReduced(!!mq.matches);
+    onChange();
+    if (mq.addEventListener) mq.addEventListener("change", onChange);
+    else mq.addListener(onChange);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener("change", onChange);
+      else mq.removeListener(onChange);
+    };
+  }, []);
+
+  return reduced;
+}
+
+function useIsCoarsePointer() {
+  const [coarse, setCoarse] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(pointer: coarse)");
+    const onChange = () => setCoarse(!!mq.matches);
+    onChange();
+    if (mq.addEventListener) mq.addEventListener("change", onChange);
+    else mq.addListener(onChange);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener("change", onChange);
+      else mq.removeListener(onChange);
+    };
+  }, []);
+
+  return coarse;
 }
 
 function Pill({ children, className }) {
@@ -61,7 +103,14 @@ function TooltipCard({ title, lines }) {
   );
 }
 
-function MissionFlow({ mode, showFriction }) {
+function MissionFlow({
+  mode,
+  showFriction,
+  reduceMotion,
+  coarsePointer,
+  selected,
+  setSelected,
+}) {
   const nodes = useMemo(() => {
     if (mode === "ATTUALE") {
       return [
@@ -105,21 +154,21 @@ function MissionFlow({ mode, showFriction }) {
         id: "f1",
         x: 330,
         y: 95,
-        title: "Friczione · Reinserimento",
+        title: "Anomalia · Reinserimento",
         lines: ["Doppia digitazione", "Versioni discordanti", "Tempo perso"],
       },
       {
         id: "f2",
         x: 505,
         y: 95,
-        title: "Friczione · Perdita contesto",
+        title: "Anomalia · Perdita contesto",
         lines: ["Dato senza struttura", "Note non standard", "Audit difficile"],
       },
       {
         id: "f3",
         x: 650,
         y: 95,
-        title: "Friczione · Latenza decisione",
+        title: "Anomalia · Latenza decisione",
         lines: ["Consolidamenti lenti", "Allineamenti manuali", "Ritardi prima della sintesi"],
       },
     ];
@@ -171,8 +220,27 @@ function MissionFlow({ mode, showFriction }) {
 
   const [hover, setHover] = useState(null);
 
+  // Hover is only meaningful on non-coarse pointers.
+  const effectiveHover = coarsePointer ? null : hover;
+
+  const handlePick = (payload) => {
+    if (!coarsePointer) return;
+    // Tap-to-toggle
+    setSelected((prev) => {
+      if (prev && prev.key === payload.key) return null;
+      return payload;
+    });
+  };
+
   return (
-    <div className="relative rounded-3xl border border-slate-800 bg-[#050910] overflow-hidden">
+    <div
+      className="relative rounded-3xl border border-slate-800 bg-[#050910] overflow-hidden"
+      onClick={() => {
+        if (coarsePointer) setSelected(null);
+      }}
+      role="group"
+      aria-label="Mission flow"
+    >
       <svg className="absolute inset-0 h-full w-full opacity-[0.22]" viewBox="0 0 900 260" preserveAspectRatio="none">
         <defs>
           <pattern id="grid" width="36" height="36" patternUnits="userSpaceOnUse">
@@ -186,12 +254,6 @@ function MissionFlow({ mode, showFriction }) {
         <rect width="900" height="260" fill="url(#grid)" />
         <rect width="900" height="260" fill="url(#vignette)" />
       </svg>
-
-      <style>{`
-        @keyframes dash { from { stroke-dashoffset: 420; } to { stroke-dashoffset: 0; } }
-        @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.08); opacity: 0.85; } }
-        @keyframes glow { 0%, 100% { opacity: 0.55; } 50% { opacity: 0.95; } }
-      `}</style>
 
       <div className="relative px-5 py-5 sm:px-6 sm:py-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -211,14 +273,25 @@ function MissionFlow({ mode, showFriction }) {
 
           <div className="flex flex-wrap items-center gap-2">
             <Pill className="border-slate-700 bg-slate-950/30 text-slate-200">
-              <span className="h-2 w-2 rounded-full bg-slate-300" style={{ animation: "glow 2.2s ease-in-out infinite" }} />
-              Stato: {mode === "ATTUALE" ? "FRIZIONI" : "CONTINUITÀ"}
+              <span
+                className={cx("h-2 w-2 rounded-full bg-slate-300", reduceMotion ? "" : "cncs-anim-glow")}
+              />
+              Stato: {mode === "ATTUALE" ? "ANOMALIE" : "CONTINUITÀ"}
             </Pill>
           </div>
         </div>
 
         <div className="mt-4 relative">
-          <svg viewBox="0 0 900 260" className="w-full h-[300px] sm:h-[340px]">
+          {/* Remount SVG content only on mode change so dash animation doesn't replay on hover/toggles */}
+          <svg
+            key={mode}
+            viewBox="0 0 900 260"
+            className="w-full h-[300px] sm:h-[340px]"
+            onClick={(e) => {
+              // prevent parent onClick from clearing selection when tapping on items
+              if (coarsePointer) e.stopPropagation();
+            }}
+          >
             <defs>
               <filter id="softGlow" x="-60%" y="-60%" width="220%" height="220%">
                 <feGaussianBlur stdDeviation="6" result="blur" />
@@ -247,8 +320,10 @@ function MissionFlow({ mode, showFriction }) {
               const tone = toneStyles[e.tone] || toneStyles.slate;
               const stroke = mode === "CORE" ? "url(#edgeGradCore)" : tone.edge;
 
+              const edgeKey = `edge:${e.from}-${e.to}`;
+
               return (
-                <g key={`${e.from}-${e.to}`}>
+                <g key={edgeKey}>
                   <path d={d} fill="none" stroke={stroke} strokeWidth={e.weight + 2} opacity="0.18" filter="url(#softGlow)" />
                   <path
                     d={d}
@@ -256,21 +331,44 @@ function MissionFlow({ mode, showFriction }) {
                     stroke={stroke}
                     strokeWidth={e.weight}
                     strokeLinecap="round"
-                    style={{
-                      strokeDasharray: 420,
-                      strokeDashoffset: 420,
-                      animation: "dash 1.05s ease-out forwards",
-                    }}
+                    className={reduceMotion ? "" : "cncs-anim-dash"}
+                    style={
+                      reduceMotion
+                        ? undefined
+                        : {
+                            strokeDasharray: 420,
+                            strokeDashoffset: 420,
+                          }
+                    }
                   />
 
+                  {/* Edge label chip */}
                   <g
                     transform={`translate(${midX - 58}, ${a.y + curve - 26})`}
-                    onMouseEnter={() => setHover({ x: midX, y: a.y + curve - 18, title: "Collegamento", lines: [e.label] })}
-                    onMouseLeave={() => setHover(null)}
-                    style={{ cursor: "default" }}
+                    onMouseEnter={() => {
+                      if (coarsePointer) return;
+                      setHover({ x: midX, y: a.y + curve - 18, title: "Collegamento", lines: [e.label] });
+                    }}
+                    onMouseLeave={() => {
+                      if (coarsePointer) return;
+                      setHover(null);
+                    }}
+                    onClick={() => {
+                      handlePick({ key: edgeKey, x: midX, y: a.y + curve - 18, title: "Collegamento", lines: [e.label] });
+                    }}
+                    style={{ cursor: coarsePointer ? "pointer" : "default" }}
+                    role={coarsePointer ? "button" : undefined}
+                    aria-label={coarsePointer ? `Dettagli collegamento: ${e.label}` : undefined}
                   >
                     <rect width="116" height="18" rx="9" fill="rgba(2,6,23,0.78)" stroke="rgba(148,163,184,0.22)" />
-                    <text x="58" y="12.5" textAnchor="middle" fontSize="10" fill="#cbd5e1" style={{ letterSpacing: "0.08em" }}>
+                    <text
+                      x="58"
+                      y="12.5"
+                      textAnchor="middle"
+                      fontSize="10"
+                      fill="#cbd5e1"
+                      style={{ letterSpacing: "0.08em" }}
+                    >
                       {e.label}
                     </text>
                   </g>
@@ -280,16 +378,35 @@ function MissionFlow({ mode, showFriction }) {
 
             {nodes.map((n) => {
               const t = toneStyles[n.tone] || toneStyles.slate;
+              const nodeKey = `node:${n.id}`;
+
               return (
                 <g
-                  key={n.id}
+                  key={nodeKey}
                   transform={`translate(${n.x}, ${n.y})`}
-                  onMouseEnter={() => setHover({ x: n.x, y: n.y, title: "Control point", lines: [n.label] })}
-                  onMouseLeave={() => setHover(null)}
-                  style={{ cursor: "default" }}
+                  onMouseEnter={() => {
+                    if (coarsePointer) return;
+                    setHover({ x: n.x, y: n.y, title: "Control point", lines: [n.label] });
+                  }}
+                  onMouseLeave={() => {
+                    if (coarsePointer) return;
+                    setHover(null);
+                  }}
+                  onClick={() => {
+                    handlePick({ key: nodeKey, x: n.x, y: n.y, title: "Control point", lines: [n.label] });
+                  }}
+                  style={{ cursor: coarsePointer ? "pointer" : "default" }}
+                  role={coarsePointer ? "button" : undefined}
+                  aria-label={coarsePointer ? `Dettagli nodo: ${n.label}` : undefined}
                 >
                   <circle r="18" fill={t.glow} opacity="0.35" filter="url(#softGlow)" />
-                  <circle r="15" fill="transparent" stroke={t.nodeBorder} strokeWidth="2" style={{ animation: "glow 2.2s ease-in-out infinite" }} />
+                  <circle
+                    r="15"
+                    fill="transparent"
+                    stroke={t.nodeBorder}
+                    strokeWidth="2"
+                    className={reduceMotion ? "" : "cncs-anim-glow"}
+                  />
                   <circle r="12" fill={t.node} stroke={t.nodeBorder} strokeWidth="1.5" />
 
                   <g transform={`translate(0, 34)`}>
@@ -299,7 +416,7 @@ function MissionFlow({ mode, showFriction }) {
                     </text>
                   </g>
 
-                  <g transform="translate(14,-14)" style={{ animation: "pulse 1.8s ease-in-out infinite" }}>
+                  <g transform="translate(14,-14)" className={reduceMotion ? "" : "cncs-anim-pulse"}>
                     <circle r="4.2" fill={t.nodeBorder} opacity="0.8" />
                     <circle r="2.3" fill="#e2e8f0" opacity="0.9" />
                   </g>
@@ -308,41 +425,72 @@ function MissionFlow({ mode, showFriction }) {
             })}
 
             {mode === "ATTUALE" && showFriction
-              ? frictionPoints.map((f) => (
-                  <g
-                    key={f.id}
-                    transform={`translate(${f.x}, ${f.y})`}
-                    onMouseEnter={() => setHover({ x: f.x, y: f.y, title: f.title, lines: f.lines })}
-                    onMouseLeave={() => setHover(null)}
-                    style={{ cursor: "default" }}
-                  >
-                    <circle r="10" fill="rgba(244,63,94,0.15)" stroke="rgba(244,63,94,0.65)" strokeWidth="1.6" />
-                    <circle r="4" fill="rgba(244,63,94,0.85)" />
-                  </g>
-                ))
+              ? frictionPoints.map((f) => {
+                  const fKey = `friction:${f.id}`;
+                  return (
+                    <g
+                      key={fKey}
+                      transform={`translate(${f.x}, ${f.y})`}
+                      onMouseEnter={() => {
+                        if (coarsePointer) return;
+                        setHover({ x: f.x, y: f.y, title: f.title, lines: f.lines });
+                      }}
+                      onMouseLeave={() => {
+                        if (coarsePointer) return;
+                        setHover(null);
+                      }}
+                      onClick={() => {
+                        handlePick({ key: fKey, x: f.x, y: f.y, title: f.title, lines: f.lines });
+                      }}
+                      style={{ cursor: coarsePointer ? "pointer" : "default" }}
+                      role={coarsePointer ? "button" : undefined}
+                      aria-label={coarsePointer ? `Dettagli anomalia: ${f.title}` : undefined}
+                    >
+                      <circle r="10" fill="rgba(244,63,94,0.15)" stroke="rgba(244,63,94,0.65)" strokeWidth="1.6" />
+                      <circle r="4" fill="rgba(244,63,94,0.85)" />
+                    </g>
+                  );
+                })
               : null}
           </svg>
 
-          {hover ? (
+          {/* Tooltip: hover (desktop) OR selected (touch) */}
+          {effectiveHover ? (
             <div
               className="absolute"
               style={{
-                left: `${(hover.x / 900) * 100}%`,
-                top: `${(hover.y / 260) * 100}%`,
+                left: `${(effectiveHover.x / 900) * 100}%`,
+                top: `${(effectiveHover.y / 260) * 100}%`,
                 transform: "translate(-50%, -120%)",
                 pointerEvents: "none",
                 zIndex: 20,
               }}
             >
-              <TooltipCard title={hover.title} lines={hover.lines} />
+              <TooltipCard title={effectiveHover.title} lines={effectiveHover.lines} />
+            </div>
+          ) : null}
+
+          {coarsePointer && selected ? (
+            <div
+              className="absolute"
+              style={{
+                left: `${(selected.x / 900) * 100}%`,
+                top: `${(selected.y / 260) * 100}%`,
+                transform: "translate(-50%, -120%)",
+                pointerEvents: "none",
+                zIndex: 20,
+              }}
+            >
+              <TooltipCard title={selected.title} lines={selected.lines} />
             </div>
           ) : null}
         </div>
 
         <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="text-[12px] sm:text-[13px] text-slate-500">
-            Suggerimento: passa il mouse sui nodi per leggere i control points.
+            {coarsePointer ? "Suggerimento: tocca i nodi per leggere i control points." : "Suggerimento: passa il mouse sui nodi per leggere i control points."}
           </div>
+
           <div className="flex flex-wrap gap-2">
             <Pill className="border-emerald-500/40 bg-emerald-950/20 text-emerald-200">
               <span className="h-2 w-2 rounded-full bg-emerald-400" />
@@ -367,7 +515,7 @@ function MissionFlow({ mode, showFriction }) {
   );
 }
 
-function PilotPanel({ onClose, onSeeFlow }) {
+function PilotPanel({ reduceMotion, onClose, onSeeFlow }) {
   return (
     <div className="fixed inset-0 z-[80]">
       <div className="absolute inset-0 bg-black/70" onClick={onClose} aria-hidden="true" />
@@ -385,11 +533,11 @@ function PilotPanel({ onClose, onSeeFlow }) {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Pill className="border-emerald-500/50 bg-emerald-950/20 text-emerald-200">
-                    <span className="h-2 w-2 rounded-full bg-emerald-300" />
+                    <span className={cx("h-2 w-2 rounded-full bg-emerald-300", reduceMotion ? "" : "cncs-anim-glow")} />
                     Durata: fase breve
                   </Pill>
                   <Pill className="border-violet-500/50 bg-violet-950/20 text-violet-200">
-                    <span className="h-2 w-2 rounded-full bg-violet-300" />
+                    <span className={cx("h-2 w-2 rounded-full bg-violet-300", reduceMotion ? "" : "cncs-anim-glow")} />
                     Output: stato doc. + audit
                   </Pill>
                 </div>
@@ -475,35 +623,29 @@ function PilotPanel({ onClose, onSeeFlow }) {
   );
 }
 
-function BottomTransformBar({ mode, onSwitchToCore }) {
+function BottomTransformBar({ mode, reduceMotion, onSwitchToCore }) {
   if (mode !== "ATTUALE") return null;
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-[70]">
       <div className="pointer-events-none absolute inset-x-0 -top-10 h-10 bg-gradient-to-t from-[#050910] to-transparent" />
       <div className="border-t border-slate-800 bg-[#050910]/92 backdrop-blur">
-        <style>{`
-          @keyframes glow { 0%, 100% { opacity: 0.55; } 50% { opacity: 0.95; } }
-          @keyframes ctaPulse { 0%, 100% { transform: scale(1); opacity: 0.95; } 50% { transform: scale(1.06); opacity: 0.72; } }
-          @keyframes ctaNudge { 0%, 100% { transform: translateX(0); opacity: 0.75; } 50% { transform: translateX(4px); opacity: 1; } }
-        `}</style>
-
         <div className="mx-auto max-w-7xl px-4 sm:px-6 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <span className="inline-flex items-center gap-2 text-[12px] uppercase tracking-[0.22em] text-slate-500">
-              <span className="h-2 w-2 rounded-full bg-amber-300" style={{ animation: "glow 2.2s ease-in-out infinite" }} />
+              <span className={cx("h-2 w-2 rounded-full bg-amber-300", reduceMotion ? "" : "cncs-anim-glow")} />
               ATTUALE
             </span>
 
             <span className="text-slate-500">→</span>
 
             <span className="inline-flex items-center gap-2 text-[12px] uppercase tracking-[0.22em] text-slate-500">
-              <span className="h-2 w-2 rounded-full bg-emerald-300" style={{ animation: "glow 2.2s ease-in-out infinite" }} />
+              <span className={cx("h-2 w-2 rounded-full bg-emerald-300", reduceMotion ? "" : "cncs-anim-glow")} />
               CORE
             </span>
 
-            <span className="hidden sm:inline text-[12px] text-slate-500">
-              Vedi lo stesso flusso con dato nativo + audit.
+            <span className="hidden sm:inline text-[12px] text-slate-500 truncate">
+              Stesso lavoro. Un solo dato. Auditabile.
             </span>
           </div>
 
@@ -519,23 +661,24 @@ function BottomTransformBar({ mode, onSwitchToCore }) {
               )}
             >
               <span className="inline-flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-emerald-300" style={{ animation: "glow 2.2s ease-in-out infinite" }} />
+                <span className={cx("h-2 w-2 rounded-full bg-emerald-300", reduceMotion ? "" : "cncs-anim-glow")} />
                 PASSA A CORE
               </span>
 
-              <span
-                className="pointer-events-none absolute inset-0 rounded-full shadow-[0_0_0_1px_rgba(16,185,129,0.22),0_0_70px_rgba(16,185,129,0.16)]"
-                style={{ animation: "ctaPulse 2.2s ease-in-out infinite" }}
-                aria-hidden="true"
-              />
-
-              <span
-                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-emerald-200/85"
-                style={{ animation: "ctaNudge 1.8s ease-in-out infinite" }}
-                aria-hidden="true"
-              >
-                ›
-              </span>
+              {!reduceMotion ? (
+                <>
+                  <span
+                    className="pointer-events-none absolute inset-0 rounded-full shadow-[0_0_0_1px_rgba(16,185,129,0.22),0_0_70px_rgba(16,185,129,0.16)] cncs-anim-ctaPulse"
+                    aria-hidden="true"
+                  />
+                  <span
+                    className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-emerald-200/85 cncs-anim-ctaNudge"
+                    aria-hidden="true"
+                  >
+                    ›
+                  </span>
+                </>
+              ) : null}
             </button>
           </div>
         </div>
@@ -545,23 +688,29 @@ function BottomTransformBar({ mode, onSwitchToCore }) {
 }
 
 export default function CorePresentation() {
+  const reduceMotion = usePrefersReducedMotion();
+  const coarsePointer = useIsCoarsePointer();
+
   const [mode, setMode] = useState("ATTUALE"); // default ATTUALE
   const [showFriction, setShowFriction] = useState(true);
   const [pilotOpen, setPilotOpen] = useState(false);
+
+  // Used only for coarse-pointer tap-to-toggle tooltips inside MissionFlow
+  const [selected, setSelected] = useState(null);
 
   const flowRef = useRef(null);
 
   const topMessage =
     mode === "ATTUALE"
       ? {
-          pill: "ATTUALE · dato non continuo",
+          pill: "ATTUALE · DATO NON CONTINUO",
           pillClass: "border-amber-500/50 bg-amber-950/20 text-amber-200",
           title: "Radiografia: dove il dato si rompe prima della decisione",
           subtitle:
             "Oggi lo stesso lavoro produce più versioni della verità: trasformazioni, reinserimenti, latenza e responsabilità diffusa.",
         }
       : {
-          pill: "CORE · dato nativo + audit",
+          pill: "CORE · DATO NATIVO + AUDIT",
           pillClass: "border-emerald-500/50 bg-emerald-950/20 text-emerald-200",
           title: "Radiografia: continuità del dato lungo la filiera",
           subtitle:
@@ -570,48 +719,68 @@ export default function CorePresentation() {
 
   function handleSeeFlow() {
     setPilotOpen(false);
-    setTimeout(() => {
-      flowRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 80);
+    // more stable than a magic timeout
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        flowRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
   }
+
+  // Ensure selection doesn't carry over between modes
+  useEffect(() => {
+    setSelected(null);
+  }, [mode]);
 
   return (
     <div className="min-h-screen bg-[#050910] text-slate-100 px-4 sm:px-6 py-10 sm:py-14 pb-24">
-      {/* pb-24: espace pour la bottom bar */}
+      {/* Global keyframes + reduced-motion compliance */}
+      <style>{`
+        @keyframes cncsDash { from { stroke-dashoffset: 420; } to { stroke-dashoffset: 0; } }
+        @keyframes cncsPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.08); opacity: 0.85; } }
+        @keyframes cncsGlow { 0%, 100% { opacity: 0.55; } 50% { opacity: 0.95; } }
+        @keyframes cncsCtaPulse { 0%, 100% { transform: scale(1); opacity: 0.95; } 50% { transform: scale(1.06); opacity: 0.72; } }
+        @keyframes cncsCtaNudge { 0%, 100% { transform: translateX(0); opacity: 0.75; } 50% { transform: translateX(4px); opacity: 1; } }
+
+        .cncs-anim-dash { animation: cncsDash 1.05s ease-out forwards; }
+        .cncs-anim-pulse { animation: cncsPulse 1.8s ease-in-out infinite; transform-origin: center; }
+        .cncs-anim-glow { animation: cncsGlow 2.2s ease-in-out infinite; }
+        .cncs-anim-ctaPulse { animation: cncsCtaPulse 2.2s ease-in-out infinite; }
+        .cncs-anim-ctaNudge { animation: cncsCtaNudge 1.8s ease-in-out infinite; }
+
+        @media (prefers-reduced-motion: reduce) {
+          .cncs-anim-dash, .cncs-anim-pulse, .cncs-anim-glow, .cncs-anim-ctaPulse, .cncs-anim-ctaNudge {
+            animation: none !important;
+          }
+        }
+      `}</style>
+
       <div className="max-w-7xl mx-auto space-y-10 sm:space-y-12">
         {/* HERO */}
         <section className="space-y-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div className="space-y-3">
-              <div className="text-[12px] uppercase tracking-[0.3em] text-slate-500">
-                CORE · Direzione (accesso riservato)
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <Pill className="border-slate-700 bg-slate-950/35 text-slate-200">
-                  <span className="h-2 w-2 rounded-full bg-slate-200/70" style={{ animation: "glow 2.4s ease-in-out infinite" }} />
-                  CNCS — Cognitive Naval Control System
-                </Pill>
-                
-              </div>
-
-              <div className="text-[13px] sm:text-[14px] text-slate-400 max-w-3xl leading-relaxed">
-                Sistema di controllo cognitivo per ambienti industriali critici, dove l’errore non è un’opzione.
-              </div>
-
-              <Pill className={topMessage.pillClass}>
-                <span className="h-2 w-2 rounded-full bg-slate-100/70" style={{ animation: "glow 2.2s ease-in-out infinite" }} />
-                {topMessage.pill}
-              </Pill>
-
-              <h1 className="text-4xl sm:text-6xl font-bold leading-[1.03]">{topMessage.title}</h1>
-              <p className="max-w-3xl text-slate-400 text-[14px] sm:text-[16px] leading-relaxed">
-                {topMessage.subtitle}
-              </p>
+          <div className="space-y-3">
+            <div className="text-[12px] uppercase tracking-[0.3em] text-slate-500">
+              CORE · Direzione (accesso riservato)
             </div>
 
-            {/* Small controls remain, but the primary “pass to CORE” is guaranteed by bottom bar */}
             <div className="flex flex-wrap items-center gap-2">
+              <Pill className="border-slate-700 bg-slate-950/35 text-slate-200">
+                <span className={cx("h-2 w-2 rounded-full bg-slate-200/70", reduceMotion ? "" : "cncs-anim-glow")} />
+                CNCS — Cognitive Naval Control System
+              </Pill>
+
+              <Pill className={topMessage.pillClass}>
+                <span className={cx("h-2 w-2 rounded-full bg-slate-100/70", reduceMotion ? "" : "cncs-anim-glow")} />
+                {topMessage.pill}
+              </Pill>
+            </div>
+
+            <div className="text-[13px] sm:text-[14px] text-slate-400 max-w-3xl leading-relaxed">
+              Sistema di controllo cognitivo per ambienti industriali critici, dove l’errore non è un’opzione.
+            </div>
+
+            {/* Controls aligned with HERO (no floating right panel) */}
+            <div className="pt-2 flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => setMode("ATTUALE")}
@@ -652,9 +821,14 @@ export default function CorePresentation() {
                 disabled={mode !== "ATTUALE"}
                 title={mode !== "ATTUALE" ? "Disponibile solo in modalità Attuale" : ""}
               >
-                {showFriction ? "Frizioni: ON" : "Frizioni: OFF"}
+                {showFriction ? "Anomalie: VISIBILI" : "Anomalie: NASCOSTE"}
               </button>
             </div>
+
+            <h1 className="pt-2 text-4xl sm:text-6xl font-bold leading-[1.03]">{topMessage.title}</h1>
+            <p className="max-w-3xl text-slate-400 text-[14px] sm:text-[16px] leading-relaxed">
+              {topMessage.subtitle}
+            </p>
           </div>
         </section>
 
@@ -696,7 +870,14 @@ export default function CorePresentation() {
             </p>
           </div>
 
-          <MissionFlow mode={mode} showFriction={showFriction} />
+          <MissionFlow
+            mode={mode}
+            showFriction={showFriction}
+            reduceMotion={reduceMotion}
+            coarsePointer={coarsePointer}
+            selected={selected}
+            setSelected={setSelected}
+          />
         </section>
 
         {/* Avvio controllato */}
@@ -712,7 +893,7 @@ export default function CorePresentation() {
                     Test controllato, misurabile, senza cambiare l’organizzazione
                   </h2>
                   <p className="text-slate-400 text-[13px] sm:text-[15px] leading-relaxed max-w-3xl">
-                    Obiettivo: verificare sul campo la riduzione di reinserimenti e frizioni, e dimostrare
+                    Obiettivo: verificare sul campo la riduzione di reinserimenti e anomalie, e dimostrare
                     che lo stesso dato può diventare continuo, auditabile e riusabile per sintesi Direzione.
                   </p>
 
@@ -746,7 +927,7 @@ export default function CorePresentation() {
           </div>
         </section>
 
-        {/* CHIUSURA */}
+        {/* CHIUSURA (no CTA here: CTA unique = bottom bar only) */}
         <section className="text-center pt-6 pb-2">
           <p className="text-2xl sm:text-5xl font-bold text-slate-100 mb-3 leading-tight">
             CORE non è un software.
@@ -760,14 +941,13 @@ export default function CorePresentation() {
         </section>
       </div>
 
-      {pilotOpen ? <PilotPanel onClose={() => setPilotOpen(false)} onSeeFlow={handleSeeFlow} /> : null}
+      {pilotOpen ? <PilotPanel reduceMotion={reduceMotion} onClose={() => setPilotOpen(false)} onSeeFlow={handleSeeFlow} /> : null}
 
       <BottomTransformBar
         mode={mode}
+        reduceMotion={reduceMotion}
         onSwitchToCore={() => {
           setMode("CORE");
-          // optional: scroll back slightly for narrative continuity
-          // window.scrollTo({ top: 0, behavior: "smooth" });
         }}
       />
     </div>

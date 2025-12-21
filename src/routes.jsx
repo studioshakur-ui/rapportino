@@ -31,9 +31,11 @@ import UfficioRapportiniList from "./ufficio/UfficioRapportiniList";
 import UfficioRapportinoDetail from "./ufficio/UfficioRapportinoDetail";
 import UfficioIncaHub from "./ufficio/UfficioIncaHub";
 
-// CORE DRIVE (UX) — on réutilise l'impl existante de ArchivePage,
-// mais la route canonique devient /core-drive.
+// CORE DRIVE (UX)
 import ArchivePage from "./pages/Archive";
+
+// EVOLUZIONE
+import Evoluzione from "./data/Evoluzione";
 
 export default function AppRoutes() {
   return (
@@ -78,10 +80,7 @@ export default function AppRoutes() {
       >
         <Route index element={<ShipSelector />} />
         <Route path="ship/:shipId" element={<CapoModuleSelector />} />
-        <Route
-          path="ship/:shipId/rapportino/role"
-          element={<CapoRoleSelector />}
-        />
+        <Route path="ship/:shipId/rapportino/role" element={<CapoRoleSelector />} />
         <Route path="ship/:shipId/rapportino" element={<RapportinoPage />} />
         <Route path="ship/:shipId/inca" element={<IncaCapoCockpit />} />
 
@@ -102,8 +101,12 @@ export default function AppRoutes() {
       >
         <Route index element={<UfficioRapportiniList />} />
         <Route path="rapportini/:id" element={<UfficioRapportinoDetail />} />
+
         {/* INCA HUB (modal fullscreen cockpit) */}
         <Route path="inca" element={<UfficioIncaHub />} />
+
+        {/* EVOLUZIONE */}
+        <Route path="evoluzione" element={<Evoluzione />} />
 
         {/* CANONIQUE */}
         <Route path="core-drive" element={<ArchivePage />} />

@@ -68,8 +68,16 @@ export default function UfficioShell() {
 
   const pathname = location.pathname || "";
   const isInca = pathname.startsWith("/ufficio/inca");
+  const isEvoluzione = pathname.startsWith("/ufficio/evoluzione");
   const isCoreDrive = pathname.startsWith("/ufficio/core-drive") || pathname.startsWith("/ufficio/archive");
-  const pageLabel = isCoreDrive ? "CORE Drive" : isInca ? "INCA" : "Rapportini";
+
+  const pageLabel = isEvoluzione
+    ? "Suivi & Evoluzione"
+    : isCoreDrive
+    ? "CORE Drive"
+    : isInca
+    ? "INCA"
+    : "Rapportini";
 
   if (!profile) {
     return (
@@ -96,6 +104,10 @@ export default function UfficioShell() {
           navItems={[
             { to: "/ufficio", label: "Rapportini", icon: "rapportino", colorClass: "text-sky-400", end: true },
             { to: "/ufficio/inca", label: "INCA", icon: "inca", colorClass: "text-emerald-400" },
+
+            // NEW
+            { to: "/ufficio/evoluzione", label: "Evoluzione", icon: "history", colorClass: "text-amber-400" },
+
             { to: "/ufficio/core-drive", label: "CORE Drive", icon: "archive", colorClass: "text-violet-400" },
           ]}
         />
