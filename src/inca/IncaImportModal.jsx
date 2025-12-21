@@ -18,7 +18,8 @@ export default function IncaImportModal({
   const [projectCode, setProjectCode] = useState("");
   const [note, setNote] = useState("");
 
-  const { dryRun, commit, loading, phase, error, result } = useIncaImporter();
+  const { dryRun, commit, loading, phase, error, result, reset } =
+    useIncaImporter();
 
   // Anti-régression UX: si defaultCostr/defaultCommessa changent entre ouvertures
   useEffect(() => {
@@ -27,22 +28,34 @@ export default function IncaImportModal({
     setCommessa(defaultCommessa || "");
   }, [open, defaultCostr, defaultCommessa]);
 
-  const isDryOk = result?.ok && result?.mode === "DRY_RUN";
-  const isCommitOk = result?.ok && result?.mode === "COMMIT";
+  // Reset léger à l'ouverture pour éviter un ancien result qui pollue
+  useEffect(() => {
+    if (!open) return;
+    reset();
+    setFile(null);
+    setProjectCode("");
+    setNote("");
+  }, [open, reset]);
+
+  const isDryOk = !!(result?.ok && result?.mode === "DRY_RUN");
+  const isCommitOk = !!(result?.ok && result?.mode === "COMMIT");
 
   const counts = result?.counts || null;
   const debug = result?.debug || null;
-  const total = result?.total || 0;
-
+  const total = typeof result?.total === "number" ? result.total : 0;
   const received = result?.received || null;
 
   const fileType = useMemo(() => {
     if (!file) return null;
-    return file.name.toLowerCase().endsWith(".pdf") ? "PDF" : "XLSX";
+    return "XLSX";
   }, [file]);
 
-  // On reste strict: Analizza seulement si fichier + COSTR + COMMESSA
-  const canDry = !!file && !!String(costr).trim() && !!String(commessa).trim() && !loading;
+  const canDry =
+    !!file &&
+    !!String(costr).trim() &&
+    !!String(commessa).trim() &&
+    !loading;
+
   const canCommit = isDryOk && !loading;
 
   const warnings = useMemo(() => {
@@ -51,23 +64,9 @@ export default function IncaImportModal({
     const npRatio = total > 0 ? (counts.NP || 0) / total : 0;
     if (npRatio > 0.6) w.push("Alto NP: verifica layout/STATO CANTIERE.");
 
-    const rawTop = debug?.rawTop;
-    if (Array.isArray(rawTop)) {
-      const bad = rawTop.find(
-        (x) =>
-          x &&
-          typeof x.value === "string" &&
-          !["P", "T", "R", "B", "E", "M", "(VIDE)"].includes(x.value)
-      );
-      if (bad) w.push("Statuti non standard rilevati (vedi Debug).");
-    }
-
-    if (
-      debug?.kind === "PDF" &&
-      typeof debug?.parsedRows === "number" &&
-      debug.parsedRows < 5
-    ) {
-      w.push("Parsing PDF debole: layout non riconosciuto.");
+    const nonStandard = debug?.nonStandardStatuses;
+    if (Array.isArray(nonStandard) && nonStandard.length > 0) {
+      w.push("Statuti non standard rilevati (vedi Debug).");
     }
     return w;
   }, [counts, debug, total]);
@@ -104,12 +103,16 @@ export default function IncaImportModal({
             <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">
               Import INCA · Cockpit
             </div>
-            <div className="text-sm font-semibold">XLSX / PDF → Analisi → Commit</div>
+            <div className="text-sm font-semibold">XLSX → Analisi → Commit</div>
+            <div className="text-[12px] text-slate-500 mt-1">
+              CORE 1.0: solo XLSX. PDF disattivato.
+            </div>
           </div>
           <button
             onClick={onClose}
             disabled={loading}
             className="h-9 w-9 rounded-full border border-slate-700 hover:bg-slate-900 disabled:opacity-60"
+            title="Chiudi"
           >
             ✕
           </button>
@@ -133,9 +136,9 @@ export default function IncaImportModal({
                 ? "Analisi in corso…"
                 : phase === "importing"
                 ? "Importazione in corso…"
-                : "Trascina qui il file INCA"}
+                : "Trascina qui il file INCA (XLSX)"}
             </div>
-            <div className="text-xs text-slate-400 mt-1">XLSX o PDF · Edge parser</div>
+            <div className="text-xs text-slate-400 mt-1">XLSX · Edge parser</div>
 
             <button
               className="mt-4 px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
@@ -148,7 +151,7 @@ export default function IncaImportModal({
             <input
               ref={fileInputRef}
               type="file"
-              accept=".xlsx,.xls,.pdf"
+              accept=".xlsx,.xls"
               hidden
               onChange={(e) => handleFile(e.target.files?.[0] || null)}
             />
@@ -178,20 +181,15 @@ export default function IncaImportModal({
             />
           </div>
 
-          {/* ✅ NOUVEAU: Résultat DRY_RUN minimal (pipeline) */}
           {isDryOk && received && (
             <div className={cardSurface(true)}>
               <div className="flex items-center justify-between">
                 <div className="text-sm font-semibold">Risultato analisi (pipeline)</div>
                 <div className="text-xs text-slate-400">
-                  {received.mime ? (
-                    <span className="inline-flex items-center gap-2">
-                      <span className={corePills(true, "sky")}>
-                        {String(received.mime).includes("pdf") ? "PDF" : "XLSX"}
-                      </span>
-                      {sizeKb ? <span>{sizeKb} KB</span> : null}
-                    </span>
-                  ) : null}
+                  <span className="inline-flex items-center gap-2">
+                    <span className={corePills(true, "sky")}>XLSX</span>
+                    {sizeKb ? <span>{sizeKb} KB</span> : null}
+                  </span>
                 </div>
               </div>
 
@@ -211,10 +209,8 @@ export default function IncaImportModal({
                 </div>
               </div>
 
-              {result?.next && (
-                <div className="mt-3 text-xs text-slate-300 italic">
-                  {result.next}
-                </div>
+              {typeof result?.next === "string" && (
+                <div className="mt-3 text-xs text-slate-300 italic">{result.next}</div>
               )}
             </div>
           )}
@@ -230,7 +226,6 @@ export default function IncaImportModal({
             </div>
           )}
 
-          {/* Phase 2: Telemetry */}
           {isDryOk && counts && (
             <div className={cardSurface(true)}>
               <div className="flex items-center justify-between">
@@ -254,41 +249,6 @@ export default function IncaImportModal({
             </div>
           )}
 
-          {/* Phase 2: Preview PDF */}
-          {isDryOk && debug?.kind === "PDF" && Array.isArray(debug?.sampleMatches) && (
-            <details className={cardSurface(true)}>
-              <summary className="cursor-pointer text-sm font-medium">
-                Preview PDF (righe rilevate) · pages: {debug.pages ?? "—"} · rows:{" "}
-                {debug.parsedRows ?? "—"}
-              </summary>
-              <div className="mt-3 overflow-auto">
-                <table className="w-full text-xs border-collapse">
-                  <thead>
-                    <tr className="text-slate-400 border-b border-slate-800">
-                      <th className="text-left py-1 pr-3">Pag</th>
-                      <th className="text-left py-1 pr-3">Codice</th>
-                      <th className="text-left py-1 pr-3">Stato</th>
-                      <th className="text-left py-1 pr-3">Metri TEO</th>
-                      <th className="text-left py-1 pr-3">Metri DIS</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {debug.sampleMatches.map((r, i) => (
-                      <tr key={i} className="border-b border-slate-900">
-                        <td className="py-1 pr-3">{r?.page ?? "—"}</td>
-                        <td className="py-1 pr-3 font-mono">{r?.codice ?? "—"}</td>
-                        <td className="py-1 pr-3">{r?.situazione ?? "NP"}</td>
-                        <td className="py-1 pr-3">{r?.metri_teo ?? "—"}</td>
-                        <td className="py-1 pr-3">{r?.metri_dis ?? "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </details>
-          )}
-
-          {/* Phase 2: Debug */}
           {isDryOk && debug && (
             <details className={cardSurface(true)}>
               <summary className="cursor-pointer text-sm font-medium">Debug tecnico (Edge)</summary>

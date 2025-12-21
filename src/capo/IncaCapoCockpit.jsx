@@ -1,821 +1,882 @@
-// src/capo/IncaCapoCockpit.jsx
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+// /src/capo/IncaCapoCockpit.jsx
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 
-const SITUAZIONI = ["P", "T", "R", "B", "E", "NP"];
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Cell,
+} from "recharts";
+
+import LoadingScreen from "../components/LoadingScreen";
+import PercorsoSearchBar from "../components/PercorsoSearchBar";
+import ApparatoCaviPopover from "../inca/ApparatoCaviPopover";
+import { ApparatoPill, CodicePill, computeApparatoPMaps } from "../inca/IncaPills";
+
+// =====================================================
+// INCA COCKPIT (CAPO) — same structure as UFFICIO cockpit
+// IMPORTANT: batched loading with .range() (no 1000 ceiling)
+// =====================================================
+
+export const SITUAZIONI_ORDER = ["NP", "T", "P", "R", "B", "E"];
+
+export const SITUAZIONI_LABEL = {
+  NP: "Non posato",
+  T: "Terminato",
+  P: "Posato",
+  R: "Rimosso",
+  B: "Bloccato",
+  E: "Eliminato",
+};
+
+function safeNum(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function formatMeters(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "—";
+  return new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 }).format(n);
+}
+
+function colorForSituazione(code) {
+  switch (code) {
+    case "P":
+      return "#34d399";
+    case "T":
+      return "#38bdf8";
+    case "R":
+      return "#fbbf24";
+    case "B":
+      return "#e879f9";
+    case "E":
+      return "#fb7185";
+    case "NP":
+    default:
+      return "#a855f7";
+  }
+}
 
 function norm(v) {
   return String(v ?? "").trim();
-}
-
-function situazioneKey(v) {
-  const s = norm(v);
-  if (s === "") return "NP";
-  if (SITUAZIONI.includes(s)) return s;
-  return "NP";
-}
-
-function pct(n, d) {
-  if (!d) return 0;
-  return Math.round((n / d) * 100);
-}
-
-function Chip({ active, children, onClick, title }) {
-  return (
-    <button
-      type="button"
-      title={title}
-      onClick={onClick}
-      className={[
-        "px-3 py-1.5 rounded-full text-[12px] font-semibold border transition",
-        active
-          ? "bg-emerald-600 text-white border-emerald-500"
-          : "bg-slate-900/40 text-slate-100 border-slate-700 hover:bg-slate-900/70",
-      ].join(" ")}
-    >
-      {children}
-    </button>
-  );
-}
-
-function KpiTile({ label, value, sub, onClick, active }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={[
-        "min-w-[140px] rounded-xl border px-3 py-2 text-left transition",
-        active
-          ? "border-emerald-500 bg-emerald-500/10"
-          : "border-slate-700 bg-slate-950/50 hover:bg-slate-950/70",
-      ].join(" ")}
-    >
-      <div className="text-[11px] uppercase tracking-[0.22em] text-slate-300">
-        {label}
-      </div>
-      <div className="mt-1 text-[20px] leading-none font-semibold text-slate-50">
-        {value}
-      </div>
-      {sub ? (
-        <div className="mt-1 text-[11px] text-slate-300">{sub}</div>
-      ) : (
-        <div className="mt-1 text-[11px] text-slate-300">&nbsp;</div>
-      )}
-    </button>
-  );
-}
-
-function Select({ value, onChange, options, placeholder }) {
-  return (
-    <select
-      value={value ?? ""}
-      onChange={(e) => onChange(e.target.value)}
-      className="w-full rounded-lg border border-slate-700 bg-slate-950/60 text-slate-50 px-3 py-2 text-[13px] outline-none focus:ring-2 focus:ring-emerald-500/60"
-    >
-      {placeholder ? <option value="">{placeholder}</option> : null}
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
-  );
 }
 
 export default function IncaCapoCockpit() {
   const { shipId } = useParams();
   const navigate = useNavigate();
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
+  // Ship context
   const [ship, setShip] = useState(null);
+  const [defaultCostr, setDefaultCostr] = useState("");
+  const [defaultCommessa, setDefaultCommessa] = useState("");
 
+  // File selection (same as UFFICIO)
+  const [files, setFiles] = useState([]);
+  const [fileId, setFileId] = useState("");
+
+  // Display labels
   const [costr, setCostr] = useState("");
   const [commessa, setCommessa] = useState("");
 
-  const [commesseDisponibili, setCommesseDisponibili] = useState([]);
+  // Filters
+  const [query, setQuery] = useState("");
+  const [onlyP, setOnlyP] = useState(false);
+  const [onlyNP, setOnlyNP] = useState(false);
 
-  const [cables, setCables] = useState([]);
+  // Percorso Search
+  const [percorsoNodes, setPercorsoNodes] = useState([]);
+  const [percorsoMatchIds, setPercorsoMatchIds] = useState(null); // Set<string> | null
+  const [percorsoLoading, setPercorsoLoading] = useState(false);
+  const [percorsoError, setPercorsoError] = useState(null);
 
-  const [search, setSearch] = useState("");
-  const [selectedSituazioni, setSelectedSituazioni] = useState([]); // multi
-  const [onlyNonPosati, setOnlyNonPosati] = useState(false);
+  // Data
+  const [cavi, setCavi] = useState([]);
 
-  const [selectedCableId, setSelectedCableId] = useState(null);
+  // Loading / errors
+  const [loadingFiles, setLoadingFiles] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const selectedCable = useMemo(
-    () => cables.find((c) => c.id === selectedCableId) ?? null,
-    [cables, selectedCableId]
-  );
+  // Selection
+  const [selectedCable, setSelectedCable] = useState(null);
 
-  const abortRef = useRef({ cancelled: false });
+  // UI — chart modal
+  const [isDistribModalOpen, setIsDistribModalOpen] = useState(false);
 
-  const loadBase = useCallback(async () => {
-    setLoading(true);
-    setError("");
+  // UI — apparato popover
+  const [apparatoPopoverOpen, setApparatoPopoverOpen] = useState(false);
+  const [apparatoPopoverSide, setApparatoPopoverSide] = useState("DA");
+  const [apparatoPopoverName, setApparatoPopoverName] = useState("");
+  const [apparatoAnchorRect, setApparatoAnchorRect] = useState(null);
 
-    abortRef.current.cancelled = false;
-    const localAbort = abortRef.current;
+  // Batched loading rules
+  const loadInfo = useMemo(() => ({ pageSize: 2000, maxPages: 80 }), []);
 
-    try {
-      // 1) Resolve ship -> costr/commessa
-      let resolvedCostr = "";
-      let resolvedCommessa = "";
+  // 0) Resolve ship -> default COSTR/COMMESSA (CAPO)
+  useEffect(() => {
+    let alive = true;
 
-      let shipRow = null;
-
-      const { data: sRow, error: sErr } = await supabase
-        .from("ships")
-        .select("*")
-        .eq("id", shipId)
-        .single();
-
-      if (!sErr && sRow) {
-        shipRow = sRow;
-        resolvedCostr = norm(sRow.costr) || "";
-        resolvedCommessa = norm(sRow.commessa) || "";
-      } else {
-        // fallback: shipId peut être un COSTR (mode test)
-        resolvedCostr = norm(shipId);
-      }
-
-      if (localAbort.cancelled) return;
-
-      if (!resolvedCostr) {
-        throw new Error("COSTR non disponibile. Verifica ships oppure il parametro route.");
-      }
-
-      setShip(shipRow);
-      setCostr(resolvedCostr);
-      setCommessa(resolvedCommessa);
-
-      // 2) Charge commesse distinctes depuis INCA (si plus d’une)
-      const { data: commRows, error: commErr } = await supabase
-        .from("inca_cavi")
-        .select("commessa")
-        .eq("costr", resolvedCostr);
-
-      if (commErr) throw commErr;
-      if (localAbort.cancelled) return;
-
-      const uniq = Array.from(
-        new Set(
-          (commRows || [])
-            .map((r) => norm(r.commessa))
-            .filter((x) => x !== "")
-        )
-      ).sort((a, b) => a.localeCompare(b));
-
-      const opts = uniq.map((c) => ({ value: c, label: c }));
-      setCommesseDisponibili(opts);
-
-      // si ship.commessa vide ou invalide, prendre la première commessa INCA
-      if (!resolvedCommessa) {
-        if (opts.length === 1) setCommessa(opts[0].value);
-      } else {
-        const exists = opts.some((o) => o.value === resolvedCommessa);
-        if (!exists && opts.length === 1) setCommessa(opts[0].value);
-        if (!exists && opts.length > 1) {
-          // garde ship.commessa affichée mais invite à sélectionner
-          setCommessa(resolvedCommessa);
-        }
-      }
-    } catch (e) {
-      console.error("[INCA CAPO] loadBase error", e);
-      setError(e?.message || String(e));
-    } finally {
-      if (!localAbort.cancelled) setLoading(false);
-    }
-  }, [shipId]);
-
-  const loadCables = useCallback(
-    async (resolvedCostr, resolvedCommessa) => {
-      setLoading(true);
-      setError("");
-
-      abortRef.current.cancelled = false;
-      const localAbort = abortRef.current;
+    async function loadShip() {
+      setError(null);
 
       try {
-        if (!resolvedCostr) throw new Error("COSTR mancante.");
-        if (!resolvedCommessa) throw new Error("COMMESSA mancante. Seleziona una commessa.");
+        if (!shipId) return;
 
-        const { data, error: dbErr } = await supabase
-          .from("inca_cavi")
-          .select(
-            [
-              "id",
-              "costr",
-              "commessa",
-              "marca_cavo",
-              "metri_teo",
-              "metri_dis",
-              "situazione",
-              "updated_at",
-            ].join(",")
-          )
-          .eq("costr", resolvedCostr)
-          .eq("commessa", resolvedCommessa)
-          .order("marca_cavo", { ascending: true });
-
-        if (dbErr) throw dbErr;
-        if (localAbort.cancelled) return;
-
-        setCables(data || []);
-        setSelectedCableId((data && data[0]?.id) || null);
-      } catch (e) {
-        console.error("[INCA CAPO] loadCables error", e);
-        setError(e?.message || String(e));
-      } finally {
-        if (!localAbort.cancelled) setLoading(false);
-      }
-    },
-    []
-  );
-
-  useEffect(() => {
-    loadBase();
-    return () => {
-      abortRef.current.cancelled = true;
-    };
-  }, [loadBase]);
-
-  useEffect(() => {
-    const c = norm(costr);
-    const m = norm(commessa);
-
-    if (!c) return;
-    if (!m) return;
-
-    loadCables(c, m);
-    return () => {
-      abortRef.current.cancelled = true;
-    };
-  }, [costr, commessa, loadCables]);
-
-  const stats = useMemo(() => {
-    const base = {
-      total: 0,
-      by: { P: 0, T: 0, R: 0, B: 0, E: 0, NP: 0 },
-      nonPosati: 0,
-      metriTeo: 0,
-      metriDis: 0,
-    };
-
-    for (const c of cables) {
-      base.total += 1;
-      const k = situazioneKey(c.situazione);
-      base.by[k] = (base.by[k] || 0) + 1;
-
-      const metriTeo = Number(c.metri_teo ?? 0) || 0;
-      const metriDis = Number(c.metri_dis ?? 0) || 0;
-      base.metriTeo += metriTeo;
-      base.metriDis += metriDis;
-
-      if (k !== "P") base.nonPosati += 1;
-    }
-
-    return base;
-  }, [cables]);
-
-  const filteredCables = useMemo(() => {
-    const q = norm(search).toLowerCase();
-    const selectedSet = new Set(selectedSituazioni);
-
-    return cables.filter((c) => {
-      const k = situazioneKey(c.situazione);
-
-      if (selectedSet.size > 0 && !selectedSet.has(k)) return false;
-
-      if (onlyNonPosati && k === "P") return false;
-
-      if (q) {
-        const code = norm(c.marca_cavo).toLowerCase();
-        if (!code.includes(q)) return false;
-      }
-
-      return true;
-    });
-  }, [cables, search, selectedSituazioni, onlyNonPosati]);
-
-  const toggleSituazione = useCallback((k) => {
-    setSelectedSituazioni((prev) => {
-      const s = new Set(prev);
-      if (s.has(k)) s.delete(k);
-      else s.add(k);
-      return Array.from(s);
-    });
-  }, []);
-
-  const clearFilters = useCallback(() => {
-    setSearch("");
-    setSelectedSituazioni([]);
-    setOnlyNonPosati(false);
-  }, []);
-
-  const applyQuickFilter = useCallback((k) => {
-    if (!k) {
-      setSelectedSituazioni([]);
-      return;
-    }
-    setSelectedSituazioni([k]);
-  }, []);
-
-  const updateSituazione = useCallback(
-    async (cableId, next) => {
-      const target = cables.find((x) => x.id === cableId);
-      if (!target) return;
-
-      const valueToStore = next === "NP" ? null : next;
-
-      try {
-        setError("");
-        const { data, error: dbErr } = await supabase
-          .from("inca_cavi")
-          .update({ situazione: valueToStore })
-          .eq("id", cableId)
-          .select(
-            [
-              "id",
-              "costr",
-              "commessa",
-              "marca_cavo",
-              "metri_teo",
-              "metri_dis",
-              "situazione",
-              "updated_at",
-            ].join(",")
-          )
+        const { data: sRow, error: sErr } = await supabase
+          .from("ships")
+          .select("*")
+          .eq("id", shipId)
           .single();
 
-        if (dbErr) throw dbErr;
+        if (!alive) return;
 
-        setCables((prev) => prev.map((x) => (x.id === cableId ? data : x)));
-        setSelectedCableId(cableId);
+        if (!sErr && sRow) {
+          setShip(sRow);
+          setDefaultCostr(norm(sRow.costr) || "");
+          setDefaultCommessa(norm(sRow.commessa) || "");
+        } else {
+          setShip(null);
+          setDefaultCostr(norm(shipId));
+          setDefaultCommessa("");
+        }
       } catch (e) {
-        console.error("[INCA CAPO] updateSituazione error", e);
-        setError(e?.message || String(e));
+        console.error("[IncaCapoCockpit] loadShip error:", e);
+        if (!alive) return;
+        setShip(null);
+        setDefaultCostr(norm(shipId));
+        setDefaultCommessa("");
       }
-    },
-    [cables]
-  );
+    }
 
-  const commessaLabel = useMemo(() => {
-    const m = norm(commessa);
-    if (!m) return "—";
-    return m;
-  }, [commessa]);
+    loadShip();
+    return () => {
+      alive = false;
+    };
+  }, [shipId]);
 
-  const titleLine = useMemo(() => {
+  // 1) Load files
+  useEffect(() => {
+    let alive = true;
+
+    async function loadFiles() {
+      setLoadingFiles(true);
+      setError(null);
+
+      try {
+        const { data, error: e } = await supabase
+          .from("inca_files")
+          .select("id,costr,commessa,file_name,uploaded_at")
+          .order("uploaded_at", { ascending: false })
+          .limit(200);
+
+        if (e) throw e;
+        if (!alive) return;
+
+        const list = Array.isArray(data) ? data : [];
+        setFiles(list);
+
+        const initialCostr = defaultCostr || list[0]?.costr || "";
+        const initialCommessa = defaultCommessa || list[0]?.commessa || "";
+
+        setCostr(initialCostr);
+        setCommessa(initialCommessa);
+
+        const firstMatching = list.find(
+          (f) => (f.costr || "") === initialCostr && (f.commessa || "") === initialCommessa
+        );
+        const firstMatchingCostr = list.find((f) => (f.costr || "") === initialCostr);
+
+        const chosen = firstMatching || firstMatchingCostr || list[0];
+        if (chosen?.id) setFileId(chosen.id);
+      } catch (err) {
+        console.error("[IncaCapoCockpit] loadFiles error:", err);
+        if (!alive) return;
+        setFiles([]);
+        setError("Impossibile caricare la lista file INCA.");
+      } finally {
+        if (!alive) return;
+        setLoadingFiles(false);
+      }
+    }
+
+    loadFiles();
+    return () => {
+      alive = false;
+    };
+  }, [defaultCostr, defaultCommessa]);
+
+  // 2) Load cavi (batched)
+  useEffect(() => {
+    let alive = true;
+    const ac = new AbortController();
+
+    async function loadCavi() {
+      if (!fileId) return;
+
+      setLoading(true);
+      setError(null);
+      setSelectedCable(null);
+
+      try {
+        const all = [];
+        let page = 0;
+
+        while (page < loadInfo.maxPages) {
+          const from = page * loadInfo.pageSize;
+          const to = from + loadInfo.pageSize - 1;
+
+          const { data, error: e } = await supabase
+            .from("inca_cavi")
+            .select(
+              "id,inca_file_id,costr,commessa,codice,rev_inca,descrizione,impianto,tipo,sezione,zona_da,zona_a,apparato_da,apparato_a,descrizione_da,descrizione_a,metri_teo,metri_dis,metri_totali,marca_cavo,livello,wbs,situazione"
+            )
+            .eq("inca_file_id", fileId)
+            .order("codice", { ascending: true })
+            .range(from, to)
+            .abortSignal(ac.signal);
+
+          if (e) throw e;
+
+          const chunk = Array.isArray(data) ? data : [];
+          all.push(...chunk);
+
+          if (chunk.length === 0) break;
+          if (chunk.length < loadInfo.pageSize) break;
+
+          page++;
+        }
+
+        if (!alive) return;
+
+        setCavi(all);
+
+        const chosenFile = (files || []).find((x) => x.id === fileId);
+        if (chosenFile) {
+          setCostr(chosenFile.costr || "");
+          setCommessa(chosenFile.commessa || "");
+        }
+      } catch (err) {
+        console.error("[IncaCapoCockpit] loadCavi error:", err);
+        if (!alive) return;
+        setCavi([]);
+        setError("Impossibile caricare i cavi INCA.");
+      } finally {
+        if (!alive) return;
+        setLoading(false);
+      }
+    }
+
+    loadCavi();
+    return () => {
+      alive = false;
+      ac.abort();
+    };
+  }, [fileId, loadInfo.maxPages, loadInfo.pageSize, files]);
+
+  // 3) Percorso Search
+  useEffect(() => {
+    let alive = true;
+
+    async function run() {
+      const nodes = Array.isArray(percorsoNodes)
+        ? percorsoNodes.map((x) => String(x || "").trim().toUpperCase()).filter(Boolean)
+        : [];
+
+      if (!fileId || nodes.length === 0) {
+        setPercorsoLoading(false);
+        setPercorsoError(null);
+        setPercorsoMatchIds(null);
+        return;
+      }
+
+      setPercorsoLoading(true);
+      setPercorsoError(null);
+      setPercorsoMatchIds(null);
+
+      try {
+        const { data, error: e } = await supabase.rpc("inca_search_cavi_by_nodes", {
+          p_inca_file_id: fileId,
+          p_nodes: nodes,
+        });
+
+        if (e) throw e;
+        if (!alive) return;
+
+        const list = Array.isArray(data) ? data : [];
+        const ids = new Set(list.map((r) => r?.id).filter(Boolean));
+        setPercorsoMatchIds(ids);
+      } catch (err) {
+        console.error("[IncaCapoCockpit] percorso search error:", err);
+        if (!alive) return;
+        setPercorsoError("Errore ricerca percorso.");
+        setPercorsoMatchIds(new Set());
+      } finally {
+        if (!alive) return;
+        setPercorsoLoading(false);
+      }
+    }
+
+    run();
+    return () => {
+      alive = false;
+    };
+  }, [fileId, percorsoNodes]);
+
+  const filteredCavi = useMemo(() => {
+    const q = (query || "").trim().toLowerCase();
+    const nodesActive = Array.isArray(percorsoNodes) && percorsoNodes.length > 0;
+
+    return (cavi || []).filter((r) => {
+      if (nodesActive) {
+        if (!percorsoMatchIds) return false;
+        if (!percorsoMatchIds.has(r.id)) return false;
+      }
+
+      const situ = (r.situazione || "").trim();
+      const isP = situ === "P";
+      const isNP = !situ || situ === "NP";
+
+      if (onlyP && !isP) return false;
+      if (onlyNP && !isNP) return false;
+
+      if (!q) return true;
+
+      const hay = [
+        r.codice,
+        r.rev_inca,
+        r.descrizione,
+        r.impianto,
+        r.tipo,
+        r.sezione,
+        r.zona_da,
+        r.zona_a,
+        r.apparato_da,
+        r.apparato_a,
+        r.descrizione_da,
+        r.descrizione_a,
+        r.marca_cavo,
+        r.livello,
+        r.wbs,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return hay.includes(q);
+    });
+  }, [cavi, query, onlyP, onlyNP, percorsoNodes, percorsoMatchIds]);
+
+  // NEW: apparato P-ratio maps computed on visible scope (filteredCavi)
+  const apparatoPMaps = useMemo(() => computeApparatoPMaps(filteredCavi), [filteredCavi]);
+
+  // Metrics on visible scope
+  const totalMetri = useMemo(() => {
+    return (filteredCavi || []).reduce((acc, r) => {
+      const m = safeNum(r.metri_totali) || safeNum(r.metri_teo) || safeNum(r.metri_dis) || 0;
+      return acc + m;
+    }, 0);
+  }, [filteredCavi]);
+
+  const totalMetriPosati = useMemo(() => {
+    return (filteredCavi || []).reduce((acc, r) => {
+      const s = (r.situazione || "").trim();
+      if (s !== "P") return acc;
+      const m = safeNum(r.metri_totali) || safeNum(r.metri_dis) || safeNum(r.metri_teo) || 0;
+      return acc + m;
+    }, 0);
+  }, [filteredCavi]);
+
+  const distrib = useMemo(() => {
+    const map = new Map();
+    for (const code of SITUAZIONI_ORDER) map.set(code, 0);
+
+    for (const r of filteredCavi) {
+      const s = (r.situazione || "").trim();
+      const key = s && SITUAZIONI_ORDER.includes(s) ? s : "NP";
+      map.set(key, (map.get(key) || 0) + 1);
+    }
+
+    return SITUAZIONI_ORDER.map((k) => ({
+      code: k,
+      label: SITUAZIONI_LABEL[k] || k,
+      count: map.get(k) || 0,
+    }));
+  }, [filteredCavi]);
+
+  const totalCavi = filteredCavi.length;
+
+  const doneCount = useMemo(() => {
+    return filteredCavi.reduce((acc, r) => acc + (((r.situazione || "").trim() === "P") ? 1 : 0), 0);
+  }, [filteredCavi]);
+
+  const prodPercent = useMemo(() => {
+    if (!totalCavi) return 0;
+    return (doneCount / totalCavi) * 100;
+  }, [doneCount, totalCavi]);
+
+  function openApparatoPopover(e, side, apparatoName) {
+    const name = String(apparatoName || "").trim();
+    if (!name) return;
+
+    const rect = e?.currentTarget?.getBoundingClientRect ? e.currentTarget.getBoundingClientRect() : null;
+    setApparatoAnchorRect(rect);
+    setApparatoPopoverSide(side);
+    setApparatoPopoverName(name);
+    setApparatoPopoverOpen(true);
+  }
+
+  const headerTitle = useMemo(() => {
     const c = norm(costr) || "—";
     const m = norm(commessa) || "—";
     return `COSTR ${c} · COMMESSA ${m}`;
   }, [costr, commessa]);
 
-  if (loading && cables.length === 0) {
-    return (
-      <div className="min-h-screen bg-slate-900 text-slate-50">
-        <div className="max-w-6xl mx-auto px-3 py-6">
-          <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
-            <div className="text-[11px] uppercase tracking-[0.22em] text-slate-300">
-              INCA · Cockpit
-            </div>
-            <div className="mt-2 text-[14px] text-slate-200">
-              Caricamento cavi INCA…
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-50">
-      <div className="max-w-6xl mx-auto px-2 sm:px-3 py-4 sm:py-6">
-        {/* Top cockpit card */}
-        <div className="rounded-2xl border border-slate-700 bg-slate-950/55 shadow-[0_18px_45px_rgba(0,0,0,0.35)] overflow-hidden">
-          {/* Header */}
-          <div className="px-3 sm:px-4 py-3 border-b border-slate-800">
-            <div className="flex items-start gap-3">
-              <div className="min-w-0">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-slate-300">
-                  INCA · Cockpit CAPO
-                </div>
-                <div className="mt-1 text-[14px] font-semibold truncate">
-                  {titleLine}
-                </div>
-                <div className="mt-1 text-[11px] text-slate-300">
-                  {ship ? (
-                    <>
-                      Nave: <span className="text-slate-100 font-semibold">{norm(ship.code) || "—"}</span>{" "}
-                      · <span className="text-slate-200">{norm(ship.name) || "—"}</span>
-                    </>
-                  ) : (
-                    <>Nave: —</>
-                  )}
-                </div>
-              </div>
-
-              <div className="ml-auto flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => navigate(-1)}
-                  className="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-950/70 hover:bg-slate-950 text-[12px]"
-                >
-                  Indietro
-                </button>
-              </div>
-            </div>
-
-            {/* Commessa selector */}
-            <div className="mt-3 grid grid-cols-1 sm:grid-cols-[1fr_220px] gap-2">
-              <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2">
-                <div className="text-[11px] text-slate-300">
-                  Stato:{" "}
-                  {loading ? (
-                    <span className="text-slate-100 font-semibold">Caricamento…</span>
-                  ) : (
-                    <span className="text-emerald-300 font-semibold">OK</span>
-                  )}
-                  {" · "}
-                  Cavi: <span className="text-slate-100 font-semibold">{stats.total}</span>
-                  {" · "}
-                  Filtrati:{" "}
-                  <span className="text-slate-100 font-semibold">{filteredCables.length}</span>
-                </div>
-                <div className="mt-1 text-[11px] text-slate-400">
-                  Tip: usa chips P/T/R/B/E/NP + ricerca per filtrare rapidamente.
-                </div>
-              </div>
-
-              <div>
-                <Select
-                  value={commessa || ""}
-                  onChange={(v) => setCommessa(v)}
-                  options={commesseDisponibili.length ? commesseDisponibili : [{ value: commessaLabel, label: commessaLabel }]}
-                  placeholder={commesseDisponibili.length > 1 ? "Seleziona COMMESSA" : undefined}
-                />
-              </div>
+    <div className="p-3">
+      {/* CAPO Header */}
+      <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">INCA · Cockpit CAPO</div>
+            <div className="text-2xl font-semibold text-slate-50 leading-tight truncate">{headerTitle}</div>
+            <div className="text-[12px] text-slate-400 mt-1">
+              {ship ? (
+                <>
+                  Nave: <span className="text-slate-100 font-semibold">{norm(ship.code) || "—"}</span> ·{" "}
+                  <span className="text-slate-200">{norm(ship.name) || "—"}</span>
+                </>
+              ) : (
+                <>Nave: —</>
+              )}
             </div>
           </div>
 
-          {/* KPI strip */}
-          <div className="px-3 sm:px-4 py-3 border-b border-slate-800">
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              <KpiTile
-                label="Totale"
-                value={stats.total}
-                sub={`Copertura P: ${pct(stats.by.P, stats.total)}%`}
-                onClick={() => applyQuickFilter("")}
-                active={selectedSituazioni.length === 0}
-              />
-              <KpiTile
-                label="P · POSA"
-                value={stats.by.P}
-                sub={`${pct(stats.by.P, stats.total)}%`}
-                onClick={() => applyQuickFilter("P")}
-                active={selectedSituazioni.length === 1 && selectedSituazioni[0] === "P"}
-              />
-              <KpiTile
-                label="T · TERMINATO"
-                value={stats.by.T}
-                sub={`${pct(stats.by.T, stats.total)}%`}
-                onClick={() => applyQuickFilter("T")}
-                active={selectedSituazioni.length === 1 && selectedSituazioni[0] === "T"}
-              />
-              <KpiTile
-                label="R · RIPRESA"
-                value={stats.by.R}
-                sub={`${pct(stats.by.R, stats.total)}%`}
-                onClick={() => applyQuickFilter("R")}
-                active={selectedSituazioni.length === 1 && selectedSituazioni[0] === "R"}
-              />
-              <KpiTile
-                label="B · BLOCCATO"
-                value={stats.by.B}
-                sub={`${pct(stats.by.B, stats.total)}%`}
-                onClick={() => applyQuickFilter("B")}
-                active={selectedSituazioni.length === 1 && selectedSituazioni[0] === "B"}
-              />
-              <KpiTile
-                label="E · ELIMINATO"
-                value={stats.by.E}
-                sub={`${pct(stats.by.E, stats.total)}%`}
-                onClick={() => applyQuickFilter("E")}
-                active={selectedSituazioni.length === 1 && selectedSituazioni[0] === "E"}
-              />
-              <KpiTile
-                label="NP · NON PIAN."
-                value={stats.by.NP}
-                sub={`${pct(stats.by.NP, stats.total)}%`}
-                onClick={() => applyQuickFilter("NP")}
-                active={selectedSituazioni.length === 1 && selectedSituazioni[0] === "NP"}
-              />
-            </div>
-          </div>
+          <div className="flex items-start gap-2">
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="shrink-0 rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[12px] text-slate-200"
+            >
+              Indietro
+            </button>
 
-          {/* Controls */}
-          <div className="px-3 sm:px-4 py-3 border-b border-slate-800">
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_260px] gap-2">
-              <div className="flex flex-col gap-2">
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Cerca marca/codice cavo…"
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950/60 text-slate-50 px-3 py-2 text-[13px] outline-none focus:ring-2 focus:ring-emerald-500/60"
-                />
-
-                <div className="flex flex-wrap gap-2">
-                  {SITUAZIONI.map((k) => (
-                    <Chip
-                      key={k}
-                      active={selectedSituazioni.includes(k)}
-                      onClick={() => toggleSituazione(k)}
-                      title={`Filtra ${k}`}
-                    >
-                      {k}
-                    </Chip>
-                  ))}
-
-                  <button
-                    type="button"
-                    onClick={() => setOnlyNonPosati((v) => !v)}
-                    className={[
-                      "px-3 py-1.5 rounded-full text-[12px] font-semibold border transition",
-                      onlyNonPosati
-                        ? "bg-sky-600 text-white border-sky-500"
-                        : "bg-slate-900/40 text-slate-100 border-slate-700 hover:bg-slate-900/70",
-                    ].join(" ")}
-                    title="Nascondi POSA (P)"
-                  >
-                    Solo non P
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={clearFilters}
-                    className="px-3 py-1.5 rounded-full text-[12px] font-semibold border border-slate-700 bg-slate-950/60 hover:bg-slate-950"
-                  >
-                    Reset
-                  </button>
-                </div>
+            <div className="text-right text-[11px]">
+              {loadingFiles ? (
+                <span className="text-slate-400">Caricamento file…</span>
+              ) : (
+                <span className="text-slate-400">
+                  File: <span className="text-slate-200 font-semibold">{files?.length || 0}</span>
+                </span>
+              )}
+              <div className="mt-1">
+                {loading ? (
+                  <span className="text-slate-400">Caricamento cavi (batch {loadInfo.pageSize})…</span>
+                ) : (
+                  <span className="text-slate-400">
+                    Cavi visibili: <span className="text-slate-200 font-semibold">{totalCavi}</span>
+                  </span>
+                )}
               </div>
-
-              <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-3">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-slate-300">
-                  Metriche
-                </div>
-                <div className="mt-2 grid grid-cols-2 gap-2 text-[12px]">
-                  <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-2">
-                    <div className="text-slate-300 text-[11px]">Metri teorici</div>
-                    <div className="text-slate-50 font-semibold">{Math.round(stats.metriTeo)}</div>
-                  </div>
-                  <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-2">
-                    <div className="text-slate-300 text-[11px]">Metri posati</div>
-                    <div className="text-slate-50 font-semibold">{Math.round(stats.metriDis)}</div>
-                  </div>
-                </div>
-
-                {error ? (
-                  <div className="mt-2 text-[12px] text-rose-200 bg-rose-500/10 border border-rose-500/40 rounded-lg px-2 py-2">
-                    {error}
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          </div>
-
-          {/* List */}
-          <div className="px-3 sm:px-4 py-3">
-            {/* Mobile cards */}
-            <div className="md:hidden flex flex-col gap-2">
-              {filteredCables.map((c) => {
-                const k = situazioneKey(c.situazione);
-                const active = c.id === selectedCableId;
-
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => setSelectedCableId(c.id)}
-                    className={[
-                      "text-left rounded-2xl border p-3 transition",
-                      active
-                        ? "border-emerald-500 bg-emerald-500/10"
-                        : "border-slate-800 bg-slate-950/40 hover:bg-slate-950/60",
-                    ].join(" ")}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="min-w-0">
-                        <div className="text-[13px] font-semibold text-slate-50 truncate">
-                          {norm(c.marca_cavo) || "—"}
-                        </div>
-                        <div className="mt-1 text-[11px] text-slate-300">
-                          Disegno: <span className="text-slate-100 font-semibold">{Number(c.metri_teo ?? 0) || 0}</span>{" "}
-                          · Posati:{" "}
-                          <span className="text-slate-100 font-semibold">{Number(c.metri_dis ?? 0) || 0}</span>
-                        </div>
-                      </div>
-
-                      <div className="ml-auto flex flex-col items-end gap-2">
-                        <span
-                          className={[
-                            "px-2 py-1 rounded-full text-[11px] font-semibold border",
-                            k === "P"
-                              ? "bg-emerald-600 text-white border-emerald-500"
-                              : k === "T"
-                              ? "bg-sky-600 text-white border-sky-500"
-                              : k === "R"
-                              ? "bg-amber-600 text-white border-amber-500"
-                              : k === "B"
-                              ? "bg-rose-600 text-white border-rose-500"
-                              : k === "E"
-                              ? "bg-slate-600 text-white border-slate-500"
-                              : "bg-slate-900/40 text-slate-100 border-slate-700",
-                          ].join(" ")}
-                        >
-                          {k}
-                        </span>
-
-                        <select
-                          value={k}
-                          onChange={(e) => updateSituazione(c.id, e.target.value)}
-                          className="rounded-lg border border-slate-700 bg-slate-950/60 text-slate-50 px-2 py-1 text-[12px] outline-none"
-                        >
-                          {SITUAZIONI.map((x) => (
-                            <option key={x} value={x}>
-                              {x}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-
-              {filteredCables.length === 0 ? (
-                <div className="text-center text-[13px] text-slate-300 py-10">
-                  Nessun cavo trovato con i filtri attuali.
-                </div>
-              ) : null}
-            </div>
-
-            {/* Desktop table */}
-            <div className="hidden md:block">
-              <div className="rounded-2xl border border-slate-800 overflow-hidden">
-                <table className="w-full text-[12px]">
-                  <thead className="bg-slate-950/70">
-                    <tr className="text-slate-200">
-                      <th className="px-3 py-2 text-left">Marca / codice</th>
-                      <th className="px-3 py-2 text-right">Lung. disegno</th>
-                      <th className="px-3 py-2 text-right">Metri posati</th>
-                      <th className="px-3 py-2 text-center">Situazione</th>
-                      <th className="px-3 py-2 text-center">Azioni rapide</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredCables.map((c) => {
-                      const k = situazioneKey(c.situazione);
-                      const active = c.id === selectedCableId;
-
-                      return (
-                        <tr
-                          key={c.id}
-                          className={[
-                            "border-t border-slate-800",
-                            active ? "bg-emerald-500/10" : "bg-slate-950/30 hover:bg-slate-950/50",
-                          ].join(" ")}
-                          onClick={() => setSelectedCableId(c.id)}
-                        >
-                          <td className="px-3 py-2 font-semibold text-slate-50">
-                            {norm(c.marca_cavo) || "—"}
-                          </td>
-                          <td className="px-3 py-2 text-right text-slate-100">
-                            {Number(c.metri_teo ?? 0) || 0}
-                          </td>
-                          <td className="px-3 py-2 text-right text-slate-100">
-                            {Number(c.metri_dis ?? 0) || 0}
-                          </td>
-                          <td className="px-3 py-2 text-center">
-                            <span
-                              className={[
-                                "inline-flex px-2 py-1 rounded-full text-[11px] font-semibold border",
-                                k === "P"
-                                  ? "bg-emerald-600 text-white border-emerald-500"
-                                  : k === "T"
-                                  ? "bg-sky-600 text-white border-sky-500"
-                                  : k === "R"
-                                  ? "bg-amber-600 text-white border-amber-500"
-                                  : k === "B"
-                                  ? "bg-rose-600 text-white border-rose-500"
-                                  : k === "E"
-                                  ? "bg-slate-600 text-white border-slate-500"
-                                  : "bg-slate-900/40 text-slate-100 border-slate-700",
-                              ].join(" ")}
-                            >
-                              {k}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2 text-center">
-                            <div className="inline-flex items-center gap-2">
-                              <select
-                                value={k}
-                                onChange={(e) => updateSituazione(c.id, e.target.value)}
-                                className="rounded-lg border border-slate-700 bg-slate-950/60 text-slate-50 px-2 py-1 text-[12px] outline-none"
-                              >
-                                {SITUAZIONI.map((x) => (
-                                  <option key={x} value={x}>
-                                    {x}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-
-                    {filteredCables.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="px-3 py-10 text-center text-slate-300">
-                          Nessun cavo trovato con i filtri attuali.
-                        </td>
-                      </tr>
-                    ) : null}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Selected detail (desktop only) */}
-              {selectedCable ? (
-                <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
-                  <div className="text-[11px] uppercase tracking-[0.22em] text-slate-300">
-                    Dettaglio selezione
-                  </div>
-                  <div className="mt-1 flex items-start gap-3">
-                    <div className="min-w-0">
-                      <div className="text-[14px] font-semibold text-slate-50 truncate">
-                        {norm(selectedCable.marca_cavo) || "—"}
-                      </div>
-                      <div className="mt-1 text-[12px] text-slate-200">
-                        Disegno:{" "}
-                        <span className="font-semibold text-slate-50">
-                          {Number(selectedCable.metri_teo ?? 0) || 0}
-                        </span>{" "}
-                        · Posati:{" "}
-                        <span className="font-semibold text-slate-50">
-                          {Number(selectedCable.metri_dis ?? 0) || 0}
-                        </span>{" "}
-                        · Situazione:{" "}
-                        <span className="font-semibold text-emerald-300">
-                          {situazioneKey(selectedCable.situazione)}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="ml-auto flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => updateSituazione(selectedCable.id, "P")}
-                        className="px-3 py-1.5 rounded-lg border border-emerald-600 bg-emerald-600/15 hover:bg-emerald-600/25 text-[12px] font-semibold"
-                      >
-                        Set P
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => updateSituazione(selectedCable.id, "R")}
-                        className="px-3 py-1.5 rounded-lg border border-amber-600 bg-amber-600/15 hover:bg-amber-600/25 text-[12px] font-semibold"
-                      >
-                        Set R
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => updateSituazione(selectedCable.id, "B")}
-                        className="px-3 py-1.5 rounded-lg border border-rose-600 bg-rose-600/15 hover:bg-rose-600/25 text-[12px] font-semibold"
-                      >
-                        Set B
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => updateSituazione(selectedCable.id, "NP")}
-                        className="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-950/60 hover:bg-slate-950 text-[12px] font-semibold"
-                      >
-                        Set NP
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
             </div>
           </div>
         </div>
-
-        {/* Footer spacing for mobile */}
-        <div className="h-6" />
       </div>
+
+      {/* Controls */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 mt-3">
+        <div className="lg:col-span-4 rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
+          <div className="text-[11px] text-slate-500 uppercase tracking-wide mb-2">Filtri</div>
+
+          <div className="space-y-3">
+            <div>
+              <label className="text-[12px] text-slate-400 block mb-1">File INCA</label>
+              <select
+                value={fileId}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setFileId(v);
+                  const f = (files || []).find((x) => x.id === v);
+                  if (f) {
+                    setCostr(f.costr || "");
+                    setCommessa(f.commessa || "");
+                  }
+                }}
+                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[13px] text-slate-100"
+              >
+                {(files || []).map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {(f.costr || "—") + " · " + (f.commessa || "—") + " · " + (f.file_name || "file")}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-[12px] text-slate-400 block mb-1">
+                Ricerca (codice / zona / apparato / descrizione)
+              </label>
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Es: CAV-..., QUADRO, PONTE, ..."
+                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[13px] text-slate-100"
+              />
+            </div>
+
+            <PercorsoSearchBar
+              incaFileId={fileId}
+              value={percorsoNodes}
+              onChange={setPercorsoNodes}
+              disabled={loading || !fileId}
+              loading={percorsoLoading}
+              matchCount={percorsoMatchIds ? percorsoMatchIds.size : 0}
+              error={percorsoError}
+            />
+
+            <div className="flex items-center gap-2">
+              <label className="inline-flex items-center gap-2 text-[12px] text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={onlyP}
+                  onChange={(e) => {
+                    setOnlyP(e.target.checked);
+                    if (e.target.checked) setOnlyNP(false);
+                  }}
+                />
+                Solo P
+              </label>
+              <label className="inline-flex items-center gap-2 text-[12px] text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={onlyNP}
+                  onChange={(e) => {
+                    setOnlyNP(e.target.checked);
+                    if (e.target.checked) setOnlyP(false);
+                  }}
+                />
+                Solo NP
+              </label>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery("");
+                  setOnlyP(false);
+                  setOnlyNP(false);
+                  setPercorsoNodes([]);
+                }}
+                className="ml-auto rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[12px] text-slate-200"
+              >
+                Reset
+              </button>
+            </div>
+
+            {error && (
+              <div className="rounded-xl border border-amber-700 bg-amber-900/30 px-3 py-2 text-[12px] text-amber-200">
+                {error}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* KPIs + Chart */}
+        <div className="lg:col-span-8 rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[11px] uppercase tracking-wide text-slate-500">Panorama INCA</div>
+              <div className="text-[11px] text-slate-400">Distribuzione (clic per ingrandire).</div>
+            </div>
+            <div className="text-right text-[11px]">
+              <div className="text-slate-400">
+                Cavi: <span className="text-slate-100 font-semibold">{totalCavi}</span>
+              </div>
+              <div className="text-slate-400">
+                Metri teorici: <span className="text-slate-100 font-semibold">{formatMeters(totalMetri)}</span>
+              </div>
+              <div className="text-slate-400">
+                Metri posati (P):{" "}
+                <span className="text-emerald-200 font-semibold">{formatMeters(totalMetriPosati)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Barometer */}
+          <div className="flex items-center gap-3 mt-3">
+            <div className="flex-1">
+              <div className="flex items-center justify-between text-[10px] text-slate-500 mb-1">
+                <span>Produzione globale (P / tutti)</span>
+                <span className="text-sky-300 font-semibold">{prodPercent.toFixed(1)}%</span>
+              </div>
+              <div className="h-2 rounded-full bg-slate-900 overflow-hidden">
+                <div
+                  className="h-full rounded-full"
+                  style={{ width: `${Math.min(100, prodPercent)}%`, backgroundColor: colorForSituazione("P") }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {distrib.length > 0 && (
+            <div
+              className="h-28 mt-3 rounded-xl border border-slate-800 bg-slate-950/40 cursor-pointer"
+              role="button"
+              tabIndex={0}
+              onClick={() => setIsDistribModalOpen(true)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") setIsDistribModalOpen(true);
+              }}
+              title="Apri il grafico in grande"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={distrib}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                  <XAxis dataKey="code" tick={{ fontSize: 10, fill: "#64748b" }} />
+                  <YAxis tick={{ fontSize: 10, fill: "#64748b" }} />
+                  <Tooltip
+                    contentStyle={{
+                      background: "rgba(2,6,23,0.92)",
+                      border: "1px solid rgba(51,65,85,0.8)",
+                      borderRadius: 12,
+                      color: "#e2e8f0",
+                      fontSize: 12,
+                    }}
+                    formatter={(value) => [`${value}`, "Cavi"]}
+                  />
+                  <Bar dataKey="count" radius={[8, 8, 0, 0]}>
+                    {distrib.map((d) => (
+                      <Cell key={d.code} fill={colorForSituazione(d.code)} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/40 overflow-hidden">
+        <div className="flex items-center justify-between gap-3 px-3 py-2 border-b border-slate-800">
+          <div className="text-[11px] text-slate-500 uppercase tracking-wide">Cavi ({filteredCavi.length})</div>
+          <div className="text-[11px] text-slate-500">Click riga → dettagli</div>
+        </div>
+
+        {loading ? (
+          <div className="p-4">
+            <LoadingScreen message="Caricamento cavi…" />
+          </div>
+        ) : (
+          <div className="max-h-[62vh] overflow-auto">
+            <table className="w-full">
+              <thead className="sticky top-0 bg-slate-950/90 backdrop-blur border-b border-slate-800">
+                <tr className="text-left text-[11px] text-slate-500">
+                  <th className="px-3 py-2">Codice</th>
+                  <th className="px-3 py-2">Rev</th>
+                  <th className="px-3 py-2">Zona</th>
+                  <th className="px-3 py-2">Da → A</th>
+                  <th className="px-3 py-2">Marca</th>
+                  <th className="px-3 py-2">Situaz.</th>
+                  <th className="px-3 py-2 text-right">m teo</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {filteredCavi.map((r) => {
+                  const sRaw = (r.situazione || "").trim();
+                  const situ = sRaw && SITUAZIONI_ORDER.includes(sRaw) ? sRaw : "NP";
+
+                  const appDA = String(r.apparato_da || "").trim();
+                  const appA = String(r.apparato_a || "").trim();
+
+                  const statDA = appDA ? (apparatoPMaps.da.get(appDA) || { total: 0, pCount: 0, status: "RED" }) : null;
+                  const statA = appA ? (apparatoPMaps.a.get(appA) || { total: 0, pCount: 0, status: "RED" }) : null;
+
+                  return (
+                    <tr
+                      key={r.id}
+                      className="border-b border-slate-900/80 cursor-pointer"
+                      onClick={() => setSelectedCable(r)}
+                    >
+                      <td className="px-3 py-2">
+                        <CodicePill value={r.codice} dotColor={colorForSituazione(situ)} />
+                      </td>
+                      <td className="px-3 py-2 text-[12px] text-slate-300">{r.rev_inca || "—"}</td>
+                      <td className="px-3 py-2 text-[12px] text-slate-300">{r.zona_da || r.zona_a || "—"}</td>
+
+                      <td className="px-3 py-2">
+                        <div className="flex flex-col md:flex-row md:items-center gap-2">
+                          <ApparatoPill
+                            side="DA"
+                            value={appDA || "—"}
+                            stats={statDA}
+                            disabled={!appDA}
+                            onClick={(e) => openApparatoPopover(e, "DA", appDA)}
+                          />
+                          <span className="hidden md:inline text-slate-600" aria-hidden="true">
+                            →
+                          </span>
+                          <ApparatoPill
+                            side="A"
+                            value={appA || "—"}
+                            stats={statA}
+                            disabled={!appA}
+                            onClick={(e) => openApparatoPopover(e, "A", appA)}
+                          />
+                        </div>
+                      </td>
+
+                      <td className="px-3 py-2 text-[12px] text-slate-300">{r.marca_cavo || "—"}</td>
+
+                      <td className="px-3 py-2">
+                        <span className="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/60 px-2 py-0.5 text-[11px]">
+                          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: colorForSituazione(situ) }} />
+                          <span className="text-slate-200 font-semibold">{situ}</span>
+                        </span>
+                      </td>
+
+                      <td className="px-3 py-2 text-[12px] text-slate-200 text-right">
+                        {formatMeters(r.metri_teo || r.metri_dis)}
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {filteredCavi.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-3 py-10 text-center text-[12px] text-slate-500">
+                      Nessun cavo trovato con i filtri correnti.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Details panel */}
+      {selectedCable && (
+        <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[11px] text-slate-500 uppercase tracking-wide">Dettaglio cavo</div>
+              <div className="text-lg font-semibold text-slate-50">{selectedCable.codice}</div>
+              <div className="text-[12px] text-slate-400">{selectedCable.descrizione || "—"}</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedCable(null)}
+              className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[12px] text-slate-200"
+            >
+              Chiudi
+            </button>
+          </div>
+
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2">
+            <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2">
+              <div className="text-[10px] text-slate-500 uppercase tracking-wide">Situazione</div>
+              <div className="text-[13px] text-slate-100 font-semibold">
+                {(selectedCable.situazione || "NP").trim() || "NP"}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2">
+              <div className="text-[10px] text-slate-500 uppercase tracking-wide">Metri teo</div>
+              <div className="text-[13px] text-slate-100 font-semibold">
+                {formatMeters(selectedCable.metri_teo || selectedCable.metri_dis)}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2">
+              <div className="text-[10px] text-slate-500 uppercase tracking-wide">Marca / Tipo</div>
+              <div className="text-[13px] text-slate-100 font-semibold">
+                {(selectedCable.marca_cavo || "—") + " · " + (selectedCable.tipo || "—")}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Chart modal */}
+      {isDistribModalOpen && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/35 backdrop-blur-md p-2"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Dettaglio distribuzione INCA"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setIsDistribModalOpen(false);
+          }}
+        >
+          <div className="w-[min(98vw,1400px)] h-[92vh] overflow-auto rounded-2xl border border-slate-700 bg-slate-950/80 shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-slate-800 bg-slate-950/75 px-4 py-3 backdrop-blur">
+              <div>
+                <div className="text-[11px] text-slate-500 uppercase tracking-wide">Panorama INCA — Distribuzione</div>
+                <div className="text-lg font-semibold text-slate-50 leading-tight">Situazioni</div>
+                <div className="text-[12px] text-slate-400 mt-1">
+                  Totale: <span className="text-slate-100 font-semibold">{totalCavi}</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsDistribModalOpen(false)}
+                className="shrink-0 inline-flex items-center justify-center rounded-xl border border-slate-700 bg-slate-900/50 px-3 py-2 text-[12px] text-slate-200"
+              >
+                Chiudi
+              </button>
+            </div>
+
+            <div className="p-4">
+              <div className="rounded-2xl border border-slate-800 bg-slate-950/35 p-3">
+                <div className="h-[520px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={distrib}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                      <XAxis dataKey="code" tick={{ fontSize: 12, fill: "#94a3b8" }} />
+                      <YAxis tick={{ fontSize: 12, fill: "#94a3b8" }} />
+                      <Tooltip
+                        contentStyle={{
+                          background: "rgba(2,6,23,0.92)",
+                          border: "1px solid rgba(51,65,85,0.8)",
+                          borderRadius: 12,
+                          color: "#e2e8f0",
+                          fontSize: 12,
+                        }}
+                        formatter={(value) => [`${value}`, "Cavi"]}
+                      />
+                      <Bar dataKey="count" radius={[12, 12, 0, 0]}>
+                        {distrib.map((d) => (
+                          <Cell key={d.code} fill={colorForSituazione(d.code)} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="mt-3 text-[11px] text-slate-500 px-1">Nota: i filtri influenzano il grafico.</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Apparato popover */}
+      <ApparatoCaviPopover
+        open={apparatoPopoverOpen}
+        anchorRect={apparatoAnchorRect}
+        incaFileId={fileId}
+        side={apparatoPopoverSide}
+        apparato={apparatoPopoverName}
+        onClose={() => setApparatoPopoverOpen(false)}
+      />
     </div>
   );
 }

@@ -1,73 +1,163 @@
 // src/inca/useIncaImporter.js
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
-/**
- * Import INCA via Edge Function (XLSX / PDF).
- * AUCUN parsing PDF/XLSX ici.
- * Le front envoie juste le fichier brut.
- */
+function isXlsxFile(file) {
+  if (!file) return false;
+  const n = String(file.name || "").toLowerCase();
+  return n.endsWith(".xlsx") || n.endsWith(".xls");
+}
+
+function buildFormData({ file, costr, commessa, projectCode, note, mode }) {
+  const form = new FormData();
+  form.append("mode", mode);
+  form.append("costr", String(costr || "").trim());
+  form.append("commessa", String(commessa || "").trim());
+  form.append("projectCode", String(projectCode || "").trim());
+  form.append("note", String(note || "").trim());
+  form.append("fileName", file?.name || "inca.xlsx");
+  form.append("file", file);
+  return form;
+}
+
+function normalizeEdgeError(err) {
+  // supabase.functions.invoke() renvoie souvent une Error générique,
+  // mais on a parfois { context } / { details } / ou un body JSON.
+  if (!err) return new Error("Errore sconosciuto.");
+
+  if (err instanceof Error) return err;
+
+  try {
+    return new Error(typeof err === "string" ? err : JSON.stringify(err));
+  } catch {
+    return new Error("Errore sconosciuto.");
+  }
+}
+
 export function useIncaImporter() {
-  const [phase, setPhase] = useState("idle"); // idle | analyzing | importing
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null); // Error | string | null
+  const [phase, setPhase] = useState("idle"); // idle | analyzing | importing
+  const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
 
-  const run = useCallback(async ({ file, costr, commessa, projectCode, note, mode }) => {
-    setLoading(true);
+  const reset = useCallback(() => {
+    setLoading(false);
+    setPhase("idle");
     setError(null);
     setResult(null);
-    setPhase(mode === "DRY_RUN" ? "analyzing" : "importing");
-
-    try {
-      if (!file) throw new Error("Seleziona un file INCA (XLSX o PDF).");
-
-      const costrTrim = String(costr ?? "").trim();
-      const commessaTrim = String(commessa ?? "").trim();
-      const projectTrim = String(projectCode ?? "").trim();
-      const noteTrim = String(note ?? "").trim();
-
-      if (!costrTrim) throw new Error("COSTR obbligatorio.");
-      if (!commessaTrim) throw new Error("COMMESSA obbligatorio.");
-      if (mode !== "DRY_RUN" && mode !== "COMMIT") {
-        throw new Error('Mode invalido ("DRY_RUN" o "COMMIT").');
-      }
-
-      const form = new FormData();
-      form.append("file", file);
-      form.append("fileName", file?.name || "inca");
-      form.append("costr", costrTrim);
-      form.append("commessa", commessaTrim);
-      if (projectTrim) form.append("projectCode", projectTrim);
-      if (noteTrim) form.append("note", noteTrim);
-      form.append("mode", mode);
-
-      // IMPORTANT: invoke gère Authorization automatiquement via la session Supabase.
-      const { data, error: fnError } = await supabase.functions.invoke("inca-import", {
-        body: form,
-      });
-
-      if (fnError) {
-        // fnError.message est souvent plus clair que res.ok
-        throw new Error(fnError.message || "Errore Edge Function (inca-import).");
-      }
-
-      // data = réponse JSON de la Function
-      setResult(data);
-      return data;
-    } catch (e) {
-      console.error("[INCA Import]", e);
-      const err = e instanceof Error ? e : new Error(String(e));
-      setError(err);
-      throw err;
-    } finally {
-      setLoading(false);
-      setPhase("idle");
-    }
   }, []);
 
-  const dryRun = useCallback((p) => run({ ...p, mode: "DRY_RUN" }), [run]);
-  const commit = useCallback((p) => run({ ...p, mode: "COMMIT" }), [run]);
+  const invoke = useCallback(async (payload) => {
+    setError(null);
 
-  return { phase, loading, error, result, dryRun, commit };
+    const { data, error: e } = await supabase.functions.invoke("inca-import", {
+      body: payload,
+    });
+
+    if (e) {
+      // essaye de reconstituer un message utile
+      const msg =
+        e?.message ||
+        "Edge Function returned a non-2xx status code";
+
+      const err = new Error(msg);
+      err.details = e;
+      throw err;
+    }
+
+    if (!data || data.ok !== true) {
+      const msg = data?.error || "Errore Edge Function.";
+      const err = new Error(msg);
+      err.details = data?.extra || data;
+      throw err;
+    }
+
+    return data;
+  }, []);
+
+  const dryRun = useCallback(
+    async ({ file, costr, commessa, projectCode, note }) => {
+      try {
+        setLoading(true);
+        setPhase("analyzing");
+        setResult(null);
+        setError(null);
+
+        if (!file) throw new Error("Seleziona un file XLSX.");
+        if (!isXlsxFile(file)) {
+          throw new Error("CORE 1.0: il PDF è disattivato. Usa un file .xlsx/.xls.");
+        }
+
+        const form = buildFormData({
+          file,
+          costr,
+          commessa,
+          projectCode,
+          note,
+          mode: "DRY_RUN",
+        });
+
+        const data = await invoke(form);
+        setResult(data);
+        return data;
+      } catch (err) {
+        const e = normalizeEdgeError(err);
+        setError(e);
+        throw e;
+      } finally {
+        setLoading(false);
+        setPhase("idle");
+      }
+    },
+    [invoke]
+  );
+
+  const commit = useCallback(
+    async ({ file, costr, commessa, projectCode, note }) => {
+      try {
+        setLoading(true);
+        setPhase("importing");
+        setError(null);
+
+        if (!file) throw new Error("Seleziona un file XLSX.");
+        if (!isXlsxFile(file)) {
+          throw new Error("CORE 1.0: il PDF è disattivato. Usa un file .xlsx/.xls.");
+        }
+
+        const form = buildFormData({
+          file,
+          costr,
+          commessa,
+          projectCode,
+          note,
+          mode: "COMMIT",
+        });
+
+        const data = await invoke(form);
+        setResult(data);
+        return data;
+      } catch (err) {
+        const e = normalizeEdgeError(err);
+        setError(e);
+        throw e;
+      } finally {
+        setLoading(false);
+        setPhase("idle");
+      }
+    },
+    [invoke]
+  );
+
+  return useMemo(
+    () => ({
+      dryRun,
+      commit,
+      loading,
+      phase,
+      error,
+      result,
+      reset,
+    }),
+    [dryRun, commit, loading, phase, error, result, reset]
+  );
 }

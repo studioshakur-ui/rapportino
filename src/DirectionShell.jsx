@@ -1,9 +1,8 @@
 // src/DirectionShell.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useLocation, Routes, Route } from "react-router-dom";
+import { Link, useNavigate, useLocation, Routes, Route, Navigate } from "react-router-dom";
 
 import { useAuth } from "./auth/AuthProvider";
-import ConnectionIndicator from "./components/ConnectionIndicator";
 import DirectionDashboard from "./components/DirectionDashboard";
 import ArchivePage from "./pages/Archive";
 import CorePresentationPopup from "./components/CorePresentationPopup";
@@ -14,46 +13,7 @@ import UfficioRapportiniList from "./ufficio/UfficioRapportiniList";
 import UfficioRapportinoDetail from "./ufficio/UfficioRapportinoDetail";
 import UfficioIncaHub from "./ufficio/UfficioIncaHub";
 
-/* =========================
-   Small icon set (inline)
-   ========================= */
-function NavIcon({ name, className = "" }) {
-  const base = "h-4 w-4";
-  switch (name) {
-    case "dashboard":
-      return (
-        <svg className={`${base} ${className}`} viewBox="0 0 24 24" fill="none">
-          <rect x="3" y="3" width="8" height="8" rx="2" stroke="currentColor" />
-          <rect x="13" y="3" width="8" height="5" rx="2" stroke="currentColor" />
-          <rect x="13" y="10" width="8" height="11" rx="2" stroke="currentColor" />
-          <rect x="3" y="13" width="8" height="8" rx="2" stroke="currentColor" />
-        </svg>
-      );
-    case "presentation":
-      return (
-        <svg className={`${base} ${className}`} viewBox="0 0 24 24" fill="none">
-          <path d="M4 5h16v10H4z" stroke="currentColor" />
-          <path d="M8 19h8" stroke="currentColor" />
-        </svg>
-      );
-    case "ufficio":
-      return (
-        <svg className={`${base} ${className}`} viewBox="0 0 24 24" fill="none">
-          <path d="M4 21V7l8-4 8 4v14" stroke="currentColor" />
-          <path d="M9 21v-6h6v6" stroke="currentColor" />
-        </svg>
-      );
-    case "archive":
-      return (
-        <svg className={`${base} ${className}`} viewBox="0 0 24 24" fill="none">
-          <rect x="3" y="4" width="18" height="6" rx="2" stroke="currentColor" />
-          <rect x="3" y="10" width="18" height="10" rx="2" stroke="currentColor" />
-        </svg>
-      );
-    default:
-      return null;
-  }
-}
+import CNCSSidebar from "./components/shell/CNCSSidebar";
 
 /* =========================
    Theme init
@@ -71,7 +31,7 @@ function getInitialTheme() {
 }
 
 /* =========================
-   Ufficio View
+   Ufficio View (inside Direzione)
    ========================= */
 function UfficioView({ isDark }) {
   const location = useLocation();
@@ -134,7 +94,7 @@ function UfficioView({ isDark }) {
           className={j(tabBase, isHere("/direction/ufficio-view/core-drive") ? tabOn : tabOff)}
         >
           <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
-          Archive
+          CORE Drive
         </Link>
 
         <span className="ml-1 inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/20 px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-slate-500">
@@ -149,7 +109,11 @@ function UfficioView({ isDark }) {
             <Route path="/" element={<UfficioRapportiniList />} />
             <Route path="rapportini/:id" element={<UfficioRapportinoDetail />} />
             <Route path="inca" element={<UfficioIncaHub />} />
-            <Route path="archive" element={<ArchivePage />} />
+
+            {/* CANONIQUE */}
+            <Route path="core-drive" element={<ArchivePage />} />
+            {/* ALIAS legacy (non UX) : redirection */}
+            <Route path="archive" element={<Navigate to="../core-drive" replace />} />
           </Routes>
         </div>
       </div>
@@ -169,6 +133,7 @@ export default function DirectionShell() {
   const isDark = theme === "dark";
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarPeek, setSidebarPeek] = useState(false);
 
   // Presentation modal state
   const [showPresentationModal, setShowPresentationModal] = useState(false);
@@ -189,10 +154,7 @@ export default function DirectionShell() {
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(
-        "core-sidebar-collapsed-direction",
-        sidebarCollapsed ? "1" : "0"
-      );
+      window.localStorage.setItem("core-sidebar-collapsed-direction", sidebarCollapsed ? "1" : "0");
     } catch {}
   }, [sidebarCollapsed]);
 
@@ -208,32 +170,6 @@ export default function DirectionShell() {
       // ignore
     }
   }, []);
-
-  const effectiveCollapsed = sidebarCollapsed;
-
-  const isActive = (path) => {
-    const p = location.pathname || "";
-    if (path === "/direction") return p === "/direction" || p === "/direction/";
-    return p === path || p.startsWith(path + "/");
-  };
-
-  // --- Presentation context (CAPO button)
-  const pathname = location.pathname || "";
-  const isInPresentation = pathname.startsWith("/direction/presentazione");
-  const isInCapoPresentation = pathname.startsWith("/direction/presentazione/capo");
-
-  const navItemClasses = (active) => {
-    const base =
-      "w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm border transition-colors";
-    if (active) {
-      return isDark
-        ? `${base} bg-sky-500/12 border-sky-500/55 text-slate-100`
-        : `${base} bg-sky-50 border-sky-400 text-slate-900`;
-    }
-    return isDark
-      ? `${base} bg-slate-950/20 border-slate-800 text-slate-300 hover:bg-slate-900/35`
-      : `${base} bg-white border-slate-200 text-slate-700 hover:bg-slate-50`;
-  };
 
   const handleLogout = async () => {
     try {
@@ -263,134 +199,61 @@ export default function DirectionShell() {
     return r ? String(r).toUpperCase() : "DIREZIONE";
   }, [profile?.role]);
 
+  const pathname = location.pathname || "";
+  const isInPresentation = pathname.startsWith("/direction/presentazione");
+  const isInCapoPresentation = pathname.startsWith("/direction/presentazione/capo");
+
+  // Page label (Topbar)
+  const pageLabel = useMemo(() => {
+    if (pathname.startsWith("/direction/core-drive") || pathname.startsWith("/direction/archive")) return "CORE Drive";
+    if (pathname.startsWith("/direction/ufficio-view")) return "Vista Ufficio";
+    if (pathname.startsWith("/direction/presentazione")) return "Presentazione";
+    return "Dashboard Direzione";
+  }, [pathname]);
+
+  const driveTopGlow =
+    pathname.startsWith("/direction/core-drive") || pathname.startsWith("/direction/archive")
+      ? "bg-gradient-to-r from-violet-950/55 via-slate-950/35 to-slate-950/20"
+      : "bg-transparent";
+
   return (
-    <div
-      className={
-        isDark ? "min-h-screen bg-[#050910] text-slate-100" : "min-h-screen bg-slate-50 text-slate-900"
-      }
-    >
+    <div className={isDark ? "min-h-screen bg-[#050910] text-slate-100" : "min-h-screen bg-slate-50 text-slate-900"}>
       <div className="flex">
-        {/* SIDEBAR */}
-        <aside
-          className={[
-            "sticky top-0 h-screen border-r",
-            isDark ? "border-slate-800 bg-[#050910]" : "border-slate-200 bg-white",
-            effectiveCollapsed ? "w-16" : "w-64",
-            "transition-all",
-          ].join(" ")}
-        >
-          <div className="p-3">
-            {/* header */}
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <div className="h-9 w-9 rounded-xl border border-slate-800 bg-slate-950/30" />
-                {!effectiveCollapsed && (
-                  <div>
-                    <div className="text-[11px] uppercase tracking-[0.24em] text-slate-500">
-                      CNCS
-                    </div>
-                    <div className="text-sm font-semibold">Direzione</div>
-                  </div>
-                )}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setSidebarCollapsed((v) => !v)}
-                className="rounded-xl border border-slate-800 bg-slate-950/20 px-2 py-2"
-                title="Toggle sidebar"
-                aria-label="Toggle sidebar"
-              >
-                {effectiveCollapsed ? "›" : "‹"}
-              </button>
-            </div>
-
-            {/* role */}
-            <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/20 p-3">
-              <div className="flex items-center justify-between gap-2">
-                {!effectiveCollapsed && (
-                  <div>
-                    <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
-                      Ruolo
-                    </div>
-                    <div className="text-sm font-semibold">{roleLabel}</div>
-                  </div>
-                )}
-                <ConnectionIndicator compact />
-              </div>
-            </div>
-
-            {/* nav */}
-            <nav className="mt-3 space-y-2">
-              <Link to="/direction" title="Dashboard" className={navItemClasses(isActive("/direction"))}>
-                {effectiveCollapsed ? (
-                  <NavIcon name="dashboard" className="text-sky-400 mx-auto" />
-                ) : (
-                  <>
-                    <NavIcon name="dashboard" className="text-sky-400" />
-                    <span>Dashboard</span>
-                  </>
-                )}
-              </Link>
-
-              <Link
-                to="/direction/presentazione"
-                title="Presentazione"
-                className={navItemClasses(isActive("/direction/presentazione"))}
-              >
-                {effectiveCollapsed ? (
-                  <NavIcon name="presentation" className="text-violet-400 mx-auto" />
-                ) : (
-                  <>
-                    <NavIcon name="presentation" className="text-violet-400" />
-                    <span>Presentazione</span>
-                  </>
-                )}
-              </Link>
-
-              <Link
-                to="/direction/ufficio-view"
-                title="Vista Ufficio"
-                className={navItemClasses(isActive("/direction/ufficio-view"))}
-              >
-                {effectiveCollapsed ? (
-                  <NavIcon name="ufficio" className="text-emerald-400 mx-auto" />
-                ) : (
-                  <>
-                    <NavIcon name="ufficio" className="text-emerald-400" />
-                    <span>Vista Ufficio</span>
-                  </>
-                )}
-              </Link>
-
-              <Link
-                to="/direction/core-drive"
-                title="Archive"
-                className={navItemClasses(isActive("/direction/core-drive"))}
-              >
-                {effectiveCollapsed ? (
-                  <NavIcon name="archive" className="text-amber-400 mx-auto" />
-                ) : (
-                  <>
-                    <NavIcon name="archive" className="text-amber-400" />
-                    <span>CORE Drive</span>
-                  </>
-                )}
-              </Link>
-            </nav>
-          </div>
-        </aside>
+        {/* SIDEBAR — unified with Ufficio/App (collapse + peek) */}
+        <CNCSSidebar
+          isDark={isDark}
+          title="Direzione"
+          roleLabel={roleLabel}
+          collapsed={sidebarCollapsed}
+          setCollapsed={setSidebarCollapsed}
+          sidebarPeek={sidebarPeek}
+          setSidebarPeek={setSidebarPeek}
+          navItems={[
+            { to: "/direction", label: "Dashboard", icon: "dashboard", colorClass: "text-sky-400", end: true },
+            { to: "/direction/presentazione", label: "Presentazione", icon: "presentation", colorClass: "text-violet-400" },
+            { to: "/direction/ufficio-view", label: "Vista Ufficio", icon: "ufficio", colorClass: "text-emerald-400" },
+            { to: "/direction/core-drive", label: "CORE Drive", icon: "archive", colorClass: "text-amber-400" },
+          ]}
+        />
 
         {/* MAIN */}
         <main className="flex-1 px-4 sm:px-6 py-6">
-          {/* TOP BAR */}
-          <header className="no-print sticky top-0 z-30 rounded-2xl border border-slate-800 bg-[#050910]/70 backdrop-blur px-3 py-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">
+          {/* TOP BAR — same family as others */}
+          <header
+            className={[
+              "no-print sticky top-0 z-30 rounded-2xl border backdrop-blur px-3 py-2",
+              isDark ? "border-slate-800 bg-[#050910]/70" : "border-slate-200 bg-white/70",
+              driveTopGlow,
+            ].join(" ")}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500 truncate">
                   DIREZIONE · CNCS / CORE
                 </div>
-                <div className="text-sm font-semibold">Dashboard Direzione</div>
+                <div className={["text-sm font-semibold truncate", isDark ? "text-slate-100" : "text-slate-900"].join(" ")} title={pageLabel}>
+                  {pageLabel}
+                </div>
               </div>
 
               <button
@@ -408,9 +271,7 @@ export default function DirectionShell() {
           {isInPresentation ? (
             <div className="no-print mt-3 rounded-2xl border border-slate-800 bg-slate-950/20 px-3 py-2">
               <div className="flex items-center justify-between gap-3">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
-                  Presentazione
-                </div>
+                <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Presentazione</div>
 
                 <div className="flex items-center gap-2">
                   {!isInCapoPresentation ? (
@@ -451,7 +312,11 @@ export default function DirectionShell() {
               <Route path="presentazione" element={<CorePresentation />} />
               <Route path="presentazione/capo" element={<CapoPresentation />} />
               <Route path="ufficio-view/*" element={<UfficioView isDark={isDark} />} />
-              <Route path="archive" element={<ArchivePage />} />
+
+              {/* CANONIQUE */}
+              <Route path="core-drive" element={<ArchivePage />} />
+              {/* ALIAS legacy (non UX) : redirection */}
+              <Route path="archive" element={<Navigate to="core-drive" replace />} />
             </Routes>
           </div>
 

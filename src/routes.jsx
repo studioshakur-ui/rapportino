@@ -1,6 +1,6 @@
 // src/routes.jsx
 import React from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 
 import RequireRole from "./auth/RequireRole";
 
@@ -31,7 +31,8 @@ import UfficioRapportiniList from "./ufficio/UfficioRapportiniList";
 import UfficioRapportinoDetail from "./ufficio/UfficioRapportinoDetail";
 import UfficioIncaHub from "./ufficio/UfficioIncaHub";
 
-// ARCHIVE
+// CORE DRIVE (UX) — on réutilise l'impl existante de ArchivePage,
+// mais la route canonique devient /core-drive.
 import ArchivePage from "./pages/Archive";
 
 export default function AppRoutes() {
@@ -77,10 +78,17 @@ export default function AppRoutes() {
       >
         <Route index element={<ShipSelector />} />
         <Route path="ship/:shipId" element={<CapoModuleSelector />} />
-        <Route path="ship/:shipId/rapportino/role" element={<CapoRoleSelector />} />
+        <Route
+          path="ship/:shipId/rapportino/role"
+          element={<CapoRoleSelector />}
+        />
         <Route path="ship/:shipId/rapportino" element={<RapportinoPage />} />
         <Route path="ship/:shipId/inca" element={<IncaCapoCockpit />} />
-        <Route path="archive" element={<ArchivePage />} />
+
+        {/* CANONIQUE */}
+        <Route path="core-drive" element={<ArchivePage />} />
+        {/* ALIAS legacy (non UX) */}
+        <Route path="archive" element={<Navigate to="../core-drive" replace />} />
       </Route>
 
       {/* ===== UFFICIO ===== */}
@@ -96,7 +104,11 @@ export default function AppRoutes() {
         <Route path="rapportini/:id" element={<UfficioRapportinoDetail />} />
         {/* INCA HUB (modal fullscreen cockpit) */}
         <Route path="inca" element={<UfficioIncaHub />} />
-        <Route path="archive" element={<ArchivePage />} />
+
+        {/* CANONIQUE */}
+        <Route path="core-drive" element={<ArchivePage />} />
+        {/* ALIAS legacy (non UX) */}
+        <Route path="archive" element={<Navigate to="core-drive" replace />} />
       </Route>
 
       {/* ===== MANAGER ===== */}

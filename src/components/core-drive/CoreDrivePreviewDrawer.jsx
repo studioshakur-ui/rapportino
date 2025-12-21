@@ -2,12 +2,18 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { getSignedUrl } from "../../services/coreDrive.api";
 import Badge from "./ui/Badge";
-import { bytes, formatDate, formatDateTime } from "./docs/coreDriveDocsUi";
-
+import { bytes, formatDateTime } from "./docs/coreDriveDocsUi";
+import { useCoreDriveEvents } from "../../hooks/useCoreDriveEvents";
 
 export default function CoreDrivePreviewDrawer({ file, onClose }) {
   const [url, setUrl] = useState(null);
   const [err, setErr] = useState(null);
+
+  const {
+    data: events,
+    isLoading: eventsLoading,
+    error: eventsError,
+  } = useCoreDriveEvents(file?.id, { limit: 12 });
 
   const isPdf = useMemo(() => {
     const mt = (file?.mime_type || "").toLowerCase();
@@ -50,8 +56,11 @@ export default function CoreDrivePreviewDrawer({ file, onClose }) {
               {file.cantiere ? <Badge>{file.cantiere}</Badge> : null}
               {file.categoria ? <Badge>{file.categoria}</Badge> : null}
               {file.origine ? <Badge tone="info">{file.origine}</Badge> : null}
+              {file.is_frozen ? <Badge tone="warn">FROZEN</Badge> : null}
+              {file.is_deleted ? <Badge tone="danger">STORICO</Badge> : null}
               {file.stato_doc ? <Badge tone="ok">{file.stato_doc}</Badge> : null}
               {file.commessa ? <Badge tone="neutral">{file.commessa}</Badge> : null}
+              {file.size_bytes ? <Badge tone="neutral">{bytes(file.size_bytes)}</Badge> : null}
             </div>
 
             <div className="mt-1 text-xs text-slate-500">{formatDateTime(file.created_at)}</div>
@@ -117,6 +126,48 @@ export default function CoreDrivePreviewDrawer({ file, onClose }) {
               </div>
             </div>
           )}
+
+          {/* Canonical event log (naval-grade) */}
+          <div className="mt-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+            <div className="flex items-center justify-between">
+              <div className="text-xs font-medium text-slate-400">Eventi (registro)</div>
+              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">append-only</div>
+            </div>
+
+            {eventsLoading ? (
+              <div className="mt-2 text-sm text-slate-500">Caricamento eventi…</div>
+            ) : eventsError ? (
+              <div className="mt-2 text-sm text-rose-200">Errore eventi.</div>
+            ) : (events || []).length === 0 ? (
+              <div className="mt-2 text-sm text-slate-500">Nessun evento registrato.</div>
+            ) : (
+              <div className="mt-2 space-y-2">
+                {(events || []).map((ev) => (
+                  <div
+                    key={ev.id}
+                    className="flex items-start justify-between gap-3 rounded-lg border border-slate-800/70 bg-slate-950/40 px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-xs text-slate-200">
+                        <span className="font-semibold">
+                          {String(ev.event_type || "").replace(/_/g, " ")}
+                        </span>
+                        {ev.actor_role ? (
+                          <span className="ml-2 text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                            {ev.actor_role}
+                          </span>
+                        ) : null}
+                      </div>
+                      {ev.payload?.reason ? (
+                        <div className="mt-0.5 text-xs text-slate-400">Motivo: {ev.payload.reason}</div>
+                      ) : null}
+                    </div>
+                    <div className="shrink-0 text-[11px] text-slate-500">{formatDateTime(ev.created_at)}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

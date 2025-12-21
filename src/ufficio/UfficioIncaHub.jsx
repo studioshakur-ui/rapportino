@@ -68,7 +68,6 @@ export default function UfficioIncaHub() {
 
   return (
     <div className="p-4">
-      {/* TOP: header compact */}
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
           <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
@@ -78,7 +77,7 @@ export default function UfficioIncaHub() {
             INCA · avanzamento cavi
           </div>
           <div className="text-[12px] text-slate-400 mt-1">
-            Import · file · cockpit.
+            Import XLSX · file · cockpit. (CORE 1.0: PDF disattivato)
           </div>
         </div>
 
@@ -87,7 +86,7 @@ export default function UfficioIncaHub() {
             type="button"
             onClick={() => setImportOpen(true)}
             className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/40 px-4 py-2 text-[13px] font-semibold text-slate-200 hover:bg-slate-900/60"
-            title="Importa un file INCA (XLSX/PDF)"
+            title="Importa un file INCA (XLSX)"
           >
             Importa INCA
           </button>
@@ -110,7 +109,6 @@ export default function UfficioIncaHub() {
         </div>
       </div>
 
-      {/* Error */}
       {error && (
         <div className="mb-3 rounded-xl border border-amber-700 bg-amber-900/30 px-3 py-2 text-[12px] text-amber-200">
           {error}
@@ -118,7 +116,6 @@ export default function UfficioIncaHub() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-        {/* IMPORT CARD */}
         <div className="lg:col-span-7 rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -126,7 +123,7 @@ export default function UfficioIncaHub() {
                 Import INCA
               </div>
               <div className="text-[13px] text-slate-200 font-semibold">
-                XLSX (PDF in fase successiva)
+                XLSX (CORE 1.0)
               </div>
             </div>
 
@@ -140,11 +137,10 @@ export default function UfficioIncaHub() {
           </div>
 
           <div className="mt-3 text-[12px] text-slate-500">
-            Regola: il cockpit lavora su file INCA già importati.
+            Regola: il cockpit lavora su file INCA già importati (inca_cavi).
           </div>
         </div>
 
-        {/* RIGHT: Projects / active ships */}
         <div className="lg:col-span-5 rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
           <div className="flex items-center justify-between">
             <div>
@@ -155,15 +151,13 @@ export default function UfficioIncaHub() {
                 Vista sintetica
               </div>
             </div>
-            <div className="text-[11px] text-slate-500">
-              {files.length} file
-            </div>
+            <div className="text-[11px] text-slate-500">{files.length} file</div>
           </div>
 
           <div className="mt-3 rounded-xl border border-slate-800 bg-slate-950/35 px-3 py-3">
             {files.length === 0 ? (
               <div className="text-[12px] text-slate-500">
-                Nessun progetto attivo. Importa un file INCA.
+                Nessun progetto attivo. Importa un file INCA (XLSX).
               </div>
             ) : (
               <div className="text-[12px] text-slate-400">
@@ -179,7 +173,6 @@ export default function UfficioIncaHub() {
         </div>
       </div>
 
-      {/* FILES TABLE */}
       <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/40 overflow-hidden">
         <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-800">
           <div>
@@ -270,9 +263,7 @@ export default function UfficioIncaHub() {
               <span className="text-slate-100 font-semibold">
                 {selectedFile.costr || "—"} · {selectedFile.commessa || "—"}
               </span>{" "}
-              <span className="text-slate-500">
-                · {selectedFile.file_name || "—"}
-              </span>
+              <span className="text-slate-500">· {selectedFile.file_name || "—"}</span>
             </div>
 
             <button
@@ -286,22 +277,19 @@ export default function UfficioIncaHub() {
         )}
       </div>
 
-      {/* IMPORT MODAL */}
       <IncaImportModal
         open={importOpen}
         onClose={() => setImportOpen(false)}
         defaultCostr={headerCostr || ""}
         defaultCommessa={headerCommessa || ""}
         onImported={(data) => {
-          // si commit renvoie inca_file_id, on le sélectionne direct
-          const newId = data?.inca_file_id || null;
+          const newId = data?.inca_file_id || data?.inca_file?.id || null;
           setImportOpen(false);
           if (newId) setSelectedFileId(newId);
-          window.location.reload(); // simple & fiable (tu améliorera ensuite)
+          window.location.reload();
         }}
       />
 
-      {/* FULLSCREEN COCKPIT MODAL */}
       <IncaCockpitModal
         open={cockpitOpen}
         incaFileId={selectedFileId}

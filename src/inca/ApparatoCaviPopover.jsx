@@ -1,5 +1,23 @@
+// src/components/ApparatoCaviPopover.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
+
+/**
+ * APPARATO CAVI — Popover (CORE 1.0) — UI tightened
+ * - Affiche un état "vu" par côté DA/A :
+ *   - 100% => P sur DA + A
+ *   - >=50% => P sur le côté choisi (progress_side), T sur l'autre
+ *   - sinon => fallback sur INCA globale (situazione, NULL => NP)
+ *
+ * IMPORTANT (fix naval-grade):
+ * - NE JAMAIS "inventer" un progress_side (pas de défaut DA si NULL).
+ * - Le mode "par côté" s'active uniquement si progress_percent ET progress_side sont réellement persistés.
+ *
+ * UI simplification:
+ * - Header compact
+ * - Contrôles en une ligne
+ * - Table: 3 colonnes utiles (Codice, Stato, Metri/Pagina)
+ */
 
 function badgeClass(s) {
   switch (s) {
@@ -20,6 +38,39 @@ function badgeClass(s) {
 
 function labelSituazione(s) {
   return s ? s : "NP";
+}
+
+function normalizeKey(raw) {
+  const v = raw == null ? "" : String(raw).trim();
+  return v ? v : "NP";
+}
+
+function normalizeProgressPercent(raw) {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  if (n === 50 || n === 70 || n === 100) return n;
+  return null;
+}
+
+function normalizeProgressSideNullable(raw) {
+  const v = raw == null ? "" : String(raw).trim();
+  if (v === "DA" || v === "A") return v;
+  return null; // IMPORTANT: no default
+}
+
+function situazionePerSide(row, side) {
+  const percent = normalizeProgressPercent(row?.progress_percent);
+  const fromSide = normalizeProgressSideNullable(row?.progress_side);
+
+  // Apply "per-side" logic only if both are present (persisted)
+  if (percent != null && fromSide) {
+    if (percent >= 100) return "P";
+    if (percent >= 50) return fromSide === side ? "P" : "T";
+  }
+
+  // Fallback: INCA global situazione
+  const global = normalizeKey(row?.situazione);
+  return global === "NP" ? "NP" : global;
 }
 
 export default function ApparatoCaviPopover({
@@ -46,9 +97,7 @@ export default function ApparatoCaviPopover({
 
         const { data, error } = await supabase
           .from("inca_cavi")
-          .select(
-            "id,marca_cavo,codice,situazione,metri_teo,metri_dis,pagina_pdf"
-          )
+          .select("id,marca_cavo,codice,situazione,metri_teo,pagina_pdf,progress_percent,progress_side")
           .eq("inca_file_id", incaFileId)
           .eq(field, apparato)
           .order("marca_cavo", { ascending: true });
@@ -72,17 +121,16 @@ export default function ApparatoCaviPopover({
   const filtered = useMemo(() => {
     const qq = q.trim().toLowerCase();
     return rows.filter((r) => {
-      const s = r.situazione ?? "NP";
+      const s = situazionePerSide(r, side);
+
       if (filter && s !== filter) return false;
       if (!qq) return true;
 
-      return (
-        `${r.marca_cavo || ""} ${r.codice || ""} ${r.pagina_pdf || ""}`
-          .toLowerCase()
-          .includes(qq)
-      );
+      return `${r.marca_cavo || ""} ${r.codice || ""} ${r.pagina_pdf || ""}`
+        .toLowerCase()
+        .includes(qq);
     });
-  }, [rows, q, filter]);
+  }, [rows, q, filter, side]);
 
   const total = rows.length;
   const visible = filtered.length;
@@ -94,11 +142,7 @@ export default function ApparatoCaviPopover({
   }
 
   const statusDot =
-    status === "GREEN"
-      ? "bg-emerald-400"
-      : status === "YELLOW"
-      ? "bg-amber-400"
-      : "bg-rose-400";
+    status === "GREEN" ? "bg-emerald-400" : status === "YELLOW" ? "bg-amber-400" : "bg-rose-400";
 
   const sideLabel = side === "DA" ? "APP PARTENZA" : "APP ARRIVO";
 
@@ -106,61 +150,68 @@ export default function ApparatoCaviPopover({
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center">
-      {/* overlay */}
       <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-md"
+        className="absolute inset-0 bg-black/60 backdrop-blur-md"
         onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}
       />
 
-      {/* panel — CENTRÉ */}
       <div
-        className="relative w-[min(720px,calc(100vw-24px))] max-h-[90vh]
-                   rounded-2xl border border-white/10
-                   bg-slate-950/75 shadow-2xl backdrop-blur-xl
-                   flex flex-col overflow-hidden"
+        className={[
+          "relative w-[min(760px,calc(100vw-24px))] max-h-[90vh]",
+          "rounded-2xl border border-slate-800",
+          "bg-slate-950 shadow-2xl",
+          "flex flex-col overflow-hidden",
+        ].join(" ")}
         role="dialog"
         aria-modal="true"
       >
-        {/* header */}
-        <div className="px-4 py-3 flex justify-between items-start border-b border-white/10">
-          <div>
+        {/* header (compact) */}
+        <div className="px-4 py-3 flex justify-between items-start border-b border-slate-800 bg-slate-950/80">
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-[11px] uppercase text-slate-400">
-                {sideLabel}
-              </span>
+              <span className="text-[11px] uppercase tracking-[0.22em] text-slate-400">{sideLabel}</span>
               <span className={`h-2 w-2 rounded-full ${statusDot}`} />
+              <span className="text-[11px] text-slate-500">
+                <span className="text-slate-200 font-semibold">{visible}</span> / {total}
+              </span>
             </div>
-            <div className="text-lg font-semibold text-slate-100 mt-0.5">
-              {apparato}
-            </div>
-            <div className="text-[11px] text-slate-400 mt-1">
-              Visibili <strong>{visible}</strong> / {total}
-            </div>
+            <div className="text-lg font-semibold text-slate-100 mt-0.5 truncate">{apparato}</div>
           </div>
 
           <button
             onClick={onClose}
-            className="rounded-xl border border-white/10 bg-white/5
-                       px-3 py-2 text-[12px] text-slate-200 hover:bg-white/10"
+            className={[
+              "rounded-xl border border-slate-700 bg-slate-950/60",
+              "px-3 py-2 text-[12px] font-semibold text-slate-200",
+              "hover:bg-slate-900/50",
+              "focus:outline-none focus:ring-2 focus:ring-sky-500/35",
+            ].join(" ")}
           >
             Chiudi
           </button>
         </div>
 
-        {/* controls */}
-        <div className="px-4 py-3 border-b border-white/10 flex gap-2">
+        {/* controls (one line) */}
+        <div className="px-4 py-3 border-b border-slate-800 bg-slate-950/60 flex flex-col sm:flex-row gap-2">
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Cerca…"
-            className="flex-1 rounded-xl border border-white/10 bg-white/5
-                       px-3 py-2 text-[13px] text-slate-100"
+            className={[
+              "flex-1 rounded-xl border border-slate-800 bg-slate-950/70",
+              "px-3 py-2 text-[13px] text-slate-100",
+              "placeholder:text-slate-500",
+              "focus:outline-none focus:ring-2 focus:ring-sky-500/35",
+            ].join(" ")}
           />
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            className="w-[140px] rounded-xl border border-white/10 bg-white/5
-                       px-3 py-2 text-[13px] text-slate-100"
+            className={[
+              "w-full sm:w-[160px] rounded-xl border border-slate-800 bg-slate-950/70",
+              "px-3 py-2 text-[13px] text-slate-100",
+              "focus:outline-none focus:ring-2 focus:ring-sky-500/35",
+            ].join(" ")}
           >
             <option value="">Tutte</option>
             <option value="P">P</option>
@@ -172,41 +223,48 @@ export default function ApparatoCaviPopover({
           </select>
         </div>
 
-        {/* list */}
+        {/* list (3 cols) */}
         <div className="flex-1 overflow-auto">
           <table className="w-full text-[13px]">
-            <tbody className="divide-y divide-white/10">
+            <tbody className="divide-y divide-slate-800">
               {loading ? (
                 <tr>
                   <td className="px-4 py-6 text-slate-300">Caricamento…</td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-6 text-slate-400">
-                    Nessun cavo visibile
-                  </td>
+                  <td className="px-4 py-6 text-slate-400">Nessun cavo visibile</td>
                 </tr>
               ) : (
                 filtered.map((r) => {
-                  const s = r.situazione ?? "NP";
+                  const s = situazionePerSide(r, side);
+                  const title = r.marca_cavo || r.codice || "—";
+                  const metri = r.metri_teo ?? "—";
+                  const pagina = r.pagina_pdf ? `p.${r.pagina_pdf}` : "—";
+
                   return (
-                    <tr key={r.id} className="hover:bg-white/[0.03]">
+                    <tr key={r.id} className="hover:bg-slate-900/25">
                       <td className="px-4 py-3 text-slate-100">
-                        {r.marca_cavo || r.codice}
+                        <div className="font-semibold truncate">{title}</div>
+                        {r.codice && r.marca_cavo && r.codice !== r.marca_cavo ? (
+                          <div className="mt-0.5 text-[12px] text-slate-500 truncate">{r.codice}</div>
+                        ) : null}
                       </td>
+
                       <td className="px-4 py-3">
                         <span
-                          className={`inline-flex rounded-lg border px-2 py-[2px]
-                                      ${badgeClass(s === "NP" ? null : s)}`}
+                          className={[
+                            "inline-flex rounded-lg border px-2 py-[2px] font-semibold",
+                            badgeClass(s === "NP" ? null : s),
+                          ].join(" ")}
                         >
                           {labelSituazione(s === "NP" ? null : s)}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        {r.metri_teo ?? "—"}
-                      </td>
-                      <td className="px-4 py-3 text-right text-slate-400">
-                        {r.pagina_pdf ? `p.${r.pagina_pdf}` : "—"}
+
+                      <td className="px-4 py-3 text-right text-slate-100 tabular-nums">
+                        <div>{metri}</div>
+                        <div className="text-[12px] text-slate-500">{pagina}</div>
                       </td>
                     </tr>
                   );

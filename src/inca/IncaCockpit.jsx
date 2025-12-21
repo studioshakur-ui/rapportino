@@ -1,6 +1,8 @@
 // /src/inca/IncaCockpit.jsx
 import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
+
 import {
   ResponsiveContainer,
   BarChart,
@@ -15,25 +17,23 @@ import {
 import LoadingScreen from "../components/LoadingScreen";
 import PercorsoSearchBar from "../components/PercorsoSearchBar";
 import ApparatoCaviPopover from "./ApparatoCaviPopover";
+import { ApparatoPill, CodicePill, computeApparatoPMaps } from "../inca/IncaPills";
 
 // =====================================================
-// INCA COCKPIT (UFFICIO) — Percorso-level UI
+// INCA COCKPIT (UFFICIO) — reference structure
+// IMPORTANT: batched loading with .range() (no 1000 ceiling)
 // =====================================================
-
-// src/inca/incaSituazioni.js
-// Source de vérité unique pour les situazioni INCA (labels + ordre)
 
 export const SITUAZIONI_ORDER = ["NP", "T", "P", "R", "B", "E"];
 
 export const SITUAZIONI_LABEL = {
   NP: "Non posato",
-  T: "Tagliato",
+  T: "Terminato",
   P: "Posato",
   R: "Rimosso",
   B: "Bloccato",
-  E: "Eliminato", // ✅ IMPORTANT: E = ELIMINATO (pas Eseguito)
+  E: "Eliminato",
 };
-
 
 function safeNum(v) {
   const n = Number(v);
@@ -64,127 +64,51 @@ function colorForSituazione(code) {
   }
 }
 
-// -----------------------------
-// Apparato chip (NO ANIMATION)
-// Couleurs = statut (GREEN/YELLOW/RED)
-// -----------------------------
-function ApparatoChip({ side, value, status, onClick, disabled }) {
-  const base =
-    "inline-flex items-center gap-2 rounded-xl border px-2.5 py-1.5 " +
-    "text-[11px] leading-none select-none focus:outline-none focus-visible:ring-2 " +
-    "focus-visible:ring-emerald-300/40";
-
-  const disabledTone = "border-white/10 bg-white/5 text-slate-500 cursor-not-allowed";
-
-  const tone =
-    status === "GREEN"
-      ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200"
-      : status === "YELLOW"
-        ? "border-amber-300/25 bg-amber-400/10 text-amber-200"
-        : status === "RED"
-          ? "border-rose-300/25 bg-rose-400/10 text-rose-200"
-          : "border-white/10 bg-white/5 text-slate-300";
-
-  const dot =
-    status === "GREEN"
-      ? "bg-emerald-400"
-      : status === "YELLOW"
-        ? "bg-amber-400"
-        : status === "RED"
-          ? "bg-rose-400"
-          : "bg-slate-400";
-
-  return (
-    <button
-      type="button"
-      onClick={disabled ? undefined : onClick}
-      disabled={disabled}
-      className={[base, disabled ? disabledTone : tone].join(" ")}
-      aria-label={
-        disabled ? `Apparato ${side} non disponibile` : `Apri apparato ${side}: ${value || ""}`
-      }
-      title={
-        disabled
-          ? "Non disponibile"
-          : status === "GREEN"
-            ? "Tutti i cavi presenti"
-            : status === "YELLOW"
-              ? "Mancano alcuni cavi (filtri/research)"
-              : status === "RED"
-                ? "0 cavi (filtri/research)"
-                : "Stato"
-      }
-    >
-      <span className={["h-1.5 w-1.5 rounded-full", dot].join(" ")} />
-      <span className="inline-flex items-center justify-center rounded-lg border border-white/10 bg-white/5 px-1.5 py-[2px] font-semibold tracking-[0.14em] text-[10px] text-slate-200">
-        {side}
-      </span>
-      <span className="max-w-[210px] truncate font-semibold">{value || "—"}</span>
-      <span className="ml-0.5 text-[12px] opacity-70" aria-hidden="true">
-        ›
-      </span>
-    </button>
-  );
+function norm(v) {
+  return String(v ?? "").trim();
 }
 
-export default function IncaCockpit({ defaultCostr = "", defaultCommessa = "" }) {
+export default function IncaCockpit() {
+  const navigate = useNavigate();
+
   // Filters
-  const [costr, setCostr] = useState("");
-  const [commessa, setCommessa] = useState("");
   const [fileId, setFileId] = useState("");
+  const [files, setFiles] = useState([]);
 
   const [query, setQuery] = useState("");
   const [onlyP, setOnlyP] = useState(false);
   const [onlyNP, setOnlyNP] = useState(false);
 
-  // Percorso Search (Option A) — preview (CORE 1.0)
+  // Percorso Search
   const [percorsoNodes, setPercorsoNodes] = useState([]);
   const [percorsoMatchIds, setPercorsoMatchIds] = useState(null); // Set<string> | null
   const [percorsoLoading, setPercorsoLoading] = useState(false);
   const [percorsoError, setPercorsoError] = useState(null);
 
-  const [loading, setLoading] = useState(true);
-  const [loadingFiles, setLoadingFiles] = useState(true);
-  const [error, setError] = useState(null);
-
   // Data
-  const [files, setFiles] = useState([]);
   const [cavi, setCavi] = useState([]);
+
+  // Loading / errors
+  const [loadingFiles, setLoadingFiles] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Selection
   const [selectedCable, setSelectedCable] = useState(null);
 
-  // UI — modal (zoom) pour le graphe de distribution
+  // UI — chart modal
   const [isDistribModalOpen, setIsDistribModalOpen] = useState(false);
 
-  // UI — popover apparato (DA/A)
+  // UI — apparato popover
   const [apparatoPopoverOpen, setApparatoPopoverOpen] = useState(false);
-  const [apparatoPopoverSide, setApparatoPopoverSide] = useState("DA"); // "DA" | "A"
+  const [apparatoPopoverSide, setApparatoPopoverSide] = useState("DA");
   const [apparatoPopoverName, setApparatoPopoverName] = useState("");
   const [apparatoAnchorRect, setApparatoAnchorRect] = useState(null);
 
-  // KPI / computed
-  const totalMetri = useMemo(() => {
-    return (cavi || []).reduce((acc, r) => {
-      const m = safeNum(r.metri_totali) || safeNum(r.metri_teo) || safeNum(r.metri_dis) || 0;
-      return acc + m;
-    }, 0);
-  }, [cavi]);
+  // Batched loading rules
+  const loadInfo = useMemo(() => ({ pageSize: 2000, maxPages: 80 }), []);
 
-  const totalMetriPosati = useMemo(() => {
-    return (cavi || []).reduce((acc, r) => {
-      const s = (r.situazione || "").trim();
-      if (s !== "P") return acc;
-      const m = safeNum(r.metri_totali) || safeNum(r.metri_dis) || safeNum(r.metri_teo) || 0;
-      return acc + m;
-    }, 0);
-  }, [cavi]);
-
-  const loadInfo = useMemo(() => {
-    return { pageSize: 1000, maxPages: 50 };
-  }, []);
-
-  // Load files
+  // 1) load files
   useEffect(() => {
     let alive = true;
 
@@ -197,7 +121,7 @@ export default function IncaCockpit({ defaultCostr = "", defaultCommessa = "" })
           .from("inca_files")
           .select("id,costr,commessa,file_name,uploaded_at")
           .order("uploaded_at", { ascending: false })
-          .limit(100);
+          .limit(200);
 
         if (e) throw e;
         if (!alive) return;
@@ -205,18 +129,7 @@ export default function IncaCockpit({ defaultCostr = "", defaultCommessa = "" })
         const list = Array.isArray(data) ? data : [];
         setFiles(list);
 
-        const initialCostr = defaultCostr || list[0]?.costr || "";
-        const initialCommessa = defaultCommessa || list[0]?.commessa || "";
-
-        setCostr(initialCostr);
-        setCommessa(initialCommessa);
-
-        const firstMatching = list.find(
-          (f) => (f.costr || "") === initialCostr && (f.commessa || "") === initialCommessa
-        );
-
-        const chosen = firstMatching || list[0];
-        if (chosen?.id) setFileId(chosen.id);
+        if (!fileId && list[0]?.id) setFileId(list[0].id);
       } catch (err) {
         console.error("[IncaCockpit] loadFiles error:", err);
         if (!alive) return;
@@ -229,13 +142,13 @@ export default function IncaCockpit({ defaultCostr = "", defaultCommessa = "" })
     }
 
     loadFiles();
-
     return () => {
       alive = false;
     };
-  }, [defaultCostr, defaultCommessa]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Load cavi (batched)
+  // 2) load cavi by fileId (batched, no 1000 ceiling)
   useEffect(() => {
     let alive = true;
     const ac = new AbortController();
@@ -290,14 +203,13 @@ export default function IncaCockpit({ defaultCostr = "", defaultCommessa = "" })
     }
 
     loadCavi();
-
     return () => {
       alive = false;
       ac.abort();
     };
   }, [fileId, loadInfo.maxPages, loadInfo.pageSize]);
 
-  // Percorso Search
+  // 3) Percorso Search (optional)
   useEffect(() => {
     let alive = true;
 
@@ -341,13 +253,11 @@ export default function IncaCockpit({ defaultCostr = "", defaultCommessa = "" })
     }
 
     run();
-
     return () => {
       alive = false;
     };
   }, [fileId, percorsoNodes]);
 
-  // Derived: filter + KPI
   const filteredCavi = useMemo(() => {
     const q = (query || "").trim().toLowerCase();
     const nodesActive = Array.isArray(percorsoNodes) && percorsoNodes.length > 0;
@@ -392,7 +302,25 @@ export default function IncaCockpit({ defaultCostr = "", defaultCommessa = "" })
     });
   }, [cavi, query, onlyP, onlyNP, percorsoNodes, percorsoMatchIds]);
 
-  const totalCavi = filteredCavi.length;
+  // NEW: apparato P-ratio maps computed on visible scope (filteredCavi)
+  const apparatoPMaps = useMemo(() => computeApparatoPMaps(filteredCavi), [filteredCavi]);
+
+  // KPIs / metrics (computed from visible scope, stable, no .single() aggregates)
+  const totalMetri = useMemo(() => {
+    return (filteredCavi || []).reduce((acc, r) => {
+      const m = safeNum(r.metri_totali) || safeNum(r.metri_teo) || safeNum(r.metri_dis) || 0;
+      return acc + m;
+    }, 0);
+  }, [filteredCavi]);
+
+  const totalMetriPosati = useMemo(() => {
+    return (filteredCavi || []).reduce((acc, r) => {
+      const s = (r.situazione || "").trim();
+      if (s !== "P") return acc;
+      const m = safeNum(r.metri_totali) || safeNum(r.metri_dis) || safeNum(r.metri_teo) || 0;
+      return acc + m;
+    }, 0);
+  }, [filteredCavi]);
 
   const distrib = useMemo(() => {
     const map = new Map();
@@ -411,110 +339,70 @@ export default function IncaCockpit({ defaultCostr = "", defaultCommessa = "" })
     }));
   }, [filteredCavi]);
 
-  const distribTotal = useMemo(() => distrib.reduce((acc, d) => acc + (d.count || 0), 0), [distrib]);
+  const totalCavi = filteredCavi.length;
 
-  const done = useMemo(() => {
-    return filteredCavi.reduce((acc, r) => {
-      const s = (r.situazione || "").trim();
-      return acc + (s === "P" ? 1 : 0);
-    }, 0);
+  const doneCount = useMemo(() => {
+    return filteredCavi.reduce((acc, r) => acc + (((r.situazione || "").trim() === "P") ? 1 : 0), 0);
   }, [filteredCavi]);
 
-  const nonPosati = useMemo(() => totalCavi - done, [totalCavi, done]);
-
   const prodPercent = useMemo(() => {
-    if (!distribTotal) return 0;
-    return (done / distribTotal) * 100;
-  }, [done, distribTotal]);
+    if (!totalCavi) return 0;
+    return (doneCount / totalCavi) * 100;
+  }, [doneCount, totalCavi]);
 
-  // ---------------------------------------------------
-  // Apparato status maps (3 couleurs) — NO ANIMATION
-  // visible = count dans filteredCavi
-  // total   = count dans cavi
-  // ---------------------------------------------------
-  const apparatoStats = useMemo(() => {
-    const all = Array.isArray(cavi) ? cavi : [];
-    const vis = Array.isArray(filteredCavi) ? filteredCavi : [];
-
-    const totalsDA = new Map();
-    const totalsA = new Map();
-    const visibleDA = new Map();
-    const visibleA = new Map();
-
-    for (const r of all) {
-      const da = String(r.apparato_da || "").trim();
-      const a = String(r.apparato_a || "").trim();
-      if (da) totalsDA.set(da, (totalsDA.get(da) || 0) + 1);
-      if (a) totalsA.set(a, (totalsA.get(a) || 0) + 1);
-    }
-
-    for (const r of vis) {
-      const da = String(r.apparato_da || "").trim();
-      const a = String(r.apparato_a || "").trim();
-      if (da) visibleDA.set(da, (visibleDA.get(da) || 0) + 1);
-      if (a) visibleA.set(a, (visibleA.get(a) || 0) + 1);
-    }
-
-    function statusFor(side, name) {
-      const key = String(name || "").trim();
-      if (!key) return { total: 0, visible: 0, status: "RED" };
-
-      const total = side === "DA" ? (totalsDA.get(key) || 0) : (totalsA.get(key) || 0);
-      const visible = side === "DA" ? (visibleDA.get(key) || 0) : (visibleA.get(key) || 0);
-
-      if (visible === 0) return { total, visible, status: "RED" };
-      if (total > 0 && visible < total) return { total, visible, status: "YELLOW" };
-      return { total, visible, status: "GREEN" };
-    }
-
-    return { statusFor };
-  }, [cavi, filteredCavi]);
-
-  // Open popover (DA/A) — STOP BUBBLING
   function openApparatoPopover(e, side, apparatoName) {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-
     const name = String(apparatoName || "").trim();
     if (!name) return;
 
     const rect = e?.currentTarget?.getBoundingClientRect ? e.currentTarget.getBoundingClientRect() : null;
-
     setApparatoAnchorRect(rect);
     setApparatoPopoverSide(side);
     setApparatoPopoverName(name);
     setApparatoPopoverOpen(true);
   }
 
+  const chosenFile = useMemo(() => (files || []).find((x) => x.id === fileId) || null, [files, fileId]);
+
   return (
     <div className="p-3">
-      {/* Title + meta */}
       <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="text-[11px] uppercase tracking-wide text-slate-500">INCA Cockpit</div>
-            <div className="text-2xl font-semibold text-slate-50 leading-tight">Percorso-level overview</div>
-            <div className="text-[12px] text-slate-400 mt-1">KPI + filtraggio rapido. (CORE 1.0)</div>
+          <div className="min-w-0">
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">INCA · Cockpit</div>
+            <div className="text-2xl font-semibold text-slate-50 leading-tight truncate">
+              {chosenFile ? `COSTR ${chosenFile.costr || "—"} · COMMESSA ${chosenFile.commessa || "—"}` : "Seleziona un file"}
+            </div>
+            <div className="text-[12px] text-slate-400 mt-1 truncate">
+              {chosenFile ? (chosenFile.file_name || "—") : "—"}
+            </div>
           </div>
 
-          <div className="text-right text-[11px]">
-            {loadingFiles ? (
-              <span className="text-slate-400">Caricamento file…</span>
-            ) : (
-              <span className="text-slate-400">
-                File: <span className="text-slate-200 font-semibold">{files?.length || 0}</span>
-              </span>
-            )}
-            <div className="mt-1">
-              {loading ? (
-                <span className="text-slate-400">Caricamento cavi (batch {loadInfo.pageSize})…</span>
+          <div className="flex items-start gap-2">
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="shrink-0 rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[12px] text-slate-200"
+            >
+              Indietro
+            </button>
+
+            <div className="text-right text-[11px]">
+              {loadingFiles ? (
+                <span className="text-slate-400">Caricamento file…</span>
               ) : (
                 <span className="text-slate-400">
-                  Cavi caricati: <span className="text-slate-200 font-semibold">{cavi?.length || 0}</span>
+                  File: <span className="text-slate-200 font-semibold">{files?.length || 0}</span>
                 </span>
               )}
+              <div className="mt-1">
+                {loading ? (
+                  <span className="text-slate-400">Caricamento cavi (batch {loadInfo.pageSize})…</span>
+                ) : (
+                  <span className="text-slate-400">
+                    Cavi visibili: <span className="text-slate-200 font-semibold">{totalCavi}</span>
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -530,15 +418,7 @@ export default function IncaCockpit({ defaultCostr = "", defaultCommessa = "" })
               <label className="text-[12px] text-slate-400 block mb-1">File INCA</label>
               <select
                 value={fileId}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setFileId(v);
-                  const f = (files || []).find((x) => x.id === v);
-                  if (f) {
-                    setCostr(f.costr || "");
-                    setCommessa(f.commessa || "");
-                  }
-                }}
+                onChange={(e) => setFileId(e.target.value)}
                 className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[13px] text-slate-100"
               >
                 {(files || []).map((f) => (
@@ -547,27 +427,6 @@ export default function IncaCockpit({ defaultCostr = "", defaultCommessa = "" })
                   </option>
                 ))}
               </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[12px] text-slate-400 block mb-1">COSTR</label>
-                <input
-                  value={costr}
-                  onChange={(e) => setCostr(e.target.value)}
-                  placeholder="es: 6368"
-                  className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[13px] text-slate-100"
-                />
-              </div>
-              <div>
-                <label className="text-[12px] text-slate-400 block mb-1">COMMESSA</label>
-                <input
-                  value={commessa}
-                  onChange={(e) => setCommessa(e.target.value)}
-                  placeholder="es: SDC"
-                  className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[13px] text-slate-100"
-                />
-              </div>
             </div>
 
             <div>
@@ -643,30 +502,23 @@ export default function IncaCockpit({ defaultCostr = "", defaultCommessa = "" })
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-[11px] uppercase tracking-wide text-slate-500">Panorama INCA</div>
-              <div className="text-[11px] text-slate-400">
-                Distribuzione T / P / R / B / E / NP (clic per ingrandire).
-              </div>
+              <div className="text-[11px] text-slate-400">Distribuzione (clic per ingrandire).</div>
             </div>
             <div className="text-right text-[11px]">
               <div className="text-slate-400">
-                Cavi totali: <span className="text-slate-100 font-semibold">{totalCavi}</span>
+                Cavi: <span className="text-slate-100 font-semibold">{totalCavi}</span>
               </div>
               <div className="text-slate-400">
-                Posati (P): <span className="text-emerald-300 font-semibold">{done}</span>
+                Metri teorici: <span className="text-slate-100 font-semibold">{formatMeters(totalMetri)}</span>
               </div>
               <div className="text-slate-400">
-                Non posati (NP): <span className="text-purple-300 font-semibold">{nonPosati}</span>
-              </div>
-              <div className="text-slate-400">
-                Tot. metri dis.: <span className="text-slate-100 font-semibold">{formatMeters(totalMetri)}</span>
-              </div>
-              <div className="text-slate-400">
-                Metri posati: <span className="text-emerald-200 font-semibold">{formatMeters(totalMetriPosati)}</span>
+                Metri posati (P):{" "}
+                <span className="text-emerald-200 font-semibold">{formatMeters(totalMetriPosati)}</span>
               </div>
             </div>
           </div>
 
-          {/* Baromètre (pas d’animation, juste width change instantané) */}
+          {/* Barometer */}
           <div className="flex items-center gap-3 mt-3">
             <div className="flex-1">
               <div className="flex items-center justify-between text-[10px] text-slate-500 mb-1">
@@ -717,38 +569,13 @@ export default function IncaCockpit({ defaultCostr = "", defaultCommessa = "" })
               </ResponsiveContainer>
             </div>
           )}
-
-          <div className="mt-3 flex flex-wrap gap-2">
-            {distrib.map((d) => (
-              <span
-                key={d.code}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/40 px-2 py-1 text-[11px]"
-              >
-                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colorForSituazione(d.code) }} />
-                <span className="text-slate-300 font-semibold">{d.code}</span>
-                <span className="text-slate-400">{d.label}</span>
-                <span className="text-sky-300 font-semibold">{d.count}</span>
-              </span>
-            ))}
-          </div>
         </div>
       </div>
 
       {/* Table */}
       <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/40 overflow-hidden">
         <div className="flex items-center justify-between gap-3 px-3 py-2 border-b border-slate-800">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="text-[11px] text-slate-500 uppercase tracking-wide">Cavi ({filteredCavi.length})</div>
-            {Array.isArray(percorsoNodes) && percorsoNodes.length > 0 && (
-              <span className="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/60 px-2 py-0.5 text-[11px]">
-                <span className="h-2 w-2 rounded-full bg-emerald-400/70" />
-                <span className="text-slate-200 font-semibold">Percorso</span>
-                <span className="text-slate-400">
-                  {percorsoLoading ? "ricerca…" : `${percorsoMatchIds ? percorsoMatchIds.size : 0} match`}
-                </span>
-              </span>
-            )}
-          </div>
+          <div className="text-[11px] text-slate-500 uppercase tracking-wide">Cavi ({filteredCavi.length})</div>
           <div className="text-[11px] text-slate-500">Click riga → dettagli</div>
         </div>
 
@@ -773,14 +600,14 @@ export default function IncaCockpit({ defaultCostr = "", defaultCommessa = "" })
 
               <tbody>
                 {filteredCavi.map((r) => {
-                  const s = (r.situazione || "").trim();
-                  const situ = s && SITUAZIONI_ORDER.includes(s) ? s : "NP";
+                  const sRaw = (r.situazione || "").trim();
+                  const situ = sRaw && SITUAZIONI_ORDER.includes(sRaw) ? sRaw : "NP";
 
                   const appDA = String(r.apparato_da || "").trim();
                   const appA = String(r.apparato_a || "").trim();
 
-                  const statDA = apparatoStats.statusFor("DA", appDA);
-                  const statA = apparatoStats.statusFor("A", appA);
+                  const statDA = appDA ? (apparatoPMaps.da.get(appDA) || { total: 0, pCount: 0, status: "RED" }) : null;
+                  const statA = appA ? (apparatoPMaps.a.get(appA) || { total: 0, pCount: 0, status: "RED" }) : null;
 
                   return (
                     <tr
@@ -788,26 +615,28 @@ export default function IncaCockpit({ defaultCostr = "", defaultCommessa = "" })
                       className="border-b border-slate-900/80 cursor-pointer"
                       onClick={() => setSelectedCable(r)}
                     >
-                      <td className="px-3 py-2 text-[12px] text-slate-100 font-semibold">{r.codice}</td>
+                      <td className="px-3 py-2">
+                        <CodicePill value={r.codice} dotColor={colorForSituazione(situ)} />
+                      </td>
                       <td className="px-3 py-2 text-[12px] text-slate-300">{r.rev_inca || "—"}</td>
                       <td className="px-3 py-2 text-[12px] text-slate-300">{r.zona_da || r.zona_a || "—"}</td>
 
                       <td className="px-3 py-2">
                         <div className="flex flex-col md:flex-row md:items-center gap-2">
-                          <ApparatoChip
+                          <ApparatoPill
                             side="DA"
                             value={appDA || "—"}
-                            status={appDA ? statDA.status : "RED"}
+                            stats={statDA}
                             disabled={!appDA}
                             onClick={(e) => openApparatoPopover(e, "DA", appDA)}
                           />
                           <span className="hidden md:inline text-slate-600" aria-hidden="true">
                             →
                           </span>
-                          <ApparatoChip
+                          <ApparatoPill
                             side="A"
                             value={appA || "—"}
-                            status={appA ? statA.status : "RED"}
+                            stats={statA}
                             disabled={!appA}
                             onClick={(e) => openApparatoPopover(e, "A", appA)}
                           />
@@ -843,48 +672,7 @@ export default function IncaCockpit({ defaultCostr = "", defaultCommessa = "" })
         )}
       </div>
 
-      {/* Details panel */}
-      {selectedCable && (
-        <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-[11px] text-slate-500 uppercase tracking-wide">Dettaglio cavo</div>
-              <div className="text-lg font-semibold text-slate-50">{selectedCable.codice}</div>
-              <div className="text-[12px] text-slate-400">{selectedCable.descrizione || "—"}</div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setSelectedCable(null)}
-              className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[12px] text-slate-200"
-            >
-              Chiudi
-            </button>
-          </div>
-
-          <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2">
-            <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wide">Situazione</div>
-              <div className="text-[13px] text-slate-100 font-semibold">{(selectedCable.situazione || "NP").trim() || "NP"}</div>
-            </div>
-
-            <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wide">Metri teo</div>
-              <div className="text-[13px] text-slate-100 font-semibold">
-                {formatMeters(selectedCable.metri_teo || selectedCable.metri_dis)}
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wide">Marca / Tipo</div>
-              <div className="text-[13px] text-slate-100 font-semibold">
-                {(selectedCable.marca_cavo || "—") + " · " + (selectedCable.tipo || "—")}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL — zoom graphe distribuzione */}
+      {/* Chart modal (kept) */}
       {isDistribModalOpen && (
         <div
           className="fixed inset-0 z-[80] flex items-center justify-center bg-black/35 backdrop-blur-md p-2"
@@ -899,11 +687,9 @@ export default function IncaCockpit({ defaultCostr = "", defaultCommessa = "" })
             <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-slate-800 bg-slate-950/75 px-4 py-3 backdrop-blur">
               <div>
                 <div className="text-[11px] text-slate-500 uppercase tracking-wide">Panorama INCA — Distribuzione</div>
-                <div className="text-lg font-semibold text-slate-50 leading-tight">Situazioni T / P / R / B / E / NP</div>
+                <div className="text-lg font-semibold text-slate-50 leading-tight">Situazioni</div>
                 <div className="text-[12px] text-slate-400 mt-1">
-                  Totale: <span className="text-slate-100 font-semibold">{totalCavi}</span> · Posati (P):{" "}
-                  <span className="text-emerald-300 font-semibold">{done}</span> · Non posati (NP):{" "}
-                  <span className="text-purple-300 font-semibold">{nonPosati}</span>
+                  Totale: <span className="text-slate-100 font-semibold">{totalCavi}</span>
                 </div>
               </div>
 
@@ -942,31 +728,17 @@ export default function IncaCockpit({ defaultCostr = "", defaultCommessa = "" })
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
-
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {distrib.map((d) => (
-                    <span
-                      key={d.code}
-                      className="inline-flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/40 px-2 py-1 text-[11px]"
-                    >
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colorForSituazione(d.code) }} />
-                      <span className="text-slate-300 font-semibold">{d.code}</span>
-                      <span className="text-slate-400">{d.label}</span>
-                      <span className="text-sky-300 font-semibold">{d.count}</span>
-                    </span>
-                  ))}
-                </div>
               </div>
 
               <div className="mt-3 text-[11px] text-slate-500 px-1">
-                Nota: i filtri (Ricerca / Solo P / Solo NP / Percorso Search) influenzano il grafico.
+                Nota: i filtri influenzano il grafico.
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* APPARATO POPOVER (DA/A) */}
+      {/* Apparato popover */}
       <ApparatoCaviPopover
         open={apparatoPopoverOpen}
         anchorRect={apparatoAnchorRect}

@@ -54,9 +54,14 @@ export default function CapoRoleSelector() {
           Che ruolo stai coprendo oggi?
         </h1>
         <p className="text-sm text-slate-400 max-w-2xl">
-          Questo imposta il modello di attività, le colonne del rapportino
-          e alcuni controlli HSE. Puoi cambiare ruolo in futuro se
-          necessario.
+          Questo imposta il modello di attività, le colonne del rapportino e
+          alcuni controlli HSE. Puoi cambiare ruolo in futuro se necessario.
+        </p>
+
+        {/* NOTE CANONIQUE */}
+        <p className="text-[12px] text-slate-500 max-w-2xl pt-1">
+          Nota: la “Lista Cavi / INCA” (picker) è disponibile solo per{" "}
+          <span className="text-slate-300">Elettricista</span>.
         </p>
       </div>
 
@@ -79,18 +84,12 @@ export default function CapoRoleSelector() {
                   Ruolo
                 </div>
                 <span
-                  className={corePills(
-                    true,
-                    role.tone,
-                    "text-[10px] px-2 py-0.5"
-                  )}
+                  className={corePills(true, role.tone, "text-[10px] px-2 py-0.5")}
                 >
                   {role.label}
                 </span>
               </div>
-              <div className="text-xs text-slate-400">
-                {role.description}
-              </div>
+              <div className="text-xs text-slate-400">{role.description}</div>
             </div>
           </button>
         ))}

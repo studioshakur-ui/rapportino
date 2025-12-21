@@ -1,6 +1,8 @@
 // /src/services/coreDrive.api.js
 import { supabase } from "../lib/supabaseClient";
 
+const CORE_DRIVE_BUCKET = "core-drive";
+
 function safeTerm(input) {
   const s = (input || "").toString().trim();
   return s.replace(/[,%]/g, " ").replace(/\s+/g, " ").trim();
@@ -15,6 +17,63 @@ function normalizeMimeGroup(mimeGroup) {
   return g;
 }
 
+/**
+ * Append-only registry: liste des events CORE Drive pour un fichier.
+ */
+export async function listCoreDriveEvents({ fileId, limit = 200 }) {
+  if (!fileId) return [];
+  const { data, error } = await supabase
+    .from("core_drive_events")
+    .select("id, created_at, created_by, file_id, event_type, payload, note")
+    .eq("file_id", fileId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * RPC: enregistre un event UPLOAD (optionnel mais recommandé).
+ * Ne casse pas le flux si la RPC échoue (on laisse au caller gérer).
+ */
+export async function emitUploadEvent({ fileId, payload = {} }) {
+  if (!fileId) throw new Error("Missing fileId");
+  const { data, error } = await supabase.rpc("core_drive_emit_upload_event", {
+    p_file_id: fileId,
+    p_payload: payload || {},
+  });
+  if (error) throw error;
+  return data; // event_id
+}
+
+/**
+ * RPC: soft delete (DB only) + event append-only.
+ * IMPORTANT: aucune suppression Storage.
+ */
+export async function softDeleteCoreFile({ fileId, reason = null }) {
+  if (!fileId) throw new Error("Missing fileId");
+  const { data, error } = await supabase.rpc("core_drive_soft_delete_file", {
+    p_file_id: fileId,
+    p_reason: reason,
+  });
+  if (error) throw error;
+  return data; // event_id
+}
+
+/**
+ * RPC: freeze inviolable (DB) + event append-only.
+ */
+export async function freezeCoreFile({ fileId, reason = null }) {
+  if (!fileId) throw new Error("Missing fileId");
+  const { data, error } = await supabase.rpc("core_drive_freeze_file", {
+    p_file_id: fileId,
+    p_reason: reason,
+  });
+  if (error) throw error;
+  return data; // event_id
+}
+
 export async function uploadCoreFile({ file, meta }) {
   if (!file) throw new Error("Missing file");
   if (!meta?.cantiere) throw new Error("Missing meta.cantiere");
@@ -25,20 +84,25 @@ export async function uploadCoreFile({ file, meta }) {
   const fileExt = parts.length > 1 ? parts.pop() : "";
   const safeExt = (fileExt || "").toLowerCase();
 
-  const fileName = safeExt ? `${crypto.randomUUID()}.${safeExt}` : `${crypto.randomUUID()}`;
+  const fileName = safeExt
+    ? `${crypto.randomUUID()}.${safeExt}`
+    : `${crypto.randomUUID()}`;
+
   const storagePath = `${meta.cantiere}/${meta.categoria}/${fileName}`;
 
+  // 1) Upload Storage (AUCUN remove dans ce module)
   const { error: uploadError } = await supabase.storage
-    .from("core-drive")
+    .from(CORE_DRIVE_BUCKET)
     .upload(storagePath, file, { upsert: false });
 
   if (uploadError) throw uploadError;
 
+  // 2) Insert metadata DB (core_files)
   const { data, error } = await supabase
     .from("core_files")
     .insert([
       {
-        storage_bucket: "core-drive",
+        storage_bucket: CORE_DRIVE_BUCKET,
         storage_path: storagePath,
         filename: originalName,
         mime_type: file.type || null,
@@ -59,11 +123,36 @@ export async function uploadCoreFile({ file, meta }) {
       },
     ])
     .select(
-      "id, created_at, filename, mime_type, size_bytes, cantiere, commessa, categoria, origine, stato_doc, storage_path, storage_bucket, note, rapportino_id, inca_file_id, inca_cavo_id, operator_id"
+      "id, created_at, filename, mime_type, size_bytes, cantiere, commessa, categoria, origine, stato_doc, storage_path, storage_bucket, note, rapportino_id, inca_file_id, inca_cavo_id, operator_id, frozen_at, deleted_at"
     )
     .single();
 
   if (error) throw error;
+
+  // 3) Event registry: UPLOAD (best-effort, ne doit pas casser l'upload)
+  try {
+    await emitUploadEvent({
+      fileId: data.id,
+      payload: {
+        bucket: CORE_DRIVE_BUCKET,
+        storage_path: storagePath,
+        filename: originalName,
+        mime_type: file.type || null,
+        size_bytes: file.size || null,
+        meta: {
+          cantiere: meta.cantiere,
+          commessa: meta.commessa || null,
+          categoria: meta.categoria,
+          origine: meta.origine || "UFFICIO",
+          stato_doc: meta.stato_doc || "BOZZA",
+        },
+      },
+    });
+  } catch (e) {
+    // Naval-grade: ne jamais bloquer l’upload si le registre est momentanément indisponible.
+    console.warn("[CORE Drive] emit upload event failed:", e);
+  }
+
   return data;
 }
 
@@ -78,16 +167,20 @@ export async function listCoreFiles({ filters = {}, pageSize = 60, cursor = null
     text,
     dateFrom,
     dateTo,
+    includeDeleted,
   } = filters || {};
 
   let query = supabase
     .from("core_files")
     .select(
-      "id, created_at, filename, mime_type, size_bytes, cantiere, commessa, categoria, origine, stato_doc, storage_path, storage_bucket, note, rapportino_id, inca_file_id, inca_cavo_id, operator_id"
+      "id, created_at, filename, mime_type, size_bytes, cantiere, commessa, categoria, origine, stato_doc, storage_path, storage_bucket, note, rapportino_id, inca_file_id, inca_cavo_id, operator_id, frozen_at, deleted_at"
     )
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
     .limit(pageSize);
+
+  // Par défaut on EXCLUT les soft-deleted
+  if (!includeDeleted) query = query.is("deleted_at", null);
 
   if (cantiere) query = query.eq("cantiere", cantiere);
   if (categoria) query = query.eq("categoria", categoria);
@@ -114,9 +207,12 @@ export async function listCoreFiles({ filters = {}, pageSize = 60, cursor = null
   const t = safeTerm(text);
   if (t) {
     const like = `%${t}%`;
-    query = query.or(`filename.ilike.${like},note.ilike.${like},commessa.ilike.${like},categoria.ilike.${like}`);
+    query = query.or(
+      `filename.ilike.${like},note.ilike.${like},commessa.ilike.${like}`
+    );
   }
 
+  // Pagination cursor (created_at desc, id desc)
   if (cursor?.created_at && cursor?.id) {
     const cAt = cursor.created_at;
     const cId = cursor.id;
@@ -137,21 +233,31 @@ export async function listCoreFiles({ filters = {}, pageSize = 60, cursor = null
 
 export async function getSignedUrl(coreFile, expiresSeconds = 60 * 30) {
   if (!coreFile?.storage_path) throw new Error("Missing storage_path");
+
+  const bucket = coreFile?.storage_bucket || CORE_DRIVE_BUCKET;
+
   const { data, error } = await supabase.storage
-    .from("core-drive")
+    .from(bucket)
     .createSignedUrl(coreFile.storage_path, expiresSeconds);
+
   if (error) throw error;
   return data.signedUrl;
 }
 
-export async function deleteCoreFile({ id, storage_path }) {
-  if (!id || !storage_path) throw new Error("Missing delete args");
+/**
+ * IMPORTANT: deleteCoreFile() = SOFT DELETE ONLY.
+ * - AUCUNE suppression Storage (preuve).
+ * - AUCUN DELETE DB.
+ * - Utilise RPC core_drive_soft_delete_file.
+ *
+ * Signature conservée pour compat UI : deleteCoreFile({ id, storage_path })
+ * storage_path n'est plus utilisé (mais on le garde pour compat appelant).
+ */
+export async function deleteCoreFile({ id, storage_path, reason = null }) {
+  if (!id) throw new Error("Missing id");
+  // storage_path conservé uniquement pour compat: on ne l'utilise pas.
+  void storage_path;
 
-  const { error: delFileErr } = await supabase.storage.from("core-drive").remove([storage_path]);
-  if (delFileErr) throw delFileErr;
-
-  const { error: delMetaErr } = await supabase.from("core_files").delete().eq("id", id);
-  if (delMetaErr) throw delMetaErr;
-
+  await softDeleteCoreFile({ fileId: id, reason: reason || null });
   return true;
 }
