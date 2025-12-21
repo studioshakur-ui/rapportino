@@ -27,7 +27,7 @@ export const SITUAZIONI_ORDER = ["NP", "T", "P", "R", "B", "E"];
 
 export const SITUAZIONI_LABEL = {
   NP: "Non posato",
-  T: "Teorico",
+  T: "Tagliato",
   P: "Posato",
   R: "Rimosso",
   B: "Bloccato",

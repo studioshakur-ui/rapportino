@@ -75,7 +75,7 @@ export default function UfficioShell() {
 
   const pathname = location.pathname || "";
   const isInca = pathname.startsWith("/ufficio/inca");
-  const isCoreDrive = pathname.startsWith("/ufficio/archive");
+  const isCoreDrive = pathname.startsWith("/ufficio/core-drive");
   const pageLabel = isCoreDrive ? "CORE Drive" : isInca ? "INCA" : "Rapportini";
 
   if (!profile) {
@@ -299,7 +299,7 @@ export default function UfficioShell() {
             </NavLink>
 
             <NavLink
-              to="/ufficio/archive"
+              to="/ufficio/core-drive"
               className={({ isActive }) =>
                 [
                   corePills(

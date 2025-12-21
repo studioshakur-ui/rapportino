@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo } from "react";
 
 const SITU_ORDER = ["T", "P", "R", "B", "E", "NP"];
-const SITU_LABEL = { T:"Teorico", P:"Posato", R:"Rimosso", B:"Bloccato", E:"Eliminato", NP:"Non posato" };
+const SITU_LABEL = { T:"Tagliato", P:"Posato", R:"Rimosso", B:"Bloccato", E:"Eliminato", NP:"Non posato" };
 
 const color = (s) =>
   ({P:"#10b981",T:"#38bdf8",R:"#f97316",B:"#ef4444",E:"#facc15"}[s]||"#a855f7");

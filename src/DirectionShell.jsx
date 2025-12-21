@@ -90,7 +90,7 @@ function UfficioView({ isDark }) {
   const isTabRapportini =
     isHere("/direction/ufficio-view") &&
     !isHere("/direction/ufficio-view/inca") &&
-    !isHere("/direction/ufficio-view/archive");
+    !isHere("/direction/ufficio-view/core-drive");
 
   return (
     <div className="space-y-4">
@@ -130,8 +130,8 @@ function UfficioView({ isDark }) {
         </Link>
 
         <Link
-          to="/direction/ufficio-view/archive"
-          className={j(tabBase, isHere("/direction/ufficio-view/archive") ? tabOn : tabOff)}
+          to="/direction/ufficio-view/core-drive"
+          className={j(tabBase, isHere("/direction/ufficio-view/core-drive") ? tabOn : tabOff)}
         >
           <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
           Archive
@@ -364,16 +364,16 @@ export default function DirectionShell() {
               </Link>
 
               <Link
-                to="/direction/archive"
+                to="/direction/core-drive"
                 title="Archive"
-                className={navItemClasses(isActive("/direction/archive"))}
+                className={navItemClasses(isActive("/direction/core-drive"))}
               >
                 {effectiveCollapsed ? (
                   <NavIcon name="archive" className="text-amber-400 mx-auto" />
                 ) : (
                   <>
                     <NavIcon name="archive" className="text-amber-400" />
-                    <span>Archive</span>
+                    <span>CORE Drive</span>
                   </>
                 )}
               </Link>
