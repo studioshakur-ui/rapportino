@@ -1,22 +1,19 @@
-// src/components/ApparatoCaviPopover.jsx
+// /src/components/ApparatoCaviPopover.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 /**
- * APPARATO CAVI — Popover (CORE 1.0) — UI tightened
- * - Affiche un état "vu" par côté DA/A :
- *   - 100% => P sur DA + A
- *   - >=50% => P sur le côté choisi (progress_side), T sur l'autre
- *   - sinon => fallback sur INCA globale (situazione, NULL => NP)
+ * APPARATO CAVI — Popover (CORE 1.0) — naval-grade status
  *
- * IMPORTANT (fix naval-grade):
- * - NE JAMAIS "inventer" un progress_side (pas de défaut DA si NULL).
- * - Le mode "par côté" s'active uniquement si progress_percent ET progress_side sont réellement persistés.
+ * FIXES:
+ * - Header dot MUST reflect real content status, not "filtered vs total".
+ *   GREEN  -> all cables are P for the chosen side
+ *   YELLOW -> mix (some P, some not-P)
+ *   RED    -> 0 P (or 0 rows)
  *
- * UI simplification:
- * - Header compact
- * - Contrôles en une ligne
- * - Table: 3 colonnes utiles (Codice, Stato, Metri/Pagina)
+ * IMPORTANT:
+ * - "per-side" logic only if BOTH progress_percent and progress_side are persisted.
+ * - Otherwise fallback on INCA global situazione (NULL => NP).
  */
 
 function badgeClass(s) {
@@ -75,6 +72,7 @@ function situazionePerSide(row, side) {
 
 export default function ApparatoCaviPopover({
   open,
+  anchorRect, // kept for API compatibility (optional)
   incaFileId,
   side, // "DA" | "A"
   apparato,
@@ -97,10 +95,10 @@ export default function ApparatoCaviPopover({
 
         const { data, error } = await supabase
           .from("inca_cavi")
-          .select("id,marca_cavo,codice,situazione,metri_teo,pagina_pdf,progress_percent,progress_side")
+          .select("id,marca_cavo,codice,situazione,metri_teo,pagina_pdf,progress_percent,progress_side,tipo")
           .eq("inca_file_id", incaFileId)
           .eq(field, apparato)
-          .order("marca_cavo", { ascending: true });
+          .order("codice", { ascending: true });
 
         if (error) throw error;
         if (alive) setRows(Array.isArray(data) ? data : []);
@@ -120,13 +118,13 @@ export default function ApparatoCaviPopover({
 
   const filtered = useMemo(() => {
     const qq = q.trim().toLowerCase();
-    return rows.filter((r) => {
+    return (rows || []).filter((r) => {
       const s = situazionePerSide(r, side);
 
       if (filter && s !== filter) return false;
       if (!qq) return true;
 
-      return `${r.marca_cavo || ""} ${r.codice || ""} ${r.pagina_pdf || ""}`
+      return `${r.tipo || ""} ${r.marca_cavo || ""} ${r.codice || ""} ${r.pagina_pdf || ""}`
         .toLowerCase()
         .includes(qq);
     });
@@ -135,14 +133,28 @@ export default function ApparatoCaviPopover({
   const total = rows.length;
   const visible = filtered.length;
 
-  let status = "GREEN";
-  if (!loading) {
-    if (visible === 0) status = "RED";
-    else if (visible < total) status = "YELLOW";
-  }
+  // Real status dot (based on ALL rows, not only filtered)
+  const headerStatus = useMemo(() => {
+    if (loading) return "YELLOW";
+    if (total <= 0) return "RED";
+
+    let pCount = 0;
+    for (const r of rows) {
+      const s = situazionePerSide(r, side);
+      if (s === "P") pCount += 1;
+    }
+
+    if (pCount <= 0) return "RED";
+    if (pCount === total) return "GREEN";
+    return "YELLOW";
+  }, [loading, total, rows, side]);
 
   const statusDot =
-    status === "GREEN" ? "bg-emerald-400" : status === "YELLOW" ? "bg-amber-400" : "bg-rose-400";
+    headerStatus === "GREEN"
+      ? "bg-emerald-400"
+      : headerStatus === "YELLOW"
+      ? "bg-amber-400"
+      : "bg-rose-400";
 
   const sideLabel = side === "DA" ? "APP PARTENZA" : "APP ARRIVO";
 
@@ -165,7 +177,7 @@ export default function ApparatoCaviPopover({
         role="dialog"
         aria-modal="true"
       >
-        {/* header (compact) */}
+        {/* header */}
         <div className="px-4 py-3 flex justify-between items-start border-b border-slate-800 bg-slate-950/80">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
@@ -191,7 +203,7 @@ export default function ApparatoCaviPopover({
           </button>
         </div>
 
-        {/* controls (one line) */}
+        {/* controls */}
         <div className="px-4 py-3 border-b border-slate-800 bg-slate-950/60 flex flex-col sm:flex-row gap-2">
           <input
             value={q}
@@ -223,7 +235,7 @@ export default function ApparatoCaviPopover({
           </select>
         </div>
 
-        {/* list (3 cols) */}
+        {/* list */}
         <div className="flex-1 overflow-auto">
           <table className="w-full text-[13px]">
             <tbody className="divide-y divide-slate-800">
@@ -238,7 +250,8 @@ export default function ApparatoCaviPopover({
               ) : (
                 filtered.map((r) => {
                   const s = situazionePerSide(r, side);
-                  const title = r.marca_cavo || r.codice || "—";
+                  // In UI we show "Tipo cavo" if present, else fallback to codice
+                  const title = r.tipo || r.marca_cavo || r.codice || "—";
                   const metri = r.metri_teo ?? "—";
                   const pagina = r.pagina_pdf ? `p.${r.pagina_pdf}` : "—";
 
@@ -246,7 +259,7 @@ export default function ApparatoCaviPopover({
                     <tr key={r.id} className="hover:bg-slate-900/25">
                       <td className="px-4 py-3 text-slate-100">
                         <div className="font-semibold truncate">{title}</div>
-                        {r.codice && r.marca_cavo && r.codice !== r.marca_cavo ? (
+                        {r.codice && title !== r.codice ? (
                           <div className="mt-0.5 text-[12px] text-slate-500 truncate">{r.codice}</div>
                         ) : null}
                       </td>

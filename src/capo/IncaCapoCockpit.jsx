@@ -15,13 +15,13 @@ import {
 } from "recharts";
 
 import LoadingScreen from "../components/LoadingScreen";
-import PercorsoSearchBar from "../components/PercorsoSearchBar";
 import ApparatoCaviPopover from "../inca/ApparatoCaviPopover";
 import { ApparatoPill, CodicePill, computeApparatoPMaps } from "../inca/IncaPills";
 
 // =====================================================
-// INCA COCKPIT (CAPO) — same structure as UFFICIO cockpit
-// IMPORTANT: batched loading with .range() (no 1000 ceiling)
+// INCA COCKPIT (CAPO)
+// - Batched loading with .range() (no 1000 ceiling)
+// - Uses view: inca_cavi_with_last_posa_v1 (adds data_posa)
 // =====================================================
 
 export const SITUAZIONI_ORDER = ["NP", "T", "P", "R", "B", "E"];
@@ -46,6 +46,13 @@ function formatMeters(v) {
   return new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 }).format(n);
 }
 
+function formatDateIT(value) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleDateString("it-IT");
+}
+
 function colorForSituazione(code) {
   switch (code) {
     case "P":
@@ -68,6 +75,14 @@ function norm(v) {
   return String(v ?? "").trim();
 }
 
+function tipoCavoLabel(r) {
+  const t = norm(r?.tipo);
+  if (t) return t;
+  const m = norm(r?.marca_cavo);
+  if (m) return m;
+  return "—";
+}
+
 export default function IncaCapoCockpit() {
   const { shipId } = useParams();
   const navigate = useNavigate();
@@ -77,7 +92,7 @@ export default function IncaCapoCockpit() {
   const [defaultCostr, setDefaultCostr] = useState("");
   const [defaultCommessa, setDefaultCommessa] = useState("");
 
-  // File selection (same as UFFICIO)
+  // File selection
   const [files, setFiles] = useState([]);
   const [fileId, setFileId] = useState("");
 
@@ -89,12 +104,6 @@ export default function IncaCapoCockpit() {
   const [query, setQuery] = useState("");
   const [onlyP, setOnlyP] = useState(false);
   const [onlyNP, setOnlyNP] = useState(false);
-
-  // Percorso Search
-  const [percorsoNodes, setPercorsoNodes] = useState([]);
-  const [percorsoMatchIds, setPercorsoMatchIds] = useState(null); // Set<string> | null
-  const [percorsoLoading, setPercorsoLoading] = useState(false);
-  const [percorsoError, setPercorsoError] = useState(null);
 
   // Data
   const [cavi, setCavi] = useState([]);
@@ -116,8 +125,8 @@ export default function IncaCapoCockpit() {
   const [apparatoPopoverName, setApparatoPopoverName] = useState("");
   const [apparatoAnchorRect, setApparatoAnchorRect] = useState(null);
 
-  // Batched loading rules
-  const loadInfo = useMemo(() => ({ pageSize: 2000, maxPages: 80 }), []);
+  // Batched loading rules (pageSize <= 1000 to defeat PostgREST caps)
+  const loadInfo = useMemo(() => ({ pageSize: 1000, maxPages: 200 }), []);
 
   // 0) Resolve ship -> default COSTR/COMMESSA (CAPO)
   useEffect(() => {
@@ -212,7 +221,8 @@ export default function IncaCapoCockpit() {
     };
   }, [defaultCostr, defaultCommessa]);
 
-  // 2) Load cavi (batched)
+  // 2) Load cavi (batched, no 1000 ceiling)
+  // IMPORTANT: source is VIEW inca_cavi_with_last_posa_v1 (adds data_posa)
   useEffect(() => {
     let alive = true;
     const ac = new AbortController();
@@ -233,9 +243,34 @@ export default function IncaCapoCockpit() {
           const to = from + loadInfo.pageSize - 1;
 
           const { data, error: e } = await supabase
-            .from("inca_cavi")
+            .from("inca_cavi_with_last_posa_v1")
             .select(
-              "id,inca_file_id,costr,commessa,codice,rev_inca,descrizione,impianto,tipo,sezione,zona_da,zona_a,apparato_da,apparato_a,descrizione_da,descrizione_a,metri_teo,metri_dis,metri_totali,marca_cavo,livello,wbs,situazione"
+              [
+                "id",
+                "inca_file_id",
+                "costr",
+                "commessa",
+                "codice",
+                "rev_inca",
+                "descrizione",
+                "impianto",
+                "tipo",
+                "sezione",
+                "zona_da",
+                "zona_a",
+                "apparato_da",
+                "apparato_a",
+                "descrizione_da",
+                "descrizione_a",
+                "metri_teo",
+                "metri_dis",
+                "metri_totali",
+                "marca_cavo",
+                "livello",
+                "wbs",
+                "situazione",
+                "data_posa",
+              ].join(",")
             )
             .eq("inca_file_id", fileId)
             .order("codice", { ascending: true })
@@ -280,65 +315,10 @@ export default function IncaCapoCockpit() {
     };
   }, [fileId, loadInfo.maxPages, loadInfo.pageSize, files]);
 
-  // 3) Percorso Search
-  useEffect(() => {
-    let alive = true;
-
-    async function run() {
-      const nodes = Array.isArray(percorsoNodes)
-        ? percorsoNodes.map((x) => String(x || "").trim().toUpperCase()).filter(Boolean)
-        : [];
-
-      if (!fileId || nodes.length === 0) {
-        setPercorsoLoading(false);
-        setPercorsoError(null);
-        setPercorsoMatchIds(null);
-        return;
-      }
-
-      setPercorsoLoading(true);
-      setPercorsoError(null);
-      setPercorsoMatchIds(null);
-
-      try {
-        const { data, error: e } = await supabase.rpc("inca_search_cavi_by_nodes", {
-          p_inca_file_id: fileId,
-          p_nodes: nodes,
-        });
-
-        if (e) throw e;
-        if (!alive) return;
-
-        const list = Array.isArray(data) ? data : [];
-        const ids = new Set(list.map((r) => r?.id).filter(Boolean));
-        setPercorsoMatchIds(ids);
-      } catch (err) {
-        console.error("[IncaCapoCockpit] percorso search error:", err);
-        if (!alive) return;
-        setPercorsoError("Errore ricerca percorso.");
-        setPercorsoMatchIds(new Set());
-      } finally {
-        if (!alive) return;
-        setPercorsoLoading(false);
-      }
-    }
-
-    run();
-    return () => {
-      alive = false;
-    };
-  }, [fileId, percorsoNodes]);
-
   const filteredCavi = useMemo(() => {
     const q = (query || "").trim().toLowerCase();
-    const nodesActive = Array.isArray(percorsoNodes) && percorsoNodes.length > 0;
 
     return (cavi || []).filter((r) => {
-      if (nodesActive) {
-        if (!percorsoMatchIds) return false;
-        if (!percorsoMatchIds.has(r.id)) return false;
-      }
-
       const situ = (r.situazione || "").trim();
       const isP = situ === "P";
       const isNP = !situ || situ === "NP";
@@ -350,7 +330,6 @@ export default function IncaCapoCockpit() {
 
       const hay = [
         r.codice,
-        r.rev_inca,
         r.descrizione,
         r.impianto,
         r.tipo,
@@ -364,6 +343,7 @@ export default function IncaCapoCockpit() {
         r.marca_cavo,
         r.livello,
         r.wbs,
+        r.data_posa,
       ]
         .filter(Boolean)
         .join(" ")
@@ -371,10 +351,10 @@ export default function IncaCapoCockpit() {
 
       return hay.includes(q);
     });
-  }, [cavi, query, onlyP, onlyNP, percorsoNodes, percorsoMatchIds]);
+  }, [cavi, query, onlyP, onlyNP]);
 
-  // NEW: apparato P-ratio maps computed on visible scope (filteredCavi)
-  const apparatoPMaps = useMemo(() => computeApparatoPMaps(filteredCavi), [filteredCavi]);
+  // Apparato P-ratio maps computed on FILE scope (option A)
+  const apparatoPMaps = useMemo(() => computeApparatoPMaps(cavi), [cavi]);
 
   // Metrics on visible scope
   const totalMetri = useMemo(() => {
@@ -425,7 +405,10 @@ export default function IncaCapoCockpit() {
     const name = String(apparatoName || "").trim();
     if (!name) return;
 
-    const rect = e?.currentTarget?.getBoundingClientRect ? e.currentTarget.getBoundingClientRect() : null;
+    const rect = e?.currentTarget?.getBoundingClientRect
+      ? e.currentTarget.getBoundingClientRect()
+      : null;
+
     setApparatoAnchorRect(rect);
     setApparatoPopoverSide(side);
     setApparatoPopoverName(name);
@@ -520,25 +503,15 @@ export default function IncaCapoCockpit() {
 
             <div>
               <label className="text-[12px] text-slate-400 block mb-1">
-                Ricerca (codice / zona / apparato / descrizione)
+                Ricerca (codice / apparato / descrizione / tipo / data posa)
               </label>
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Es: CAV-..., QUADRO, PONTE, ..."
+                placeholder="Es: CAV-..., QUADRO, PONTE, 22/12/2025..."
                 className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[13px] text-slate-100"
               />
             </div>
-
-            <PercorsoSearchBar
-              incaFileId={fileId}
-              value={percorsoNodes}
-              onChange={setPercorsoNodes}
-              disabled={loading || !fileId}
-              loading={percorsoLoading}
-              matchCount={percorsoMatchIds ? percorsoMatchIds.size : 0}
-              error={percorsoError}
-            />
 
             <div className="flex items-center gap-2">
               <label className="inline-flex items-center gap-2 text-[12px] text-slate-300">
@@ -570,7 +543,6 @@ export default function IncaCapoCockpit() {
                   setQuery("");
                   setOnlyP(false);
                   setOnlyNP(false);
-                  setPercorsoNodes([]);
                 }}
                 className="ml-auto rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[12px] text-slate-200"
               >
@@ -678,10 +650,9 @@ export default function IncaCapoCockpit() {
               <thead className="sticky top-0 bg-slate-950/90 backdrop-blur border-b border-slate-800">
                 <tr className="text-left text-[11px] text-slate-500">
                   <th className="px-3 py-2">Codice</th>
-                  <th className="px-3 py-2">Rev</th>
-                  <th className="px-3 py-2">Zona</th>
+                  <th className="px-3 py-2">Data posa</th>
                   <th className="px-3 py-2">Da → A</th>
-                  <th className="px-3 py-2">Marca</th>
+                  <th className="px-3 py-2">Tipo cavo</th>
                   <th className="px-3 py-2">Situaz.</th>
                   <th className="px-3 py-2 text-right">m teo</th>
                 </tr>
@@ -695,8 +666,15 @@ export default function IncaCapoCockpit() {
                   const appDA = String(r.apparato_da || "").trim();
                   const appA = String(r.apparato_a || "").trim();
 
-                  const statDA = appDA ? (apparatoPMaps.da.get(appDA) || { total: 0, pCount: 0, status: "RED" }) : null;
-                  const statA = appA ? (apparatoPMaps.a.get(appA) || { total: 0, pCount: 0, status: "RED" }) : null;
+                  const statDA = appDA
+                    ? (apparatoPMaps.da.get(appDA) || { total: 0, pCount: 0, status: "RED" })
+                    : null;
+
+                  const statA = appA
+                    ? (apparatoPMaps.a.get(appA) || { total: 0, pCount: 0, status: "RED" })
+                    : null;
+
+                  const dataPosa = r.data_posa ? formatDateIT(r.data_posa) : "—";
 
                   return (
                     <tr
@@ -707,8 +685,10 @@ export default function IncaCapoCockpit() {
                       <td className="px-3 py-2">
                         <CodicePill value={r.codice} dotColor={colorForSituazione(situ)} />
                       </td>
-                      <td className="px-3 py-2 text-[12px] text-slate-300">{r.rev_inca || "—"}</td>
-                      <td className="px-3 py-2 text-[12px] text-slate-300">{r.zona_da || r.zona_a || "—"}</td>
+
+                      <td className="px-3 py-2 text-[12px] text-slate-300 tabular-nums">
+                        {dataPosa}
+                      </td>
 
                       <td className="px-3 py-2">
                         <div className="flex flex-col md:flex-row md:items-center gap-2">
@@ -732,7 +712,9 @@ export default function IncaCapoCockpit() {
                         </div>
                       </td>
 
-                      <td className="px-3 py-2 text-[12px] text-slate-300">{r.marca_cavo || "—"}</td>
+                      <td className="px-3 py-2 text-[12px] text-slate-300">
+                        {tipoCavoLabel(r)}
+                      </td>
 
                       <td className="px-3 py-2">
                         <span className="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/60 px-2 py-0.5 text-[11px]">
@@ -750,7 +732,7 @@ export default function IncaCapoCockpit() {
 
                 {filteredCavi.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-3 py-10 text-center text-[12px] text-slate-500">
+                    <td colSpan={6} className="px-3 py-10 text-center text-[12px] text-slate-500">
                       Nessun cavo trovato con i filtri correnti.
                     </td>
                   </tr>
@@ -781,9 +763,9 @@ export default function IncaCapoCockpit() {
 
           <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2">
             <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wide">Situazione</div>
+              <div className="text-[10px] text-slate-500 uppercase tracking-wide">Data posa (ultimo)</div>
               <div className="text-[13px] text-slate-100 font-semibold">
-                {(selectedCable.situazione || "NP").trim() || "NP"}
+                {selectedCable.data_posa ? formatDateIT(selectedCable.data_posa) : "—"}
               </div>
             </div>
 
@@ -795,10 +777,8 @@ export default function IncaCapoCockpit() {
             </div>
 
             <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wide">Marca / Tipo</div>
-              <div className="text-[13px] text-slate-100 font-semibold">
-                {(selectedCable.marca_cavo || "—") + " · " + (selectedCable.tipo || "—")}
-              </div>
+              <div className="text-[10px] text-slate-500 uppercase tracking-wide">Tipo cavo</div>
+              <div className="text-[13px] text-slate-100 font-semibold">{tipoCavoLabel(selectedCable)}</div>
             </div>
           </div>
         </div>

@@ -3,21 +3,63 @@ import React from "react";
 
 /**
  * Shared pills for INCA cockpits (UFFICIO + CAPO)
- * - Apparato pills colorized by P-ratio:
- *    GREEN  -> all P
- *    YELLOW -> some P (mix)
- *    RED    -> 0 P (or total=0)
- * - Codice pill shaped like Apparato pills
  *
- * Scope rule:
- *   computeApparatoPMaps(caviScope) must be called on the CURRENT visible scope
- *   (already filtered by search/chips/percorso).
+ * OPTION A (naval-grade):
+ * - Apparato pills must reflect the REAL apparato status on the FILE scope (all cavi for the file),
+ *   never the filtered UI scope (search/chips).
+ *
+ * Status rule:
+ * - GREEN  -> 100% P (for the given side, using per-side logic when available)
+ * - RED    -> 0% P (or total=0)
+ * - YELLOW -> mix (some P, some not-P)
+ *
+ * IMPORTANT:
+ * - "per-side" logic is applied only if BOTH progress_percent and progress_side are persisted.
+ * - Otherwise fallback on INCA global situazione (NULL/"" => NP).
  */
 
 function norm(v) {
   return String(v ?? "").trim();
 }
 
+function normalizeKey(raw) {
+  const v = raw == null ? "" : String(raw).trim();
+  return v ? v : "NP";
+}
+
+function normalizeProgressPercent(raw) {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  if (n === 50 || n === 70 || n === 100) return n;
+  return null;
+}
+
+function normalizeProgressSideNullable(raw) {
+  const v = raw == null ? "" : String(raw).trim();
+  if (v === "DA" || v === "A") return v;
+  return null; // IMPORTANT: no default
+}
+
+function situazionePerSide(row, side) {
+  const percent = normalizeProgressPercent(row?.progress_percent);
+  const fromSide = normalizeProgressSideNullable(row?.progress_side);
+
+  // Apply "per-side" logic only if both are present (persisted)
+  if (percent != null && fromSide) {
+    if (percent >= 100) return "P";
+    if (percent >= 50) return fromSide === side ? "P" : "T";
+  }
+
+  // Fallback: INCA global situazione (NULL/"" => NP)
+  const global = normalizeKey(row?.situazione);
+  return global === "NP" ? "NP" : global;
+}
+
+/**
+ * Build apparato maps on the FILE scope.
+ * - da: Map(apparato_da -> {total,pCount,status})
+ * - a : Map(apparato_a  -> {total,pCount,status})
+ */
 export function computeApparatoPMaps(caviScope) {
   const da = new Map();
   const a = new Map();
@@ -35,9 +77,12 @@ export function computeApparatoPMaps(caviScope) {
   for (const r of rows) {
     const appDA = norm(r?.apparato_da);
     const appA = norm(r?.apparato_a);
-    const isP = norm(r?.situazione) === "P";
-    bump(da, appDA, isP);
-    bump(a, appA, isP);
+
+    const isP_DA = situazionePerSide(r, "DA") === "P";
+    const isP_A = situazionePerSide(r, "A") === "P";
+
+    bump(da, appDA, isP_DA);
+    bump(a, appA, isP_A);
   }
 
   function finalize(map) {
@@ -103,7 +148,7 @@ export function ApparatoPill({
   const title =
     !v || disabled
       ? `Apparato ${side} non disponibile`
-      : `Apparato ${side} ${v} — P: ${stats?.pCount ?? 0}/${stats?.total ?? 0}`;
+      : `Apparato ${side} ${v} — P: ${stats?.pCount ?? 0}/${stats?.total ?? 0} (FILE)`;
 
   return (
     <button
@@ -113,7 +158,6 @@ export function ApparatoPill({
         disabled
           ? undefined
           : (e) => {
-              // Prevent row click selection when clicking the pill
               e.preventDefault();
               e.stopPropagation();
               onClick?.(e);
@@ -135,13 +179,7 @@ export function ApparatoPill({
   );
 }
 
-export function CodicePill({
-  value,
-  dotColor = "#94a3b8",
-  onClick,
-  className = "",
-  title,
-}) {
+export function CodicePill({ value, dotColor = "#94a3b8", onClick, className = "", title }) {
   const v = norm(value);
 
   const base =
@@ -149,7 +187,6 @@ export function CodicePill({
     "text-[12px] leading-none select-none focus:outline-none focus-visible:ring-2 " +
     "focus-visible:ring-emerald-300/40";
 
-  // Neutral “tech” pill, like apparato geometry, but color comes from dotColor
   const tone = "border-slate-700/70 bg-slate-950/40 text-slate-100";
 
   return (

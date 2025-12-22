@@ -8,7 +8,15 @@ function isXlsxFile(file) {
   return n.endsWith(".xlsx") || n.endsWith(".xls");
 }
 
-function buildFormData({ file, costr, commessa, projectCode, note, mode }) {
+function buildFormData({
+  file,
+  costr,
+  commessa,
+  projectCode,
+  note,
+  mode,
+  targetIncaFileId,
+}) {
   const form = new FormData();
   form.append("mode", mode);
   form.append("costr", String(costr || "").trim());
@@ -17,6 +25,12 @@ function buildFormData({ file, costr, commessa, projectCode, note, mode }) {
   form.append("note", String(note || "").trim());
   form.append("fileName", file?.name || "inca.xlsx");
   form.append("file", file);
+
+  // ENRICH target
+  if (targetIncaFileId) {
+    form.append("targetIncaFileId", String(targetIncaFileId).trim());
+  }
+
   return form;
 }
 
@@ -55,11 +69,8 @@ export function useIncaImporter() {
     });
 
     if (e) {
-      // essaye de reconstituer un message utile
-      const msg =
-        e?.message ||
-        "Edge Function returned a non-2xx status code";
-
+      // Supabase renvoie souvent un message générique; on garde l’original en details
+      const msg = e?.message || "Edge Function returned a non-2xx status code";
       const err = new Error(msg);
       err.details = e;
       throw err;
@@ -148,16 +159,58 @@ export function useIncaImporter() {
     [invoke]
   );
 
+  const enrichTipo = useCallback(
+    async ({ file, costr, commessa, projectCode, note, targetIncaFileId }) => {
+      try {
+        setLoading(true);
+        setPhase("importing");
+        setError(null);
+
+        if (!file) throw new Error("Seleziona un file XLSX.");
+        if (!isXlsxFile(file)) {
+          throw new Error("CORE 1.0: il PDF è disattivato. Usa un file .xlsx/.xls.");
+        }
+
+        if (!String(targetIncaFileId || "").trim()) {
+          throw new Error("Seleziona un file INCA target per ENRICH_TIPO.");
+        }
+
+        const form = buildFormData({
+          file,
+          costr,
+          commessa,
+          projectCode,
+          note,
+          mode: "ENRICH_TIPO",
+          targetIncaFileId,
+        });
+
+        const data = await invoke(form);
+        setResult(data);
+        return data;
+      } catch (err) {
+        const e = normalizeEdgeError(err);
+        setError(e);
+        throw e;
+      } finally {
+        setLoading(false);
+        setPhase("idle");
+      }
+    },
+    [invoke]
+  );
+
   return useMemo(
     () => ({
       dryRun,
       commit,
+      enrichTipo,
       loading,
       phase,
       error,
       result,
       reset,
     }),
-    [dryRun, commit, loading, phase, error, result, reset]
+    [dryRun, commit, enrichTipo, loading, phase, error, result, reset]
   );
 }

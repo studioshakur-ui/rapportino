@@ -1,7 +1,19 @@
 // src/inca/IncaImportModal.jsx
 import React, { useMemo, useRef, useState, useEffect } from "react";
+import { supabase } from "../lib/supabaseClient";
 import { useIncaImporter } from "./useIncaImporter";
 import { corePills, cardSurface } from "../ui/designSystem";
+
+function norm(v) {
+  return String(v ?? "").trim();
+}
+
+function formatDateTimeIT(value) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleString("it-IT");
+}
 
 export default function IncaImportModal({
   open,
@@ -18,7 +30,14 @@ export default function IncaImportModal({
   const [projectCode, setProjectCode] = useState("");
   const [note, setNote] = useState("");
 
-  const { dryRun, commit, loading, phase, error, result, reset } =
+  // OPTION B: mode selector + enrich target
+  const [modeUI, setModeUI] = useState("COMMIT"); // "COMMIT" | "ENRICH_TIPO"
+  const [targets, setTargets] = useState([]);
+  const [loadingTargets, setLoadingTargets] = useState(false);
+  const [targetsError, setTargetsError] = useState(null);
+  const [targetIncaFileId, setTargetIncaFileId] = useState("");
+
+  const { dryRun, commit, enrichTipo, loading, phase, error, result, reset } =
     useIncaImporter();
 
   // Anti-régression UX: si defaultCostr/defaultCommessa changent entre ouvertures
@@ -35,10 +54,15 @@ export default function IncaImportModal({
     setFile(null);
     setProjectCode("");
     setNote("");
+    setModeUI("COMMIT");
+    setTargets([]);
+    setTargetsError(null);
+    setTargetIncaFileId("");
   }, [open, reset]);
 
   const isDryOk = !!(result?.ok && result?.mode === "DRY_RUN");
   const isCommitOk = !!(result?.ok && result?.mode === "COMMIT");
+  const isEnrichOk = !!(result?.ok && result?.mode === "ENRICH_TIPO");
 
   const counts = result?.counts || null;
   const debug = result?.debug || null;
@@ -50,13 +74,11 @@ export default function IncaImportModal({
     return "XLSX";
   }, [file]);
 
-  const canDry =
-    !!file &&
-    !!String(costr).trim() &&
-    !!String(commessa).trim() &&
-    !loading;
+  const canDry = !!file && !!norm(costr) && !!norm(commessa) && !loading;
 
-  const canCommit = isDryOk && !loading;
+  const canCommit = isDryOk && modeUI === "COMMIT" && !loading;
+  const canEnrich =
+    isDryOk && modeUI === "ENRICH_TIPO" && !!norm(targetIncaFileId) && !loading;
 
   const warnings = useMemo(() => {
     if (!counts || !total) return [];
@@ -82,6 +104,90 @@ export default function IncaImportModal({
     onImported?.(data);
   };
 
+  const handleEnrich = async () => {
+    const data = await enrichTipo({
+      file,
+      costr,
+      commessa,
+      projectCode,
+      note,
+      targetIncaFileId,
+    });
+    onImported?.(data);
+  };
+
+  // Load enrich targets (inca_files) for the current COSTR/COMMESSA
+  useEffect(() => {
+    let alive = true;
+    const ac = new AbortController();
+
+    async function loadTargets() {
+      if (!open) return;
+      if (!norm(costr) || !norm(commessa)) {
+        setTargets([]);
+        setTargetsError(null);
+        setTargetIncaFileId("");
+        return;
+      }
+
+      setLoadingTargets(true);
+      setTargetsError(null);
+
+      try {
+        const { data, error: e } = await supabase
+          .from("inca_files")
+          .select("id,costr,commessa,file_name,uploaded_at,file_type,file_path")
+          .eq("costr", norm(costr))
+          .eq("commessa", norm(commessa))
+          .order("uploaded_at", { ascending: false })
+          .limit(200)
+          .abortSignal(ac.signal);
+
+        if (e) throw e;
+        if (!alive) return;
+
+        const list = Array.isArray(data) ? data : [];
+        setTargets(list);
+
+        if (norm(targetIncaFileId)) {
+          const still = list.some((x) => x.id === targetIncaFileId);
+          if (!still) setTargetIncaFileId("");
+        }
+      } catch (err) {
+        if (!alive) return;
+        console.error("[IncaImportModal] loadTargets error:", err);
+        setTargets([]);
+        setTargetsError("Impossibile caricare i file INCA esistenti (target).");
+        setTargetIncaFileId("");
+      } finally {
+        if (!alive) return;
+        setLoadingTargets(false);
+      }
+    }
+
+    loadTargets();
+    return () => {
+      alive = false;
+      ac.abort();
+    };
+  }, [open, costr, commessa]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (modeUI !== "ENRICH_TIPO") {
+      setTargetIncaFileId("");
+    }
+  }, [modeUI]);
+
+  // Make footer always visible: internal scrolling container
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
   if (!open) return null;
 
   const sizeKb =
@@ -89,21 +195,40 @@ export default function IncaImportModal({
       ? Math.max(1, Math.round(received.sizeBytes / 1024))
       : null;
 
+  const primaryActionLabel =
+    modeUI === "ENRICH_TIPO"
+      ? phase === "importing"
+        ? "Arricchisco…"
+        : "Enrich TIPO"
+      : phase === "importing"
+      ? "Importo…"
+      : "Importa";
+
+  const primaryActionHandler =
+    modeUI === "ENRICH_TIPO" ? handleEnrich : handleCommit;
+
+  const primaryActionDisabled =
+    modeUI === "ENRICH_TIPO" ? !canEnrich : !canCommit;
+
+  const primaryActionTitle =
+    !isDryOk ? "Esegui prima Analizza (dry-run)" : "";
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-5xl rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 md:p-6">
+      {/* IMPORTANT: make modal a flex column with max height; body scrolls, footer is sticky */}
+      <div className="w-full max-w-5xl rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         {phase !== "idle" && (
           <div className="h-1 bg-slate-800 overflow-hidden">
             <div className="h-full w-1/2 bg-sky-500 animate-pulse" />
           </div>
         )}
 
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 shrink-0">
           <div>
             <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">
               Import INCA · Cockpit
             </div>
-            <div className="text-sm font-semibold">XLSX → Analisi → Commit</div>
+            <div className="text-sm font-semibold">XLSX → Analisi → Commit / Enrich</div>
             <div className="text-[12px] text-slate-500 mt-1">
               CORE 1.0: solo XLSX. PDF disattivato.
             </div>
@@ -118,7 +243,8 @@ export default function IncaImportModal({
           </button>
         </div>
 
-        <div className="p-6 space-y-6">
+        {/* Scrollable content area */}
+        <div className="p-6 space-y-6 overflow-y-auto">
           <div
             className={[
               cardSurface(true),
@@ -135,7 +261,9 @@ export default function IncaImportModal({
               {phase === "analyzing"
                 ? "Analisi in corso…"
                 : phase === "importing"
-                ? "Importazione in corso…"
+                ? modeUI === "ENRICH_TIPO"
+                  ? "Arricchimento in corso…"
+                  : "Importazione in corso…"
                 : "Trascina qui il file INCA (XLSX)"}
             </div>
             <div className="text-xs text-slate-400 mt-1">XLSX · Edge parser</div>
@@ -180,6 +308,114 @@ export default function IncaImportModal({
               placeholder="Revisione, note interne…"
             />
           </div>
+
+          {isDryOk && (
+            <div className={cardSurface(true)}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold">Modalità post-analisi</div>
+                  <div className="text-xs text-slate-400 mt-1">
+                    COMMIT crea un nuovo file INCA. ENRICH aggiorna solo{" "}
+                    <span className="text-slate-200 font-semibold">TIPO CAVO</span> su un file esistente.
+                  </div>
+                </div>
+                <div className="text-xs text-slate-500">
+                  Stato:{" "}
+                  <span className="text-slate-200 font-semibold">
+                    {modeUI === "ENRICH_TIPO" ? "ENRICH_TIPO" : "COMMIT"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                <label className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-3 cursor-pointer hover:bg-slate-900/40">
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="radio"
+                      name="inca-import-mode"
+                      checked={modeUI === "COMMIT"}
+                      onChange={() => setModeUI("COMMIT")}
+                      className="mt-1"
+                    />
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-slate-100">
+                        Importa (COMMIT)
+                      </div>
+                      <div className="text-xs text-slate-400 mt-1">
+                        Crea un nuovo <span className="font-semibold text-slate-200">inca_file</span> e inserisce i cavi.
+                      </div>
+                    </div>
+                  </div>
+                </label>
+
+                <label className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-3 cursor-pointer hover:bg-slate-900/40">
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="radio"
+                      name="inca-import-mode"
+                      checked={modeUI === "ENRICH_TIPO"}
+                      onChange={() => setModeUI("ENRICH_TIPO")}
+                      className="mt-1"
+                    />
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-slate-100">
+                        Enrich (ENRICH_TIPO)
+                      </div>
+                      <div className="text-xs text-slate-400 mt-1">
+                        Nessun nuovo file. Upsert di <span className="font-semibold text-slate-200">tipo</span> per{" "}
+                        <span className="font-semibold text-slate-200">codice</span>. Non tocca DA/A, P/NP, progress.
+                      </div>
+                    </div>
+                  </div>
+                </label>
+              </div>
+
+              {modeUI === "ENRICH_TIPO" && (
+                <div className="mt-4">
+                  <div className="text-xs text-slate-400 mb-2">
+                    File INCA target (stesso COSTR/COMMESSA)
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <select
+                      value={targetIncaFileId}
+                      onChange={(e) => setTargetIncaFileId(e.target.value)}
+                      disabled={loadingTargets}
+                      className="w-full rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm outline-none focus:border-sky-500/70 disabled:opacity-60"
+                    >
+                      <option value="">
+                        {loadingTargets
+                          ? "Caricamento file target…"
+                          : targets.length
+                          ? "Seleziona un file INCA esistente…"
+                          : "Nessun file INCA trovato per COSTR/COMMESSA"}
+                      </option>
+                      {targets.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {`${formatDateTimeIT(t.uploaded_at)} · ${t.file_name || "file"} · ${String(t.id).slice(0, 8)}…`}
+                        </option>
+                      ))}
+                    </select>
+
+                    {targetsError && (
+                      <div className="rounded-xl border border-amber-700 bg-amber-900/30 px-3 py-2 text-xs text-amber-200">
+                        {targetsError}
+                      </div>
+                    )}
+
+                    {!targetsError &&
+                      !loadingTargets &&
+                      targets.length > 0 &&
+                      !norm(targetIncaFileId) && (
+                        <div className="rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2 text-xs text-slate-400">
+                          Seleziona il file target “ricco” (quello con DA/A già popolati). ENRICH aggiorna solo TIPO.
+                        </div>
+                      )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {isDryOk && received && (
             <div className={cardSurface(true)}>
@@ -266,30 +502,42 @@ export default function IncaImportModal({
 
           {isCommitOk && (
             <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm">
-              Import completato con successo.
+              Import completato con successo (COMMIT).
             </div>
           )}
+
+          {isEnrichOk && (
+            <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm">
+              Enrich completato con successo (ENRICH_TIPO).
+            </div>
+          )}
+
+          {/* Spacer to guarantee content is not hidden behind sticky footer on small screens */}
+          <div className="h-20 md:h-0" />
         </div>
 
-        <div className="px-6 py-4 border-t border-slate-800 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={handleDry}
-            disabled={!canDry}
-            className="px-4 py-2 rounded-full border border-sky-500/60 bg-sky-500/15 text-sky-100 disabled:opacity-50"
-          >
-            {phase === "analyzing" ? "Analisi…" : "Analizza"}
-          </button>
+        {/* Sticky footer always visible */}
+        <div className="shrink-0 px-6 py-4 border-t border-slate-800 bg-slate-950/95 backdrop-blur supports-[backdrop-filter]:bg-slate-950/75 sticky bottom-0">
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={handleDry}
+              disabled={!canDry}
+              className="px-4 py-2 rounded-full border border-sky-500/60 bg-sky-500/15 text-sky-100 disabled:opacity-50"
+            >
+              {phase === "analyzing" ? "Analisi…" : "Analizza"}
+            </button>
 
-          <button
-            type="button"
-            onClick={handleCommit}
-            disabled={!canCommit}
-            className="px-4 py-2 rounded-full border border-emerald-500/60 bg-emerald-500/15 text-emerald-100 disabled:opacity-50"
-            title={!isDryOk ? "Esegui prima Analizza (dry-run)" : ""}
-          >
-            {phase === "importing" ? "Importo…" : "Importa"}
-          </button>
+            <button
+              type="button"
+              onClick={primaryActionHandler}
+              disabled={primaryActionDisabled}
+              className="px-4 py-2 rounded-full border border-emerald-500/60 bg-emerald-500/15 text-emerald-100 disabled:opacity-50"
+              title={primaryActionTitle}
+            >
+              {primaryActionLabel}
+            </button>
+          </div>
         </div>
       </div>
     </div>
