@@ -36,7 +36,7 @@ function formatDate(value) {
 }
 
 function toDateValue(row) {
-  const v = row?.report_date || row?.data;
+  const v = row?.report_date;
   const d = new Date(v);
   return Number.isNaN(d.getTime()) ? 0 : d.getTime();
 }
@@ -48,19 +48,11 @@ function formatProdotto(row) {
   return 0;
 }
 
-function bestNameFromProfile(p) {
-  const d = (p?.display_name || '').trim();
-  const f = (p?.full_name || '').trim();
-  const e = (p?.email || '').trim();
-  return d || f || e || null;
-}
-
 export default function UfficioRapportiniList() {
   const { profile, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   const [rapportini, setRapportini] = useState([]);
-  const [capoNameById, setCapoNameById] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -87,15 +79,15 @@ export default function UfficioRapportiniList() {
       setLoading(true);
       setError(null);
 
+      // Canonique: vue liste Ufficio avec CAPO déjà résolu côté SQL
       const { data, error: err } = await supabase
-        .from('rapportini')
+        .from('ufficio_rapportini_list_v1')
         .select(
           [
             'id',
             'report_date',
-            'data',
             'capo_id',
-            'capo_name',
+            'capo_display_name',
             'crew_role',
             'commessa',
             'status',
@@ -105,51 +97,17 @@ export default function UfficioRapportiniList() {
           ].join(',')
         )
         .in('status', ['VALIDATED_CAPO', 'APPROVED_UFFICIO', 'RETURNED'])
-        .order('report_date', { ascending: false })
-        .order('data', { ascending: false });
+        .order('report_date', { ascending: false });
 
       if (err) {
         console.error('[UFFICIO LIST] Errore caricando i rapportini:', err);
         setError('Errore durante il caricamento dei rapportini.');
         setRapportini([]);
-        setCapoNameById({});
         setLoading(false);
         return;
       }
 
-      const rows = data || [];
-      setRapportini(rows);
-
-      // Resolve CAPO names via RPC (public profile fields)
-      const uniqueCapoIds = Array.from(
-        new Set(rows.map((r) => r.capo_id).filter(Boolean))
-      );
-
-      if (uniqueCapoIds.length === 0) {
-        setCapoNameById({});
-        setLoading(false);
-        return;
-      }
-
-      const { data: profs, error: rpcErr } = await supabase.rpc(
-        'core_profiles_public_by_ids',
-        { p_ids: uniqueCapoIds }
-      );
-
-      if (rpcErr) {
-        // Non-blocking: fallback to capo_name
-        console.warn('[UFFICIO LIST] RPC profiles_public failed:', rpcErr);
-        setCapoNameById({});
-        setLoading(false);
-        return;
-      }
-
-      const map = {};
-      (profs || []).forEach((p) => {
-        map[p.id] = bestNameFromProfile(p);
-      });
-
-      setCapoNameById(map);
+      setRapportini(data || []);
       setLoading(false);
     };
 
@@ -158,21 +116,19 @@ export default function UfficioRapportiniList() {
 
   const filteredRapportini = useMemo(() => {
     const q = capoFilter.trim().toLowerCase();
+
     return (rapportini || []).filter((r) => {
       if (statusFilter !== 'ALL' && r.status !== statusFilter) return false;
       if (roleFilter !== 'ALL' && r.crew_role !== roleFilter) return false;
 
       if (q) {
-        const resolved =
-          (r.capo_id && capoNameById[r.capo_id]) ||
-          (r.capo_name || '');
-        const name = String(resolved).toLowerCase();
-        if (!name.includes(q)) return false;
+        const searchable = String(r?.capo_display_name || '').toLowerCase();
+        if (!searchable.includes(q)) return false;
       }
 
       return true;
     });
-  }, [rapportini, statusFilter, capoFilter, roleFilter, capoNameById]);
+  }, [rapportini, statusFilter, capoFilter, roleFilter]);
 
   const sortedRapportini = useMemo(() => {
     const rows = [...(filteredRapportini || [])];
@@ -309,6 +265,7 @@ export default function UfficioRapportiniList() {
               </th>
             </tr>
           </thead>
+
           <tbody>
             {sortedRapportini.length === 0 && (
               <tr>
@@ -328,14 +285,8 @@ export default function UfficioRapportiniList() {
                 STATUS_BADGE_CLASS[r.status] ||
                 'bg-slate-700/80 text-slate-200';
 
-              const dateToShow = r.report_date || r.data;
-
               const capoResolved =
-                (r.capo_id && capoNameById[r.capo_id]) ||
-                (r.capo_name && r.capo_name !== 'CAPO SCONOSCIUTO'
-                  ? r.capo_name
-                  : null) ||
-                (r.capo_id ? `CAPO ${String(r.capo_id).slice(0, 8)}` : '—');
+                r?.capo_display_name ?? (r?.capo_id ? 'Profil mancante' : '—');
 
               const isArchived = r.status === 'APPROVED_UFFICIO';
 
@@ -351,23 +302,28 @@ export default function UfficioRapportiniList() {
                   onClick={() => handleRowClick(r)}
                 >
                   <td className="px-3 py-2 whitespace-nowrap text-slate-100">
-                    {formatDate(dateToShow)}
+                    {formatDate(r.report_date)}
                   </td>
+
                   <td className="px-3 py-2 whitespace-nowrap text-slate-100">
                     {capoResolved}
                   </td>
+
                   <td className="px-3 py-2 whitespace-nowrap text-slate-100">
                     {r.crew_role || '—'}
                   </td>
+
                   <td className="px-3 py-2 whitespace-nowrap text-slate-100">
                     {r.commessa || '—'}
                   </td>
+
                   <td className="px-3 py-2 whitespace-nowrap text-slate-100">
                     {prodotto.toLocaleString('it-IT', {
                       minimumFractionDigits: 0,
                       maximumFractionDigits: 2,
                     })}
                   </td>
+
                   <td className="px-3 py-2 whitespace-nowrap">
                     <span
                       className={[
@@ -383,6 +339,7 @@ export default function UfficioRapportiniList() {
                       )}
                     </span>
                   </td>
+
                   <td className="px-3 py-2 whitespace-nowrap text-right">
                     <Link
                       to={`/ufficio/rapportini/${r.id}`}

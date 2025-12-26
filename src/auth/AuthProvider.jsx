@@ -109,13 +109,12 @@ export function AuthProvider({ children }) {
 
   const value = {
     ...state,
-    user,   // ✅ compat
-    uid,    // ✅ utile partout
+    user, // ✅ compat
+    uid, // ✅ utile partout
     authReady,
     loading,
     isReady: state.status === "AUTHENTICATED_READY",
-    isAuthenticated:
-      state.status === "AUTHENTICATED_READY" || state.status === "AUTHENTICATED_LOADING",
+    isAuthenticated: state.status === "AUTHENTICATED_READY" || state.status === "AUTHENTICATED_LOADING",
     logout,
     // Alias compat avec AppShell/usages existants
     signOut: logout,

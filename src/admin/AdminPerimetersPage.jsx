@@ -1,0 +1,689 @@
+// src/admin/AdminPerimetersPage.jsx
+import React, { useEffect, useMemo, useState } from "react";
+import { supabase } from "../lib/supabaseClient";
+import ImportOperatorsExcel from "../manager/ImportOperatorsExcel";
+import { getInitialLang, t } from "../i18n/coreI18n";
+
+function safeText(v) {
+  if (v === null || v === undefined) return "";
+  return String(v);
+}
+
+function normName(v) {
+  return safeText(v).trim().replace(/\s+/g, " ");
+}
+
+function cn(...parts) {
+  return parts.filter(Boolean).join(" ");
+}
+
+export default function AdminPerimetersPage({ isDark = true }) {
+  const lang = getInitialLang(); // read current global lang (stored)
+
+  // Ships
+  const [ships, setShips] = useState([]);
+  const [selectedShipId, setSelectedShipId] = useState("");
+  const [loadingShips, setLoadingShips] = useState(true);
+  const [shipsError, setShipsError] = useState(null);
+
+  const selectedShip = useMemo(
+    () => ships.find((s) => s.id === selectedShipId) || null,
+    [ships, selectedShipId]
+  );
+
+  const shipLabel = (s) => {
+    const code = safeText(s?.code).trim();
+    const name = safeText(s?.name).trim();
+    if (code && name) return `${code} · ${name}`;
+    return code || name || "Cantiere";
+  };
+
+  // Managers on ship
+  const [managers, setManagers] = useState([]); // [{manager_id,email,display_name,full_name}]
+  const [loadingManagers, setLoadingManagers] = useState(false);
+  const [managersError, setManagersError] = useState(null);
+
+  const [addManagerEmail, setAddManagerEmail] = useState("");
+  const [addingManager, setAddingManager] = useState(false);
+  const [managerMsg, setManagerMsg] = useState(null);
+
+  // Operators on ship
+  const [operators, setOperators] = useState([]);
+  const [loadingOperators, setLoadingOperators] = useState(false);
+  const [operatorsError, setOperatorsError] = useState(null);
+
+  const [addName, setAddName] = useState("");
+  const [addRole, setAddRole] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [addMsg, setAddMsg] = useState(null);
+
+  // ----- Loaders -----
+
+  async function loadShips() {
+    setLoadingShips(true);
+    setShipsError(null);
+
+    try {
+      // ships has RLS disabled in your current DB -> admin can read all anyway
+      const { data, error } = await supabase
+        .from("ships")
+        .select("id, code, name, is_active, created_at")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      const list = Array.isArray(data) ? data : [];
+      // active first (nice UX)
+      const sorted = [...list].sort((a, b) => {
+        const aa = a?.is_active ? 0 : 1;
+        const bb = b?.is_active ? 0 : 1;
+        return aa - bb;
+      });
+
+      setShips(sorted);
+
+      // keep selection if still exists, else pick first active/first
+      const stillExists = sorted.some((s) => s.id === selectedShipId);
+      if (!stillExists) {
+        const firstActive = sorted.find((s) => s.is_active) || sorted[0];
+        setSelectedShipId(firstActive?.id || "");
+      }
+    } catch (err) {
+      console.error("[AdminPerimetersPage] loadShips error:", err);
+      setShipsError(err?.message || "Errore nel caricamento dei cantieri.");
+    } finally {
+      setLoadingShips(false);
+    }
+  }
+
+  async function loadManagersByShip(shipId) {
+    setLoadingManagers(true);
+    setManagersError(null);
+    setManagers([]);
+
+    try {
+      if (!shipId) {
+        setManagers([]);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("ship_managers")
+        .select(
+          `
+          manager_id,
+          profiles:profiles (
+            id,
+            email,
+            display_name,
+            full_name,
+            app_role
+          )
+        `
+        )
+        .eq("ship_id", shipId)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      const mapped =
+        (data || [])
+          .map((r) => {
+            const p = r.profiles;
+            if (!p?.id) return null;
+            return {
+              manager_id: p.id,
+              email: p.email,
+              display_name: p.display_name,
+              full_name: p.full_name,
+              app_role: p.app_role,
+            };
+          })
+          .filter(Boolean) || [];
+
+      setManagers(mapped);
+    } catch (err) {
+      console.error("[AdminPerimetersPage] loadManagers error:", err);
+      setManagersError(err?.message || "Errore nel caricamento dei manager.");
+    } finally {
+      setLoadingManagers(false);
+    }
+  }
+
+  async function loadOperatorsByShip(shipId) {
+    setLoadingOperators(true);
+    setOperatorsError(null);
+    setOperators([]);
+
+    try {
+      if (!shipId) {
+        setOperators([]);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("ship_operators")
+        .select(
+          `
+          operator_id,
+          active,
+          operators:operators (
+            id,
+            name,
+            roles
+          )
+        `
+        )
+        .eq("ship_id", shipId)
+        .order("operators(name)", { ascending: true });
+
+      if (error) throw error;
+
+      const mapped =
+        (data || [])
+          .map((r) => {
+            const op = r.operators;
+            if (!op?.id) return null;
+            return {
+              id: op.id,
+              name: op.name,
+              roles: Array.isArray(op.roles) ? op.roles : [],
+              active: !!r.active,
+            };
+          })
+          .filter(Boolean) || [];
+
+      setOperators(mapped);
+    } catch (err) {
+      console.error("[AdminPerimetersPage] loadOperators error:", err);
+      setOperatorsError(err?.message || "Errore nel caricamento delle squadre.");
+    } finally {
+      setLoadingOperators(false);
+    }
+  }
+
+  // ----- Actions -----
+
+  async function addManager() {
+    const shipId = selectedShipId;
+    const email = safeText(addManagerEmail).trim().toLowerCase();
+    if (!shipId || !email || addingManager) return;
+
+    setAddingManager(true);
+    setManagerMsg(null);
+
+    try {
+      // find profile by email
+      const { data: pRows, error: pErr } = await supabase
+        .from("profiles")
+        .select("id,email,app_role,display_name,full_name")
+        .eq("email", email)
+        .limit(1);
+
+      if (pErr) throw pErr;
+
+      const p = Array.isArray(pRows) ? pRows[0] : null;
+      if (!p?.id) throw new Error("Utente non trovato (email).");
+
+      // Optional guard: only MANAGER role should be assigned as manager
+      if (String(p.app_role || "").toUpperCase() !== "MANAGER") {
+        throw new Error(`Ruolo non valido: ${p.app_role}. Serve app_role=MANAGER.`);
+      }
+
+      const { error: insErr } = await supabase
+        .from("ship_managers")
+        .upsert([{ ship_id: shipId, manager_id: p.id }], { onConflict: "ship_id,manager_id" });
+
+      if (insErr) throw insErr;
+
+      setManagerMsg({ ok: true, text: `Manager assegnato: ${p.email}` });
+      setAddManagerEmail("");
+      await loadManagersByShip(shipId);
+    } catch (err) {
+      console.error("[AdminPerimetersPage] addManager error:", err);
+      setManagerMsg({ ok: false, text: err?.message || "Errore durante l'assegnazione." });
+    } finally {
+      setAddingManager(false);
+    }
+  }
+
+  async function removeManager(managerId) {
+    const shipId = selectedShipId;
+    if (!shipId || !managerId) return;
+
+    setManagerMsg(null);
+
+    try {
+      const { error } = await supabase
+        .from("ship_managers")
+        .delete()
+        .eq("ship_id", shipId)
+        .eq("manager_id", managerId);
+
+      if (error) throw error;
+
+      setManagerMsg({ ok: true, text: "Manager rimosso." });
+      await loadManagersByShip(shipId);
+    } catch (err) {
+      console.error("[AdminPerimetersPage] removeManager error:", err);
+      setManagerMsg({ ok: false, text: err?.message || "Errore durante la rimozione." });
+    }
+  }
+
+  async function addOperatorInline() {
+    const shipId = selectedShipId;
+    const name = normName(addName);
+    const role = normName(addRole);
+
+    if (!shipId || !name || adding) return;
+
+    setAdding(true);
+    setAddMsg(null);
+
+    try {
+      // 1) Upsert operator by name (name expected UNIQUE)
+      const { data: opRows, error: opErr } = await supabase
+        .from("operators")
+        .upsert([{ name, roles: role ? [role] : [] }], { onConflict: "name" })
+        .select("id,name");
+
+      if (opErr) throw opErr;
+      const op = Array.isArray(opRows) ? opRows[0] : null;
+      if (!op?.id) throw new Error("Creazione operaio fallita.");
+
+      // 2) Link to ship
+      const { error: linkErr } = await supabase
+        .from("ship_operators")
+        .upsert([{ ship_id: shipId, operator_id: op.id, active: true }], { onConflict: "ship_id,operator_id" });
+
+      if (linkErr) throw linkErr;
+
+      setAddMsg({ ok: true, text: `Operaio aggiunto: ${op.name}` });
+      setAddName("");
+      setAddRole("");
+      await loadOperatorsByShip(shipId);
+    } catch (err) {
+      console.error("[AdminPerimetersPage] addOperatorInline error:", err);
+      setAddMsg({ ok: false, text: err?.message || "Errore durante l'aggiunta." });
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  async function toggleOperatorActive(operatorId, nextActive) {
+    const shipId = selectedShipId;
+    if (!shipId || !operatorId) return;
+
+    try {
+      const { error } = await supabase
+        .from("ship_operators")
+        .update({ active: !!nextActive })
+        .eq("ship_id", shipId)
+        .eq("operator_id", operatorId);
+
+      if (error) throw error;
+      await loadOperatorsByShip(shipId);
+    } catch (err) {
+      console.error("[AdminPerimetersPage] toggleOperatorActive error:", err);
+      setOperatorsError(err?.message || "Errore aggiornamento stato operaio.");
+    }
+  }
+
+  // ----- Effects -----
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      if (!alive) return;
+      await loadShips();
+    })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      if (!alive) return;
+      await loadManagersByShip(selectedShipId);
+      await loadOperatorsByShip(selectedShipId);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [selectedShipId]);
+
+  const cardBase = cn(
+    "rounded-2xl border p-3 sm:p-4",
+    isDark ? "border-slate-800 bg-slate-950/60" : "border-slate-200 bg-white"
+  );
+
+  const showNoShips = !loadingShips && ships.length === 0 && !shipsError;
+
+  return (
+    <div className="space-y-4">
+      <header className="px-3 sm:px-4 pt-3">
+        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-1">
+          {t(lang, "PERIM_SCOPE")}
+        </div>
+        <h1 className="text-xl sm:text-2xl font-semibold text-slate-100">
+          {t(lang, "PERIM_TITLE")}
+        </h1>
+        <p className="text-xs text-slate-400 mt-1 max-w-3xl">{t(lang, "PERIM_SUB")}</p>
+      </header>
+
+      {/* SHIP SELECT */}
+      <section className={cn(cardBase, "mx-3 sm:mx-4")}>
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+              {t(lang, "PERIM_SCOPE")}
+            </div>
+            <div className="text-xs text-slate-400 mt-1">{t(lang, "PERIM_SCOPE_HINT")}</div>
+          </div>
+
+          <div className="min-w-[260px]">
+            <label className="block text-[10px] uppercase tracking-[0.16em] text-slate-500 mb-1">
+              {t(lang, "PERIM_SELECT_SHIP")}
+            </label>
+            <select
+              value={selectedShipId}
+              onChange={(e) => setSelectedShipId(e.target.value)}
+              className="h-9 w-full rounded-xl border border-slate-800 bg-slate-950 px-2.5 text-sm text-slate-100"
+              disabled={loadingShips || ships.length === 0}
+            >
+              {loadingShips ? (
+                <option value="">{t(lang, "PERIM_LOADING")}</option>
+              ) : ships.length === 0 ? (
+                <option value="">{t(lang, "PERIM_NO_SHIPS")}</option>
+              ) : (
+                ships.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {shipLabel(s)}
+                    {s.is_active ? "" : " (inattivo)"}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+        </div>
+
+        {shipsError ? (
+          <div className="mt-3 rounded-xl border border-rose-700/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+            {shipsError}
+          </div>
+        ) : null}
+
+        {showNoShips ? (
+          <div className="mt-3 rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-3">
+            <div className="text-sm font-medium text-slate-100">{t(lang, "PERIM_NO_SHIPS")}</div>
+          </div>
+        ) : null}
+      </section>
+
+      {/* MANAGERS */}
+      {selectedShipId ? (
+        <section className={cn(cardBase, "mx-3 sm:mx-4")}>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+                {t(lang, "PERIM_MANAGERS")}
+              </div>
+              <div className="text-xs text-slate-400 mt-1">
+                Ship: <span className="text-slate-200">{selectedShip ? shipLabel(selectedShip) : "—"}</span>
+              </div>
+            </div>
+            <div className="text-[11px] text-slate-500 text-right">
+              <div className="uppercase tracking-[0.18em] text-slate-600">Admin</div>
+              <div>ship_managers</div>
+            </div>
+          </div>
+
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-end">
+            <div>
+              <label className="block text-[10px] uppercase tracking-[0.16em] text-slate-500 mb-1">
+                {t(lang, "PERIM_ADD_MANAGER")}
+              </label>
+              <input
+                value={addManagerEmail}
+                onChange={(e) => setAddManagerEmail(e.target.value)}
+                placeholder="es. manager@core.com"
+                className="h-9 w-full rounded-xl border border-slate-800 bg-slate-950 px-2.5 text-sm text-slate-100"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={addManager}
+              disabled={addingManager || !safeText(addManagerEmail).trim()}
+              className={cn(
+                "h-9 px-3 rounded-xl border text-xs font-medium",
+                "border-slate-700 text-slate-100 hover:bg-slate-900/60",
+                "disabled:opacity-50 disabled:cursor-not-allowed"
+              )}
+            >
+              {addingManager ? t(lang, "PERIM_LOADING") : t(lang, "PERIM_ADD")}
+            </button>
+          </div>
+
+          {managerMsg ? (
+            <div
+              className={cn(
+                "mt-3 rounded-xl border px-3 py-2 text-xs",
+                managerMsg.ok
+                  ? "border-emerald-700/30 bg-emerald-500/10 text-emerald-200"
+                  : "border-rose-700/40 bg-rose-500/10 text-rose-200"
+              )}
+            >
+              {managerMsg.text}
+            </div>
+          ) : null}
+
+          <div className="mt-4 overflow-x-auto border border-slate-800 rounded-xl">
+            <table className="min-w-full text-[12px]">
+              <thead>
+                <tr className="border-b border-slate-800 text-slate-400">
+                  <th className="text-left py-2 px-3">Email</th>
+                  <th className="text-left py-2 px-3">Nome</th>
+                  <th className="text-left py-2 px-3">Ruolo</th>
+                  <th className="text-right py-2 px-3">{t(lang, "ACTIONS")}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {loadingManagers ? (
+                  <tr>
+                    <td colSpan={4} className="py-3 px-3 text-xs text-slate-500">
+                      {t(lang, "PERIM_LOADING")}
+                    </td>
+                  </tr>
+                ) : managers.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="py-3 px-3 text-xs text-slate-500">
+                      {t(lang, "PERIM_NO_MANAGERS")}
+                    </td>
+                  </tr>
+                ) : (
+                  managers.map((m) => (
+                    <tr key={m.manager_id} className="hover:bg-slate-900/40">
+                      <td className="py-2 px-3 text-slate-100">{m.email || "—"}</td>
+                      <td className="py-2 px-3 text-slate-300">
+                        {m.display_name || m.full_name || "—"}
+                      </td>
+                      <td className="py-2 px-3 text-slate-400">{m.app_role || "—"}</td>
+                      <td className="py-2 px-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => removeManager(m.manager_id)}
+                          className="px-2 py-1 rounded-md border border-rose-700/40 text-rose-200 hover:bg-rose-900/20"
+                        >
+                          {t(lang, "PERIM_REMOVE")}
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {managersError ? (
+            <div className="mt-3 rounded-xl border border-rose-700/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+              {managersError}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {/* IMPORT OPERATORS (same as Manager) */}
+      {selectedShipId ? (
+        <div className="mx-3 sm:mx-4">
+          <ImportOperatorsExcel shipId={selectedShipId} onDone={() => loadOperatorsByShip(selectedShipId)} />
+        </div>
+      ) : null}
+
+      {/* ADD SINGLE OPERATOR */}
+      {selectedShipId ? (
+        <section className={cn(cardBase, "mx-3 sm:mx-4")}>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+                {t(lang, "PERIM_ADD_OP")}
+              </div>
+              <div className="text-sm font-medium text-slate-100">{t(lang, "PERIM_ADD_OP_TITLE")}</div>
+              <div className="text-xs text-slate-400 mt-1">{t(lang, "PERIM_ADD_OP_HINT")}</div>
+            </div>
+            <div className="text-[11px] text-slate-500 text-right">
+              <div className="uppercase tracking-[0.18em] text-slate-600">Scope</div>
+              <div>{selectedShip ? shipLabel(selectedShip) : "—"}</div>
+            </div>
+          </div>
+
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-[1fr_220px_auto] gap-2 items-end">
+            <div>
+              <label className="block text-[10px] uppercase tracking-[0.16em] text-slate-500 mb-1">
+                {t(lang, "PERIM_OP_NAME")}
+              </label>
+              <input
+                value={addName}
+                onChange={(e) => setAddName(e.target.value)}
+                placeholder="Es. Rossi Marco"
+                className="h-9 w-full rounded-xl border border-slate-800 bg-slate-950 px-2.5 text-sm text-slate-100"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] uppercase tracking-[0.16em] text-slate-500 mb-1">
+                {t(lang, "PERIM_OP_ROLE")}
+              </label>
+              <input
+                value={addRole}
+                onChange={(e) => setAddRole(e.target.value)}
+                placeholder="Es. ELETTRICISTA"
+                className="h-9 w-full rounded-xl border border-slate-800 bg-slate-950 px-2.5 text-sm text-slate-100"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={addOperatorInline}
+              disabled={adding || !normName(addName)}
+              className={cn(
+                "h-9 px-3 rounded-xl border text-xs font-medium",
+                "border-slate-700 text-slate-100 hover:bg-slate-900/60",
+                "disabled:opacity-50 disabled:cursor-not-allowed"
+              )}
+            >
+              {adding ? t(lang, "PERIM_LOADING") : t(lang, "PERIM_ADD")}
+            </button>
+          </div>
+
+          {addMsg ? (
+            <div
+              className={cn(
+                "mt-3 rounded-xl border px-3 py-2 text-xs",
+                addMsg.ok
+                  ? "border-emerald-700/30 bg-emerald-500/10 text-emerald-200"
+                  : "border-rose-700/40 bg-rose-500/10 text-rose-200"
+              )}
+            >
+              {addMsg.text}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {/* OPERATORS LIST */}
+      <section className={cn(cardBase, "mx-3 sm:mx-4 mb-4")}>
+        <div className="flex items-start justify-between gap-4 mb-3">
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">{t(lang, "PERIM_OPS")}</div>
+            <div className="text-xs text-slate-400 mt-1">{t(lang, "PERIM_OPS_HINT")}</div>
+          </div>
+          <div className="text-[11px] text-slate-500 text-right">
+            <div className="uppercase tracking-[0.18em] text-slate-600">{t(lang, "PERIM_STATUS")}</div>
+            <div>Elenco</div>
+          </div>
+        </div>
+
+        {operatorsError ? (
+          <div className="rounded-xl border border-rose-700/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+            {operatorsError}
+          </div>
+        ) : null}
+
+        {loadingOperators ? (
+          <div className="text-xs text-slate-400">{t(lang, "PERIM_LOADING")}</div>
+        ) : operators.length === 0 ? (
+          <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-3">
+            <div className="text-sm font-medium text-slate-100">Nessun operaio assegnato</div>
+            <div className="text-xs text-slate-400 mt-1">Importa una lista (formato CORE) o aggiungi manualmente.</div>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-[12px]">
+              <thead>
+                <tr className="border-b border-slate-800 text-slate-400">
+                  <th className="text-left py-1.5 pr-3">Nome</th>
+                  <th className="text-left py-1.5 pr-3">Ruoli</th>
+                  <th className="text-left py-1.5 pr-3">{t(lang, "PERIM_STATUS")}</th>
+                  <th className="text-right py-1.5 pr-3">{t(lang, "ACTIONS")}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {operators.map((op) => (
+                  <tr key={op.id} className="hover:bg-slate-900/40">
+                    <td className="py-2 pr-3 text-slate-100">{safeText(op.name) || "—"}</td>
+                    <td className="py-2 pr-3 text-slate-300">{op.roles.length ? op.roles.join(", ") : "—"}</td>
+                    <td className="py-2 pr-3">
+                      {op.active ? (
+                        <span className="text-emerald-400">{t(lang, "PERIM_ACTIVE")}</span>
+                      ) : (
+                        <span className="text-slate-500">{t(lang, "PERIM_INACTIVE")}</span>
+                      )}
+                    </td>
+                    <td className="py-2 pr-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => toggleOperatorActive(op.id, !op.active)}
+                        className={cn(
+                          "px-2 py-1 rounded-md border text-xs",
+                          op.active
+                            ? "border-slate-700 text-slate-200 hover:bg-slate-900/50"
+                            : "border-emerald-700/40 text-emerald-200 hover:bg-emerald-900/15"
+                        )}
+                      >
+                        {op.active ? "Disattiva" : "Attiva"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}

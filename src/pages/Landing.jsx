@@ -5,6 +5,39 @@ import { Link } from "react-router-dom";
 import { headerPill, themeIconBg, buttonPrimary } from "../ui/designSystem";
 
 /* =========================================================
+   PERF PROFILE (Landing)
+   - Objectif: réduire CPU/GPU + supprimer filtres coûteux
+   - Ajuste ici uniquement
+   ========================================================= */
+const PERF = {
+  // Canvas snow
+  snow: {
+    // Limite FPS du canvas (30 = nettement plus fluide côté perf)
+    maxFps: 30,
+    // Réduction globale du nombre de particules (multiplie le baseCount)
+    countMul: 0.6,
+    // Désactive shadows (coûteux) sur les flocons "proches"
+    enableFlakeShadows: false,
+    // Opacité globale du canvas
+    opacity: 0.9,
+  },
+
+  // Accumulation (banquette)
+  accumulation: {
+    // Désactive shimmer (animation + mix-blend), coûteux
+    shimmer: false,
+  },
+
+  // ElectricFlow SVG dash animation
+  flow: {
+    enabled: true,
+    // ralentit un peu (moins de frames perçues)
+    dashDurationMs: 9000,
+    sparkDurationMs: 7800,
+  },
+};
+
+/* =========================================================
    LANG
    ========================================================= */
 const LANGS = ["it", "fr", "en"];
@@ -26,6 +59,8 @@ const COPY = {
     closureLine: "Il sistema si ferma. La decisione inizia.",
     footerLeft: "Accesso riservato a personale e partner autorizzati.",
     footerRight: "CORE · Operazioni di cantiere",
+    holidayNote: "Periodo festivo · operatività invariata",
+    seasonalBadge: "SEASONAL · HOLIDAY",
   },
 
   fr: {
@@ -44,6 +79,8 @@ const COPY = {
     closureLine: "Quand le système s’arrête, la décision commence.",
     footerLeft: "Accès réservé au personnel et partenaires autorisés.",
     footerRight: "CORE · Opérations de chantier",
+    holidayNote: "Période festive · opérativité inchangée",
+    seasonalBadge: "SAISON · FÊTES",
   },
 
   en: {
@@ -62,6 +99,8 @@ const COPY = {
     closureLine: "When the system stops, the decision begins.",
     footerLeft: "Restricted access to staff and authorized partners.",
     footerRight: "CORE · Shipyard operations",
+    holidayNote: "Holiday season · operations unchanged",
+    seasonalBadge: "SEASONAL · HOLIDAY",
   },
 };
 
@@ -79,7 +118,60 @@ function safeGetInitialLang() {
 }
 
 /* =========================================================
-   Electric Flow (SVG + WAAPI) — slow, industrial
+   HOLIDAY (Noël) — flag auto + override
+   ========================================================= */
+function isHolidaySeasonNow() {
+  const d = new Date();
+  const m = d.getMonth(); // 0-11
+  const day = d.getDate();
+  return (m === 11 && day >= 15) || (m === 0 && day <= 6);
+}
+
+function getQueryParamsSafe() {
+  if (typeof window === "undefined") return new URLSearchParams();
+  try {
+    return new URLSearchParams(window.location.search);
+  } catch {
+    return new URLSearchParams();
+  }
+}
+
+function getHolidayOverrideFromQuery() {
+  const p = getQueryParamsSafe();
+  if (p.has("xmas")) {
+    const v = p.get("xmas");
+    if (v === "1" || v === "true") return true;
+    if (v === "0" || v === "false") return false;
+  }
+  return null;
+}
+
+function getSnowIntensityFromQuery() {
+  const p = getQueryParamsSafe();
+  const raw = (p.get("snow") || "").trim();
+  const n = Number(raw);
+  if (n === 1 || n === 2 || n === 3) return n;
+  return 2;
+}
+
+function getAccumulationEnabledFromQuery() {
+  const p = getQueryParamsSafe();
+  if (!p.has("acc")) return true;
+  const v = p.get("acc");
+  if (v === "0" || v === "false") return false;
+  if (v === "1" || v === "true") return true;
+  return true;
+}
+
+function shouldResetSnowFromQuery() {
+  const p = getQueryParamsSafe();
+  if (!p.has("snowreset")) return false;
+  const v = p.get("snowreset");
+  return v === "1" || v === "true";
+}
+
+/* =========================================================
+   Electric Flow (SVG + WAAPI) — slow, industrial (perf tuned)
    ========================================================= */
 function ElectricFlow({ t }) {
   const dashRef = useRef(null);
@@ -111,6 +203,8 @@ function ElectricFlow({ t }) {
   }, [x0, x1, x2, x3, y]);
 
   useEffect(() => {
+    if (!PERF.flow.enabled) return;
+
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
     if (reduce) return;
 
@@ -120,12 +214,12 @@ function ElectricFlow({ t }) {
 
     const dashAnim = dashEl.animate(
       [{ strokeDashoffset: 0 }, { strokeDashoffset: -320 }],
-      { duration: 6800, iterations: Infinity, easing: "linear" }
+      { duration: PERF.flow.dashDurationMs, iterations: Infinity, easing: "linear" }
     );
 
     const sparkAnim = sparkEl.animate(
       [{ strokeDashoffset: 0 }, { strokeDashoffset: -680 }],
-      { duration: 5200, iterations: Infinity, easing: "linear" }
+      { duration: PERF.flow.sparkDurationMs, iterations: Infinity, easing: "linear" }
     );
 
     const onVis = () => {
@@ -184,24 +278,15 @@ function ElectricFlow({ t }) {
           background-image:
             repeating-linear-gradient(
               0deg,
-              rgba(255,255,255,0.018) 0px,
-              rgba(255,255,255,0.018) 1px,
-              rgba(0,0,0,0.018) 2px,
-              rgba(0,0,0,0.018) 3px
-            ),
-            repeating-linear-gradient(
-              90deg,
-              rgba(255,255,255,0.012) 0px,
-              rgba(255,255,255,0.012) 1px,
-              rgba(0,0,0,0.012) 2px,
-              rgba(0,0,0,0.012) 3px
+              rgba(255,255,255,0.016) 0px,
+              rgba(255,255,255,0.016) 1px,
+              rgba(0,0,0,0.016) 2px,
+              rgba(0,0,0,0.016) 3px
             );
-          opacity: 0.35;
+          opacity: 0.28;
         }
-        .softGlow {
-          filter: drop-shadow(0 0 10px rgba(56,189,248,0.14))
-                  drop-shadow(0 0 22px rgba(56,189,248,0.08));
-        }
+        /* PERF: supprimer drop-shadows SVG (très coûteux) */
+        .softGlow { }
       `}</style>
 
       <div className="metalPanel p-6 md:p-7">
@@ -210,7 +295,6 @@ function ElectricFlow({ t }) {
             {t.spec}
           </div>
 
-          {/* Badge “système” (démo-grade, discret) */}
           <div className="shrink-0 inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/55 px-3 py-1.5">
             <span className="text-[11px] uppercase tracking-[0.20em] text-slate-400">
               CORE 1.0
@@ -239,11 +323,10 @@ function ElectricFlow({ t }) {
           <path
             d={d}
             fill="none"
-            stroke="rgba(56,189,248,0.10)"
-            strokeWidth="14"
+            stroke="rgba(56,189,248,0.09)"
+            strokeWidth="12"
             strokeLinecap="round"
-            opacity="0.55"
-            className="softGlow"
+            opacity="0.52"
           />
           <path
             ref={dashRef}
@@ -255,19 +338,17 @@ function ElectricFlow({ t }) {
             strokeDasharray="34 52"
             strokeDashoffset="0"
             opacity="0.95"
-            className="softGlow"
           />
           <path
             ref={sparkRef}
             d={d}
             fill="none"
-            stroke="rgba(226,232,240,0.92)"
-            strokeWidth="4.5"
+            stroke="rgba(226,232,240,0.88)"
+            strokeWidth="4"
             strokeLinecap="round"
             strokeDasharray="3 180"
             strokeDashoffset="0"
-            opacity="0.78"
-            className="softGlow"
+            opacity="0.70"
           />
 
           <Node x={x0} y={y} label={t.nodes[0]} sub={t.nodeSubs[0]} />
@@ -320,7 +401,337 @@ function Node({ x, y, label, sub }) {
 }
 
 /* =========================================================
-   LANDING — Démo-grade (header CNCS + CTA accesso)
+   SNOW (Canvas) — falling + wind (perf tuned)
+   intensity: 1|2|3
+   ========================================================= */
+function SnowCanvas({ enabled, intensity = 2 }) {
+  const canvasRef = useRef(null);
+  const rafRef = useRef(0);
+  const particlesRef = useRef([]);
+  const lastRef = useRef(0);
+  const visPauseRef = useRef(false);
+  const accRef = useRef(0); // for FPS limiting
+
+  const reduceMotion = useMemo(() => {
+    try {
+      return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!enabled) return;
+    if (reduceMotion) return;
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d", { alpha: true });
+    if (!ctx) return;
+
+    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+
+    const config = (() => {
+      // baseCount réduit + multiplicateur global PERF.countMul
+      const baseCountRaw = intensity === 3 ? 260 : intensity === 2 ? 200 : 150;
+      const baseCount = Math.max(80, Math.round(baseCountRaw * PERF.snow.countMul));
+
+      const wind = intensity === 3 ? 0.24 : intensity === 2 ? 0.20 : 0.14;
+      const gust = intensity === 3 ? 0.12 : intensity === 2 ? 0.09 : 0.06;
+      const speedBoost = intensity === 3 ? 1.20 : intensity === 2 ? 1.05 : 0.95;
+
+      return { baseCount, wind, gust, speedBoost };
+    })();
+
+    function resize() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      canvas.style.width = `${w}px`;
+      canvas.style.height = `${h}px`;
+      canvas.width = Math.floor(w * dpr);
+      canvas.height = Math.floor(h * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function rand(min, max) {
+      return min + Math.random() * (max - min);
+    }
+
+    function makeParticle(w, h) {
+      const depthRoll = Math.random();
+      let r, speed, alpha;
+
+      if (depthRoll < 0.38) {
+        r = rand(0.8, 1.5);
+        speed = rand(18, 48);
+        alpha = rand(0.16, 0.30);
+      } else if (depthRoll < 0.82) {
+        r = rand(1.4, 2.5);
+        speed = rand(45, 92);
+        alpha = rand(0.22, 0.40);
+      } else {
+        r = rand(2.2, 3.6);
+        speed = rand(72, 135);
+        alpha = rand(0.26, 0.52);
+      }
+
+      return {
+        x: rand(0, w),
+        y: rand(-h, 0),
+        r,
+        vy: speed * config.speedBoost,
+        vx: rand(-7, 7),
+        drift: rand(-1, 1),
+        alpha,
+        phase: rand(0, Math.PI * 2),
+      };
+    }
+
+    function seedParticles() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const arr = [];
+      for (let i = 0; i < config.baseCount; i++) arr.push(makeParticle(w, h));
+      particlesRef.current = arr;
+    }
+
+    function step(ts) {
+      rafRef.current = requestAnimationFrame(step);
+      if (visPauseRef.current) return;
+
+      // FPS limiter
+      const targetFrameMs = 1000 / Math.max(10, PERF.snow.maxFps);
+      const lastTick = accRef.current || ts;
+      if (ts - lastTick < targetFrameMs) return;
+      accRef.current = ts;
+
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+
+      const last = lastRef.current || ts;
+      const dt = Math.min(0.05, Math.max(0.001, (ts - last) / 1000));
+      lastRef.current = ts;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // PERF: éviter globalCompositeOperation "lighter" (coûteux sur certains GPU)
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+
+      const windBase = config.wind;
+      const windGust = config.gust * Math.sin(ts / 1400);
+      const wind = windBase + windGust;
+
+      const ps = particlesRef.current;
+      for (let i = 0; i < ps.length; i++) {
+        const p = ps[i];
+
+        p.phase += dt * 1.1;
+        const sway = Math.sin(p.phase) * (0.30 + p.r * 0.05);
+
+        p.x += (p.vx + wind * 110 + p.drift * 14 + sway * 20) * dt;
+        p.y += p.vy * dt;
+
+        if (p.y > h + 10) {
+          p.y = rand(-140, -18);
+          p.x = rand(0, w);
+        }
+        if (p.x < -30) p.x = w + 30;
+        if (p.x > w + 30) p.x = -30;
+
+        ctx.beginPath();
+        ctx.globalAlpha = p.alpha;
+
+        // PERF: pas de shadowBlur (désactivable)
+        if (PERF.snow.enableFlakeShadows && p.r >= 3.0) {
+          ctx.fillStyle = "rgba(255,255,255,0.95)";
+          ctx.shadowColor = "rgba(255,255,255,0.12)";
+          ctx.shadowBlur = 7;
+        } else {
+          ctx.fillStyle = "rgba(255,255,255,0.9)";
+          ctx.shadowColor = "rgba(255,255,255,0.0)";
+          ctx.shadowBlur = 0;
+        }
+
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur = 0;
+    }
+
+    function onVis() {
+      visPauseRef.current = document.visibilityState !== "visible";
+    }
+
+    resize();
+    seedParticles();
+
+    window.addEventListener("resize", resize);
+    document.addEventListener("visibilitychange", onVis);
+
+    rafRef.current = requestAnimationFrame(step);
+
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      window.removeEventListener("resize", resize);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [enabled, intensity, reduceMotion]);
+
+  if (!enabled) return null;
+
+  return (
+    <canvas
+      ref={canvasRef}
+      aria-hidden="true"
+      className="pointer-events-none fixed inset-0"
+      style={{
+        zIndex: 70,
+        opacity: PERF.snow.opacity,
+      }}
+    />
+  );
+}
+
+/* =========================================================
+   Snow Accumulation — growing snowbank at bottom (perf tuned)
+   - shimmer désactivé par défaut (PERF.accumulation.shimmer)
+   ========================================================= */
+function SnowAccumulation({ enabled, intensity = 2 }) {
+  const KEY = "core_snow_acc_v1";
+  const rafRef = useRef(0);
+  const lastRef = useRef(0);
+
+  const reduceMotion = useMemo(() => {
+    try {
+      return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const [px, setPx] = useState(() => {
+    if (typeof window === "undefined") return 0;
+    try {
+      const reset = shouldResetSnowFromQuery();
+      if (reset) {
+        window.localStorage.removeItem(KEY);
+        return 0;
+      }
+      const raw = window.localStorage.getItem(KEY);
+      const n = raw ? Number(raw) : 0;
+      return Number.isFinite(n) ? Math.max(0, Math.min(160, n)) : 0;
+    } catch {
+      return 0;
+    }
+  });
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    const growthPerSec = intensity === 3 ? 7.0 : intensity === 2 ? 5.2 : 3.8;
+    const maxPx = intensity === 3 ? 140 : 110;
+
+    function tick(ts) {
+      rafRef.current = requestAnimationFrame(tick);
+      if (reduceMotion) return;
+
+      const last = lastRef.current || ts;
+      const dt = Math.min(0.06, Math.max(0.001, (ts - last) / 1000));
+      lastRef.current = ts;
+
+      setPx((cur) => {
+        const next = Math.min(maxPx, cur + growthPerSec * dt);
+        try {
+          window.localStorage.setItem(KEY, String(next));
+        } catch {}
+        return next;
+      });
+    }
+
+    rafRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+    };
+  }, [enabled, intensity, reduceMotion]);
+
+  if (!enabled) return null;
+
+  const h = Math.round(px);
+
+  return (
+    <>
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed left-0 right-0 bottom-0"
+        style={{
+          zIndex: 75,
+          height: `${Math.max(18, h)}px`,
+          background: `
+            linear-gradient(to top,
+              rgba(255,255,255,0.44),
+              rgba(255,255,255,0.20) 38%,
+              rgba(255,255,255,0.08) 70%,
+              rgba(255,255,255,0.00)
+            )
+          `,
+          // PERF: évite blur lourd
+          filter: "none",
+        }}
+      />
+
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed left-0 right-0 bottom-0"
+        style={{
+          zIndex: 76,
+          height: `${Math.max(26, h + 28)}px`,
+          backgroundImage: `
+            radial-gradient(120px 26px at 8% 70%, rgba(255,255,255,0.20), transparent 65%),
+            radial-gradient(140px 28px at 22% 76%, rgba(255,255,255,0.18), transparent 66%),
+            radial-gradient(160px 30px at 38% 72%, rgba(255,255,255,0.16), transparent 66%),
+            radial-gradient(150px 28px at 54% 78%, rgba(255,255,255,0.18), transparent 66%),
+            radial-gradient(170px 30px at 70% 74%, rgba(255,255,255,0.16), transparent 66%),
+            radial-gradient(140px 26px at 86% 78%, rgba(255,255,255,0.18), transparent 66%)
+          `,
+          opacity: 0.9,
+          // PERF: blur réduit fortement
+          filter: "blur(0.6px)",
+        }}
+      />
+
+      {PERF.accumulation.shimmer ? (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none fixed left-0 right-0 bottom-0"
+          style={{
+            zIndex: 77,
+            height: `${Math.max(34, h + 40)}px`,
+            backgroundImage: `
+              linear-gradient(90deg,
+                rgba(255,255,255,0.00) 0%,
+                rgba(255,255,255,0.08) 22%,
+                rgba(255,255,255,0.00) 45%,
+                rgba(255,255,255,0.06) 62%,
+                rgba(255,255,255,0.00) 100%
+              )
+            `,
+            mixBlendMode: "screen",
+            filter: "blur(0.8px)",
+          }}
+        />
+      ) : null}
+    </>
+  );
+}
+
+/* =========================================================
+   LANDING — Démo-grade (perf tuned)
    ========================================================= */
 export default function Landing() {
   useEffect(() => {
@@ -336,7 +747,15 @@ export default function Landing() {
     } catch {}
   }, [lang]);
 
-  // “Richiedi accesso” = posture institutionnelle (pas “demo”)
+  const holiday = useMemo(() => {
+    const override = getHolidayOverrideFromQuery();
+    if (override !== null) return override;
+    return isHolidaySeasonNow();
+  }, []);
+
+  const snowIntensity = useMemo(() => getSnowIntensityFromQuery(), []);
+  const snowAccEnabled = useMemo(() => getAccumulationEnabledFromQuery(), []);
+
   const accessHref = useMemo(() => {
     const subject = encodeURIComponent("Richiesta accesso CORE");
     const body = encodeURIComponent(
@@ -347,20 +766,21 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
-      {/* BACKDROP: profondeur + grain global (stable, non flashy) */}
+      {/* BACKDROP */}
       <div
         className="pointer-events-none fixed inset-0"
         style={{
           backgroundImage: `
             radial-gradient(1200px 620px at 14% 18%, rgba(56,189,248,0.08), transparent 62%),
-            radial-gradient(900px 520px at 78% 22%, rgba(16,185,129,0.05), transparent 64%),
-            radial-gradient(900px 520px at 48% 86%, rgba(139,92,246,0.035), transparent 66%),
-            linear-gradient(to bottom, rgba(2,6,23,0.0), rgba(2,6,23,0.40))
+            radial-gradient(900px 520px at 78% 22%, ${holiday ? "rgba(234,179,8,0.10)" : "rgba(16,185,129,0.05)"}, transparent 64%),
+            radial-gradient(900px 520px at 48% 86%, ${holiday ? "rgba(245,158,11,0.08)" : "rgba(139,92,246,0.035)"}, transparent 66%),
+            linear-gradient(to bottom, rgba(2,6,23,0.0), rgba(2,6,23,0.48))
           `,
         }}
       />
+      {/* PERF: réduire grain (moins d’opacité) */}
       <div
-        className="pointer-events-none fixed inset-0 opacity-[0.06]"
+        className="pointer-events-none fixed inset-0 opacity-[0.045]"
         style={{
           backgroundImage: `
             repeating-linear-gradient(
@@ -375,14 +795,18 @@ export default function Landing() {
         }}
       />
 
-      {/* HEADER — aligné CNCSTopbar (rounded + blur + border) */}
+      {/* SNOW: falling + accumulation (holiday only) */}
+      <SnowCanvas enabled={holiday} intensity={snowIntensity} />
+      <SnowAccumulation enabled={holiday && snowAccEnabled} intensity={snowIntensity} />
+
+      {/* HEADER */}
       <header className="relative z-20 px-3 pt-3">
         <div className="mx-auto max-w-7xl">
           <div className="no-print sticky top-0 z-30 rounded-2xl border border-slate-800 bg-[#050910]/70 backdrop-blur px-3 py-2">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0 flex items-center gap-3">
                 <div className={cx(headerPill(true), "border-slate-700 text-slate-200 bg-slate-900/40")}>
-                  <span className={themeIconBg(true, "sky")}>●</span>
+                  <span className={themeIconBg(true, holiday ? "amber" : "sky")}>●</span>
                   <span>CORE</span>
                 </div>
                 <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500 truncate">
@@ -399,7 +823,7 @@ export default function Landing() {
                       onClick={() => setLang(l)}
                       className={cx(
                         "px-2.5 py-1.5 rounded-lg text-[11px] uppercase tracking-[0.18em] transition",
-                        l === lang ? "text-sky-200" : "text-slate-500 hover:text-slate-300"
+                        l === lang ? (holiday ? "text-amber-200" : "text-sky-200") : "text-slate-500 hover:text-slate-300"
                       )}
                       aria-label={`Language ${l}`}
                       title={l.toUpperCase()}
@@ -408,6 +832,21 @@ export default function Landing() {
                     </button>
                   ))}
                 </div>
+
+                {holiday ? (
+                  <span
+                    className="hidden md:inline-flex items-center gap-2 rounded-full border border-amber-400/35 bg-amber-500/12 px-3 py-1.5"
+                    style={{
+                      boxShadow: "0 12px 34px rgba(245,158,11,0.08), inset 0 1px 0 rgba(255,255,255,0.05)",
+                    }}
+                    title="Seasonal mode — snow=1|2|3 — reset snowreset=1"
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-200/80" />
+                    <span className="text-[10px] uppercase tracking-[0.22em] text-amber-200">
+                      {t.seasonalBadge}
+                    </span>
+                  </span>
+                ) : null}
 
                 <Link
                   to="/login"
@@ -452,7 +891,9 @@ export default function Landing() {
                   to="/login"
                   className={cx(
                     buttonPrimary(true),
-                    "px-7 py-3 rounded-xl shadow-[0_18px_50px_rgba(56,189,248,0.14)]"
+                    holiday
+                      ? "px-7 py-3 rounded-xl shadow-[0_18px_52px_rgba(245,158,11,0.10)]"
+                      : "px-7 py-3 rounded-xl shadow-[0_18px_50px_rgba(56,189,248,0.14)]"
                   )}
                 >
                   {t.ctaPrimary}
@@ -462,13 +903,16 @@ export default function Landing() {
                   href={accessHref}
                   className={cx(
                     "inline-flex items-center justify-center rounded-xl border border-slate-800 bg-slate-950/45 px-7 py-3",
-                    "text-sm text-slate-200 hover:bg-slate-950/70 transition"
+                    holiday ? "text-amber-100 hover:bg-amber-500/8 hover:border-amber-400/25" : "text-slate-200 hover:bg-slate-950/70",
+                    "transition"
                   )}
                 >
                   {t.ctaSecondary}
                 </a>
 
-                <span className="text-sm text-slate-500">{t.accessNote}</span>
+                <span className={cx("text-sm", holiday ? "text-amber-200/70" : "text-slate-500")}>
+                  {holiday ? t.holidayNote : t.accessNote}
+                </span>
               </div>
             </div>
 

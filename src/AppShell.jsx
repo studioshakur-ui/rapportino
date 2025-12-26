@@ -6,6 +6,9 @@ import ConnectionIndicator from "./components/ConnectionIndicator";
 import CNCSSidebar from "./components/shell/CNCSSidebar";
 import CNCSTopbar from "./components/shell/CNCSTopbar";
 
+// NEW
+import CapoTodayOperatorsPanel from "./capo/CapoTodayOperatorsPanel";
+
 export default function AppShell() {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
@@ -28,6 +31,9 @@ export default function AppShell() {
     return true;
   });
 
+  // NEW: last drop target for operators (rapportino page listens)
+  const [opDropToken, setOpDropToken] = useState(0);
+
   useEffect(() => {
     try {
       window.localStorage.setItem(
@@ -48,9 +54,7 @@ export default function AppShell() {
   };
 
   const displayName = useMemo(() => {
-    return (
-      profile?.display_name || profile?.full_name || profile?.email || "Capo"
-    );
+    return profile?.display_name || profile?.full_name || profile?.email || "Capo";
   }, [profile]);
 
   if (!profile) {
@@ -60,6 +64,12 @@ export default function AppShell() {
       </div>
     );
   }
+
+  // Wider container for CAPO: récupère l’espace desktop.
+  // - max-w très large + padding stable
+  // - pas de "mx-auto" ultra étroit
+  const contentWrapClass =
+    "w-full max-w-[1480px] mx-auto space-y-4 pt-4";
 
   return (
     <div className="min-h-screen bg-[#050910] text-slate-100">
@@ -90,6 +100,23 @@ export default function AppShell() {
               colorClass: "text-violet-400",
             },
           ]}
+          bottomSlot={
+            <CapoTodayOperatorsPanel
+              mode="expanded"
+              onOperatorDragStart={() => {
+                // token uniquement pour "forcer" un rerender si besoin.
+                setOpDropToken((v) => v + 1);
+              }}
+            />
+          }
+          bottomSlotCollapsed={
+            <CapoTodayOperatorsPanel
+              mode="collapsed"
+              onOperatorDragStart={() => {
+                setOpDropToken((v) => v + 1);
+              }}
+            />
+          }
         />
 
         {/* MAIN */}
@@ -130,8 +157,9 @@ export default function AppShell() {
             }
           />
 
-          <div className="max-w-6xl mx-auto space-y-4 pt-4">
-            <Outlet />
+          <div className={contentWrapClass}>
+            {/* Outlet pages */}
+            <Outlet context={{ opDropToken }} />
           </div>
         </main>
       </div>

@@ -17,6 +17,10 @@ import ManagerShell from "./ManagerShell";
 // ADMIN
 import AdminShell from "./admin/AdminShell";
 import AdminUsersPage from "./admin/AdminUsersPage";
+import AdminPlanningPage from "./admin/AdminPlanningPage";
+import AdminAssignmentsPage from "./admin/AdminAssignmentsPage";
+import AdminAuditPage from "./admin/AdminAuditPage";
+import AdminOperatorsPage from "./admin/AdminOperatorsPage";
 
 // CAPO
 import RapportinoPage from "./components/RapportinoPage";
@@ -30,8 +34,16 @@ import IncaCapoCockpit from "./capo/IncaCapoCockpit";
 import UfficioRapportiniList from "./ufficio/UfficioRapportiniList";
 import UfficioRapportinoDetail from "./ufficio/UfficioRapportinoDetail";
 import UfficioIncaHub from "./ufficio/UfficioIncaHub";
+import NavemasterHub from "./navemaster/NavemasterHub";
 
-// CORE DRIVE (UX)
+// MANAGER
+import ManagerDashboard from "./pages/ManagerDashboard";
+import ManagerAssignments from "./pages/ManagerAssignments";
+import ManagerCoreDrive from "./pages/ManagerCoreDrive";
+import ManagerAnalytics from "./pages/ManagerAnalytics";
+import ManagerOperatorKpi from "./pages/ManagerOperatorKpi";
+
+// CORE DRIVE
 import ArchivePage from "./pages/Archive";
 
 // EVOLUZIONE
@@ -46,7 +58,7 @@ export default function AppRoutes() {
       <Route path="/unauthorized" element={<Unauthorized />} />
       <Route path="/force-password-change" element={<ForcePasswordChange />} />
 
-      {/* ===== CAPO PRINT (Sheet) — DANS /app POUR GARDER LA SESSION ===== */}
+      {/* CAPO PRINT */}
       <Route
         path="/app/rapportino/sheet"
         element={
@@ -65,8 +77,12 @@ export default function AppRoutes() {
           </RequireRole>
         }
       >
-        <Route index element={<AdminUsersPage />} />
+        <Route index element={<Navigate to="users" replace />} />
         <Route path="users" element={<AdminUsersPage />} />
+        <Route path="operators" element={<AdminOperatorsPage />} />
+        <Route path="planning" element={<AdminPlanningPage />} />
+        <Route path="assignments" element={<AdminAssignmentsPage />} />
+        <Route path="audit" element={<AdminAuditPage />} />
       </Route>
 
       {/* ===== CAPO ===== */}
@@ -83,10 +99,7 @@ export default function AppRoutes() {
         <Route path="ship/:shipId/rapportino/role" element={<CapoRoleSelector />} />
         <Route path="ship/:shipId/rapportino" element={<RapportinoPage />} />
         <Route path="ship/:shipId/inca" element={<IncaCapoCockpit />} />
-
-        {/* CANONIQUE */}
         <Route path="core-drive" element={<ArchivePage />} />
-        {/* ALIAS legacy (non UX) */}
         <Route path="archive" element={<Navigate to="../core-drive" replace />} />
       </Route>
 
@@ -101,16 +114,10 @@ export default function AppRoutes() {
       >
         <Route index element={<UfficioRapportiniList />} />
         <Route path="rapportini/:id" element={<UfficioRapportinoDetail />} />
-
-        {/* INCA HUB (modal fullscreen cockpit) */}
-        <Route path="inca" element={<UfficioIncaHub />} />
-
-        {/* EVOLUZIONE */}
+        <Route path="navemaster" element={<NavemasterHub />} />
+        <Route path="inca-hub" element={<UfficioIncaHub />} />
         <Route path="evoluzione" element={<Evoluzione />} />
-
-        {/* CANONIQUE */}
         <Route path="core-drive" element={<ArchivePage />} />
-        {/* ALIAS legacy (non UX) */}
         <Route path="archive" element={<Navigate to="core-drive" replace />} />
       </Route>
 
@@ -118,11 +125,17 @@ export default function AppRoutes() {
       <Route
         path="/manager/*"
         element={
-          <RequireRole allow={["MANAGER"]}>
+          <RequireRole allow={["MANAGER", "ADMIN"]}>
             <ManagerShell />
           </RequireRole>
         }
-      />
+      >
+        <Route index element={<ManagerDashboard isDark={true} />} />
+        <Route path="assegnazioni" element={<ManagerAssignments isDark={true} />} />
+        <Route path="drive" element={<ManagerCoreDrive isDark={true} />} />
+        <Route path="analytics" element={<ManagerAnalytics isDark={true} />} />
+        <Route path="kpi-operatori" element={<ManagerOperatorKpi isDark={true} />} />
+      </Route>
 
       {/* ===== DIREZIONE ===== */}
       <Route
@@ -134,7 +147,6 @@ export default function AppRoutes() {
         }
       />
 
-      {/* Fallback */}
       <Route path="/*" element={<Landing />} />
     </Routes>
   );

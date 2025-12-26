@@ -1,315 +1,312 @@
 // src/pages/ManagerDashboard.jsx
-import React, { useMemo } from "react";
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-} from "recharts";
+import React, { useEffect, useMemo, useState } from "react";
+import { supabase } from "../lib/supabaseClient";
+import { useAuth } from "../auth/AuthProvider";
+
+function cn(...parts) {
+  return parts.filter(Boolean).join(" ");
+}
+
+function formatDate(value) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleDateString("it-IT");
+}
 
 export default function ManagerDashboard({ isDark = true }) {
-  // Données fictives pour l’instant (à remplacer plus tard par des agrégations réelles)
-  const rapportiniSeries = useMemo(
-    () => [
-      { day: "Lun", expected: 18, received: 16, validated: 14 },
-      { day: "Mar", expected: 20, received: 19, validated: 18 },
-      { day: "Mer", expected: 20, received: 17, validated: 15 },
-      { day: "Gio", expected: 22, received: 21, validated: 20 },
-      { day: "Ven", expected: 18, received: 17, validated: 16 },
-    ],
-    []
+  const { profile } = useAuth();
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Ships in manager perimeter (via RPC): { id, code, name, is_active }
+  const [ships, setShips] = useState([]);
+
+  const [kpi, setKpi] = useState({
+    ships: 0,
+    capi: 0,
+    operators: 0,
+    rapportini7d: 0,
+    toReview: 0,
+  });
+
+  const [latestRapportini, setLatestRapportini] = useState([]);
+
+  const shipIds = useMemo(
+    () => ships.map((s) => s.id).filter(Boolean),
+    [ships]
   );
 
-  const hoursByCantiere = useMemo(
-    () => [
-      { costr: "C001", ore: 320 },
-      { costr: "C002", ore: 280 },
-      { costr: "6310", ore: 150 },
-    ],
-    []
+  const shipCodes = useMemo(
+    () => ships.map((s) => String(s?.code || "").trim()).filter(Boolean),
+    [ships]
   );
 
-  const incaHealth = useMemo(
-    () => [
-      { costr: "C001", imported: 92, checked: 78 },
-      { costr: "C002", imported: 85, checked: 64 },
-      { costr: "6310", imported: 60, checked: 40 },
-    ],
-    []
-  );
+  useEffect(() => {
+    let alive = true;
+    const ac = new AbortController();
 
-  const accentBar = isDark ? "#38bdf8" : "#0f766e";
-  const accentBar2 = isDark ? "#22c55e" : "#16a34a";
-  const accentLine = isDark ? "#f97316" : "#ea580c";
-  const gridColor = isDark ? "#1e293b" : "#e2e8f0";
-  const axisColor = isDark ? "#94a3b8" : "#64748b";
+    async function load() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        if (!profile?.id) {
+          setShips([]);
+          setKpi({ ships: 0, capi: 0, operators: 0, rapportini7d: 0, toReview: 0 });
+          setLatestRapportini([]);
+          return;
+        }
+
+        // 0) capi assigned to this manager (canonical)
+        let capiCount = 0;
+        try {
+          const { data: capi, error: capiErr } = await supabase.rpc("manager_my_capi_v1");
+          if (capiErr) throw capiErr;
+          capiCount = Array.isArray(capi) ? capi.length : 0;
+        } catch (e) {
+          console.warn("[ManagerDashboard] capi rpc warning:", e);
+          capiCount = 0;
+        }
+
+        // 1) ships in perimeter (CANONICAL: RPC security definer)
+        const { data: perim, error: perimErr } = await supabase
+          .rpc("manager_my_ships_v1")
+          .abortSignal(ac.signal);
+
+        if (perimErr) throw perimErr;
+
+        const mappedShips = (perim || [])
+          .map((r) => ({
+            id: r.ship_id,
+            code: r.ship_code,
+            name: r.ship_name,
+            is_active: r.is_active,
+            assigned_at: r.assigned_at,
+          }))
+          .filter((s) => s.id);
+
+        const activeFirst = [...mappedShips].sort((a, b) => {
+          const aa = a?.is_active ? 0 : 1;
+          const bb = b?.is_active ? 0 : 1;
+          return aa - bb;
+        });
+
+        if (!alive) return;
+        setShips(activeFirst);
+
+        const ids = activeFirst.map((s) => s.id).filter(Boolean);
+        const codes = activeFirst.map((s) => String(s?.code || "").trim()).filter(Boolean);
+
+        if (ids.length === 0) {
+          setKpi({ ships: 0, capi: capiCount, operators: 0, rapportini7d: 0, toReview: 0 });
+          setLatestRapportini([]);
+          return;
+        }
+
+        // 2) operators linked to perimeter (count distinct operators)
+        const { data: shipOps, error: shipOpsErr } = await supabase
+          .from("ship_operators")
+          .select("operator_id")
+          .in("ship_id", ids)
+          .abortSignal(ac.signal);
+
+        if (shipOpsErr) throw shipOpsErr;
+
+        const uniqOps = new Set((shipOps || []).map((r) => r.operator_id).filter(Boolean));
+
+        // 3) rapportini last 7d in perimeter
+        const since = new Date();
+        since.setDate(since.getDate() - 7);
+        const sinceISO = since.toISOString().slice(0, 10);
+
+        const { count: rapCount, error: rapCountErr } = await supabase
+          .from("rapportini")
+          .select("id", { count: "exact", head: true })
+          .in("costr", codes)
+          .gte("report_date", sinceISO)
+          .abortSignal(ac.signal);
+
+        if (rapCountErr) throw rapCountErr;
+
+        // 4) to-review (VALIDATED_CAPO)
+        const { count: toReview, error: toReviewErr } = await supabase
+          .from("rapportini")
+          .select("id", { count: "exact", head: true })
+          .in("costr", codes)
+          .eq("status", "VALIDATED_CAPO")
+          .abortSignal(ac.signal);
+
+        if (toReviewErr) throw toReviewErr;
+
+        // 5) latest rapportini
+        const { data: latest, error: latestErr } = await supabase
+          .from("rapportini")
+          .select("id, report_date, costr, commessa, status, capo_id, crew_role, updated_at")
+          .in("costr", codes)
+          .order("report_date", { ascending: false })
+          .order("updated_at", { ascending: false })
+          .limit(8)
+          .abortSignal(ac.signal);
+
+        if (latestErr) throw latestErr;
+
+        if (!alive) return;
+
+        setKpi({
+          ships: ids.length,
+          capi: capiCount,
+          operators: uniqOps.size,
+          rapportini7d: Number(rapCount || 0),
+          toReview: Number(toReview || 0),
+        });
+
+        setLatestRapportini(Array.isArray(latest) ? latest : []);
+      } catch (e) {
+        console.error("[ManagerDashboard] load error:", e);
+        if (!alive) return;
+        setError(e?.message || "Errore caricamento dashboard Manager.");
+      } finally {
+        if (!alive) return;
+        setLoading(false);
+      }
+    }
+
+    load();
+
+    return () => {
+      alive = false;
+      ac.abort();
+    };
+  }, [profile?.id]);
+
+  const cardBase = cn(
+    "rounded-2xl border p-3 sm:p-4",
+    isDark ? "border-slate-800 bg-slate-950/60" : "border-slate-200 bg-white"
+  );
 
   return (
-    <div className="space-y-5">
-      {/* Bandeau titre + résumé */}
-      <section className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-1">
-            Supervisione cantieri
+    <div className="space-y-4">
+      <header className="px-3 sm:px-4 pt-3">
+        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-1">
+          Supervisione cantieri
+        </div>
+        <h1 className="text-xl sm:text-2xl font-semibold text-slate-100">Dashboard Manager</h1>
+        <p className="text-xs text-slate-400 mt-1 max-w-3xl">
+          KPI reali letti da Supabase (perimetro manager, capi, rapportini, squadre). Nessun dato demo.
+        </p>
+      </header>
+
+      {error ? (
+        <div className="px-3 sm:px-4">
+          <div className="rounded-2xl border border-rose-700/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+            {error}
           </div>
-          <h1 className="text-xl sm:text-2xl font-semibold text-slate-50">
-            Stato operativo · Manager
-          </h1>
-          <p className="text-xs text-slate-400 mt-1 max-w-xl">
-            Vista sintetica dei cantieri assegnati: presenze, completamento
-            rapportini, copertura INCA. Dati esemplificativi in attesa di
-            collegamento ai flussi reali.
-          </p>
+        </div>
+      ) : null}
+
+      <section className="px-3 sm:px-4 grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className={cn(cardBase, "border-emerald-500/30")}>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-emerald-300">Cantieri</div>
+          <div className="text-2xl font-semibold text-slate-50 mt-1">{loading ? "—" : kpi.ships}</div>
+          <div className="text-[10px] text-slate-400 mt-1">Nel perimetro Manager</div>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 text-[11px]">
-          <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">
-            <div className="text-emerald-300 uppercase tracking-[0.16em] mb-1">
-              Cantieri attivi
-            </div>
-            <div className="text-lg font-semibold text-slate-50">3</div>
-            <div className="text-[10px] text-emerald-200/80 mt-0.5">
-              Sotto supervisione Manager
+        <div className={cn(cardBase, "border-sky-500/30")}>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-sky-300">Capi</div>
+          <div className="text-2xl font-semibold text-slate-50 mt-1">{loading ? "—" : kpi.capi}</div>
+          <div className="text-[10px] text-slate-400 mt-1">Assegnati al Manager (RPC)</div>
+        </div>
+
+        <div className={cn(cardBase, "border-violet-500/30")}>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-violet-300">Operai</div>
+          <div className="text-2xl font-semibold text-slate-50 mt-1">{loading ? "—" : kpi.operators}</div>
+          <div className="text-[10px] text-slate-400 mt-1">Distinct (ship_operators)</div>
+        </div>
+
+        <div className={cn(cardBase, "border-amber-500/30")}>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-amber-300">Rapportini (7g)</div>
+          <div className="text-2xl font-semibold text-slate-50 mt-1">{loading ? "—" : kpi.rapportini7d}</div>
+          <div className="text-[10px] text-slate-400 mt-1">Ultimi 7 giorni</div>
+        </div>
+
+        <div className={cn(cardBase, "border-rose-500/30")}>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-rose-300">Da verificare</div>
+          <div className="text-2xl font-semibold text-slate-50 mt-1">{loading ? "—" : kpi.toReview}</div>
+          <div className="text-[10px] text-slate-400 mt-1">Status: VALIDATED_CAPO</div>
+        </div>
+      </section>
+
+      <section className="px-3 sm:px-4">
+        <div className={cardBase}>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Perimetro</div>
+              <div className="text-sm font-medium text-slate-100">Cantieri assegnati</div>
+              <div className="text-xs text-slate-400 mt-1">
+                Lista dei cantieri assegnati al Manager corrente (source: RPC manager_my_ships_v1).
+              </div>
             </div>
           </div>
-          <div className="rounded-2xl border border-sky-500/40 bg-sky-500/10 px-3 py-2">
-            <div className="text-sky-300 uppercase tracking-[0.16em] mb-1">
-              Rapportini oggi
-            </div>
-            <div className="text-lg font-semibold text-slate-50">96%</div>
-            <div className="text-[10px] text-sky-200/80 mt-0.5">
-              Ricevuti vs attesi (demo)
-            </div>
-          </div>
-          <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-            <div className="text-amber-300 uppercase tracking-[0.16em] mb-1">
-              Copertura INCA
-            </div>
-            <div className="text-lg font-semibold text-slate-50">~ 80%</div>
-            <div className="text-[10px] text-amber-200/80 mt-0.5">
-              Import &amp; controlli (demo)
-            </div>
+
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2">
+            {(ships || []).slice(0, 8).map((s) => (
+              <div key={s.id} className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2">
+                <div className="text-sm font-medium text-slate-100">
+                  {s.code || "—"} <span className="text-slate-500">·</span> {s.name || "Cantiere"}
+                </div>
+                <div className="text-[11px] text-slate-500">Ship ID: {s.id}</div>
+              </div>
+            ))}
+
+            {!loading && ships.length === 0 ? (
+              <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-3">
+                <div className="text-sm font-medium text-slate-100">Nessun perimetro</div>
+                <div className="text-xs text-slate-400 mt-1">Serve assegnazione in ship_managers (ADMIN).</div>
+              </div>
+            ) : null}
           </div>
         </div>
       </section>
 
-      {/* Graphs principaux */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Rapportini expected/received/validated */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-3 sm:p-4">
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                Flusso rapportini
-              </div>
-              <div className="text-xs text-slate-400">
-                Attesi · ricevuti · validati (demo)
-              </div>
-            </div>
-          </div>
-          <div className="h-52 sm:h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={rapportiniSeries}>
-                <CartesianGrid
-                  stroke={gridColor}
-                  strokeDasharray="3 3"
-                  vertical={false}
-                />
-                <XAxis dataKey="day" stroke={axisColor} fontSize={11} />
-                <YAxis stroke={axisColor} fontSize={11} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: isDark ? "#020617" : "#ffffff",
-                    borderColor: isDark ? "#1e293b" : "#e2e8f0",
-                    fontSize: 11,
-                  }}
-                />
-                <Legend
-                  wrapperStyle={{
-                    fontSize: 11,
-                  }}
-                />
-                <Bar dataKey="expected" name="Attesi" fill={gridColor} />
-                <Bar dataKey="received" name="Ricevuti" fill={accentBar} />
-                <Bar dataKey="validated" name="Validati" fill={accentBar2} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+      <section className="px-3 sm:px-4 pb-4">
+        <div className={cardBase}>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Ultimi rapportini</div>
+          <div className="text-sm font-medium text-slate-100">Controllo rapido</div>
 
-        {/* Heures par cantiere */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-3 sm:p-4">
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                Ore caricate per cantiere
-              </div>
-              <div className="text-xs text-slate-400">
-                Distribuzione demo · settimana corrente
-              </div>
-            </div>
-          </div>
-          <div className="h-52 sm:h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={hoursByCantiere} layout="vertical">
-                <CartesianGrid
-                  stroke={gridColor}
-                  strokeDasharray="3 3"
-                  horizontal={false}
-                />
-                <XAxis
-                  type="number"
-                  stroke={axisColor}
-                  fontSize={11}
-                  tickFormatter={(v) => `${v} h`}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="costr"
-                  stroke={axisColor}
-                  fontSize={11}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: isDark ? "#020617" : "#ffffff",
-                    borderColor: isDark ? "#1e293b" : "#e2e8f0",
-                    fontSize: 11,
-                  }}
-                  formatter={(value) => [`${value} h`, "Ore"]}
-                />
-                <Bar dataKey="ore" name="Ore" fill={accentBar2} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </section>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+                  <th className="text-left py-2 pr-3">Data</th>
+                  <th className="text-left py-2 pr-3">Cantiere</th>
+                  <th className="text-left py-2 pr-3">Commessa</th>
+                  <th className="text-left py-2 pr-3">Crew</th>
+                  <th className="text-left py-2 pr-3">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(latestRapportini || []).map((r) => (
+                  <tr key={r.id} className="border-t border-slate-800/70">
+                    <td className="py-2 pr-3 text-slate-100">{formatDate(r.report_date)}</td>
+                    <td className="py-2 pr-3 text-slate-200">{r.costr || "—"}</td>
+                    <td className="py-2 pr-3 text-slate-400">{r.commessa || "—"}</td>
+                    <td className="py-2 pr-3 text-slate-400">{r.crew_role || "—"}</td>
+                    <td className="py-2 pr-3 text-slate-200">{r.status || "—"}</td>
+                  </tr>
+                ))}
 
-      {/* INCA health + alertes */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Santé INCA */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-3 sm:p-4">
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                Stato INCA per cantiere
-              </div>
-              <div className="text-xs text-slate-400">
-                Import &amp; controlli (valori demo)
-              </div>
-            </div>
+                {!loading && latestRapportini.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-3 text-xs text-slate-500">
+                      Nessun rapportino nel perimetro (oppure RLS/filtri non consentono la lettura).
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
           </div>
-          <div className="h-52 sm:h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={incaHealth}>
-                <CartesianGrid
-                  stroke={gridColor}
-                  strokeDasharray="3 3"
-                  vertical={false}
-                />
-                <XAxis dataKey="costr" stroke={axisColor} fontSize={11} />
-                <YAxis
-                  stroke={axisColor}
-                  fontSize={11}
-                  tickFormatter={(v) => `${v}%`}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: isDark ? "#020617" : "#ffffff",
-                    borderColor: isDark ? "#1e293b" : "#e2e8f0",
-                    fontSize: 11,
-                  }}
-                  formatter={(value) => [`${value}%`, ""]}
-                />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Line
-                  type="monotone"
-                  dataKey="imported"
-                  name="% importati"
-                  stroke={accentBar}
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  activeDot={{ r: 5 }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="checked"
-                  name="% verificati"
-                  stroke={accentLine}
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  activeDot={{ r: 5 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Alertes (liste simple) */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-3 sm:p-4 flex flex-col">
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                Alert &amp; priorità
-              </div>
-              <div className="text-xs text-slate-400">
-                Esempi di situazioni da controllare
-              </div>
-            </div>
-          </div>
-          <div className="flex-1 overflow-auto">
-            <ul className="divide-y divide-slate-800 text-[12px]">
-              <li className="py-2 flex items-start justify-between gap-2">
-                <div>
-                  <div className="text-slate-200">
-                    Rapportini mancanti · cantiere C002
-                  </div>
-                  <div className="text-slate-500 text-[11px]">
-                    2 giorni consecutivi senza rapportino per una squadra
-                    elettrica.
-                  </div>
-                </div>
-                <span className="mt-0.5 inline-flex h-5 px-2 items-center rounded-full bg-amber-500/20 text-amber-200 text-[10px]">
-                  Priorità media
-                </span>
-              </li>
-              <li className="py-2 flex items-start justify-between gap-2">
-                <div>
-                  <div className="text-slate-200">
-                    INCA non aggiornato · cantiere 6310
-                  </div>
-                  <div className="text-slate-500 text-[11px]">
-                    Ultimo import INCA risale a più di 5 giorni fa.
-                  </div>
-                </div>
-                <span className="mt-0.5 inline-flex h-5 px-2 items-center rounded-full bg-rose-500/20 text-rose-200 text-[10px]">
-                  Priorità alta
-                </span>
-              </li>
-              <li className="py-2 flex items-start justify-between gap-2">
-                <div>
-                  <div className="text-slate-200">
-                    Squadra carpenteria sotto-utilizzata · C001
-                  </div>
-                  <div className="text-slate-500 text-[11px]">
-                    Volume ore molto inferiore alla media settimana precedente.
-                  </div>
-                </div>
-                <span className="mt-0.5 inline-flex h-5 px-2 items-center rounded-full bg-sky-500/20 text-sky-200 text-[10px]">
-                  Da monitorare
-                </span>
-              </li>
-            </ul>
-          </div>
-          <p className="mt-3 text-[11px] text-slate-500">
-            Queste voci sono esemplificative. In una fase successiva verranno
-            popolate da regole automatiche basate sui dati reali di CORE.
-          </p>
         </div>
       </section>
     </div>

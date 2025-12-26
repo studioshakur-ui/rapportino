@@ -1,3 +1,4 @@
+// src/admin/AdminUsersPage.jsx
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useOutletContext } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
@@ -39,8 +40,17 @@ function savePersisted(snapshot) {
   }
 }
 
+function normalizeRpcError(err) {
+  if (!err) return "Erreur inconnue.";
+  const code = err.code ? `(${err.code}) ` : "";
+  const msg = err.message || "Erreur RPC.";
+  // On évite d’afficher des détails trop bruyants à l’écran
+  return `${code}${msg}`;
+}
+
 export default function AdminUsersPage() {
-  const { lang } = useOutletContext();
+  const outlet = useOutletContext() || {};
+  const lang = outlet.lang || "it";
   const persisted = useMemo(() => loadPersisted(), []);
 
   // Create form
@@ -69,6 +79,16 @@ export default function AdminUsersPage() {
 
   const [settingPwdId, setSettingPwdId] = useState(persisted?.settingPwdId ?? null);
 
+  // CAPO->MANAGER assignments (view)
+  const [assignMap, setAssignMap] = useState(() => {
+    try {
+      return persisted?.assignMap ? new Map(persisted.assignMap) : new Map();
+    } catch {
+      return new Map();
+    }
+  });
+  const [savingAssignCapoId, setSavingAssignCapoId] = useState(persisted?.savingAssignCapoId ?? null);
+
   // Persist EVERYTHING
   useEffect(() => {
     savePersisted({
@@ -89,6 +109,8 @@ export default function AdminUsersPage() {
       roleFilter,
       page,
       settingPwdId,
+      assignMap: Array.from(assignMap.entries()),
+      savingAssignCapoId,
       savedAt: new Date().toISOString(),
     });
   }, [
@@ -109,6 +131,8 @@ export default function AdminUsersPage() {
     roleFilter,
     page,
     settingPwdId,
+    assignMap,
+    savingAssignCapoId,
   ]);
 
   const filtered = useMemo(() => {
@@ -166,9 +190,36 @@ export default function AdminUsersPage() {
     }
   }, []);
 
+  const loadAssignments = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("admin_capo_manager_v1")
+        .select("capo_id,capo_display_name,manager_id,manager_email,manager_display_name,active")
+        .order("capo_display_name", { ascending: true });
+
+      if (error) throw error;
+
+      const m = new Map();
+      (data || []).forEach((r) => {
+        if (!r?.capo_id) return;
+        m.set(r.capo_id, {
+          manager_id: r.manager_id || null,
+          manager_email: r.manager_email || null,
+          manager_display_name: r.manager_display_name || null,
+          active: r.active === true,
+        });
+      });
+      setAssignMap(m);
+    } catch (e) {
+      console.error("[AdminUsersPage] loadAssignments error:", e);
+      // keep existing assignMap
+    }
+  }, []);
+
   useEffect(() => {
     loadUsers();
-  }, [loadUsers]);
+    loadAssignments();
+  }, [loadUsers, loadAssignments]);
 
   const onCreate = async (e) => {
     e.preventDefault();
@@ -202,6 +253,7 @@ export default function AdminUsersPage() {
 
       setCreateMsg({ ok: true, text: t(lang, "CREATED_OK") });
       await loadUsers();
+      await loadAssignments();
     } catch (e2) {
       console.error("[AdminUsersPage] create unexpected:", e2);
       setCreateMsg({ ok: false, text: `${t(lang, "CREATE_FAIL")}: ${e2?.message || String(e2)}` });
@@ -238,11 +290,54 @@ export default function AdminUsersPage() {
       }
 
       await loadUsers();
+      await loadAssignments();
     } catch (e) {
       console.error("[AdminUsersPage] set password unexpected:", e);
       setCreateMsg({ ok: false, text: `Set password failed: ${e?.message || String(e)}` });
     } finally {
       setSettingPwdId(null);
+    }
+  };
+
+  // IMPORTANT: RPC args are p_capo_id / p_manager_id
+  const onAssignManager = async (capoId, managerIdOrNull) => {
+    if (!capoId) return;
+    setCreateMsg(null);
+    setSavingAssignCapoId(capoId);
+
+    try {
+      const { data, error } = await supabase.rpc("admin_set_manager_for_capo", {
+        p_capo_id: capoId,
+        p_manager_id: managerIdOrNull || null,
+      });
+
+      if (error) {
+        console.error("[AdminUsersPage] assign rpc error full:", {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        });
+        setCreateMsg({ ok: false, text: `Assign failed: ${normalizeRpcError(error)}` });
+        return;
+      }
+
+      if (!data?.ok) {
+        setCreateMsg({ ok: false, text: `Assign failed: ${data?.error || "unknown"}` });
+        return;
+      }
+
+      setCreateMsg({
+        ok: true,
+        text: managerIdOrNull ? "Manager assegnato." : "Manager rimosso.",
+      });
+
+      await loadAssignments();
+    } catch (e) {
+      console.error("[AdminUsersPage] assign unexpected:", e);
+      setCreateMsg({ ok: false, text: `Assign failed: ${e?.message || String(e)}` });
+    } finally {
+      setSavingAssignCapoId(null);
     }
   };
 
@@ -275,6 +370,9 @@ export default function AdminUsersPage() {
 
     setSettingPwdId(null);
 
+    setAssignMap(new Map());
+    setSavingAssignCapoId(null);
+
     try {
       sessionStorage.removeItem(STORAGE_KEY);
     } catch {
@@ -282,8 +380,19 @@ export default function AdminUsersPage() {
     }
   };
 
+  const managers = useMemo(() => {
+    return (rows || [])
+      .filter((r) => r.app_role === "MANAGER")
+      .map((r) => ({
+        id: r.id,
+        label: r.display_name || r.email || String(r.id).slice(0, 8),
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, "it"));
+  }, [rows]);
+
   return (
     <div className="p-4 sm:p-5">
+      {/* CREATE USER */}
       <div className="border border-slate-800 rounded-2xl bg-slate-950/40 p-4 sm:p-5">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -294,19 +403,35 @@ export default function AdminUsersPage() {
               Fase test: crea account + genera password test (Core!####) con cambio obbligatorio al primo login.
             </div>
           </div>
-          <button
-            type="button"
-            onClick={loadUsers}
-            className="text-[12px] px-3 py-1.5 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50"
-          >
-            Refresh
-          </button>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                loadUsers();
+                loadAssignments();
+              }}
+              className="text-[12px] px-3 py-1.5 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50"
+              title="Ricarica utenti e assegnazioni"
+            >
+              Refresh
+            </button>
+
+            <button
+              type="button"
+              onClick={hardResetPageState}
+              className="text-[12px] px-3 py-1.5 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50"
+              title="Reset UI + clear sessionStorage snapshot"
+            >
+              {t(lang, "RESET")}
+            </button>
+          </div>
         </div>
 
         {createMsg && (
           <div
             className={[
-              "mt-4 text-[13px] rounded-md px-3 py-2 border",
+              "mt-4 text-[13px] rounded-xl px-3 py-2 border",
               createMsg.ok
                 ? "text-emerald-200 bg-emerald-900/20 border-emerald-800"
                 : "text-amber-200 bg-amber-900/30 border-amber-800",
@@ -317,7 +442,7 @@ export default function AdminUsersPage() {
         )}
 
         {lastPassword && (
-          <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950/30 p-3">
+          <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950/30 p-3">
             <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
               Password test (da comunicare)
             </div>
@@ -325,9 +450,7 @@ export default function AdminUsersPage() {
               <div className="flex flex-col">
                 <div className="text-sm text-slate-200">{lastPasswordEmail || "—"}</div>
                 <div className="text-2xl font-mono tracking-[0.18em] text-slate-50">{lastPassword}</div>
-                <div className="text-xs text-slate-400 mt-1">
-                  L’utente dovrà cambiarla al primo accesso.
-                </div>
+                <div className="text-xs text-slate-400 mt-1">L’utente dovrà cambiarla al primo accesso.</div>
               </div>
               <button
                 type="button"
@@ -348,7 +471,7 @@ export default function AdminUsersPage() {
               onChange={(e) => setEmail(e.target.value)}
               type="email"
               required
-              className="w-full rounded-md border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+              className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
             />
           </div>
 
@@ -357,7 +480,7 @@ export default function AdminUsersPage() {
             <select
               value={appRole}
               onChange={(e) => setAppRole(e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+              className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
             >
               <option value="CAPO">CAPO</option>
               <option value="UFFICIO">UFFICIO</option>
@@ -373,7 +496,7 @@ export default function AdminUsersPage() {
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               type="text"
-              className="w-full rounded-md border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+              className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
             />
           </div>
 
@@ -383,7 +506,7 @@ export default function AdminUsersPage() {
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               type="text"
-              className="w-full rounded-md border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+              className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
             />
           </div>
 
@@ -394,7 +517,7 @@ export default function AdminUsersPage() {
                 value={defaultCostr}
                 onChange={(e) => setDefaultCostr(e.target.value)}
                 type="text"
-                className="w-full rounded-md border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+                className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
               />
             </div>
             <div>
@@ -403,7 +526,7 @@ export default function AdminUsersPage() {
                 value={defaultCommessa}
                 onChange={(e) => setDefaultCommessa(e.target.value)}
                 type="text"
-                className="w-full rounded-md border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+                className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
               />
             </div>
           </div>
@@ -415,20 +538,11 @@ export default function AdminUsersPage() {
               onChange={(e) => setAllowedCantieri(e.target.value)}
               type="text"
               placeholder="es: RIVA_TRIGOSO, MUGGIANO, MONFALCONE"
-              className="w-full rounded-md border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+              className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
             />
           </div>
 
           <div className="md:col-span-2 flex items-center justify-end gap-2 pt-1">
-            <button
-              type="button"
-              onClick={hardResetPageState}
-              className="text-[12px] px-3 py-2 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50"
-              title="Reset UI + clear sessionStorage snapshot"
-            >
-              {t(lang, "RESET")}
-            </button>
-
             <button
               type="submit"
               disabled={creating}
@@ -440,6 +554,7 @@ export default function AdminUsersPage() {
         </form>
       </div>
 
+      {/* USERS LIST */}
       <div className="mt-4 border border-slate-800 rounded-2xl bg-slate-950/20 p-4 sm:p-5">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
@@ -452,13 +567,13 @@ export default function AdminUsersPage() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder={t(lang, "SEARCH")}
-              className="w-full sm:w-72 rounded-md border px-3 py-2 text-[13px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+              className="w-full sm:w-72 rounded-xl border px-3 py-2 text-[13px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
             />
 
             <select
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
-              className="w-full sm:w-44 rounded-md border px-3 py-2 text-[13px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+              className="w-full sm:w-44 rounded-xl border px-3 py-2 text-[13px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
             >
               <option value="ALL">ALL</option>
               <option value="CAPO">CAPO</option>
@@ -471,13 +586,14 @@ export default function AdminUsersPage() {
         </div>
 
         <div className="mt-4 overflow-x-auto border border-slate-800 rounded-xl">
-          <table className="min-w-[1120px] w-full text-[12px]">
+          <table className="min-w-[1280px] w-full text-[12px]">
             <thead className="bg-slate-900/60 text-slate-300">
               <tr className="text-left">
                 <th className="px-3 py-2">{t(lang, "EMAIL")}</th>
                 <th className="px-3 py-2">{t(lang, "NAME")}</th>
                 <th className="px-3 py-2">{t(lang, "ROLE")}</th>
                 <th className="px-3 py-2">Onboarding</th>
+                <th className="px-3 py-2">Manager (solo CAPO)</th>
                 <th className="px-3 py-2">{t(lang, "ID")}</th>
                 <th className="px-3 py-2">{t(lang, "ACTIONS")}</th>
               </tr>
@@ -486,13 +602,13 @@ export default function AdminUsersPage() {
             <tbody className="divide-y divide-slate-800">
               {loading ? (
                 <tr>
-                  <td className="px-3 py-3 text-slate-500" colSpan={6}>
+                  <td className="px-3 py-3 text-slate-500" colSpan={7}>
                     Loading…
                   </td>
                 </tr>
               ) : pageRows.length === 0 ? (
                 <tr>
-                  <td className="px-3 py-3 text-slate-500" colSpan={6}>
+                  <td className="px-3 py-3 text-slate-500" colSpan={7}>
                     {t(lang, "NO_ROWS")}
                   </td>
                 </tr>
@@ -500,37 +616,97 @@ export default function AdminUsersPage() {
                 pageRows.map((r) => {
                   const isSetting = settingPwdId === r.id;
                   const onboarding = r.must_change_password === true;
+                  const isCapo = r.app_role === "CAPO";
+
+                  const assign = isCapo ? assignMap.get(r.id) : null;
+                  const assignedLabel =
+                    assign?.manager_display_name ||
+                    assign?.manager_email ||
+                    (assign?.manager_id ? String(assign.manager_id).slice(0, 8) + "…" : null);
+
+                  const isSavingAssign = savingAssignCapoId === r.id;
 
                   return (
                     <tr key={r.id} className="text-slate-200 hover:bg-slate-900/30">
                       <td className="px-3 py-2">{r.email}</td>
+
                       <td className="px-3 py-2">
                         <div className="flex flex-col">
                           <span className="font-medium">{r.display_name || "-"}</span>
                           <span className="text-slate-500">{r.full_name || ""}</span>
                         </div>
                       </td>
+
                       <td className="px-3 py-2">
                         <span className="px-2 py-0.5 rounded-full border border-slate-700 text-[11px]">
                           {r.app_role}
                         </span>
                       </td>
+
                       <td className="px-3 py-2">
                         {onboarding ? (
-                          <span className="text-amber-300">MUST CHANGE</span>
+                          <span className="px-2 py-0.5 rounded-full border border-amber-700/50 bg-amber-500/10 text-amber-200 text-[11px]">
+                            MUST CHANGE
+                          </span>
                         ) : (
-                          <span className="text-slate-500">OK</span>
+                          <span className="px-2 py-0.5 rounded-full border border-slate-700 text-slate-400 text-[11px]">
+                            OK
+                          </span>
                         )}
                       </td>
+
+                      <td className="px-3 py-2">
+                        {!isCapo ? (
+                          <span className="text-slate-600">—</span>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={[
+                                "px-2 py-0.5 rounded-full border text-[11px] whitespace-nowrap",
+                                assignedLabel
+                                  ? "border-emerald-700/40 bg-emerald-500/10 text-emerald-200"
+                                  : "border-slate-700 text-slate-400",
+                              ].join(" ")}
+                              title={assignedLabel || "Non assegnato"}
+                            >
+                              {assignedLabel || "Non assegnato"}
+                            </span>
+
+                            <select
+                              className="h-8 rounded-xl border border-slate-800 bg-slate-950 px-2 text-[12px] text-slate-100"
+                              disabled={isSavingAssign || managers.length === 0}
+                              value={assign?.manager_id || ""}
+                              onChange={(e) => {
+                                const v = e.target.value || "";
+                                onAssignManager(r.id, v || null);
+                              }}
+                              title="Assegna CAPO a MANAGER"
+                            >
+                              <option value="">— Rimuovi</option>
+                              {managers.map((m) => (
+                                <option key={m.id} value={m.id}>
+                                  {m.label}
+                                </option>
+                              ))}
+                            </select>
+
+                            {isSavingAssign ? (
+                              <span className="text-[11px] text-slate-500">Save…</span>
+                            ) : null}
+                          </div>
+                        )}
+                      </td>
+
                       <td className="px-3 py-2 font-mono text-[11px] text-slate-400">
                         {String(r.id).slice(0, 8)}…
                       </td>
+
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => copy(r.email)}
-                            className="px-2 py-1 rounded-md border border-slate-800 text-slate-200 hover:bg-slate-900/50"
+                            className="px-2 py-1 rounded-xl border border-slate-800 text-slate-200 hover:bg-slate-900/50"
                           >
                             {t(lang, "COPY")}
                           </button>
@@ -538,7 +714,7 @@ export default function AdminUsersPage() {
                           <button
                             type="button"
                             onClick={() => copy(r.id)}
-                            className="px-2 py-1 rounded-md border border-slate-800 text-slate-200 hover:bg-slate-900/50"
+                            className="px-2 py-1 rounded-xl border border-slate-800 text-slate-200 hover:bg-slate-900/50"
                           >
                             ID
                           </button>
@@ -547,7 +723,7 @@ export default function AdminUsersPage() {
                             type="button"
                             disabled={isSetting}
                             onClick={() => onSetPassword(r.id)}
-                            className="px-2 py-1 rounded-md border border-emerald-700 text-emerald-100 hover:bg-emerald-800/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="px-2 py-1 rounded-xl border border-emerald-700 text-emerald-100 hover:bg-emerald-800/10 disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Genera password test (Core!####) e forza cambio password al primo login"
                           >
                             {isSetting ? "Set…" : "Set password test"}

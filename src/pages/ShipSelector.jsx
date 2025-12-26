@@ -109,12 +109,7 @@ function IncaDonut({ summary, loading }) {
 
   return (
     <div className="h-[88px] w-[88px]">
-      <ReactECharts
-        option={option}
-        style={{ height: "100%", width: "100%" }}
-        notMerge
-        lazyUpdate
-      />
+      <ReactECharts option={option} style={{ height: "100%", width: "100%" }} notMerge lazyUpdate />
     </div>
   );
 }
@@ -137,7 +132,8 @@ export default function ShipSelector() {
   const todayISO = useMemo(() => toISODate(new Date()), []);
 
   /* -----------------------------
-     Load ships (no fake)
+     Load ships (CAPO scope only, no direct ships read)
+     Source of truth: RPC public.capo_my_ships_v1()
   ----------------------------- */
   useEffect(() => {
     let alive = true;
@@ -145,18 +141,15 @@ export default function ShipSelector() {
     async function loadShips() {
       setLoadingShips(true);
       setError(null);
+
       try {
-        const { data, error: qError } = await supabase
-          .from("ships")
-          .select("id, code, name, yard")
-          .eq("is_active", true)
-          .order("code", { ascending: true });
+        const { data, error: qError } = await supabase.rpc("capo_my_ships_v1");
 
         if (qError) throw qError;
         if (alive) setShips(Array.isArray(data) ? data : []);
       } catch (e) {
         console.error("[ShipSelector] load ships error:", e);
-        if (alive) setError("Impossibile recuperare le navi.");
+        if (alive) setError("Impossibile recuperare le navi assegnate al tuo profilo.");
       } finally {
         if (alive) setLoadingShips(false);
       }
@@ -218,15 +211,8 @@ export default function ShipSelector() {
             .eq("costr", costr)
             .is("situazione", null);
 
-          const [rTotal, rP, rT, rB, rNP] = await Promise.all([
-            qTotal,
-            qP,
-            qT,
-            qB,
-            qNP,
-          ]);
+          const [rTotal, rP, rT, rB, rNP] = await Promise.all([qTotal, qP, qT, qB, qNP]);
 
-          // on tolère des erreurs partielles : si total fail, pas de summary
           if (rTotal.error) {
             console.warn("[ShipSelector] INCA count error for", costr, rTotal.error);
             return [costr, null];
@@ -263,24 +249,6 @@ export default function ShipSelector() {
 
   /* -----------------------------
      ETA / Deadline estimate from delta di produzione
-
-     Charge:
-       total_m = sum(inca_cavi.metri_teo) for costr
-     Done:
-       done_m = sum(rapportino_inca_cavi.metri_posati) for costr_cache
-     Rate (7g):
-       last7_m = sum(metri_posati) for costr_cache and report_date_cache >= today-6
-       workingDays = distinct report_date_cache where metri_posati > 0
-       rate_m_per_day = last7_m / workingDays
-     Remaining:
-       rem_m = max(total_m - done_m, 0)
-     ETA days:
-       ceil(rem_m / rate_m_per_day)
-     deadline_est:
-       today + etaDays
-
-     If missing/zero:
-       deadline_est = null
   ----------------------------- */
   useEffect(() => {
     if (!ships.length) {
@@ -294,12 +262,11 @@ export default function ShipSelector() {
       setLoadingEta(true);
 
       try {
-        const fromISO = addDaysISO(todayISO, -6); // 7 jours incluant today
+        const fromISO = addDaysISO(todayISO, -6);
 
         const tasks = ships.map(async (ship) => {
           const costr = ship.code;
 
-          // 1) total_m (aggregate sum metri_teo)
           const totalRes = await supabase
             .from("inca_cavi")
             .select("metri_teo.sum()")
@@ -313,7 +280,6 @@ export default function ShipSelector() {
 
           const total_m = safeNum(totalRes.data?.sum ?? totalRes.data?.["metri_teo.sum"] ?? 0);
 
-          // 2) done_m (all time, sum metri_posati)
           const doneRes = await supabase
             .from("rapportino_inca_cavi")
             .select("metri_posati.sum()")
@@ -322,12 +288,14 @@ export default function ShipSelector() {
 
           if (doneRes.error) {
             console.warn("[ShipSelector] done_m error for", costr, doneRes.error);
-            return [costr, { total_m, done_m: 0, rem_m: total_m, rate_m_per_day: 0, eta_days: null, deadline_est: null }];
+            return [
+              costr,
+              { total_m, done_m: 0, rem_m: total_m, rate_m_per_day: 0, eta_days: null, deadline_est: null },
+            ];
           }
 
           const done_m = safeNum(doneRes.data?.sum ?? doneRes.data?.["metri_posati.sum"] ?? 0);
 
-          // 3) last7 rows (small set) to compute working days + last7 sum
           const last7RowsRes = await supabase
             .from("rapportino_inca_cavi")
             .select("report_date_cache, metri_posati")
@@ -364,7 +332,7 @@ export default function ShipSelector() {
                 total_m,
                 done_m,
                 rem_m,
-                rate_m_per_day: rate_m_per_day,
+                rate_m_per_day,
                 eta_days: rem_m <= 0 && total_m > 0 ? 0 : null,
                 deadline_est: rem_m <= 0 && total_m > 0 ? todayISO : null,
               },
@@ -374,10 +342,7 @@ export default function ShipSelector() {
           const eta_days = Math.ceil(rem_m / rate_m_per_day);
           const deadline_est = addDaysISO(todayISO, eta_days);
 
-          return [
-            costr,
-            { total_m, done_m, rem_m, rate_m_per_day, eta_days, deadline_est },
-          ];
+          return [costr, { total_m, done_m, rem_m, rate_m_per_day, eta_days, deadline_est }];
         });
 
         const pairs = await Promise.all(tasks);
@@ -404,9 +369,6 @@ export default function ShipSelector() {
     navigate(`/app/ship/${ship.id}`);
   };
 
-  /* -----------------------------
-     Render
-  ----------------------------- */
   return (
     <div className="p-4 sm:p-6 space-y-4">
       {/* Header */}
@@ -420,7 +382,9 @@ export default function ShipSelector() {
         <p className="text-sm text-slate-400 max-w-2xl">
           Rapportini e dati INCA sono sempre legati alla nave selezionata.
         </p>
-        {currentShip && (
+
+        {/* IMPORTANT: only show "Nave attuale" if it is in the allowed list */}
+        {currentShip && ships.some((s) => String(s.id) === String(currentShip.id)) && (
           <div className="mt-1 text-xs text-slate-500">
             Nave attuale:{" "}
             <span className="font-semibold text-slate-200">
@@ -447,10 +411,7 @@ export default function ShipSelector() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {loadingShips
           ? Array.from({ length: 2 }).map((_, i) => (
-              <div
-                key={i}
-                className="rounded-2xl border border-white/10 bg-white/5 h-[170px]"
-              />
+              <div key={i} className="rounded-2xl border border-white/10 bg-white/5 h-[170px]" />
             ))
           : ships.map((ship) => {
               const summary = incaByCostr[ship.code];
@@ -458,22 +419,13 @@ export default function ShipSelector() {
 
               const incaConnected = !!summary && summary.total > 0;
 
-              // Deadline estimate display:
-              // - if eta.deadline_est exists => show date
-              // - else "—"
-              const deadlineText =
-                eta?.deadline_est ? formatDate(eta.deadline_est) : "—";
+              const deadlineText = eta?.deadline_est ? formatDate(eta.deadline_est) : "—";
 
-              // Secondary line: rate / remaining (only if meaningful, no fake)
               const rateText =
-                eta && eta.rate_m_per_day > 0
-                  ? `${roundInt(eta.rate_m_per_day)} m/g`
-                  : null;
+                eta && eta.rate_m_per_day > 0 ? `${roundInt(eta.rate_m_per_day)} m/g` : null;
 
               const remText =
-                eta && eta.total_m > 0
-                  ? `${roundInt(eta.rem_m)} m rimanenti`
-                  : null;
+                eta && eta.total_m > 0 ? `${roundInt(eta.rem_m)} m rimanenti` : null;
 
               return (
                 <button
@@ -492,13 +444,10 @@ export default function ShipSelector() {
                         NAVE {ship.code}
                       </div>
 
-                      <div className="text-lg font-semibold text-slate-50 truncate">
-                        {ship.name}
-                      </div>
+                      <div className="text-lg font-semibold text-slate-50 truncate">{ship.name}</div>
 
                       <div className="text-xs text-slate-400">
-                        Cantiere:{" "}
-                        <span className="text-slate-200">{ship.yard ?? "—"}</span>
+                        Cantiere: <span className="text-slate-200">{ship.yard ?? "—"}</span>
                       </div>
 
                       {/* INCA status pill */}
@@ -506,14 +455,10 @@ export default function ShipSelector() {
                         <span
                           className={corePills(
                             true,
-                            incaConnected ? "emerald" : "slate",
+                            incaConnected ? "emerald" : "neutral",
                             "text-[10px] px-2 py-0.5"
                           )}
-                          title={
-                            incaConnected
-                              ? "INCA presente (cavi importati)"
-                              : "INCA non disponibile"
-                          }
+                          title={incaConnected ? "INCA presente (cavi importati)" : "INCA non disponibile"}
                         >
                           {incaConnected ? "INCA connesso" : "INCA non disponibile"}
                         </span>
@@ -532,17 +477,8 @@ export default function ShipSelector() {
                         ) : eta && eta.total_m > 0 ? (
                           <span className="text-slate-500">
                             {remText}
-                            {rateText ? (
-                              <>
-                                <span className="text-slate-700"> · </span>
-                                <span className="text-slate-500">Δ 7g: {rateText}</span>
-                              </>
-                            ) : (
-                              <>
-                                <span className="text-slate-700"> · </span>
-                                <span className="text-slate-500">Δ 7g: —</span>
-                              </>
-                            )}
+                            <span className="text-slate-700"> · </span>
+                            <span className="text-slate-500">Δ 7g: {rateText ?? "—"}</span>
                           </span>
                         ) : (
                           <span>Produzione/INCA metri non disponibili</span>

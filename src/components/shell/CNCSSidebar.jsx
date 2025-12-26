@@ -58,6 +58,29 @@ function NavIcon({ name, className = "" }) {
           <rect x="3" y="10" width="18" height="10" rx="2" stroke="currentColor" />
         </svg>
       );
+    case "history":
+      return (
+        <svg className={`${base} ${className}`} viewBox="0 0 24 24" fill="none">
+          <path d="M12 8v5l3 2" stroke="currentColor" />
+          <path d="M3 12a9 9 0 1 0 3-6.7" stroke="currentColor" />
+          <path d="M3 4v4h4" stroke="currentColor" />
+        </svg>
+      );
+    case "users":
+      return (
+        <svg className={`${base} ${className}`} viewBox="0 0 24 24" fill="none">
+          <path d="M16 11a4 4 0 1 0-8 0" stroke="currentColor" />
+          <path d="M4 21c0-4 4-6 8-6s8 2 8 6" stroke="currentColor" />
+        </svg>
+      );
+    case "chart":
+      return (
+        <svg className={`${base} ${className}`} viewBox="0 0 24 24" fill="none">
+          <path d="M4 19V5" stroke="currentColor" />
+          <path d="M4 19h16" stroke="currentColor" />
+          <path d="M7 15l3-4 4 3 4-6" stroke="currentColor" />
+        </svg>
+      );
     default:
       return null;
   }
@@ -68,12 +91,20 @@ export default function CNCSSidebar({
   title = "CNCS",
   subtitle = "",
   roleLabel = "",
+  roleCaption = "Ruolo",
+  expandLabel = "Espandi menu",
+  collapseLabel = "Riduci menu",
+
   collapsed,
   setCollapsed,
   sidebarPeek,
   setSidebarPeek,
   storageKey = "core-sidebar-collapsed",
   navItems = [],
+
+  // NEW: slot bas (ex: "Operatori di oggi")
+  bottomSlot = null,
+  bottomSlotCollapsed = null, // rendu compact si sidebar collapsed
 }) {
   const location = useLocation();
   const effectiveCollapsed = collapsed && !sidebarPeek;
@@ -121,7 +152,9 @@ export default function CNCSSidebar({
               <div
                 className={cn(
                   "h-9 w-9 rounded-xl border",
-                  isDark ? "border-slate-800 bg-slate-950/30" : "border-slate-200 bg-slate-50"
+                  isDark
+                    ? "border-slate-800 bg-slate-950/30"
+                    : "border-slate-200 bg-slate-50"
                 )}
               />
               {!effectiveCollapsed && (
@@ -151,8 +184,8 @@ export default function CNCSSidebar({
                   ? "border-slate-800 bg-slate-950/20 hover:bg-slate-900/35 text-slate-300"
                   : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
               )}
-              title={collapsed ? "Espandi menu" : "Riduci menu"}
-              aria-label={collapsed ? "Espandi menu" : "Riduci menu"}
+              title={collapsed ? expandLabel : collapseLabel}
+              aria-label={collapsed ? expandLabel : collapseLabel}
             >
               {effectiveCollapsed ? "›" : "‹"}
             </button>
@@ -163,7 +196,7 @@ export default function CNCSSidebar({
             {!effectiveCollapsed ? (
               <div className="min-w-0">
                 <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
-                  Ruolo
+                  {roleCaption}
                 </div>
                 <div className="text-sm font-semibold truncate">
                   {roleLabel || "—"}
@@ -178,10 +211,10 @@ export default function CNCSSidebar({
       {/* Nav */}
       <nav className={cn("space-y-2", effectiveCollapsed ? "px-0" : "px-1")}>
         {navItems.map((it) => {
-          const active =
-            it.end
-              ? location.pathname === it.to || location.pathname === `${it.to}/`
-              : location.pathname === it.to || location.pathname.startsWith(it.to + "/");
+          const active = it.end
+            ? location.pathname === it.to || location.pathname === `${it.to}/`
+            : location.pathname === it.to ||
+              location.pathname.startsWith(it.to + "/");
 
           return (
             <NavLink
@@ -208,7 +241,25 @@ export default function CNCSSidebar({
         })}
       </nav>
 
-      <div className="mt-auto pt-4 border-t border-slate-800 text-[10px] text-slate-600">
+      {/* Bottom slot (Operators today) */}
+      {bottomSlot || bottomSlotCollapsed ? (
+        <div
+          className={cn(
+            "mt-4 border-t pt-4",
+            isDark ? "border-slate-800" : "border-slate-200",
+            effectiveCollapsed ? "px-0" : "px-1"
+          )}
+        >
+          {effectiveCollapsed ? bottomSlotCollapsed : bottomSlot}
+        </div>
+      ) : null}
+
+      <div
+        className={cn(
+          "mt-auto pt-4 border-t text-[10px]",
+          isDark ? "border-slate-800 text-slate-600" : "border-slate-200 text-slate-500"
+        )}
+      >
         <div>CORE</div>
       </div>
     </aside>

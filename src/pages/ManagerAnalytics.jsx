@@ -1,208 +1,247 @@
 // src/pages/ManagerAnalytics.jsx
-import React, { useMemo } from "react";
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  RadarChart,
-  Radar,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-} from "recharts";
+import React, { useEffect, useMemo, useState } from "react";
+import { supabase } from "../lib/supabaseClient";
+import { useAuth } from "../auth/AuthProvider";
+
+function cn(...parts) {
+  return parts.filter(Boolean).join(" ");
+}
+
+function fmtDate(value) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleDateString("it-IT");
+}
 
 export default function ManagerAnalytics({ isDark = true }) {
-  const textMuted = isDark ? "text-slate-400" : "text-slate-500";
-  const borderClass = isDark ? "border-slate-800" : "border-slate-200";
-  const bgCard = isDark ? "bg-slate-950/60" : "bg-white";
+  const { profile } = useAuth();
 
-  const hoursByRole = useMemo(
-    () => [
-      { role: "Elettricisti", ore: 420 },
-      { role: "Carpenteria", ore: 310 },
-      { role: "Montaggio", ore: 260 },
-      { role: "Supporto", ore: 120 },
-    ],
-    []
-  );
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const latencyBuckets = useMemo(
-    () => [
-      { bucket: "0-1 gg", count: 62 },
-      { bucket: "2-3 gg", count: 18 },
-      { bucket: ">3 gg", count: 5 },
-    ],
-    []
-  );
+  const [ships, setShips] = useState([]); // {id, code, name}
+  const [opsByShip, setOpsByShip] = useState(new Map());
+  const [rapportiniSample, setRapportiniSample] = useState([]); // last N
 
-  const siteHealth = useMemo(
-    () => [
-      { metric: "C001", score: 82 },
-      { metric: "C002", score: 75 },
-      { metric: "6310", score: 58 },
-    ],
-    []
-  );
+  const shipIds = useMemo(() => ships.map((s) => s.id).filter(Boolean), [ships]);
+  const shipCodes = useMemo(() => ships.map((s) => String(s.code || "").trim()).filter(Boolean), [ships]);
 
-  const accent1 = isDark ? "#38bdf8" : "#0f766e";
-  const accent2 = isDark ? "#22c55e" : "#16a34a";
-  const accent3 = isDark ? "#f97316" : "#ea580c";
-  const gridColor = isDark ? "#1e293b" : "#e2e8f0";
-  const axisColor = isDark ? "#94a3b8" : "#64748b";
+  useEffect(() => {
+    let alive = true;
+    const ac = new AbortController();
+
+    async function load() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        if (!profile?.id) {
+          setShips([]);
+          setOpsByShip(new Map());
+          setRapportiniSample([]);
+          return;
+        }
+
+        // 1) Ships in perimeter
+        const { data: smRows, error: smErr } = await supabase
+          .from("ship_managers")
+          .select("ship_id, ships:ships(id, code, name)")
+          .eq("manager_id", profile.id)
+          .abortSignal(ac.signal);
+        if (smErr) throw smErr;
+
+        const shipList = (smRows || []).map((r) => r.ships).filter(Boolean);
+        setShips(shipList);
+
+        const ids = shipList.map((s) => s.id).filter(Boolean);
+        const codes = shipList.map((s) => String(s.code || "").trim()).filter(Boolean);
+
+        // 2) Operators per ship (ship_operators -> operators)
+        const opsMap = new Map();
+        if (ids.length > 0) {
+          const { data: soRows, error: soErr } = await supabase
+            .from("ship_operators")
+            .select("ship_id, active, operators:operators(id,name,roles)")
+            .in("ship_id", ids)
+            .abortSignal(ac.signal);
+
+          if (soErr) throw soErr;
+
+          for (const r of soRows || []) {
+            const sid = r.ship_id;
+            const op = r.operators;
+            if (!sid || !op?.id) continue;
+            const bucket = opsMap.get(sid) || [];
+            bucket.push({
+              id: op.id,
+              name: op.name,
+              roles: Array.isArray(op.roles) ? op.roles : [],
+              active: !!r.active,
+            });
+            opsMap.set(sid, bucket);
+          }
+        }
+        setOpsByShip(opsMap);
+
+        // 3) Rapportini sample (best-effort). Note: rapportini uses costr/commessa, not ship_id.
+        // We match by costr IN shipCodes.
+        if (codes.length > 0) {
+          const { data: rapRows, error: rapErr } = await supabase
+            .from("rapportini")
+            .select("id, report_date, costr, commessa, crew_role, status")
+            .in("costr", codes)
+            .order("report_date", { ascending: false })
+            .limit(200)
+            .abortSignal(ac.signal);
+
+          if (rapErr) throw rapErr;
+          setRapportiniSample(rapRows || []);
+        } else {
+          setRapportiniSample([]);
+        }
+      } catch (err) {
+        console.error("[ManagerAnalytics] load error:", err);
+        setError(err?.message || "Errore caricamento analytics.");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    }
+
+    load();
+    return () => {
+      alive = false;
+      ac.abort();
+    };
+  }, [profile?.id]);
+
+  const perShipStats = useMemo(() => {
+    const rows = [];
+    const rapByCantiere = new Map();
+
+    for (const r of rapportiniSample || []) {
+      const code = String(r.costr || "").trim();
+      if (!code) continue;
+      const bucket = rapByCantiere.get(code) || [];
+      bucket.push(r);
+      rapByCantiere.set(code, bucket);
+    }
+
+    for (const s of ships || []) {
+      const code = String(s.code || "").trim();
+      const ops = opsByShip.get(s.id) || [];
+      const rap = rapByCantiere.get(code) || [];
+
+      const statusCounts = { DRAFT: 0, VALIDATED_CAPO: 0, RETURNED: 0, APPROVED_UFFICIO: 0, OTHER: 0 };
+      let lastDate = null;
+
+      for (const r of rap) {
+        const st = String(r.status || "").trim();
+        if (st && statusCounts[st] !== undefined) statusCounts[st] += 1;
+        else statusCounts.OTHER += 1;
+        if (!lastDate && r.report_date) lastDate = r.report_date;
+      }
+
+      rows.push({
+        ship_id: s.id,
+        code: code || "—",
+        name: s.name || "",
+        operators_total: ops.length,
+        operators_active: ops.filter((o) => o.active).length,
+        rapportini_sample: rap.length,
+        last_report_date: lastDate,
+        statusCounts,
+      });
+    }
+
+    rows.sort((a, b) => (a.code || "").localeCompare(b.code || ""));
+    return rows;
+  }, [ships, opsByShip, rapportiniSample]);
+
+  const panel = "rounded-2xl border border-slate-800 bg-slate-950/60 p-3 sm:p-4";
 
   return (
     <div className="space-y-4">
       <header>
         <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-1">
-          Analitiche operative
+          Analytics operativo
         </div>
-        <h1 className="text-xl sm:text-2xl font-semibold text-slate-50">
-          Lettura trasversale dei cantieri
-        </h1>
-        <p className={`text-xs ${textMuted} mt-1 max-w-2xl`}>
-          Questa pagina è pensata per dare al Manager una lettura sintetica ma
-          profonda: distribuzione ore per ruolo, latenza tra cantiere e ufficio,
-          indice di salute per cantiere. Tutti i numeri sono demo finché non
-          colleghiamo i dataset reali.
+        <h1 className="text-xl sm:text-2xl font-semibold text-slate-100">Perimetro Manager</h1>
+        <p className="text-xs text-slate-400 mt-1 max-w-3xl">
+          Dati reali (best-effort) nel perimetro del Manager: cantieri assegnati, operai collegati, ultimi rapportini.
         </p>
       </header>
 
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Heures par rôle */}
-        <div className={["rounded-2xl border p-3 sm:p-4", borderClass, bgCard].join(" ")}>
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                Ore per ruolo
-              </div>
-              <div className={`text-xs ${textMuted}`}>
-                Ripartizione demo della settimana corrente
-              </div>
+      {error ? (
+        <div className="rounded-xl border border-rose-700/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+          {error}
+        </div>
+      ) : null}
+
+      <section className={panel}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Cantieri</div>
+            <div className="text-sm font-medium text-slate-100">Stato sintetico</div>
+            <div className="text-xs text-slate-400 mt-1">
+              Nota: per i rapportini, l'associazione al cantiere avviene tramite <span className="text-slate-200">costr</span>.
             </div>
           </div>
-          <div className="h-52 sm:h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={hoursByRole}>
-                <CartesianGrid
-                  stroke={gridColor}
-                  strokeDasharray="3 3"
-                  vertical={false}
-                />
-                <XAxis dataKey="role" stroke={axisColor} fontSize={11} />
-                <YAxis stroke={axisColor} fontSize={11} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: isDark ? "#020617" : "#ffffff",
-                    borderColor: isDark ? "#1e293b" : "#e2e8f0",
-                    fontSize: 11,
-                  }}
-                  formatter={(value) => [`${value} h`, "Ore"]}
-                />
-                <Bar dataKey="ore" name="Ore" fill={accent1} />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="text-[11px] text-slate-500 text-right">
+            <div className="uppercase tracking-[0.18em] text-slate-600">Totale</div>
+            <div className="text-slate-200">{ships.length}</div>
           </div>
         </div>
 
-        {/* Latenza rapportini */}
-        <div className={["rounded-2xl border p-3 sm:p-4", borderClass, bgCard].join(" ")}>
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                Latenza cantiere → ufficio
-              </div>
-              <div className={`text-xs ${textMuted}`}>
-                Tempo tra compilazione e validazione (demo)
-              </div>
-            </div>
-          </div>
-          <div className="h-52 sm:h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={latencyBuckets}>
-                <CartesianGrid
-                  stroke={gridColor}
-                  strokeDasharray="3 3"
-                  vertical={false}
-                />
-                <XAxis dataKey="bucket" stroke={axisColor} fontSize={11} />
-                <YAxis stroke={axisColor} fontSize={11} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: isDark ? "#020617" : "#ffffff",
-                    borderColor: isDark ? "#1e293b" : "#e2e8f0",
-                    fontSize: 11,
-                  }}
-                />
-                <Bar dataKey="count" name="Rapportini" fill={accent3} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+                <th className="text-left py-2 pr-3">Cantiere</th>
+                <th className="text-left py-2 pr-3">Operai</th>
+                <th className="text-left py-2 pr-3">Rapportini</th>
+                <th className="text-left py-2 pr-3">Ultimo</th>
+                <th className="text-left py-2 pr-3">Da verificare</th>
+              </tr>
+            </thead>
+            <tbody>
+              {perShipStats.map((r) => (
+                <tr key={r.ship_id} className="border-t border-slate-800/70">
+                  <td className="py-2 pr-3 text-slate-100">
+                    {r.code}
+                    {r.name ? <span className="text-slate-500"> · {r.name}</span> : null}
+                  </td>
+                  <td className="py-2 pr-3 text-slate-200">
+                    {r.operators_active}/{r.operators_total}
+                    <span className="text-slate-500"> attivi</span>
+                  </td>
+                  <td className="py-2 pr-3 text-slate-400">{r.rapportini_sample}</td>
+                  <td className="py-2 pr-3 text-slate-400">{fmtDate(r.last_report_date)}</td>
+                  <td className="py-2 pr-3 text-slate-200">
+                    {r.statusCounts.VALIDATED_CAPO + r.statusCounts.RETURNED}
+                    <span className="text-slate-500"> (VALIDATED + RETURNED)</span>
+                  </td>
+                </tr>
+              ))}
+
+              {!loading && perShipStats.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-3 text-xs text-slate-500">
+                    Nessun dato nel perimetro (oppure RLS non consente la lettura).
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
         </div>
       </section>
 
-      {/* Radar "indice salute" */}
-      <section
-        className={[
-          "rounded-2xl border p-3 sm:p-4",
-          borderClass,
-          bgCard,
-        ].join(" ")}
-      >
-        <div className="flex items-center justify-between mb-2">
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-              Indice di salute cantiere
-            </div>
-            <div className={`text-xs ${textMuted}`}>
-              Score sintetico (demo) basato su copertura rapportini, INCA e
-              costanza flussi.
-            </div>
-          </div>
+      <section className={cn(panel, "text-xs text-slate-400")}> 
+        <div className="text-slate-200 font-medium mb-1">Nota su CAPO</div>
+        <div>
+          In questo ZIP, il modulo Manager gestisce solo: <span className="text-slate-200">perimetro cantieri</span> e <span className="text-slate-200">squadre (operai)</span>.
+          La creazione account/ruoli e l'abilitazione di nuovi CAPO resta responsabilità di <span className="text-slate-200">ADMIN</span>.
         </div>
-        <div className="h-60 sm:h-72">
-          <ResponsiveContainer width="100%" height="100%">
-            <RadarChart data={siteHealth}>
-              <PolarGrid stroke={gridColor} />
-              <PolarAngleAxis
-                dataKey="metric"
-                stroke={axisColor}
-                fontSize={11}
-              />
-              <PolarRadiusAxis
-                stroke={axisColor}
-                fontSize={10}
-                tickFormatter={(v) => `${v}`}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: isDark ? "#020617" : "#ffffff",
-                  borderColor: isDark ? "#1e293b" : "#e2e8f0",
-                  fontSize: 11,
-                }}
-                formatter={(value) => [`${value} / 100`, "Indice"]}
-              />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Radar
-                name="Indice salute"
-                dataKey="score"
-                stroke={accent2}
-                fill={accent2}
-                fillOpacity={0.35}
-              />
-            </RadarChart>
-          </ResponsiveContainer>
-        </div>
-        <p className={`mt-3 text-[11px] ${textMuted}`}>
-          In produzione, questo indice potrà essere calcolato combinando più
-          indicatori: continuità rapportini, latenza media verso ufficio, gap
-          INCA, anomalie registrate. L’obiettivo è dare alla Direzione una
-          lettura sintetica per cantiere, partendo dal lavoro del Manager.
-        </p>
       </section>
     </div>
   );

@@ -67,16 +67,17 @@ export default function UfficioShell() {
   }, [profile]);
 
   const pathname = location.pathname || "";
-  const isInca = pathname.startsWith("/ufficio/inca");
+  const isNavemaster = pathname.startsWith("/ufficio/navemaster");
   const isEvoluzione = pathname.startsWith("/ufficio/evoluzione");
-  const isCoreDrive = pathname.startsWith("/ufficio/core-drive") || pathname.startsWith("/ufficio/archive");
+  const isCoreDrive =
+    pathname.startsWith("/ufficio/core-drive") || pathname.startsWith("/ufficio/archive");
 
   const pageLabel = isEvoluzione
     ? "Suivi & Evoluzione"
     : isCoreDrive
     ? "CORE Drive"
-    : isInca
-    ? "INCA"
+    : isNavemaster
+    ? "NAVEMASTER"
     : "Rapportini";
 
   if (!profile) {
@@ -88,7 +89,13 @@ export default function UfficioShell() {
   }
 
   return (
-    <div className={isDark ? "min-h-screen bg-[#050910] text-slate-100" : "min-h-screen bg-slate-50 text-slate-900"}>
+    <div
+      className={
+        isDark
+          ? "min-h-screen bg-[#050910] text-slate-100"
+          : "min-h-screen bg-slate-50 text-slate-900"
+      }
+    >
       <div className="flex">
         {/* SIDEBAR (CNCS unified) */}
         <CNCSSidebar
@@ -103,7 +110,9 @@ export default function UfficioShell() {
           storageKey="core-sidebar-collapsed-ufficio"
           navItems={[
             { to: "/ufficio", label: "Rapportini", icon: "rapportino", colorClass: "text-sky-400", end: true },
-            { to: "/ufficio/inca", label: "INCA", icon: "inca", colorClass: "text-emerald-400" },
+
+            // CANONIQUE
+            { to: "/ufficio/navemaster", label: "NAVEMASTER", icon: "inca", colorClass: "text-emerald-400" },
 
             // NEW
             { to: "/ufficio/evoluzione", label: "Evoluzione", icon: "history", colorClass: "text-amber-400" },

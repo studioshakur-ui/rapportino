@@ -1,9 +1,10 @@
-// src/DirectionShell.jsx
+// /src/DirectionShell.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useLocation, Routes, Route, Navigate } from "react-router-dom";
 
 import { useAuth } from "./auth/AuthProvider";
 import DirectionDashboard from "./components/DirectionDashboard";
+import DirectionOperatorKPI from "./pages/DirectionOperatorKPI";
 import ArchivePage from "./pages/Archive";
 import CorePresentationPopup from "./components/CorePresentationPopup";
 import CorePresentation from "./pages/CorePresentation";
@@ -207,6 +208,7 @@ export default function DirectionShell() {
 
   const topTitle = useMemo(() => {
     if (pathname.startsWith("/direction/evoluzione")) return "Suivi & Evoluzione";
+    if (pathname.startsWith("/direction/kpi-operatori")) return "KPI Operatori";
     if (pathname.startsWith("/direction/presentazione")) return "Presentazione";
     if (pathname.startsWith("/direction/ufficio-view")) return "Vista Ufficio";
     if (pathname.startsWith("/direction/core-drive") || pathname.startsWith("/direction/archive")) return "CORE Drive";
@@ -229,6 +231,7 @@ export default function DirectionShell() {
           storageKey="core-sidebar-collapsed-direction"
           navItems={[
             { to: "/direction", label: "Dashboard", icon: "dashboard", colorClass: "text-sky-400", end: true },
+            { to: "/direction/kpi-operatori", label: "KPI Operatori", icon: "chart", colorClass: "text-emerald-400" },
             { to: "/direction/presentazione", label: "Presentazione", icon: "presentation", colorClass: "text-violet-400" },
             { to: "/direction/ufficio-view", label: "Vista Ufficio", icon: "ufficio", colorClass: "text-emerald-400" },
             { to: "/direction/evoluzione", label: "Evoluzione", icon: "history", colorClass: "text-amber-400" },
@@ -313,6 +316,8 @@ export default function DirectionShell() {
           <div className="max-w-6xl mx-auto space-y-4 pt-4">
             <Routes>
               <Route path="/" element={<DirectionDashboard isDark={isDark} />} />
+              <Route path="kpi-operatori" element={<DirectionOperatorKPI isDark={isDark} />} />
+
               <Route path="presentazione" element={<CorePresentation />} />
               <Route path="presentazione/capo" element={<CapoPresentation />} />
 
