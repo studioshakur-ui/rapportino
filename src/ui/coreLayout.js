@@ -1,7 +1,15 @@
-// src/ui/coreLayout.js
+// /src/ui/coreLayout.js
 //
 // CORE Layout helpers – commun à Capo, Ufficio, Direzione, Dashboard.
 // SHAKUR ENGINEERING · 2025
+//
+// IMPORTANT (Option B):
+// - On garde `coreLayout` (layout tokens).
+// - On RÉ-EXPORTE `corePills` et `themeIconBg` depuis /src/ui/designSystem.js
+//   pour compatibilité avec les imports existants du type:
+//     import { corePills } from "../ui/coreLayout";
+
+export { corePills, themeIconBg } from "./designSystem";
 
 export const coreLayout = {
   // Fond de la page (body des shells)
@@ -37,7 +45,7 @@ export const coreLayout = {
       : "border-slate-200 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.18)]";
   },
 
-  // ✅ ✅ ✅ BOUTON TOGGLE THEME (CE QUI MANQUAIT)
+  // ✅ ✅ ✅ BOUTON TOGGLE THEME
   themeToggle(isDark) {
     return isDark
       ? "border-slate-600 bg-slate-900/70 text-slate-200 hover:bg-slate-800"

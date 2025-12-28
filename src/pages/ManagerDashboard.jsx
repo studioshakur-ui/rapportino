@@ -1,4 +1,4 @@
-// src/pages/ManagerDashboard.jsx
+// /src/pages/ManagerDashboard.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
@@ -12,6 +12,20 @@ function formatDate(value) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return String(value);
   return d.toLocaleDateString("it-IT");
+}
+
+function toNumber(v) {
+  if (v == null) return 0;
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  const s = String(v).trim();
+  if (!s) return 0;
+  const n = Number.parseFloat(s.replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function formatPct(v) {
+  if (v == null || Number.isNaN(v)) return "—";
+  return new Intl.NumberFormat("it-IT", { maximumFractionDigits: 1 }).format(v) + "%";
 }
 
 export default function ManagerDashboard({ isDark = true }) {
@@ -29,6 +43,7 @@ export default function ManagerDashboard({ isDark = true }) {
     operators: 0,
     rapportini7d: 0,
     toReview: 0,
+    productivity7dPct: null,
   });
 
   const [latestRapportini, setLatestRapportini] = useState([]);
@@ -54,7 +69,14 @@ export default function ManagerDashboard({ isDark = true }) {
       try {
         if (!profile?.id) {
           setShips([]);
-          setKpi({ ships: 0, capi: 0, operators: 0, rapportini7d: 0, toReview: 0 });
+          setKpi({
+            ships: 0,
+            capi: 0,
+            operators: 0,
+            rapportini7d: 0,
+            toReview: 0,
+            productivity7dPct: null,
+          });
           setLatestRapportini([]);
           return;
         }
@@ -100,7 +122,14 @@ export default function ManagerDashboard({ isDark = true }) {
         const codes = activeFirst.map((s) => String(s?.code || "").trim()).filter(Boolean);
 
         if (ids.length === 0) {
-          setKpi({ ships: 0, capi: capiCount, operators: 0, rapportini7d: 0, toReview: 0 });
+          setKpi({
+            ships: 0,
+            capi: capiCount,
+            operators: 0,
+            rapportini7d: 0,
+            toReview: 0,
+            productivity7dPct: null,
+          });
           setLatestRapportini([]);
           return;
         }
@@ -152,6 +181,27 @@ export default function ManagerDashboard({ isDark = true }) {
 
         if (latestErr) throw latestErr;
 
+        // 6) KPI Produttività 7 giorni (percentuale pesata = sum(prodotto)/sum(previsto) *100)
+        // Nota: usiamo la view daily e facciamo il rollup in JS per evitare SQL dinamico lato client.
+        let productivity7dPct = null;
+        try {
+          const { data: prodRows, error: prodErr } = await supabase
+            .from("kpi_operator_productivity_daily_v1")
+            .select("previsto_alloc_sum, prodotto_alloc_sum")
+            .eq("manager_id", profile.id)
+            .gte("report_date", sinceISO)
+            .abortSignal(ac.signal);
+
+          if (prodErr) throw prodErr;
+
+          const sumPrev = (prodRows || []).reduce((a, r) => a + toNumber(r.previsto_alloc_sum), 0);
+          const sumProd = (prodRows || []).reduce((a, r) => a + toNumber(r.prodotto_alloc_sum), 0);
+          productivity7dPct = sumPrev > 0 ? (sumProd / sumPrev) * 100 : null;
+        } catch (e) {
+          console.warn("[ManagerDashboard] productivity KPI warning:", e);
+          productivity7dPct = null;
+        }
+
         if (!alive) return;
 
         setKpi({
@@ -160,6 +210,7 @@ export default function ManagerDashboard({ isDark = true }) {
           operators: uniqOps.size,
           rapportini7d: Number(rapCount || 0),
           toReview: Number(toReview || 0),
+          productivity7dPct,
         });
 
         setLatestRapportini(Array.isArray(latest) ? latest : []);
@@ -206,7 +257,7 @@ export default function ManagerDashboard({ isDark = true }) {
         </div>
       ) : null}
 
-      <section className="px-3 sm:px-4 grid grid-cols-2 lg:grid-cols-5 gap-3">
+      <section className="px-3 sm:px-4 grid grid-cols-2 lg:grid-cols-6 gap-3">
         <div className={cn(cardBase, "border-emerald-500/30")}>
           <div className="text-[11px] uppercase tracking-[0.16em] text-emerald-300">Cantieri</div>
           <div className="text-2xl font-semibold text-slate-50 mt-1">{loading ? "—" : kpi.ships}</div>
@@ -235,6 +286,14 @@ export default function ManagerDashboard({ isDark = true }) {
           <div className="text-[11px] uppercase tracking-[0.16em] text-rose-300">Da verificare</div>
           <div className="text-2xl font-semibold text-slate-50 mt-1">{loading ? "—" : kpi.toReview}</div>
           <div className="text-[10px] text-slate-400 mt-1">Status: VALIDATED_CAPO</div>
+        </div>
+
+        <div className={cn(cardBase, "border-fuchsia-500/30")}>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-fuchsia-300">Produttività (7g)</div>
+          <div className="text-2xl font-semibold text-slate-50 mt-1">
+            {loading ? "—" : formatPct(kpi.productivity7dPct)}
+          </div>
+          <div className="text-[10px] text-slate-400 mt-1">Indice = prodotto/previsto</div>
         </div>
       </section>
 

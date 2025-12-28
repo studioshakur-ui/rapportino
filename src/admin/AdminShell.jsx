@@ -75,6 +75,18 @@ function IconHistory() {
   );
 }
 
+function IconCatalog() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
+      <path d="M7 4h10a2 2 0 0 1 2 2v14H7a2 2 0 0 0-2 2V6a2 2 0 0 1 2-2Z" stroke="currentColor" />
+      <path d="M7 4v16" stroke="currentColor" />
+      <path d="M10 8h7" stroke="currentColor" />
+      <path d="M10 12h7" stroke="currentColor" />
+      <path d="M10 16h7" stroke="currentColor" />
+    </svg>
+  );
+}
+
 export default function AdminShell() {
   const { profile, signOut } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
@@ -156,6 +168,11 @@ export default function AdminShell() {
               to="/admin/operators"
               label={collapsed ? "" : "Operatori"}
               icon={<IconWorkers />}
+            />
+            <Item
+              to="/admin/catalogo"
+              label={collapsed ? "" : "Catalogo"}
+              icon={<IconCatalog />}
             />
             <Item
               to="/admin/planning"

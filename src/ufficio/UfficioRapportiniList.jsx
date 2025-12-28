@@ -1,23 +1,21 @@
 // src/ufficio/UfficioRapportiniList.jsx
-import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabaseClient';
-import { useAuth } from '../auth/AuthProvider';
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { supabase } from "../lib/supabaseClient";
+import { useAuth } from "../auth/AuthProvider";
 
 const STATUS_LABELS = {
-  DRAFT: 'Bozza',
-  VALIDATED_CAPO: 'In verifica',
-  APPROVED_UFFICIO: 'Archiviato',
-  RETURNED: 'Rimandato',
+  DRAFT: "Bozza",
+  VALIDATED_CAPO: "In verifica",
+  APPROVED_UFFICIO: "Archiviato",
+  RETURNED: "Rimandato",
 };
 
 const STATUS_BADGE_CLASS = {
-  DRAFT: 'bg-slate-700/80 text-slate-200',
-  VALIDATED_CAPO:
-    'bg-amber-500/15 text-amber-200 border border-amber-400/60',
-  APPROVED_UFFICIO:
-    'bg-emerald-500/15 text-emerald-200 border border-emerald-400/60',
-  RETURNED: 'bg-rose-500/15 text-rose-200 border border-rose-400/60',
+  DRAFT: "bg-slate-700/80 text-slate-200",
+  VALIDATED_CAPO: "bg-amber-500/15 text-amber-200 border border-amber-400/60",
+  APPROVED_UFFICIO: "bg-emerald-500/15 text-emerald-200 border border-emerald-400/60",
+  RETURNED: "bg-rose-500/15 text-rose-200 border border-rose-400/60",
 };
 
 // Priorità lavoro (front-only)
@@ -29,10 +27,10 @@ const STATUS_RANK = {
 };
 
 function formatDate(value) {
-  if (!value) return '';
+  if (!value) return "";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return String(value);
-  return d.toLocaleDateString('it-IT');
+  return d.toLocaleDateString("it-IT");
 }
 
 function toDateValue(row) {
@@ -41,36 +39,67 @@ function toDateValue(row) {
   return Number.isNaN(d.getTime()) ? 0 : d.getTime();
 }
 
-function formatProdotto(row) {
-  if (row.totale_prodotto != null) return Number(row.totale_prodotto);
-  if (row.prodotto_totale != null) return Number(row.prodotto_totale);
-  if (row.prodotto_tot != null) return Number(row.prodotto_tot);
-  return 0;
+function safeNum(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
 }
 
+function formatNumberIt(v, maxFrac = 2) {
+  const n = safeNum(v);
+  return new Intl.NumberFormat("it-IT", { maximumFractionDigits: maxFrac }).format(n);
+}
+
+function normalizeKey(s) {
+  return (s ?? "").toString().trim().toUpperCase();
+}
+
+function isSuperseded(row) {
+  // Ancien rapport remplacé par un rectificatif
+  return !!(row?.superseded_by_rapportino_id);
+}
+
+function isCorrection(row) {
+  // Nouveau rapport rectificatif qui remplace un ancien
+  return !!(row?.supersedes_rapportino_id);
+}
+
+/**
+ * Canonique métier:
+ * - On n'affiche pas "Prodotto total" unique.
+ * - On affiche "Produzioni" = breakdown par descrizione (count + top items).
+ *
+ * Naval-grade rectificatif/versionning:
+ * - Par défaut: n'afficher que les rapports "attivi" (non supersedés)
+ * - Toggle: afficher aussi l'historique (supersedés)
+ * - Badges: SOSTITUITO / RETTIFICA
+ */
 export default function UfficioRapportiniList() {
   const { profile, loading: authLoading } = useAuth();
-  const navigate = useNavigate();
 
   const [rapportini, setRapportini] = useState([]);
+  const [rowsAggByRap, setRowsAggByRap] = useState({}); // { [rapportino_id]: { descrizioniCount, top: [{descrizione, prodotto_sum}], sommaRighe } }
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const [statusFilter, setStatusFilter] = useState('ALL');
-  const [capoFilter, setCapoFilter] = useState('');
-  const [roleFilter, setRoleFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [capoFilter, setCapoFilter] = useState("");
+  const [roleFilter, setRoleFilter] = useState("ALL");
+
+  // NEW: show/hide historique (supersedés)
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
 
     if (!profile) {
-      setError('Devi effettuare il login.');
+      setError("Devi effettuare il login.");
       setLoading(false);
       return;
     }
 
-    if (!['UFFICIO', 'DIREZIONE', 'MANAGER', 'ADMIN'].includes(profile.app_role)) {
-      setError('Non sei autorizzato ad accedere alla sezione Ufficio.');
+    if (!["UFFICIO", "DIREZIONE", "MANAGER", "ADMIN"].includes(profile.app_role)) {
+      setError("Non sei autorizzato ad accedere alla sezione Ufficio.");
       setLoading(false);
       return;
     }
@@ -79,35 +108,129 @@ export default function UfficioRapportiniList() {
       setLoading(true);
       setError(null);
 
-      // Canonique: vue liste Ufficio avec CAPO déjà résolu côté SQL
-      const { data, error: err } = await supabase
-        .from('ufficio_rapportini_list_v1')
-        .select(
-          [
-            'id',
-            'report_date',
-            'capo_id',
-            'capo_display_name',
-            'crew_role',
-            'commessa',
-            'status',
-            'totale_prodotto',
-            'prodotto_totale',
-            'prodotto_tot',
-          ].join(',')
-        )
-        .in('status', ['VALIDATED_CAPO', 'APPROVED_UFFICIO', 'RETURNED'])
-        .order('report_date', { ascending: false });
+      // Note:
+      // - On tente de lire des colonnes de versionning si elles existent dans la vue.
+      // - Si elles n'existent pas encore, Supabase renverra une erreur. Pour rester robuste,
+      //   on réduit automatiquement le select au set minimal en fallback.
+      const baseSelect = [
+        "id",
+        "report_date",
+        "capo_id",
+        "capo_display_name",
+        "crew_role",
+        "commessa",
+        "status",
+        "created_at",
+        "updated_at",
+        // Naval-grade (optionnel selon vue)
+        "superseded_by_rapportino_id",
+        "supersedes_rapportino_id",
+        "correction_reason",
+        "correction_created_at",
+      ].join(",");
+
+      const runQuery = async (selectStr) => {
+        return await supabase
+          .from("ufficio_rapportini_list_v1")
+          .select(selectStr)
+          .in("status", ["VALIDATED_CAPO", "APPROVED_UFFICIO", "RETURNED"])
+          .order("report_date", { ascending: false });
+      };
+
+      let data = null;
+      let err = null;
+
+      // 1) Try with versioning columns
+      const r1 = await runQuery(baseSelect);
+      data = r1.data;
+      err = r1.error;
+
+      // 2) Fallback to minimal select if the view doesn't have those columns yet
+      if (err) {
+        console.warn("[UFFICIO LIST] Select with versioning columns failed; fallback minimal:", err);
+
+        const minimalSelect = [
+          "id",
+          "report_date",
+          "capo_id",
+          "capo_display_name",
+          "crew_role",
+          "commessa",
+          "status",
+          "created_at",
+          "updated_at",
+        ].join(",");
+
+        const r2 = await runQuery(minimalSelect);
+        data = r2.data;
+        err = r2.error;
+      }
 
       if (err) {
-        console.error('[UFFICIO LIST] Errore caricando i rapportini:', err);
-        setError('Errore durante il caricamento dei rapportini.');
+        console.error("[UFFICIO LIST] Errore caricando i rapportini:", err);
+        setError("Errore durante il caricamento dei rapportini.");
         setRapportini([]);
+        setRowsAggByRap({});
         setLoading(false);
         return;
       }
 
-      setRapportini(data || []);
+      const list = data || [];
+      setRapportini(list);
+
+      // Aggregazione descrizione/prodotto per tutti gli IDs (1 query)
+      const ids = list.map((r) => r.id).filter(Boolean);
+
+      if (!ids.length) {
+        setRowsAggByRap({});
+        setLoading(false);
+        return;
+      }
+
+      const { data: aggRows, error: aggErr } = await supabase
+        .from("rapportino_rows")
+        .select("rapportino_id, descrizione, prodotto")
+        .in("rapportino_id", ids);
+
+      if (aggErr) {
+        console.warn("[UFFICIO LIST] Impossibile caricare breakdown righe:", aggErr);
+        setRowsAggByRap({});
+        setLoading(false);
+        return;
+      }
+
+      // Build aggregate:
+      // per rapportino_id:
+      // - descrizioniCount
+      // - top 2 descrizioni by prodotto_sum
+      // - sommaRighe (secondary)
+      const map = new Map(); // rid -> { descrMap, sommaRighe }
+      (aggRows || []).forEach((r) => {
+        const rid = r?.rapportino_id;
+        if (!rid) return;
+        const obj = map.get(rid) || { descrMap: new Map(), sommaRighe: 0 };
+        const key = (r?.descrizione ?? "—").toString().trim() || "—";
+        obj.descrMap.set(key, (obj.descrMap.get(key) || 0) + safeNum(r?.prodotto));
+        obj.sommaRighe += safeNum(r?.prodotto);
+        map.set(rid, obj);
+      });
+
+      const out = {};
+      map.forEach((v, rid) => {
+        const items = Array.from(v.descrMap.entries()).map(([descrizione, prodotto_sum]) => ({
+          descrizione,
+          prodotto_sum,
+        }));
+        items.sort((a, b) => b.prodotto_sum - a.prodotto_sum);
+
+        out[rid] = {
+          descrizioniCount: items.length,
+          top: items.slice(0, 2),
+          sommaRighe: v.sommaRighe,
+        };
+      });
+
+      setRowsAggByRap(out);
       setLoading(false);
     };
 
@@ -118,17 +241,20 @@ export default function UfficioRapportiniList() {
     const q = capoFilter.trim().toLowerCase();
 
     return (rapportini || []).filter((r) => {
-      if (statusFilter !== 'ALL' && r.status !== statusFilter) return false;
-      if (roleFilter !== 'ALL' && r.crew_role !== roleFilter) return false;
+      if (statusFilter !== "ALL" && r.status !== statusFilter) return false;
+      if (roleFilter !== "ALL" && r.crew_role !== roleFilter) return false;
+
+      // Naval-grade: hide superseded by default
+      if (!showHistory && isSuperseded(r)) return false;
 
       if (q) {
-        const searchable = String(r?.capo_display_name || '').toLowerCase();
+        const searchable = String(r?.capo_display_name || "").toLowerCase();
         if (!searchable.includes(q)) return false;
       }
 
       return true;
     });
-  }, [rapportini, statusFilter, capoFilter, roleFilter]);
+  }, [rapportini, statusFilter, capoFilter, roleFilter, showHistory]);
 
   const sortedRapportini = useMemo(() => {
     const rows = [...(filteredRapportini || [])];
@@ -137,7 +263,6 @@ export default function UfficioRapportiniList() {
       const rb = STATUS_RANK[b.status] ?? 99;
       if (ra !== rb) return ra - rb;
 
-      // à rang égal : plus récent en haut
       const da = toDateValue(a);
       const db = toDateValue(b);
       return db - da;
@@ -145,18 +270,10 @@ export default function UfficioRapportiniList() {
     return rows;
   }, [filteredRapportini]);
 
-  const handleRowClick = (row) => {
-    // Ligne ARCHIVIATA = lecture possible, mais pas d'interaction "file de travail"
-    if (row?.status === 'APPROVED_UFFICIO') return;
-    navigate(`/ufficio/rapportini/${row.id}`);
-  };
-
   if (authLoading || loading) {
     return (
       <div className="p-4">
-        <p className="text-sm text-slate-400">
-          Caricamento rapportini Ufficio…
-        </p>
+        <p className="text-sm text-slate-400">Caricamento rapportini Ufficio…</p>
       </div>
     );
   }
@@ -173,17 +290,15 @@ export default function UfficioRapportiniList() {
     <div className="p-3 md:p-4 max-w-6xl mx-auto text-slate-100">
       <header className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-lg md:text-xl font-semibold text-slate-50">
-            Rapportini · Ufficio
-          </h1>
-          {/* Texte explicatif supprimé (redondant) */}
+          <h1 className="text-lg md:text-xl font-semibold text-slate-50">Rapportini · Ufficio</h1>
+          <div className="mt-1 text-[11px] text-slate-500">
+            Naval-grade: i documenti archiviati restano immutabili. Le correzioni avvengono tramite rettifica/versione.
+          </div>
         </div>
         <div className="flex flex-wrap gap-2 text-xs text-slate-400">
           <span>
             Utente:&nbsp;
-            <strong className="text-slate-100">
-              {profile?.full_name || profile?.email || 'UFFICIO'}
-            </strong>
+            <strong className="text-slate-100">{profile?.full_name || profile?.email || "UFFICIO"}</strong>
           </span>
           <span className="px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-200 border border-sky-500/60">
             Ruolo: {profile?.app_role}
@@ -208,9 +323,7 @@ export default function UfficioRapportiniList() {
           </div>
 
           <div className="flex flex-col text-xs">
-            <label className="mb-1 font-medium text-slate-300">
-              Tipo squadra
-            </label>
+            <label className="mb-1 font-medium text-slate-300">Tipo squadra</label>
             <select
               className="border border-slate-700 rounded-md px-2 py-1 text-xs bg-slate-900/70 text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
               value={roleFilter}
@@ -222,12 +335,28 @@ export default function UfficioRapportiniList() {
               <option value="MONTAGGIO">Montaggio</option>
             </select>
           </div>
+
+          {/* NEW: toggle historique */}
+          <div className="flex flex-col text-xs">
+            <label className="mb-1 font-medium text-slate-300">Versioni</label>
+            <button
+              type="button"
+              onClick={() => setShowHistory((v) => !v)}
+              className={[
+                "px-2 py-1 rounded-md border text-xs font-medium",
+                showHistory
+                  ? "border-slate-600 text-slate-100 bg-slate-900/70 hover:bg-slate-900/90"
+                  : "border-slate-800 text-slate-300 bg-slate-950/50 hover:bg-slate-900/70",
+              ].join(" ")}
+              title={showHistory ? "Nascondi versioni storiche" : "Mostra versioni storiche (supersedute)"}
+            >
+              {showHistory ? "Storico: ON" : "Storico: OFF"}
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-col text-xs min-w-[180px]">
-          <label className="mb-1 font-medium text-slate-300">
-            Capo
-          </label>
+          <label className="mb-1 font-medium text-slate-300">Capo</label>
           <input
             type="text"
             placeholder="Nome…"
@@ -242,100 +371,115 @@ export default function UfficioRapportiniList() {
         <table className="min-w-full text-xs">
           <thead className="bg-slate-900/80 border-b border-slate-800">
             <tr>
-              <th className="px-3 py-2 text-left font-medium text-slate-300">
-                Data
-              </th>
-              <th className="px-3 py-2 text-left font-medium text-slate-300">
-                Capo
-              </th>
-              <th className="px-3 py-2 text-left font-medium text-slate-300">
-                Squadra
-              </th>
-              <th className="px-3 py-2 text-left font-medium text-slate-300">
-                Commessa
-              </th>
-              <th className="px-3 py-2 text-left font-medium text-slate-300">
-                Prodotto
-              </th>
-              <th className="px-3 py-2 text-left font-medium text-slate-300">
-                Stato
-              </th>
-              <th className="px-3 py-2 text-right font-medium text-slate-300">
-                Apri
-              </th>
+              <th className="px-3 py-2 text-left font-medium text-slate-300">Data</th>
+              <th className="px-3 py-2 text-left font-medium text-slate-300">Capo</th>
+              <th className="px-3 py-2 text-left font-medium text-slate-300">Squadra</th>
+              <th className="px-3 py-2 text-left font-medium text-slate-300">Commessa</th>
+              <th className="px-3 py-2 text-left font-medium text-slate-300">Produzioni</th>
+              <th className="px-3 py-2 text-left font-medium text-slate-300">Stato</th>
+              <th className="px-3 py-2 text-right font-medium text-slate-300">Apri</th>
             </tr>
           </thead>
 
           <tbody>
             {sortedRapportini.length === 0 && (
               <tr>
-                <td
-                  colSpan={7}
-                  className="px-3 py-4 text-center text-xs text-slate-500"
-                >
+                <td colSpan={7} className="px-3 py-4 text-center text-xs text-slate-500">
                   Nessun risultato.
                 </td>
               </tr>
             )}
 
             {sortedRapportini.map((r) => {
-              const prodotto = formatProdotto(r);
               const statusLabel = STATUS_LABELS[r.status] || r.status;
-              const badgeClass =
-                STATUS_BADGE_CLASS[r.status] ||
-                'bg-slate-700/80 text-slate-200';
+              const badgeClass = STATUS_BADGE_CLASS[r.status] || "bg-slate-700/80 text-slate-200";
 
-              const capoResolved =
-                r?.capo_display_name ?? (r?.capo_id ? 'Profil mancante' : '—');
+              const capoResolved = r?.capo_display_name ?? (r?.capo_id ? "Profil mancante" : "—");
+              const isArchived = r.status === "APPROVED_UFFICIO";
 
-              const isArchived = r.status === 'APPROVED_UFFICIO';
+              const superseded = isSuperseded(r);
+              const correction = isCorrection(r);
+
+              const agg = rowsAggByRap[r.id] || null;
+              const descrCount = agg?.descrizioniCount ?? 0;
+              const top = agg?.top ?? [];
+              const sommaRighe = agg?.sommaRighe ?? 0;
+
+              const topLine = top.length
+                ? top
+                    .map((x) => {
+                      const label = normalizeKey(x.descrizione);
+                      const v = formatNumberIt(x.prodotto_sum);
+                      return `${label} ${v}`;
+                    })
+                    .join(" · ")
+                : "—";
+
+              const moreCount = Math.max(0, descrCount - top.length);
+
+              // UI tone: superseded should look "historical"
+              const rowTone = superseded ? "opacity-50" : isArchived ? "opacity-70" : "hover:bg-slate-900/80";
 
               return (
                 <tr
                   key={r.id}
-                  className={[
-                    'border-b border-slate-800 transition-colors',
-                    isArchived
-                      ? 'opacity-60'
-                      : 'hover:bg-slate-900/80 cursor-pointer',
-                  ].join(' ')}
-                  onClick={() => handleRowClick(r)}
+                  className={["border-b border-slate-800 transition-colors", rowTone].join(" ")}
+                  title={superseded ? "Versione superseduta (sostituita da rettifica)" : ""}
                 >
-                  <td className="px-3 py-2 whitespace-nowrap text-slate-100">
-                    {formatDate(r.report_date)}
-                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap text-slate-100">{formatDate(r.report_date)}</td>
 
                   <td className="px-3 py-2 whitespace-nowrap text-slate-100">
-                    {capoResolved}
+                    <div className="flex items-center gap-2">
+                      <span>{capoResolved}</span>
+
+                      {correction && (
+                        <span className="px-2 py-0.5 rounded-full border border-sky-500/40 bg-sky-950/30 text-[10px] uppercase tracking-[0.14em] text-sky-200">
+                          RETTIFICA
+                        </span>
+                      )}
+
+                      {superseded && (
+                        <span className="px-2 py-0.5 rounded-full border border-slate-600 bg-slate-900/60 text-[10px] uppercase tracking-[0.14em] text-slate-300">
+                          SOSTITUITO
+                        </span>
+                      )}
+                    </div>
                   </td>
 
-                  <td className="px-3 py-2 whitespace-nowrap text-slate-100">
-                    {r.crew_role || '—'}
-                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap text-slate-100">{r.crew_role || "—"}</td>
 
-                  <td className="px-3 py-2 whitespace-nowrap text-slate-100">
-                    {r.commessa || '—'}
-                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap text-slate-100">{r.commessa || "—"}</td>
 
-                  <td className="px-3 py-2 whitespace-nowrap text-slate-100">
-                    {prodotto.toLocaleString('it-IT', {
-                      minimumFractionDigits: 0,
-                      maximumFractionDigits: 2,
-                    })}
+                  <td className="px-3 py-2 text-slate-100">
+                    <div className="flex flex-col">
+                      <div className="text-slate-100">
+                        <span className="inline-flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded-full border border-slate-700 bg-slate-950/70 text-[11px] uppercase tracking-[0.12em] text-slate-300">
+                            {descrCount || 0} descr.
+                          </span>
+                          <span className="text-[11px] text-slate-500">somma righe: {formatNumberIt(sommaRighe)}</span>
+                        </span>
+                      </div>
+                      <div className="mt-1 text-[11px] text-slate-300">
+                        {topLine}
+                        {moreCount > 0 ? <span className="text-slate-500"> · +{moreCount}</span> : null}
+                      </div>
+                      <div className="mt-1 text-[10px] text-slate-500">
+                        Produzione mostrata per descrizione (no KPI totale unico).
+                      </div>
+                    </div>
                   </td>
 
                   <td className="px-3 py-2 whitespace-nowrap">
                     <span
                       className={[
-                        'inline-flex items-center px-2 py-0.5 rounded-full text-[11px] uppercase tracking-[0.14em] font-medium',
+                        "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] uppercase tracking-[0.14em] font-medium",
                         badgeClass,
-                      ].join(' ')}
+                      ].join(" ")}
                     >
                       {statusLabel}
                       {isArchived && (
-                        <span className="ml-1.5 text-[10px] tracking-[0.14em] text-emerald-200/90">
-                          · BLOCCATO
-                        </span>
+                        <span className="ml-1.5 text-[10px] tracking-[0.14em] text-emerald-200/90">· BLOCCATO</span>
                       )}
                     </span>
                   </td>
@@ -343,7 +487,6 @@ export default function UfficioRapportiniList() {
                   <td className="px-3 py-2 whitespace-nowrap text-right">
                     <Link
                       to={`/ufficio/rapportini/${r.id}`}
-                      onClick={(e) => e.stopPropagation()}
                       className="text-xs text-sky-300 hover:text-sky-200 hover:underline"
                     >
                       Apri
@@ -354,6 +497,14 @@ export default function UfficioRapportiniList() {
             })}
           </tbody>
         </table>
+      </div>
+
+      <div className="mt-3 text-[11px] text-slate-500">
+        {showHistory ? (
+          <span>Stai visualizzando anche versioni storiche (supersedute).</span>
+        ) : (
+          <span>Per default sono visibili solo le versioni attive (non supersedute).</span>
+        )}
       </div>
     </div>
   );

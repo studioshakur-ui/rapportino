@@ -1,6 +1,6 @@
 // src/ufficio/UfficioRapportinoDetail.jsx
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
 
@@ -42,6 +42,11 @@ function safeMultilineText(v) {
 function safeNum(v) {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
+}
+
+function formatNumberIt(v, maxFrac = 2) {
+  const n = safeNum(v);
+  return new Intl.NumberFormat("it-IT", { maximumFractionDigits: maxFrac }).format(n);
 }
 
 function formatMeters(v) {
@@ -90,6 +95,24 @@ function statusTone(status) {
   }
 }
 
+function normalizeKey(s) {
+  return (s ?? "").toString().trim().toUpperCase();
+}
+
+function isSuperseded(header) {
+  return !!(header?.superseded_by_rapportino_id);
+}
+
+function isCorrection(header) {
+  return !!(header?.supersedes_rapportino_id);
+}
+
+/**
+ * Naval-grade rectificatif/versionning (front):
+ * - Un rapport ARCHIVIATO reste immuable.
+ * - Si erreur: Ufficio crée une "rettifica" (nouveau rapport) via RPC.
+ * - L'ancien peut être "sostituito" (supersedé) et pointe vers le nouveau.
+ */
 export default function UfficioRapportinoDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -109,6 +132,11 @@ export default function UfficioRapportinoDetail() {
   const [feedback, setFeedback] = useState("");
   const [returnNote, setReturnNote] = useState("");
 
+  // NEW: Rettifica modal
+  const [rectifyOpen, setRectifyOpen] = useState(false);
+  const [rectifyReason, setRectifyReason] = useState("");
+  const [rectifyWorking, setRectifyWorking] = useState(false);
+
   const isElett = useMemo(() => header?.crew_role === "ELETTRICISTA", [header]);
 
   const isManager = profile?.app_role === "MANAGER";
@@ -118,7 +146,9 @@ export default function UfficioRapportinoDetail() {
 
   const isArchived = header?.status === "APPROVED_UFFICIO";
   const isReturned = header?.status === "RETURNED";
-  const isValidated = header?.status === "VALIDATED_CAPO";
+
+  const superseded = isSuperseded(header);
+  const correction = isCorrection(header);
 
   useEffect(() => {
     if (authLoading) return;
@@ -159,10 +189,9 @@ export default function UfficioRapportinoDetail() {
 
       // 2) Resolve CAPO name via RPC (public profile fields)
       if (headerData.capo_id) {
-        const { data: profs, error: rpcErr } = await supabase.rpc(
-          "core_profiles_public_by_ids",
-          { p_ids: [headerData.capo_id] }
-        );
+        const { data: profs, error: rpcErr } = await supabase.rpc("core_profiles_public_by_ids", {
+          p_ids: [headerData.capo_id],
+        });
 
         if (rpcErr) {
           console.warn("[UFFICIO DETAIL] RPC profiles_public failed:", rpcErr);
@@ -215,15 +244,19 @@ export default function UfficioRapportinoDetail() {
       const existingNote = headerData.ufficio_note || headerData.note_ufficio || "";
       setReturnNote(existingNote || "");
 
+      // reset rectify modal state
+      setRectifyOpen(false);
+      setRectifyReason("");
+
       setLoading(false);
     };
 
     load();
   }, [authLoading, profile, id, isUfficio, isDirezione, isManager, isAdmin]);
 
-  // Verrouillage “archiviato” (Option A) :
+  // Verrouillage “archiviato” :
   // - Approver uniquement quand VALIDATED_CAPO
-  // - Rimandare uniquement quand VALIDATED_CAPO (pas de retour depuis un archiviato)
+  // - Rimandare uniquement quand VALIDATED_CAPO
   const canApprove =
     header &&
     header.status === "VALIDATED_CAPO" &&
@@ -235,6 +268,18 @@ export default function UfficioRapportinoDetail() {
     header.status === "VALIDATED_CAPO" &&
     (isUfficio || isDirezione || isAdmin) &&
     !saving;
+
+  // Naval-grade: Rettifica autorisée seulement si:
+  // - document archiviato
+  // - pas déjà supersedé
+  // - rôle: UFFICIO ou ADMIN (ou DIREZIONE si vous le souhaitez)
+  const canCreateCorrection =
+    header &&
+    header.status === "APPROVED_UFFICIO" &&
+    !superseded &&
+    (isUfficio || isAdmin) &&
+    !saving &&
+    !rectifyWorking;
 
   const statusLabel = header ? STATUS_LABELS[header.status] || header.status : "—";
   const tone = statusTone(header?.status);
@@ -249,7 +294,6 @@ export default function UfficioRapportinoDetail() {
   const handleBackDirezione = () => navigate("/direzione");
 
   const reloadAfterMutation = async () => {
-    // Re-fetch header + INCA view (no guessing)
     const { data: headerData } = await supabase.from("rapportini").select("*").eq("id", id).single();
     if (headerData) setHeader(headerData);
 
@@ -296,7 +340,6 @@ export default function UfficioRapportinoDetail() {
         return;
       }
 
-      // Optional feedback includes how many INCA cables were certified to P
       const updatedCavi = data?.updated_cavi ?? null;
 
       await reloadAfterMutation();
@@ -349,6 +392,113 @@ export default function UfficioRapportinoDetail() {
     setSaving(false);
   };
 
+  // Naval-grade: Create correction (rettifica) via RPC
+  const openRectify = () => {
+    setError(null);
+    setFeedback("");
+    setRectifyReason("");
+    setRectifyOpen(true);
+  };
+
+  const closeRectify = () => {
+    if (rectifyWorking) return;
+    setRectifyOpen(false);
+  };
+
+  const handleCreateCorrection = async () => {
+    if (!header || !canCreateCorrection) return;
+
+    const reason = (rectifyReason || "").trim();
+    if (!reason) {
+      setError("Motivo della rettifica obbligatorio.");
+      return;
+    }
+
+    setRectifyWorking(true);
+    setError(null);
+    setFeedback("");
+
+    try {
+      const { data, error: rpcErr } = await supabase.rpc("ufficio_create_correction_rapportino", {
+        p_rapportino_id: header.id,
+        p_reason: reason,
+      });
+
+      if (rpcErr) {
+        console.error("[UFFICIO DETAIL] RPC create correction error:", rpcErr);
+        setError("Errore durante la creazione della rettifica. (RPC non disponibile o permessi mancanti)");
+        setRectifyWorking(false);
+        return;
+      }
+
+      // Accept a few shapes defensively:
+      const newId =
+        data?.new_rapportino_id ||
+        data?.rapportino_id ||
+        data?.id ||
+        (typeof data === "string" ? data : null);
+
+      if (!newId) {
+        console.warn("[UFFICIO DETAIL] RPC returned no new id; data:", data);
+        setError("Rettifica creata, ma non è stato possibile ottenere l'ID del nuovo documento.");
+        setRectifyWorking(false);
+        return;
+      }
+
+      setRectifyOpen(false);
+      setRectifyWorking(false);
+
+      // Navigate to the new rectificatif
+      navigate(`/ufficio/rapportini/${newId}`);
+    } catch (e) {
+      console.error("[UFFICIO DETAIL] create correction exception:", e);
+      setError("Errore durante la creazione della rettifica.");
+      setRectifyWorking(false);
+    }
+  };
+
+  // ───────────────────────────
+  // PRODUZIONE (canonique): breakdown par DESCRIZIONE
+  // ───────────────────────────
+  const produzioneByDescrizione = useMemo(() => {
+    const map = new Map();
+    (rows || []).forEach((r) => {
+      const keyRaw = r?.descrizione ?? "—";
+      const key = keyRaw == null || String(keyRaw).trim() === "" ? "—" : String(keyRaw).trim();
+      const prev = map.get(key) || { descrizione: key, rows: 0, prodotto_sum: 0, previsto_sum: 0 };
+      prev.rows += 1;
+      prev.prodotto_sum += safeNum(r?.prodotto);
+      prev.previsto_sum += safeNum(r?.previsto);
+      map.set(key, prev);
+    });
+    return Array.from(map.values()).sort((a, b) => b.prodotto_sum - a.prodotto_sum);
+  }, [rows]);
+
+  const descrizioniCount = produzioneByDescrizione.length;
+
+  // Info secondaire (non-KPI): somme brute des lignes (utile pour cohérence, pas pour direction)
+  const totalSommaRighe = useMemo(() => {
+    return (rows || []).reduce((sum, r) => sum + safeNum(r?.prodotto), 0);
+  }, [rows]);
+
+  // Catégorie majoritaire (si multiple) — purement informatif
+  const categoriaDominante = useMemo(() => {
+    const m = new Map();
+    (rows || []).forEach((r) => {
+      const k = normalizeKey(r?.categoria || "—");
+      m.set(k, (m.get(k) || 0) + 1);
+    });
+    let best = null;
+    let bestN = -1;
+    m.forEach((v, k) => {
+      if (v > bestN) {
+        bestN = v;
+        best = k;
+      }
+    });
+    return best || "—";
+  }, [rows]);
+
   if (loading) {
     return <div className="p-6 text-sm text-slate-300">Caricamento del rapportino…</div>;
   }
@@ -362,11 +512,7 @@ export default function UfficioRapportinoDetail() {
 
         <div className="flex flex-wrap items-center gap-3">
           {isDirezione && (
-            <button
-              type="button"
-              onClick={handleBackDirezione}
-              className="text-xs underline text-slate-200"
-            >
+            <button type="button" onClick={handleBackDirezione} className="text-xs underline text-slate-200">
               Torna a Direzione
             </button>
           )}
@@ -388,11 +534,7 @@ export default function UfficioRapportinoDetail() {
 
         <div className="flex flex-wrap items-center gap-3">
           {isDirezione && (
-            <button
-              type="button"
-              onClick={handleBackDirezione}
-              className="text-xs underline text-slate-200"
-            >
+            <button type="button" onClick={handleBackDirezione} className="text-xs underline text-slate-200">
               Torna a Direzione
             </button>
           )}
@@ -407,12 +549,42 @@ export default function UfficioRapportinoDetail() {
 
   return (
     <div className={["p-4 md:p-5 space-y-4", isArchived ? "opacity-90" : ""].join(" ")}>
-      {/* CARTOUCHE STATUT (source de vérité) */}
+      {/* CARTOUCHE STATUT */}
       <div className={["rounded-2xl border px-4 py-3", tone.panel].join(" ")}>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div className="flex flex-col">
             <div className="text-[11px] uppercase tracking-[0.18em] text-slate-300">{tone.title}</div>
             {tone.subtitle ? <div className="text-xs text-slate-400">{tone.subtitle}</div> : null}
+
+            {/* Naval-grade versionning banners */}
+            <div className="mt-2 flex flex-wrap gap-2">
+              {correction && header?.supersedes_rapportino_id ? (
+                <Link
+                  to={`/ufficio/rapportini/${header.supersedes_rapportino_id}`}
+                  className="px-2 py-0.5 rounded-full border border-sky-500/40 bg-sky-950/30 text-[10px] uppercase tracking-[0.14em] text-sky-200 hover:bg-sky-950/40"
+                  title="Apri documento originale"
+                >
+                  RETTIFICA DI · {String(header.supersedes_rapportino_id).slice(0, 8)}
+                </Link>
+              ) : null}
+
+              {superseded && header?.superseded_by_rapportino_id ? (
+                <Link
+                  to={`/ufficio/rapportini/${header.superseded_by_rapportino_id}`}
+                  className="px-2 py-0.5 rounded-full border border-slate-600 bg-slate-900/60 text-[10px] uppercase tracking-[0.14em] text-slate-200 hover:bg-slate-900/80"
+                  title="Apri rettifica attiva"
+                >
+                  SOSTITUITO DA · {String(header.superseded_by_rapportino_id).slice(0, 8)}
+                </Link>
+              ) : null}
+
+              {header?.correction_reason ? (
+                <span className="px-2 py-0.5 rounded-full border border-slate-700 bg-slate-950/40 text-[10px] text-slate-300">
+                  Motivo: {String(header.correction_reason).slice(0, 80)}
+                  {String(header.correction_reason).length > 80 ? "…" : ""}
+                </span>
+              ) : null}
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -428,7 +600,6 @@ export default function UfficioRapportinoDetail() {
               )}
             </span>
 
-            {/* OPTION B: show both buttons when DIREZIONE */}
             {isDirezione ? (
               <>
                 <button
@@ -462,26 +633,23 @@ export default function UfficioRapportinoDetail() {
         </div>
       </div>
 
-      {/* HEADER (info utili, pas de répétition) */}
+      {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
         <div className="space-y-1 text-sm text-slate-100">
           <div className="text-base font-semibold">
             COSTR {header.costr || "—"} · Commessa {header.commessa || "—"}
           </div>
           <div className="text-xs text-slate-400">
-            Data:&nbsp;
-            <span className="text-slate-100">{formatDate(header.report_date || header.data)}</span>
+            Data:&nbsp;<span className="text-slate-100">{formatDate(header.report_date || header.data)}</span>
           </div>
           <div className="text-xs text-slate-400">
-            Capo:&nbsp;
-            <span className="text-slate-100">{capoResolved}</span>
+            Capo:&nbsp;<span className="text-slate-100">{capoResolved}</span>
           </div>
           <div className="text-xs text-slate-400">
-            Squadra:&nbsp;
-            <span className="text-slate-100">{header.crew_role || "—"}</span>
+            Squadra:&nbsp;<span className="text-slate-100">{header.crew_role || "—"}</span>
           </div>
 
-          {/* Meta-dati compatti (secondaires) */}
+          {/* Meta-dati compatti */}
           <div className="pt-2 text-[11px] text-slate-500 space-y-0.5">
             {header.validated_by_capo_at ? (
               <div>
@@ -498,11 +666,17 @@ export default function UfficioRapportinoDetail() {
                 Rimandato: <span className="text-slate-300">{formatDateTime(header.returned_by_ufficio_at)}</span>
               </div>
             ) : null}
+            {header.correction_created_at ? (
+              <div>
+                Rettifica creata: <span className="text-slate-300">{formatDateTime(header.correction_created_at)}</span>
+              </div>
+            ) : null}
           </div>
         </div>
 
-        {/* ACTIONS (rituel + verrouillage) */}
+        {/* ACTIONS */}
         <div className="flex flex-col items-end gap-2 text-xs">
+          {/* Standard actions (only when not archived) */}
           {!isArchived && (
             <div className="flex flex-wrap gap-2 justify-end">
               <button
@@ -535,6 +709,41 @@ export default function UfficioRapportinoDetail() {
             </div>
           )}
 
+          {/* Naval-grade correction action (allowed even when archived) */}
+          {isArchived && (
+            <div className="flex flex-wrap gap-2 justify-end">
+              <button
+                type="button"
+                onClick={openRectify}
+                disabled={!canCreateCorrection}
+                className={[
+                  "px-3 py-1.5 rounded-md border text-xs font-medium",
+                  canCreateCorrection
+                    ? "border-sky-500 text-sky-100 bg-sky-900/25 hover:bg-sky-900/40"
+                    : "border-slate-800 text-slate-500 bg-slate-950/40 cursor-not-allowed",
+                ].join(" ")}
+                title={
+                  superseded
+                    ? "Documento già sostituito da una rettifica"
+                    : !(isUfficio || isAdmin)
+                      ? "Solo Ufficio/Admin possono creare una rettifica"
+                      : "Crea una rettifica (nuova versione) del documento archiviato"
+                }
+              >
+                Crea rettifica
+              </button>
+
+              {superseded && header?.superseded_by_rapportino_id ? (
+                <Link
+                  to={`/ufficio/rapportini/${header.superseded_by_rapportino_id}`}
+                  className="px-3 py-1.5 rounded-md border border-slate-700 text-slate-100 text-xs hover:bg-slate-900/60"
+                >
+                  Apri rettifica attiva →
+                </Link>
+              ) : null}
+            </div>
+          )}
+
           {isManager && <div className="text-[10px] text-slate-500">Accesso in sola lettura</div>}
 
           {feedback ? (
@@ -545,9 +754,151 @@ export default function UfficioRapportinoDetail() {
         </div>
       </div>
 
+      {/* MODAL RETTIFICA */}
+      {rectifyOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Crea rettifica"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) closeRectify();
+          }}
+        >
+          <div className="absolute inset-0 bg-black/60" />
+          <div className="relative w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-950/95 shadow-xl">
+            <div className="p-4 border-b border-slate-800">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Rettifica · Versioning</div>
+              <div className="mt-1 text-sm font-semibold text-slate-100">Crea una nuova versione del documento</div>
+              <div className="mt-1 text-[12px] text-slate-400">
+                Il documento archiviato resta immutabile. La rettifica creerà un nuovo rapportino collegato a questo.
+              </div>
+            </div>
+
+            <div className="p-4 space-y-2">
+              <label className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                Motivo della correzione (obbligatorio)
+              </label>
+              <textarea
+                value={rectifyReason}
+                onChange={(e) => setRectifyReason(e.target.value)}
+                rows={4}
+                disabled={rectifyWorking}
+                className={[
+                  "w-full text-[12px] rounded-md border px-2 py-1.5 bg-slate-950/60 text-slate-100 resize-y",
+                  rectifyWorking
+                    ? "border-slate-800 cursor-not-allowed opacity-80"
+                    : "border-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500",
+                ].join(" ")}
+                placeholder="Es: errore su descrizione/quantità, produzione non corretta, operatori mancanti…"
+              />
+
+              <div className="text-[11px] text-slate-500">
+                Nota: la rettifica verrà creata tramite RPC <code className="text-slate-300">ufficio_create_correction_rapportino</code>.
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-800 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeRectify}
+                disabled={rectifyWorking}
+                className={[
+                  "px-3 py-1.5 rounded-md border text-xs font-medium",
+                  rectifyWorking
+                    ? "border-slate-800 text-slate-500 bg-slate-950/40 cursor-not-allowed"
+                    : "border-slate-700 text-slate-100 bg-slate-900/40 hover:bg-slate-900/60",
+                ].join(" ")}
+              >
+                Annulla
+              </button>
+
+              <button
+                type="button"
+                onClick={handleCreateCorrection}
+                disabled={rectifyWorking}
+                className={[
+                  "px-3 py-1.5 rounded-md border text-xs font-medium",
+                  rectifyWorking
+                    ? "border-sky-900 text-sky-200 bg-sky-950/30 cursor-wait"
+                    : "border-sky-500 text-sky-100 bg-sky-900/25 hover:bg-sky-900/40",
+                ].join(" ")}
+              >
+                {rectifyWorking ? "Creazione…" : "Crea rettifica"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PRODUZIONE (canonique): breakdown par descrizione */}
       <div className="border border-slate-800 rounded-xl overflow-hidden">
         <div className="bg-slate-900/80 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-400">
-          Attività
+          Produzione (per descrizione)
+        </div>
+
+        <div className="px-3 py-3 bg-slate-950/60 border-t border-slate-800">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[12px]">
+            <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Produzioni</div>
+              <div className="mt-1 text-lg font-semibold text-slate-50">{descrizioniCount}</div>
+              <div className="text-[11px] text-slate-500">unità (descrizione)</div>
+            </div>
+
+            <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Categoria</div>
+              <div className="mt-1 text-lg font-semibold text-slate-50">{categoriaDominante || "—"}</div>
+              <div className="text-[11px] text-slate-500">informativo</div>
+            </div>
+
+            <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Somma righe</div>
+              <div className="mt-1 text-lg font-semibold text-slate-200">{formatNumberIt(totalSommaRighe)}</div>
+              <div className="text-[11px] text-slate-500">secondario (non KPI)</div>
+            </div>
+          </div>
+
+          <div className="mt-3 overflow-x-auto">
+            <table className="min-w-full border border-slate-800 rounded-lg overflow-hidden text-[12px]">
+              <thead className="bg-slate-900/80 text-slate-300">
+                <tr>
+                  <th className="px-2 py-1 text-left border-b border-slate-800">Descrizione</th>
+                  <th className="px-2 py-1 text-right border-b border-slate-800">Righe</th>
+                  <th className="px-2 py-1 text-right border-b border-slate-800">Previsto</th>
+                  <th className="px-2 py-1 text-right border-b border-slate-800">Prodotto</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800 bg-slate-950/60">
+                {produzioneByDescrizione.map((d) => (
+                  <tr key={d.descrizione}>
+                    <td className="px-2 py-1 text-slate-100">{d.descrizione || "—"}</td>
+                    <td className="px-2 py-1 text-slate-100 text-right">{d.rows}</td>
+                    <td className="px-2 py-1 text-slate-100 text-right">{formatNumberIt(d.previsto_sum)}</td>
+                    <td className="px-2 py-1 text-slate-100 text-right">{formatNumberIt(d.prodotto_sum)}</td>
+                  </tr>
+                ))}
+
+                {!produzioneByDescrizione.length && (
+                  <tr>
+                    <td colSpan={4} className="px-3 py-2 text-center text-[12px] text-slate-500">
+                      Nessuna produzione registrata.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-2 text-[11px] text-slate-500">
+            Nota: la produzione non viene aggregata in un unico KPI globale se le descrizioni rappresentano attività non comparabili.
+          </div>
+        </div>
+      </div>
+
+      {/* ATTIVITÀ (righe brute) */}
+      <div className="border border-slate-800 rounded-xl overflow-hidden">
+        <div className="bg-slate-900/80 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-400">
+          Attività (righe)
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full border-t border-slate-800 text-[12px]">
@@ -574,14 +925,10 @@ export default function UfficioRapportinoDetail() {
                     <td className="px-2 py-1 text-slate-400 align-top">{idx + 1}</td>
                     <td className="px-2 py-1 text-slate-100 align-top">{r.categoria || "—"}</td>
                     <td className="px-2 py-1 text-slate-100 align-top">{r.descrizione || "—"}</td>
-
                     <td className="px-2 py-1 text-slate-100 align-top whitespace-pre-line">{operatori ? operatori : "—"}</td>
-
                     <td className="px-2 py-1 text-slate-100 align-top whitespace-pre-line">{tempo ? tempo : "—"}</td>
-
                     <td className="px-2 py-1 text-slate-100 align-top text-right">{r.previsto ?? "—"}</td>
                     <td className="px-2 py-1 text-slate-100 align-top text-right">{r.prodotto ?? "—"}</td>
-
                     <td className="px-2 py-1 text-slate-100 align-top whitespace-pre-line">{note ? note : "—"}</td>
                   </tr>
                 );
@@ -599,6 +946,7 @@ export default function UfficioRapportinoDetail() {
         </div>
       </div>
 
+      {/* INCA (solo elettricisti) */}
       {isElett && (
         <div className="border border-slate-800 rounded-xl overflow-hidden">
           <div className="bg-slate-900/80 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-400">
@@ -621,7 +969,8 @@ export default function UfficioRapportinoDetail() {
                   const metriTot = safeNum(c.metri_teo ?? c.metri_dis);
                   const metriPos = safeNum(c.metri_posati);
 
-                  const pctFromField = c.progress_percent != null && c.progress_percent !== "" ? safeNum(c.progress_percent) : null;
+                  const pctFromField =
+                    c.progress_percent != null && c.progress_percent !== "" ? safeNum(c.progress_percent) : null;
 
                   const pctFromCalc = metriTot > 0 && metriPos > 0 ? (metriPos / metriTot) * 100 : null;
 
@@ -634,7 +983,9 @@ export default function UfficioRapportinoDetail() {
                       <td className="px-2 py-1 text-slate-100 align-top">{c.codice || "—"}</td>
                       <td className="px-2 py-1 text-slate-100 align-top">{c.descrizione || "—"}</td>
                       <td className="px-2 py-1 text-slate-100 align-top text-right">{metriTot ? formatMeters(metriTot) : "—"}</td>
-                      <td className="px-2 py-1 text-slate-100 align-top text-right">{metriTot ? formatMeters(metriPosDisplay) : "—"}</td>
+                      <td className="px-2 py-1 text-slate-100 align-top text-right">
+                        {metriTot ? formatMeters(metriPosDisplay) : "—"}
+                      </td>
                       <td className="px-2 py-1 text-slate-100 align-top text-right">{pct ? `${pct.toFixed(0)}%` : "—"}</td>
                     </tr>
                   );
@@ -653,6 +1004,7 @@ export default function UfficioRapportinoDetail() {
         </div>
       )}
 
+      {/* NOTA UFFICIO */}
       <div className="border border-slate-800 rounded-xl p-3 space-y-2">
         <div className="flex items-center justify-between gap-2">
           <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Nota Ufficio → Capo</div>
@@ -675,8 +1027,8 @@ export default function UfficioRapportinoDetail() {
             isArchived
               ? "Documento archiviato (nota in sola lettura)."
               : isManager
-              ? "Nota in sola lettura."
-              : "Nota obbligatoria per il rimando."
+                ? "Nota in sola lettura."
+                : "Nota obbligatoria per il rimando."
           }
         />
       </div>

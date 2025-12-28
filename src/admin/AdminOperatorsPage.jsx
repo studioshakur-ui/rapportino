@@ -1,28 +1,17 @@
 // src/admin/AdminOperatorsPage.jsx
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import ImportOperatorsExcel from "./ImportOperatorsExcel";
+import { useOutletContext } from "react-router-dom";
+import { t } from "./i18n";
 
-function cn(...p) {
-  return p.filter(Boolean).join(" ");
-}
-
-function normalizeError(e) {
-  if (!e) return "Errore sconosciuto";
-  if (typeof e === "string") return e;
-  if (e.message) return e.message;
-  try {
-    return JSON.stringify(e);
-  } catch {
-    return String(e);
-  }
-}
+const PAGE_SIZE = 25;
+const STORAGE_KEY = "core_admin_operators_page_v1";
 
 function safeLower(s) {
   return (s ?? "").toString().toLowerCase();
 }
 
-function parseRoles(raw) {
+function parseCsv(raw) {
   const s = (raw ?? "").toString().trim();
   if (!s) return [];
   return s
@@ -31,423 +20,732 @@ function parseRoles(raw) {
     .filter(Boolean);
 }
 
-function shipLabel(ship) {
-  // ✅ ROBUST: on n’assume plus "ship_code" (cause du bug actuel)
-  // On compose un label à partir des colonnes disponibles.
-  const candidates = [
-    ship?.ship_code,
-    ship?.code,
-    ship?.name,
-    ship?.project_code,
-    ship?.costr && ship?.commessa ? `${ship.costr} · ${ship.commessa}` : null,
-    ship?.costr,
-    ship?.commessa,
-  ].filter(Boolean);
+function loadPersisted() {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    if (!obj || typeof obj !== "object") return null;
+    return obj;
+  } catch {
+    return null;
+  }
+}
 
-  if (candidates.length > 0) return candidates[0];
-  return ship?.id ? `Ship ${String(ship.id).slice(0, 8)}…` : "Cantiere";
+function savePersisted(snapshot) {
+  try {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+  } catch {
+    // ignore
+  }
+}
+
+function normalizeDbError(err) {
+  if (!err) return "Erreur inconnue.";
+  const code = err.code ? `(${err.code}) ` : "";
+  const msg = err.message || "Erreur base de données.";
+  return `${code}${msg}`;
+}
+
+function fmtDate(d) {
+  if (!d) return "—";
+  try {
+    // d is "YYYY-MM-DD"
+    return String(d);
+  } catch {
+    return String(d);
+  }
+}
+
+function isValidISODate(s) {
+  if (!s) return false;
+  const v = String(s).trim();
+  // minimal check YYYY-MM-DD
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const dt = new Date(v + "T00:00:00Z");
+  return !Number.isNaN(dt.getTime());
 }
 
 export default function AdminOperatorsPage() {
-  const [ships, setShips] = useState([]);
-  const [shipId, setShipId] = useState("");
-  const [loadingShips, setLoadingShips] = useState(false);
+  const outlet = useOutletContext() || {};
+  const lang = outlet.lang || "it";
+  const persisted = useMemo(() => loadPersisted(), []);
 
-  const [operators, setOperators] = useState([]);
-  const [loadingOps, setLoadingOps] = useState(false);
+  const [rows, setRows] = useState(persisted?.rows ?? []);
+  const [loading, setLoading] = useState(persisted?.loading ?? true);
+  const [msg, setMsg] = useState(persisted?.msg ?? null);
 
-  const [search, setSearch] = useState("");
-  const [error, setError] = useState(null);
+  const [q, setQ] = useState(persisted?.q ?? "");
+  const [onlyIncomplete, setOnlyIncomplete] = useState(persisted?.onlyIncomplete ?? false);
+  const [page, setPage] = useState(persisted?.page ?? 1);
 
-  // manual create
-  const [newName, setNewName] = useState("");
-  const [newRoles, setNewRoles] = useState("");
-  const [busyCreate, setBusyCreate] = useState(false);
-  const [createMsg, setCreateMsg] = useState(null);
+  // Create form (identity required)
+  const [cognome, setCognome] = useState(persisted?.cognome ?? "");
+  const [nome, setNome] = useState(persisted?.nome ?? "");
+  const [birthDate, setBirthDate] = useState(persisted?.birthDate ?? ""); // YYYY-MM-DD
+  const [operatorCode, setOperatorCode] = useState(persisted?.operatorCode ?? "");
+  const [rolesCsv, setRolesCsv] = useState(persisted?.rolesCsv ?? "OPERAIO");
 
-  const filtered = useMemo(() => {
-    const q = safeLower(search).trim();
-    if (!q) return operators;
+  const [creating, setCreating] = useState(persisted?.creating ?? false);
 
-    return operators.filter((r) => {
-      // ✅ FIX: la shape est { operator: { name, roles } } (pas operator.operator.name)
-      const name = safeLower(r?.operator?.name);
-      const rolesStr = Array.isArray(r?.operator?.roles) ? r.operator.roles.join(" ") : "";
-      return name.includes(q) || safeLower(rolesStr).includes(q);
-    });
-  }, [operators, search]);
-
-  const reloadShips = useCallback(async () => {
-    setLoadingShips(true);
-    setError(null);
-    try {
-      // ✅ FIX CRITIQUE: on ne sélectionne plus ships.ship_code (qui n’existe pas chez toi)
-      // On prend tout, puis on construit un label côté UI.
-      const { data, error: e } = await supabase.from("ships").select("*");
-      if (e) throw e;
-
-      const rows = Array.isArray(data) ? data : [];
-      // tri best-effort
-      rows.sort((a, b) => String(shipLabel(a)).localeCompare(String(shipLabel(b))));
-      setShips(rows);
-
-      // si shipId n’est plus valide, reset
-      if (shipId && !rows.some((s) => s.id === shipId)) setShipId("");
-    } catch (e) {
-      setError(normalizeError(e));
-      setShips([]);
-    } finally {
-      setLoadingShips(false);
-    }
-  }, [shipId]);
-
-  const reloadOperators = useCallback(
-    async (forceShipId) => {
-      const sid = forceShipId ?? shipId;
-      if (!sid) {
-        setOperators([]);
-        return;
-      }
-
-      setLoadingOps(true);
-      setError(null);
-
-      try {
-        // ship_operators → operators (FK)
-        const { data, error: e } = await supabase
-          .from("ship_operators")
-          .select(
-            `
-            ship_id,
-            operator_id,
-            active,
-            operators:operator_id (
-              id,
-              name,
-              roles
-            )
-          `
-          )
-          .eq("ship_id", sid)
-          .order("operator_id", { ascending: true });
-
-        if (e) throw e;
-
-        const rows = Array.isArray(data) ? data : [];
-        const normalized = rows.map((r) => ({
-          ship_id: r.ship_id,
-          operator_id: r.operator_id,
-          active: r.active,
-          operator: r.operators
-            ? { id: r.operators.id, name: r.operators.name, roles: r.operators.roles }
-            : { id: r.operator_id, name: "—", roles: [] },
-        }));
-
-        // Tri par name (UI)
-        normalized.sort((a, b) => String(a?.operator?.name || "").localeCompare(String(b?.operator?.name || "")));
-
-        setOperators(normalized);
-      } catch (e) {
-        setError(normalizeError(e));
-        setOperators([]);
-      } finally {
-        setLoadingOps(false);
-      }
-    },
-    [shipId]
-  );
+  // Edit modal
+  const [editingId, setEditingId] = useState(persisted?.editingId ?? null);
+  const [editDraft, setEditDraft] = useState(persisted?.editDraft ?? null);
+  const [saving, setSaving] = useState(persisted?.saving ?? false);
 
   useEffect(() => {
-    reloadShips();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    savePersisted({
+      rows,
+      loading,
+      msg,
+      q,
+      onlyIncomplete,
+      page,
+      cognome,
+      nome,
+      birthDate,
+      operatorCode,
+      rolesCsv,
+      creating,
+      editingId,
+      editDraft,
+      saving,
+      savedAt: new Date().toISOString(),
+    });
+  }, [
+    rows,
+    loading,
+    msg,
+    q,
+    onlyIncomplete,
+    page,
+    cognome,
+    nome,
+    birthDate,
+    operatorCode,
+    rolesCsv,
+    creating,
+    editingId,
+    editDraft,
+    saving,
+  ]);
+
+  const loadOperators = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("operators_admin_list_v1")
+        .select(
+          "id,legacy_name,display_name,roles,cognome,nome,birth_date,operator_code,operator_key,created_by,created_at,updated_at,is_identity_incomplete"
+        )
+        .order("created_at", { ascending: false })
+        .limit(5000);
+
+      if (error) throw error;
+      setRows(data || []);
+    } catch (e) {
+      console.error("[AdminOperatorsPage] loadOperators error:", e);
+      setMsg({ ok: false, text: `Load failed: ${normalizeDbError(e)}` });
+      // keep existing rows
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    // UX: reset msg quand on change de ship
-    setCreateMsg(null);
-    setSearch("");
+    loadOperators();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    if (shipId) reloadOperators(shipId);
-    else setOperators([]);
-  }, [shipId, reloadOperators]);
+  const filtered = useMemo(() => {
+    const qq = safeLower(q);
+    return (rows || []).filter((r) => {
+      if (onlyIncomplete && r.is_identity_incomplete !== true) return false;
+      if (!qq) return true;
 
-  const selectedShip = useMemo(() => ships.find((s) => s.id === shipId) || null, [ships, shipId]);
+      const hay =
+        safeLower(r.display_name) +
+        " " +
+        safeLower(r.legacy_name) +
+        " " +
+        safeLower(r.cognome) +
+        " " +
+        safeLower(r.nome) +
+        " " +
+        safeLower(r.operator_code) +
+        " " +
+        safeLower(r.operator_key);
 
-  const canCreate = useMemo(() => {
-    return !!shipId && !!newName.trim() && !busyCreate;
-  }, [shipId, newName, busyCreate]);
+      return hay.includes(qq);
+    });
+  }, [rows, q, onlyIncomplete]);
 
-  const handleCreate = async () => {
-    if (!canCreate) return;
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)),
+    [filtered.length]
+  );
 
-    setBusyCreate(true);
-    setError(null);
-    setCreateMsg(null);
+  const pageRows = useMemo(() => {
+    const p = Math.min(Math.max(1, page), totalPages);
+    const start = (p - 1) * PAGE_SIZE;
+    return filtered.slice(start, start + PAGE_SIZE);
+  }, [filtered, page, totalPages]);
+
+  useEffect(() => setPage(1), [q, onlyIncomplete]);
+
+  const hardResetUI = () => {
+    setMsg(null);
+    setQ("");
+    setOnlyIncomplete(false);
+    setPage(1);
+
+    setCognome("");
+    setNome("");
+    setBirthDate("");
+    setOperatorCode("");
+    setRolesCsv("OPERAIO");
+
+    setCreating(false);
+    setEditingId(null);
+    setEditDraft(null);
+    setSaving(false);
 
     try {
-      const name = newName.trim();
-      const roles = parseRoles(newRoles);
+      sessionStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+  };
 
-      // 1) upsert operator by name
-      const { data: up, error: e1 } = await supabase
-        .from("operators")
-        .upsert([{ name, roles }], { onConflict: "name" })
-        .select("id,name")
-        .single();
+  const copy = async (txt) => {
+    try {
+      await navigator.clipboard.writeText(String(txt ?? ""));
+    } catch {
+      // ignore
+    }
+  };
 
-      if (e1) throw e1;
-      if (!up?.id) throw new Error("Creazione fallita: operatore non creato.");
+  const onCreate = async (e) => {
+    e.preventDefault();
+    setMsg(null);
 
-      // 2) link to ship
-      const { error: e2 } = await supabase
-        .from("ship_operators")
-        .upsert([{ ship_id: shipId, operator_id: up.id, active: true }], {
-          onConflict: "ship_id,operator_id",
-        });
+    const c = cognome.trim();
+    const n = nome.trim();
+    const bd = birthDate.trim();
+    if (!c || !n || !bd) {
+      setMsg({ ok: false, text: "Cognome, Nome e Data di nascita sono obbligatori." });
+      return;
+    }
+    if (!isValidISODate(bd)) {
+      setMsg({ ok: false, text: "Data di nascita non valida. Formato richiesto: YYYY-MM-DD." });
+      return;
+    }
 
-      if (e2) throw e2;
+    const roles = parseCsv(rolesCsv);
+    if (roles.length === 0) {
+      setMsg({ ok: false, text: "Roles non può essere vuoto (es: OPERAIO)." });
+      return;
+    }
 
-      setCreateMsg(`Operatore creato/aggiornato e assegnato: ${up.name}`);
-      setNewName("");
-      setNewRoles("");
+    setCreating(true);
+    try {
+      // IMPORTANT:
+      // - trigger operators_require_identity enforces identity presence
+      // - operator_key is set by triggers (we DO NOT write it)
+      // - name (legacy) is optional; we set a safe default for legacy compatibility
+      const legacy = `${c} ${n}`.trim();
 
-      await reloadOperators(shipId);
-    } catch (e) {
-      setError(normalizeError(e));
+      const payload = {
+        name: legacy, // legacy compatibility
+        cognome: c,
+        nome: n,
+        birth_date: bd,
+        roles,
+        operator_code: operatorCode.trim() || null,
+      };
+
+      const { error } = await supabase.from("operators").insert(payload);
+
+      if (error) throw error;
+
+      setMsg({ ok: true, text: "Operatore creato." });
+      setCognome("");
+      setNome("");
+      setBirthDate("");
+      setOperatorCode("");
+      setRolesCsv("OPERAIO");
+
+      await loadOperators();
+    } catch (e2) {
+      console.error("[AdminOperatorsPage] create error:", e2);
+      setMsg({ ok: false, text: `Create failed: ${normalizeDbError(e2)}` });
     } finally {
-      setBusyCreate(false);
+      setCreating(false);
     }
   };
 
-  const setActive = async (operatorId, active) => {
-    if (!shipId || !operatorId) return;
-    setError(null);
-    try {
-      const { error: e } = await supabase
-        .from("ship_operators")
-        .update({ active })
-        .eq("ship_id", shipId)
-        .eq("operator_id", operatorId);
-
-      if (e) throw e;
-      await reloadOperators(shipId);
-    } catch (e) {
-      setError(normalizeError(e));
-    }
+  const openEdit = (r) => {
+    setMsg(null);
+    setEditingId(r.id);
+    setEditDraft({
+      id: r.id,
+      cognome: (r.cognome ?? "").toString(),
+      nome: (r.nome ?? "").toString(),
+      birth_date: (r.birth_date ?? "").toString(),
+      operator_code: (r.operator_code ?? "").toString(),
+      rolesCsv: Array.isArray(r.roles) ? r.roles.join(", ") : "",
+      legacy_name: (r.legacy_name ?? "").toString(),
+    });
   };
 
-  const unlink = async (operatorId) => {
-    if (!shipId || !operatorId) return;
-    setError(null);
-    try {
-      const { error: e } = await supabase.from("ship_operators").delete().eq("ship_id", shipId).eq("operator_id", operatorId);
+  const closeEdit = () => {
+    setEditingId(null);
+    setEditDraft(null);
+  };
 
-      if (e) throw e;
-      await reloadOperators(shipId);
+  const onSaveEdit = async () => {
+    if (!editDraft?.id) return;
+
+    setMsg(null);
+
+    const c = (editDraft.cognome ?? "").trim();
+    const n = (editDraft.nome ?? "").trim();
+    const bd = (editDraft.birth_date ?? "").trim();
+
+    if (!c || !n || !bd) {
+      setMsg({ ok: false, text: "Cognome, Nome e Data di nascita sono obbligatori." });
+      return;
+    }
+    if (!isValidISODate(bd)) {
+      setMsg({ ok: false, text: "Data di nascita non valida. Formato richiesto: YYYY-MM-DD." });
+      return;
+    }
+
+    const roles = parseCsv(editDraft.rolesCsv);
+    if (roles.length === 0) {
+      setMsg({ ok: false, text: "Roles non può essere vuoto (es: OPERAIO)." });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // Keep legacy name consistent but do not depend on it
+      const legacy = (editDraft.legacy_name ?? "").trim() || `${c} ${n}`.trim();
+
+      const payload = {
+        name: legacy,
+        cognome: c,
+        nome: n,
+        birth_date: bd,
+        roles,
+        operator_code: (editDraft.operator_code ?? "").trim() || null,
+      };
+
+      const { error } = await supabase.from("operators").update(payload).eq("id", editDraft.id);
+      if (error) throw error;
+
+      setMsg({ ok: true, text: "Operatore aggiornato." });
+      await loadOperators();
+      closeEdit();
     } catch (e) {
-      setError(normalizeError(e));
+      console.error("[AdminOperatorsPage] save edit error:", e);
+      setMsg({ ok: false, text: `Save failed: ${normalizeDbError(e)}` });
+    } finally {
+      setSaving(false);
     }
   };
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/20 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Admin · Operatori</div>
-            <div className="text-lg font-semibold text-slate-100">Gestione lista operai</div>
-            <div className="text-xs text-slate-400 mt-1">
-              Import Excel e creazione manuale. La verità resta su <span className="text-slate-200">operators</span> +{" "}
-              <span className="text-slate-200">ship_operators</span>.
-            </div>
+    <div className="p-4 sm:p-5">
+      {/* HEADER */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+            {t(lang, "OPERATORS") || "Operators"}
           </div>
-
-          <div className="text-xs text-slate-500 text-right">
-            <div className="uppercase tracking-[0.18em] text-slate-600">Seleziona un cantiere</div>
-            <div className="mt-1">{selectedShip ? shipLabel(selectedShip) : "—"}</div>
+          <div className="text-xs text-slate-400 mt-1">
+            Admin operai. Identità obbligatoria: <span className="text-slate-200">cognome, nome, birth_date</span>.
+            Il trigger blocca insert/update incompleti.
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="md:col-span-2">
-            <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500 mb-1">Seleziona cantiere</div>
-            <select
-              value={shipId}
-              onChange={(e) => setShipId(e.target.value)}
-              className={cn("w-full h-10 rounded-xl border bg-slate-950/20 px-3 text-sm", "border-slate-800 text-slate-100")}
-              disabled={loadingShips}
-            >
-              <option value="">{loadingShips ? "Caricamento…" : "— Seleziona —"}</option>
-              {ships.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {shipLabel(s)}
-                </option>
-              ))}
-            </select>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={loadOperators}
+            className="text-[12px] px-3 py-1.5 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50"
+            title="Ricarica operatori"
+          >
+            Refresh
+          </button>
+          <button
+            type="button"
+            onClick={hardResetUI}
+            className="text-[12px] px-3 py-1.5 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50"
+            title="Reset UI + clear sessionStorage snapshot"
+          >
+            {t(lang, "RESET") || "Reset"}
+          </button>
+        </div>
+      </div>
+
+      {msg && (
+        <div
+          className={[
+            "mt-4 text-[13px] rounded-xl px-3 py-2 border",
+            msg.ok
+              ? "text-emerald-200 bg-emerald-900/20 border-emerald-800"
+              : "text-amber-200 bg-amber-900/30 border-amber-800",
+          ].join(" ")}
+        >
+          {msg.text}
+        </div>
+      )}
+
+      {/* CREATE */}
+      <div className="mt-4 border border-slate-800 rounded-2xl bg-slate-950/40 p-4 sm:p-5">
+        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+          {t(lang, "CREATE_OPERATOR") || "Create operator"}
+        </div>
+
+        <form onSubmit={onCreate} className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-[12px] mb-1 text-slate-300">Cognome *</label>
+            <input
+              value={cognome}
+              onChange={(e) => setCognome(e.target.value)}
+              type="text"
+              required
+              className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+            />
           </div>
 
           <div>
-            <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500 mb-1">Azioni</div>
+            <label className="block text-[12px] mb-1 text-slate-300">Nome *</label>
+            <input
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              type="text"
+              required
+              className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[12px] mb-1 text-slate-300">Data di nascita * (YYYY-MM-DD)</label>
+            <input
+              value={birthDate}
+              onChange={(e) => setBirthDate(e.target.value)}
+              type="date"
+              required
+              className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[12px] mb-1 text-slate-300">Operator code (opzionale)</label>
+            <input
+              value={operatorCode}
+              onChange={(e) => setOperatorCode(e.target.value)}
+              type="text"
+              placeholder="es: OP-001"
+              className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+            />
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="block text-[12px] mb-1 text-slate-300">Roles (CSV) *</label>
+            <input
+              value={rolesCsv}
+              onChange={(e) => setRolesCsv(e.target.value)}
+              type="text"
+              placeholder="es: OPERAIO, ELETTRICISTA"
+              className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+            />
+            <div className="text-[12px] text-slate-500 mt-1">
+              Minimo: <span className="text-slate-300">OPERAIO</span>.
+            </div>
+          </div>
+
+          <div className="md:col-span-2 flex items-center justify-end gap-2 pt-1">
+            <button
+              type="submit"
+              disabled={creating}
+              className="text-[12px] px-4 py-2 rounded-full border border-emerald-600 text-emerald-100 hover:bg-emerald-600/15 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {creating ? (t(lang, "CREATING") || "Creating…") : (t(lang, "CREATE") || "Create")}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* LIST */}
+      <div className="mt-4 border border-slate-800 rounded-2xl bg-slate-950/20 p-4 sm:p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+              {t(lang, "LIST") || "List"}
+            </div>
+            <div className="text-xs text-slate-400 mt-1">{loading ? "Loading…" : `${filtered.length} operatori`}</div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder={t(lang, "SEARCH") || "Search"}
+              className="w-full sm:w-72 rounded-xl border px-3 py-2 text-[13px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+            />
+
+            <label className="flex items-center gap-2 text-[12px] text-slate-300 select-none">
+              <input
+                type="checkbox"
+                checked={onlyIncomplete}
+                onChange={(e) => setOnlyIncomplete(e.target.checked)}
+              />
+              Solo identità incompleta
+            </label>
+          </div>
+        </div>
+
+        <div className="mt-4 overflow-x-auto border border-slate-800 rounded-xl">
+          <table className="min-w-[1280px] w-full text-[12px]">
+            <thead className="bg-slate-900/60 text-slate-300">
+              <tr className="text-left">
+                <th className="px-3 py-2">Display</th>
+                <th className="px-3 py-2">Cognome</th>
+                <th className="px-3 py-2">Nome</th>
+                <th className="px-3 py-2">Birth</th>
+                <th className="px-3 py-2">Code</th>
+                <th className="px-3 py-2">Key</th>
+                <th className="px-3 py-2">Roles</th>
+                <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2">ID</th>
+                <th className="px-3 py-2">{t(lang, "ACTIONS") || "Actions"}</th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-slate-800">
+              {loading ? (
+                <tr>
+                  <td className="px-3 py-3 text-slate-500" colSpan={10}>
+                    Loading…
+                  </td>
+                </tr>
+              ) : pageRows.length === 0 ? (
+                <tr>
+                  <td className="px-3 py-3 text-slate-500" colSpan={10}>
+                    {t(lang, "NO_ROWS") || "No rows"}
+                  </td>
+                </tr>
+              ) : (
+                pageRows.map((r) => {
+                  const incomplete = r.is_identity_incomplete === true;
+                  const roles = Array.isArray(r.roles) ? r.roles.join(", ") : "";
+
+                  return (
+                    <tr key={r.id} className="text-slate-200 hover:bg-slate-900/30">
+                      <td className="px-3 py-2">
+                        <div className="flex flex-col">
+                          <span className="font-medium">{r.display_name || "—"}</span>
+                          <span className="text-slate-500">{r.legacy_name || ""}</span>
+                        </div>
+                      </td>
+
+                      <td className="px-3 py-2">{r.cognome || <span className="text-slate-600">—</span>}</td>
+                      <td className="px-3 py-2">{r.nome || <span className="text-slate-600">—</span>}</td>
+                      <td className="px-3 py-2">{fmtDate(r.birth_date)}</td>
+
+                      <td className="px-3 py-2">{r.operator_code || <span className="text-slate-600">—</span>}</td>
+                      <td className="px-3 py-2 font-mono text-[11px] text-slate-400">
+                        {r.operator_key || <span className="text-slate-600">—</span>}
+                      </td>
+
+                      <td className="px-3 py-2">{roles || <span className="text-slate-600">—</span>}</td>
+
+                      <td className="px-3 py-2">
+                        {incomplete ? (
+                          <span className="px-2 py-0.5 rounded-full border border-amber-700/50 bg-amber-500/10 text-amber-200 text-[11px]">
+                            IDENTITY KO
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full border border-emerald-700/40 bg-emerald-500/10 text-emerald-200 text-[11px]">
+                            OK
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="px-3 py-2 font-mono text-[11px] text-slate-400">
+                        {String(r.id).slice(0, 8)}…
+                      </td>
+
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openEdit(r)}
+                            className="px-2 py-1 rounded-xl border border-slate-800 text-slate-200 hover:bg-slate-900/50"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => copy(r.id)}
+                            className="px-2 py-1 rounded-xl border border-slate-800 text-slate-200 hover:bg-slate-900/50"
+                          >
+                            ID
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => copy(r.display_name || "")}
+                            className="px-2 py-1 rounded-xl border border-slate-800 text-slate-200 hover:bg-slate-900/50"
+                          >
+                            Copy name
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-4 flex items-center justify-between">
+          <div className="text-[12px] text-slate-500">
+            {t(lang, "PAGE") || "Page"} {Math.min(Math.max(1, page), totalPages)} / {totalPages}
+          </div>
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => reloadOperators(shipId)}
-              disabled={!shipId || loadingOps}
-              className={cn(
-                "w-full h-10 rounded-xl border text-sm font-medium transition",
-                "border-slate-700 text-slate-100 hover:bg-slate-900/35",
-                (!shipId || loadingOps) && "opacity-50 cursor-not-allowed"
-              )}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="text-[12px] px-3 py-1.5 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loadingOps ? "Ricarica…" : "Ricarica lista"}
+              {t(lang, "PREV") || "Prev"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className="text-[12px] px-3 py-1.5 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {t(lang, "NEXT") || "Next"}
             </button>
           </div>
         </div>
-
-        {error ? (
-          <div className="mt-3 rounded-xl border border-rose-700/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">{error}</div>
-        ) : null}
       </div>
 
-      {/* CREAZIONE MANUALE */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/20 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Creazione manuale</div>
-            <div className="text-sm font-semibold text-slate-100">Crea operatore</div>
-            <div className="text-xs text-slate-400 mt-1">
-              Crea (o riusa se già esiste) un operatore globale e lo collega al cantiere selezionato.
+      {/* EDIT MODAL */}
+      {editingId && editDraft ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+          <div className="w-full max-w-2xl rounded-2xl border border-slate-800 bg-slate-950 p-4 sm:p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Edit operator</div>
+                <div className="text-xs text-slate-400 mt-1">
+                  Salvataggio su tabella <span className="text-slate-200 font-mono">operators</span>. Identità obbligatoria.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={closeEdit}
+                className="text-[12px] px-3 py-1.5 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[12px] mb-1 text-slate-300">Cognome *</label>
+                <input
+                  value={editDraft.cognome}
+                  onChange={(e) => setEditDraft((d) => ({ ...d, cognome: e.target.value }))}
+                  type="text"
+                  required
+                  className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[12px] mb-1 text-slate-300">Nome *</label>
+                <input
+                  value={editDraft.nome}
+                  onChange={(e) => setEditDraft((d) => ({ ...d, nome: e.target.value }))}
+                  type="text"
+                  required
+                  className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[12px] mb-1 text-slate-300">Data di nascita * (YYYY-MM-DD)</label>
+                <input
+                  value={editDraft.birth_date}
+                  onChange={(e) => setEditDraft((d) => ({ ...d, birth_date: e.target.value }))}
+                  type="date"
+                  required
+                  className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[12px] mb-1 text-slate-300">Operator code (opzionale)</label>
+                <input
+                  value={editDraft.operator_code}
+                  onChange={(e) => setEditDraft((d) => ({ ...d, operator_code: e.target.value }))}
+                  type="text"
+                  className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-[12px] mb-1 text-slate-300">Roles (CSV) *</label>
+                <input
+                  value={editDraft.rolesCsv}
+                  onChange={(e) => setEditDraft((d) => ({ ...d, rolesCsv: e.target.value }))}
+                  type="text"
+                  className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-[12px] mb-1 text-slate-300">Legacy name (facoltativo)</label>
+                <input
+                  value={editDraft.legacy_name}
+                  onChange={(e) => setEditDraft((d) => ({ ...d, legacy_name: e.target.value }))}
+                  type="text"
+                  className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+                />
+                <div className="text-[12px] text-slate-500 mt-1">
+                  Se vuoto, viene impostato automaticamente a “Cognome Nome”.
+                </div>
+              </div>
+
+              <div className="md:col-span-2 flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => copy(editDraft.id)}
+                  className="text-[12px] px-3 py-2 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50"
+                >
+                  Copy ID
+                </button>
+
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={onSaveEdit}
+                  className="text-[12px] px-4 py-2 rounded-full border border-emerald-600 text-emerald-100 hover:bg-emerald-600/15 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {saving ? "Saving…" : "Save"}
+                </button>
+              </div>
             </div>
           </div>
-          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-600">Scope</div>
-          <div className="text-xs text-slate-400">Admin only</div>
         </div>
-
-        <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="md:col-span-2">
-            <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500 mb-1">Nome (obbligatorio)</div>
-            <input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="Es. Rossi Mario"
-              className="w-full h-10 rounded-xl border border-slate-800 bg-slate-950/20 px-3 text-sm text-slate-100 placeholder:text-slate-600"
-              disabled={!shipId}
-            />
-          </div>
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500 mb-1">Ruoli (opzionale)</div>
-            <input
-              value={newRoles}
-              onChange={(e) => setNewRoles(e.target.value)}
-              placeholder="Es. Elettricista, Aiuto"
-              className="w-full h-10 rounded-xl border border-slate-800 bg-slate-950/20 px-3 text-sm text-slate-100 placeholder:text-slate-600"
-              disabled={!shipId}
-            />
-          </div>
-        </div>
-
-        <div className="mt-3 flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={handleCreate}
-            disabled={!canCreate}
-            className={cn(
-              "h-10 px-4 rounded-xl border text-sm font-medium transition",
-              "border-slate-700 text-slate-100 hover:bg-slate-900/35",
-              !canCreate && "opacity-50 cursor-not-allowed"
-            )}
-          >
-            {busyCreate ? "Creazione…" : "Crea e assegna"}
-          </button>
-        </div>
-
-        {createMsg ? (
-          <div className="mt-3 rounded-xl border border-emerald-700/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
-            {createMsg}
-          </div>
-        ) : null}
-      </div>
-
-      {/* IMPORT EXCEL */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/20 p-4">
-        <ImportOperatorsExcel shipId={shipId || null} onDone={() => reloadOperators(shipId)} />
-      </div>
-
-      {/* ELENCO */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/20 p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Elenco cantiere</div>
-            <div className="text-sm font-semibold text-slate-100">Operatori assegnati</div>
-            <div className="text-xs text-slate-400 mt-1">Attiva/disattiva per cantiere (senza cancellare l’operatore globale).</div>
-          </div>
-          <div className="text-xs text-slate-500 text-right">
-            <div>Totale: {filtered.length}</div>
-          </div>
-        </div>
-
-        <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2">
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cerca nome o ruolo…"
-            className="w-full h-10 rounded-xl border border-slate-800 bg-slate-950/20 px-3 text-sm text-slate-100 placeholder:text-slate-600"
-            disabled={!shipId}
-          />
-        </div>
-
-        <div className="mt-3 rounded-2xl border border-slate-800 overflow-hidden">
-          {!shipId ? (
-            <div className="px-3 py-10 text-center text-sm text-slate-500">Seleziona un cantiere per visualizzare la lista.</div>
-          ) : loadingOps ? (
-            <div className="px-3 py-10 text-center text-sm text-slate-500">Caricamento…</div>
-          ) : filtered.length === 0 ? (
-            <div className="px-3 py-10 text-center text-sm text-slate-500">Nessun operatore assegnato (o filtro vuoto).</div>
-          ) : (
-            <div className="divide-y divide-slate-800">
-              {filtered.map((row) => {
-                const op = row.operator;
-                const roles = Array.isArray(op?.roles) ? op.roles.filter(Boolean) : [];
-                return (
-                  <div key={row.operator_id} className="p-3 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold text-slate-100 truncate">{op?.name || "—"}</div>
-                      <div className="text-xs text-slate-500 mt-0.5">{roles.length ? roles.join(" · ") : "—"}</div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setActive(row.operator_id, !row.active)}
-                        className={cn(
-                          "h-9 px-3 rounded-xl border text-xs font-semibold transition",
-                          row.active
-                            ? "border-emerald-700/50 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/15"
-                            : "border-slate-700 bg-slate-950/20 text-slate-200 hover:bg-slate-900/35"
-                        )}
-                        title={row.active ? "Disattiva" : "Attiva"}
-                      >
-                        {row.active ? "Active" : "Inactive"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => unlink(row.operator_id)}
-                        className={cn(
-                          "h-9 px-3 rounded-xl border text-xs font-semibold transition",
-                          "border-rose-500/40 bg-rose-950/20 text-rose-200 hover:bg-rose-900/25"
-                        )}
-                        title="Rimuovi dal cantiere"
-                      >
-                        Unlink
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
+      ) : null}
     </div>
   );
 }

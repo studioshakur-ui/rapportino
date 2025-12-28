@@ -1,6 +1,6 @@
-// src/components/rapportino/ActivityPickerModal.jsx
+// src/components/rapportino/modals/CatalogModal.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { supabase } from "../../lib/supabaseClient";
+import { supabase } from "../../../lib/supabaseClient";
 
 function cn(...parts) {
   return parts.filter(Boolean).join(" ");
@@ -14,7 +14,7 @@ function modalOverlayClass() {
 }
 function modalPanelClass() {
   return [
-    "relative w-full sm:w-[min(860px,96vw)]",
+    "relative w-full sm:w-[min(920px,96vw)]",
     "rounded-t-3xl sm:rounded-3xl border border-slate-800",
     "bg-slate-950 shadow-[0_-40px_120px_rgba(0,0,0,0.70)]",
     "px-4 pb-4 pt-4",
@@ -45,48 +45,57 @@ function fmtPrevisto(n) {
 }
 
 /**
- * ActivityPickerModal (SCOPED)
- * Same source as CatalogModal, but kept for backward compatibility.
+ * CatalogModal (SCOPED)
+ * - Source of truth: catalogo_ship_commessa_attivita + catalogo_attivita
+ * - Filters: ship_id + commessa (obligatoire)
+ * - Only active in scope (default)
+ *
+ * Contract returned in onPickActivity(activity):
+ * {
+ *   id, categoria, descrizione, activity_type, unit, previsto_value, synonyms
+ * }
  */
-export default function ActivityPickerModal({
+export default function CatalogModal({
   open,
   onClose,
-  onPick,
+  onPickActivity,
+  onlyActive = true,
 
   // REQUIRED context
   shipId,
   commessa,
 
-  // UI context
+  // UI
   title = "Seleziona attività",
-  subtitle = "Tocca per scegliere dal catalogo (Ship + Commessa).",
-
-  // Optional UI filter
-  defaultCategory = "",
-  onlyActive = true,
+  subtitle = "Catalogo operativo per Ship + Commessa.",
 }) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [q, setQ] = useState("");
-  const [category, setCategory] = useState(defaultCategory || "");
+  const [category, setCategory] = useState("");
   const [items, setItems] = useState([]);
 
   const hasContext = !!safeText(shipId) && !!safeText(commessa);
 
   useEffect(() => {
     if (!open) return;
+
     let alive = true;
 
     (async () => {
       setLoading(true);
       setErr("");
       setItems([]);
+
       try {
         if (!hasContext) {
           setErr("Seleziona Ship e inserisci Commessa prima di usare il Catalogo.");
           return;
         }
 
+        // Read scoped rows + join global catalog
+        // NOTE: This requires table public.catalogo_ship_commessa_attivita (or a view with same name/cols).
+        // Columns used: ship_id, commessa, activity_id, is_active, previsto_value, unit_override, note
         const query = supabase
           .from("catalogo_ship_commessa_attivita")
           .select(
@@ -114,6 +123,7 @@ export default function ActivityPickerModal({
         if (onlyActive) query.eq("is_active", true);
 
         const { data, error } = await query;
+
         if (error) throw error;
 
         if (!alive) return;
@@ -137,8 +147,12 @@ export default function ActivityPickerModal({
               activity_type: a.activity_type,
               unit: effectiveUnit || "NONE",
               previsto_value: effectivePrev,
-              is_active: !!r?.is_active,
               synonyms: Array.isArray(a.synonyms) ? a.synonyms : [],
+              // scoped metadata (optional, useful later)
+              _scope: {
+                is_active: !!r?.is_active,
+                note: r?.note || "",
+              },
             };
           })
           .filter(Boolean)
@@ -150,7 +164,7 @@ export default function ActivityPickerModal({
 
         setItems(normalized);
       } catch (e) {
-        console.error("[ActivityPickerModal] load error:", e);
+        console.error("[CatalogModal] load error:", e);
         if (!alive) return;
         setErr(e?.message || "Impossibile caricare il catalogo (Ship/Commessa).");
         setItems([]);
@@ -183,6 +197,7 @@ export default function ActivityPickerModal({
       if (!c || !d) return false;
 
       if (cat && lowerTrim(c) !== cat) return false;
+
       if (!qq) return true;
 
       const syn = Array.isArray(it?.synonyms) ? it.synonyms : [];
@@ -198,7 +213,7 @@ export default function ActivityPickerModal({
       className={modalWrapClass()}
       role="dialog"
       aria-modal="true"
-      aria-label={title || "Seleziona attività"}
+      aria-label={title || "Catalogo"}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose?.();
       }}
@@ -209,7 +224,7 @@ export default function ActivityPickerModal({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">
-              Catalogo attività (scopato)
+              Catalogo (Ship + Commessa)
             </div>
             <div className="mt-1 text-[14px] font-semibold text-slate-50">{title}</div>
             <div className="mt-1 text-[12px] text-slate-400">
@@ -293,7 +308,7 @@ export default function ActivityPickerModal({
                 <button
                   key={it.id}
                   type="button"
-                  onClick={() => onPick?.(it)}
+                  onClick={() => onPickActivity?.(it)}
                   className={cn(
                     "w-full text-left rounded-2xl border px-3 py-3",
                     "border-slate-800 bg-slate-950/50 hover:bg-slate-900/35",
@@ -303,8 +318,12 @@ export default function ActivityPickerModal({
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="text-[11px] uppercase tracking-[0.20em] text-slate-400">{cat}</div>
-                      <div className="mt-1 text-[13px] font-semibold text-slate-50 truncate">{desc}</div>
+                      <div className="text-[11px] uppercase tracking-[0.20em] text-slate-400">
+                        {cat}
+                      </div>
+                      <div className="mt-1 text-[13px] font-semibold text-slate-50 truncate">
+                        {desc}
+                      </div>
 
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <span

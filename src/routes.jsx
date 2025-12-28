@@ -21,6 +21,7 @@ import AdminPlanningPage from "./admin/AdminPlanningPage";
 import AdminAssignmentsPage from "./admin/AdminAssignmentsPage";
 import AdminAuditPage from "./admin/AdminAuditPage";
 import AdminOperatorsPage from "./admin/AdminOperatorsPage";
+import AdminCatalogoPage from "./admin/AdminCatalogoPage";
 
 // CAPO
 import RapportinoPage from "./components/RapportinoPage";
@@ -80,6 +81,7 @@ export default function AppRoutes() {
         <Route index element={<Navigate to="users" replace />} />
         <Route path="users" element={<AdminUsersPage />} />
         <Route path="operators" element={<AdminOperatorsPage />} />
+        <Route path="catalogo" element={<AdminCatalogoPage />} />
         <Route path="planning" element={<AdminPlanningPage />} />
         <Route path="assignments" element={<AdminAssignmentsPage />} />
         <Route path="audit" element={<AdminAuditPage />} />

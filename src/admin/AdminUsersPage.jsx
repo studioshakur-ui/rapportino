@@ -44,8 +44,22 @@ function normalizeRpcError(err) {
   if (!err) return "Erreur inconnue.";
   const code = err.code ? `(${err.code}) ` : "";
   const msg = err.message || "Erreur RPC.";
-  // On évite d’afficher des détails trop bruyants à l’écran
   return `${code}${msg}`;
+}
+
+function normalizeDateInput(v) {
+  const s = (v ?? "").toString().trim();
+  if (!s) return "";
+  // accept YYYY-MM-DD; otherwise return raw and let input complain
+  return s;
+}
+
+function formatDateForInput(d) {
+  if (!d) return "";
+  // d can be "YYYY-MM-DD" already
+  const s = String(d);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  return s.slice(0, 10);
 }
 
 export default function AdminUsersPage() {
@@ -69,7 +83,7 @@ export default function AdminUsersPage() {
   const [lastPassword, setLastPassword] = useState(persisted?.lastPassword ?? null);
   const [lastPasswordEmail, setLastPasswordEmail] = useState(persisted?.lastPasswordEmail ?? null);
 
-  // List
+  // Profiles list
   const [rows, setRows] = useState(persisted?.rows ?? []);
   const [loading, setLoading] = useState(persisted?.loading ?? true);
 
@@ -89,6 +103,25 @@ export default function AdminUsersPage() {
   });
   const [savingAssignCapoId, setSavingAssignCapoId] = useState(persisted?.savingAssignCapoId ?? null);
 
+  // ===== OPERATORS QUALITY (ADMIN) =====
+  const [opRows, setOpRows] = useState(persisted?.opRows ?? []);
+  const [opLoading, setOpLoading] = useState(persisted?.opLoading ?? false);
+  const [opQ, setOpQ] = useState(persisted?.opQ ?? "");
+  const [opOnlyIncomplete, setOpOnlyIncomplete] = useState(
+    typeof persisted?.opOnlyIncomplete === "boolean" ? persisted.opOnlyIncomplete : true
+  );
+
+  // modal
+  const [opModalOpen, setOpModalOpen] = useState(persisted?.opModalOpen ?? false);
+  const [opSaving, setOpSaving] = useState(persisted?.opSaving ?? false);
+  const [opEditId, setOpEditId] = useState(persisted?.opEditId ?? null);
+  const [opEditLegacyName, setOpEditLegacyName] = useState(persisted?.opEditLegacyName ?? "");
+  const [opEditDisplayName, setOpEditDisplayName] = useState(persisted?.opEditDisplayName ?? "");
+  const [opEditCognome, setOpEditCognome] = useState(persisted?.opEditCognome ?? "");
+  const [opEditNome, setOpEditNome] = useState(persisted?.opEditNome ?? "");
+  const [opEditBirthDate, setOpEditBirthDate] = useState(persisted?.opEditBirthDate ?? "");
+  const [opEditOperatorCode, setOpEditOperatorCode] = useState(persisted?.opEditOperatorCode ?? "");
+
   // Persist EVERYTHING
   useEffect(() => {
     savePersisted({
@@ -103,6 +136,7 @@ export default function AdminUsersPage() {
       createMsg,
       lastPassword,
       lastPasswordEmail,
+
       rows,
       loading,
       q,
@@ -111,6 +145,22 @@ export default function AdminUsersPage() {
       settingPwdId,
       assignMap: Array.from(assignMap.entries()),
       savingAssignCapoId,
+
+      opRows,
+      opLoading,
+      opQ,
+      opOnlyIncomplete,
+
+      opModalOpen,
+      opSaving,
+      opEditId,
+      opEditLegacyName,
+      opEditDisplayName,
+      opEditCognome,
+      opEditNome,
+      opEditBirthDate,
+      opEditOperatorCode,
+
       savedAt: new Date().toISOString(),
     });
   }, [
@@ -125,6 +175,7 @@ export default function AdminUsersPage() {
     createMsg,
     lastPassword,
     lastPasswordEmail,
+
     rows,
     loading,
     q,
@@ -133,6 +184,21 @@ export default function AdminUsersPage() {
     settingPwdId,
     assignMap,
     savingAssignCapoId,
+
+    opRows,
+    opLoading,
+    opQ,
+    opOnlyIncomplete,
+
+    opModalOpen,
+    opSaving,
+    opEditId,
+    opEditLegacyName,
+    opEditDisplayName,
+    opEditCognome,
+    opEditNome,
+    opEditBirthDate,
+    opEditOperatorCode,
   ]);
 
   const filtered = useMemo(() => {
@@ -216,10 +282,32 @@ export default function AdminUsersPage() {
     }
   }, []);
 
+  const loadOperators = useCallback(async () => {
+    setOpLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("operators_admin_list_v1")
+        .select(
+          "id,legacy_name,display_name,roles,cognome,nome,birth_date,operator_code,operator_key,created_by,created_at,updated_at,is_identity_incomplete"
+        )
+        .order("created_at", { ascending: false })
+        .limit(3000);
+
+      if (error) throw error;
+      setOpRows(data || []);
+    } catch (e) {
+      console.error("[AdminUsersPage] loadOperators error:", e);
+      // keep existing opRows
+    } finally {
+      setOpLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadUsers();
     loadAssignments();
-  }, [loadUsers, loadAssignments]);
+    loadOperators();
+  }, [loadUsers, loadAssignments, loadOperators]);
 
   const onCreate = async (e) => {
     e.preventDefault();
@@ -373,6 +461,19 @@ export default function AdminUsersPage() {
     setAssignMap(new Map());
     setSavingAssignCapoId(null);
 
+    // operators quality
+    setOpQ("");
+    setOpOnlyIncomplete(true);
+    setOpModalOpen(false);
+    setOpSaving(false);
+    setOpEditId(null);
+    setOpEditLegacyName("");
+    setOpEditDisplayName("");
+    setOpEditCognome("");
+    setOpEditNome("");
+    setOpEditBirthDate("");
+    setOpEditOperatorCode("");
+
     try {
       sessionStorage.removeItem(STORAGE_KEY);
     } catch {
@@ -389,6 +490,83 @@ export default function AdminUsersPage() {
       }))
       .sort((a, b) => a.label.localeCompare(b.label, "it"));
   }, [rows]);
+
+  // ===== Operators UI helpers =====
+  const opFiltered = useMemo(() => {
+    const qq = safeLower(opQ);
+    return (opRows || []).filter((r) => {
+      if (opOnlyIncomplete && r.is_identity_incomplete !== true) return false;
+      if (!qq) return true;
+      const hay =
+        safeLower(r.display_name) +
+        " " +
+        safeLower(r.legacy_name) +
+        " " +
+        safeLower(r.cognome) +
+        " " +
+        safeLower(r.nome) +
+        " " +
+        safeLower(r.operator_code) +
+        " " +
+        safeLower(r.operator_key);
+      return hay.includes(qq);
+    });
+  }, [opRows, opQ, opOnlyIncomplete]);
+
+  const opIncompleteCount = useMemo(() => {
+    return (opRows || []).reduce((acc, r) => acc + (r.is_identity_incomplete === true ? 1 : 0), 0);
+  }, [opRows]);
+
+  const openOperatorFix = (r) => {
+    setCreateMsg(null);
+    setOpEditId(r?.id || null);
+    setOpEditLegacyName(r?.legacy_name || "");
+    setOpEditDisplayName(r?.display_name || "");
+    setOpEditCognome(r?.cognome || "");
+    setOpEditNome(r?.nome || "");
+    setOpEditBirthDate(formatDateForInput(r?.birth_date || ""));
+    setOpEditOperatorCode(r?.operator_code || "");
+    setOpModalOpen(true);
+  };
+
+  const closeOperatorFix = () => {
+    if (opSaving) return;
+    setOpModalOpen(false);
+  };
+
+  const onSaveOperatorIdentity = async () => {
+    if (!opEditId) return;
+    setCreateMsg(null);
+    setOpSaving(true);
+
+    try {
+      const payload = {
+        p_operator_id: opEditId,
+        p_cognome: (opEditCognome || "").trim(),
+        p_nome: (opEditNome || "").trim(),
+        p_birth_date: normalizeDateInput(opEditBirthDate) || null,
+        p_operator_code: (opEditOperatorCode || "").trim() || null,
+      };
+
+      const { data, error } = await supabase.rpc("admin_set_operator_identity", payload);
+
+      if (error) {
+        setCreateMsg({ ok: false, text: `Save operatore failed: ${normalizeRpcError(error)}` });
+        return;
+      }
+
+      // data is the updated operators row (per SQL)
+      setCreateMsg({ ok: true, text: "Operatore aggiornato (identità enregistrée)." });
+
+      setOpModalOpen(false);
+      await loadOperators();
+    } catch (e) {
+      console.error("[AdminUsersPage] onSaveOperatorIdentity unexpected:", e);
+      setCreateMsg({ ok: false, text: `Save operatore failed: ${e?.message || String(e)}` });
+    } finally {
+      setOpSaving(false);
+    }
+  };
 
   return (
     <div className="p-4 sm:p-5">
@@ -410,9 +588,10 @@ export default function AdminUsersPage() {
               onClick={() => {
                 loadUsers();
                 loadAssignments();
+                loadOperators();
               }}
               className="text-[12px] px-3 py-1.5 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50"
-              title="Ricarica utenti e assegnazioni"
+              title="Ricarica utenti, assegnazioni e operatori"
             >
               Refresh
             </button>
@@ -690,9 +869,7 @@ export default function AdminUsersPage() {
                               ))}
                             </select>
 
-                            {isSavingAssign ? (
-                              <span className="text-[11px] text-slate-500">Save…</span>
-                            ) : null}
+                            {isSavingAssign ? <span className="text-[11px] text-slate-500">Save…</span> : null}
                           </div>
                         )}
                       </td>
@@ -762,6 +939,267 @@ export default function AdminUsersPage() {
           </div>
         </div>
       </div>
+
+      {/* ===== OPERATORS QUALITY (ADMIN) ===== */}
+      <div className="mt-4 border border-slate-800 rounded-2xl bg-slate-950/20 p-4 sm:p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Operatori — Qualità identità</div>
+            <div className="text-xs text-slate-400 mt-1 flex items-center gap-2">
+              {opLoading ? (
+                "Loading…"
+              ) : (
+                <>
+                  <span>{opRows.length} operatori</span>
+                  <span className="text-slate-700">•</span>
+                  <span
+                    className={[
+                      "px-2 py-0.5 rounded-full border text-[11px]",
+                      opIncompleteCount > 0
+                        ? "border-amber-700/50 bg-amber-500/10 text-amber-200"
+                        : "border-slate-700 text-slate-400",
+                    ].join(" ")}
+                  >
+                    Incompleti: {opIncompleteCount}
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+            <input
+              value={opQ}
+              onChange={(e) => setOpQ(e.target.value)}
+              placeholder="Search operatore (nome, code, key)…"
+              className="w-full sm:w-72 rounded-xl border px-3 py-2 text-[13px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+            />
+
+            <button
+              type="button"
+              onClick={() => setOpOnlyIncomplete((v) => !v)}
+              className={[
+                "text-[12px] px-3 py-2 rounded-full border",
+                opOnlyIncomplete
+                  ? "border-amber-700/60 bg-amber-500/10 text-amber-200"
+                  : "border-slate-800 text-slate-200 hover:bg-slate-900/50",
+              ].join(" ")}
+              title="Toggle: mostra solo incompleti"
+            >
+              {opOnlyIncomplete ? "Solo incompleti" : "Tutti"}
+            </button>
+
+            <button
+              type="button"
+              onClick={loadOperators}
+              className="text-[12px] px-3 py-2 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50"
+              title="Ricarica operatori"
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4 overflow-x-auto border border-slate-800 rounded-xl">
+          <table className="min-w-[1100px] w-full text-[12px]">
+            <thead className="bg-slate-900/60 text-slate-300">
+              <tr className="text-left">
+                <th className="px-3 py-2">Operatore</th>
+                <th className="px-3 py-2">Identità</th>
+                <th className="px-3 py-2">Code</th>
+                <th className="px-3 py-2">Key</th>
+                <th className="px-3 py-2">Stato</th>
+                <th className="px-3 py-2">ID</th>
+                <th className="px-3 py-2">Azioni</th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-slate-800">
+              {opLoading ? (
+                <tr>
+                  <td className="px-3 py-3 text-slate-500" colSpan={7}>
+                    Loading…
+                  </td>
+                </tr>
+              ) : opFiltered.length === 0 ? (
+                <tr>
+                  <td className="px-3 py-3 text-slate-500" colSpan={7}>
+                    Nessun operatore.
+                  </td>
+                </tr>
+              ) : (
+                opFiltered.slice(0, 250).map((r) => {
+                  const incomplete = r.is_identity_incomplete === true;
+                  return (
+                    <tr key={r.id} className="text-slate-200 hover:bg-slate-900/30">
+                      <td className="px-3 py-2">
+                        <div className="flex flex-col">
+                          <span className="font-medium">{r.display_name || "—"}</span>
+                          <span className="text-slate-500">legacy: {r.legacy_name || "—"}</span>
+                        </div>
+                      </td>
+
+                      <td className="px-3 py-2">
+                        <div className="flex flex-col">
+                          <span className="text-slate-200">
+                            {(r.cognome || "—") + " " + (r.nome || "—")}
+                          </span>
+                          <span className="text-slate-500">{r.birth_date ? String(r.birth_date) : "—"}</span>
+                        </div>
+                      </td>
+
+                      <td className="px-3 py-2 font-mono text-[11px] text-slate-300">{r.operator_code || "—"}</td>
+                      <td className="px-3 py-2 font-mono text-[11px] text-slate-300">{r.operator_key || "—"}</td>
+
+                      <td className="px-3 py-2">
+                        {incomplete ? (
+                          <span className="px-2 py-0.5 rounded-full border border-amber-700/50 bg-amber-500/10 text-amber-200 text-[11px]">
+                            INCOMPLETO
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full border border-emerald-700/40 bg-emerald-500/10 text-emerald-200 text-[11px]">
+                            OK
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="px-3 py-2 font-mono text-[11px] text-slate-400">
+                        {String(r.id).slice(0, 8)}…
+                      </td>
+
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => copy(r.id)}
+                            className="px-2 py-1 rounded-xl border border-slate-800 text-slate-200 hover:bg-slate-900/50"
+                          >
+                            ID
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openOperatorFix(r)}
+                            className={[
+                              "px-2 py-1 rounded-xl border",
+                              incomplete
+                                ? "border-amber-700/60 bg-amber-500/10 text-amber-200 hover:bg-amber-500/15"
+                                : "border-slate-800 text-slate-200 hover:bg-slate-900/50",
+                            ].join(" ")}
+                          >
+                            Fix identité
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-3 text-[11px] text-slate-500">
+          Note: l’UI affiche max 250 lignes (anti-lag). Utilise la recherche + filtre “Solo incompleti”.
+        </div>
+      </div>
+
+      {/* ===== MODAL: FIX OPERATOR IDENTITY ===== */}
+      {opModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/70"
+            onClick={closeOperatorFix}
+            role="button"
+            tabIndex={-1}
+            aria-label="Close"
+          />
+          <div className="relative w-full max-w-xl rounded-2xl border border-slate-800 bg-slate-950 p-4 sm:p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Fix identité opérateur</div>
+                <div className="mt-1 text-sm text-slate-100 font-medium">{opEditDisplayName || "—"}</div>
+                <div className="mt-0.5 text-xs text-slate-500">legacy: {opEditLegacyName || "—"}</div>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeOperatorFix}
+                disabled={opSaving}
+                className="text-[12px] px-3 py-1.5 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[12px] mb-1 text-slate-300">Cognome *</label>
+                <input
+                  value={opEditCognome}
+                  onChange={(e) => setOpEditCognome(e.target.value)}
+                  type="text"
+                  className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[12px] mb-1 text-slate-300">Nome *</label>
+                <input
+                  value={opEditNome}
+                  onChange={(e) => setOpEditNome(e.target.value)}
+                  type="text"
+                  className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[12px] mb-1 text-slate-300">Data di nascita *</label>
+                <input
+                  value={opEditBirthDate}
+                  onChange={(e) => setOpEditBirthDate(e.target.value)}
+                  type="date"
+                  className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[12px] mb-1 text-slate-300">Operator code (optionnel)</label>
+                <input
+                  value={opEditOperatorCode}
+                  onChange={(e) => setOpEditOperatorCode(e.target.value)}
+                  type="text"
+                  className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+                />
+              </div>
+            </div>
+
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <div className="text-xs text-slate-500">
+                Requis: Cognome, Nome, Date de naissance. (Bloquage DB sur insert/update hors service_role/postgres)
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={closeOperatorFix}
+                  disabled={opSaving}
+                  className="text-[12px] px-3 py-2 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={onSaveOperatorIdentity}
+                  disabled={opSaving}
+                  className="text-[12px] px-4 py-2 rounded-full border border-emerald-700 text-emerald-100 hover:bg-emerald-800/10 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {opSaving ? "Save…" : "Save identité"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
