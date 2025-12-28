@@ -20,8 +20,11 @@ import {
   cn,
   computeProdottoTotale,
   formatDateIt,
+  joinLines,
   normalizeCrewRole,
+  normalizeLegacyTempoAlignment,
   readRoleFromLocalStorage,
+  splitLinesKeepEmpties,
 } from "./rapportino/page/rapportinoHelpers";
 
 import { useReturnedInbox } from "./rapportino/page/useReturnedInbox";
@@ -37,9 +40,7 @@ import {
 } from "./rapportino/page/useRapportinoActions";
 
 /**
- * Tesla clean + Toast overlay (non intrusif)
- * - Barre d’actions en bas: primaires à gauche, secondaires à droite
- * - Toast overlay: discret, auto-hide, ne pousse pas le layout
+ * Toast overlay (non intrusif)
  */
 function ToastOverlay({ toast, onClose }) {
   const t = toast;
@@ -69,9 +70,7 @@ function ToastOverlay({ toast, onClose }) {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="text-[12px] font-semibold leading-5 truncate">{t.message}</div>
-            {t.detail ? (
-              <div className="mt-0.5 text-[11px] text-slate-300 whitespace-pre-wrap">{t.detail}</div>
-            ) : null}
+            {t.detail ? <div className="mt-0.5 text-[11px] text-slate-300 whitespace-pre-wrap">{t.detail}</div> : null}
           </div>
           <button
             type="button"
@@ -88,8 +87,31 @@ function ToastOverlay({ toast, onClose }) {
   );
 }
 
+/**
+ * Build tempo picker items for a row:
+ * - Canonical: use operator_items
+ * - Legacy: derive from operatori/tempo lines
+ */
+function buildTempoPickerItemsFromRow(row) {
+  const canon = Array.isArray(row?.operator_items) ? row.operator_items : [];
+  if (canon.length > 0) return canon;
+
+  const opLines = splitLinesKeepEmpties(row?.operatori);
+  const tmLines = splitLinesKeepEmpties(row?.tempo);
+
+  const targetLen = Math.max(opLines.length, tmLines.length, 0);
+  const paddedOps = opLines.concat(Array(Math.max(0, targetLen - opLines.length)).fill(""));
+  const paddedTm = tmLines.concat(Array(Math.max(0, targetLen - tmLines.length)).fill(""));
+
+  return paddedOps.map((label, i) => ({
+    operator_id: "", // legacy has no operator_id here
+    label: String(label || "").trim(),
+    tempo_raw: String(paddedTm[i] ?? ""),
+  }));
+}
+
 export default function RapportinoPage() {
-  const { shipId } = useParams(); // ship context for scoped catalog
+  const { shipId } = useParams();
   const { profile } = useAuth();
   const navigate = useNavigate();
   useOutletContext() || {};
@@ -101,15 +123,12 @@ export default function RapportinoPage() {
   const [reportDate, setReportDate] = useState(getTodayISO());
 
   const capoName = useMemo(() => {
-    return (profile?.display_name || profile?.full_name || profile?.email || "Capo Squadra")
-      .toUpperCase()
-      .trim();
+    return (profile?.display_name || profile?.full_name || profile?.email || "Capo Squadra").toUpperCase().trim();
   }, [profile]);
 
   const {
     rapportinoId,
     setRapportinoId,
-    rapportinoCrewRole,
     setRapportinoCrewRole,
     costr,
     setCostr,
@@ -137,7 +156,16 @@ export default function RapportinoPage() {
   const showIncaBlock = effectiveCrewRoleForInca === "ELETTRICISTA";
   const [incaOpen, setIncaOpen] = useState(false);
 
+  // AUTO-OPEN INCA when RETURNED + saved rapportino + role OK
   useEffect(() => {
+    if (!showIncaBlock) return;
+    if (!rapportinoId) return;
+    if (status !== "RETURNED") return;
+    setIncaOpen(true);
+  }, [showIncaBlock, rapportinoId, status]);
+
+  useEffect(() => {
+    // When changing day/role, default closed (unless auto-open rule triggers)
     setIncaOpen(false);
   }, [reportDate, normalizedCrewRole]);
 
@@ -149,8 +177,8 @@ export default function RapportinoPage() {
   const prodottoTotale = useMemo(() => computeProdottoTotale(rows, parseNumeric), [rows]);
   const statusLabel = STATUS_LABELS[status] || status;
 
-  // Toast overlay (non intrusif)
-  const [toast, setToast] = useState(null); // {type:"success"|"error"|"info", message, detail?}
+  // Toast
+  const [toast, setToast] = useState(null);
   const toastTimerRef = useRef(null);
 
   const pushToast = (t) => {
@@ -171,7 +199,6 @@ export default function RapportinoPage() {
     };
   }, []);
 
-  // UI messaging
   const [saving, setSaving] = useState(false);
   const [uiError, setUiError] = useState(null);
   const [uiErrorDetails, setUiErrorDetails] = useState(null);
@@ -187,7 +214,7 @@ export default function RapportinoPage() {
   const [tmRowIndex, setTmRowIndex] = useState(null);
 
   const currentTempoRow = tmRowIndex != null ? rows[tmRowIndex] : null;
-  const currentTempoItems = Array.isArray(currentTempoRow?.operator_items) ? currentTempoRow.operator_items : [];
+  const currentTempoItems = useMemo(() => buildTempoPickerItemsFromRow(currentTempoRow), [currentTempoRow]);
 
   const openOperatorPickerForRow = (rowIndex) => {
     setOpRowIndex(rowIndex);
@@ -210,67 +237,23 @@ export default function RapportinoPage() {
   const handleRowChange = (index, field, value, targetForHeight) => {
     setRows((prev) => {
       const copy = [...prev];
-      const row = { ...copy[index] };
-
-      // V2: catalog-locked fields
-      if (row.activity_id && (field === "categoria" || field === "descrizione" || field === "previsto")) {
-        return prev;
-      }
-
-      // Legacy guard for operator/tempo alignment when not canonical
-      if (field === "operatori" && (!row.operator_items || row.operator_items.length === 0)) {
-        row.operatori = value;
-        const { normalizeLegacyTempoAlignment } = require("./rapportino/page/rapportinoHelpers");
-        row.tempo = normalizeLegacyTempoAlignment(value, row.tempo || "");
-      } else if (field === "tempo" && (!row.operator_items || row.operator_items.length === 0)) {
-        const { normalizeLegacyTempoAlignment } = require("./rapportino/page/rapportinoHelpers");
-        row.tempo = normalizeLegacyTempoAlignment(row.operatori || "", value);
-      } else {
-        row[field] = value;
-      }
-
+      const row = { ...(copy[index] || {}) };
+      row[field] = value;
       copy[index] = row;
       return copy;
     });
 
-    if (targetForHeight) adjustOperatorTempoHeights(targetForHeight);
-  };
-
-  const handleRemoveRow = async (index) => {
-    setUiError(null);
-    setUiErrorDetails(null);
-    setShowUiErrorDetails(false);
-
-    try {
-      setSaving(true);
-      const res = await removeRow({ rows, setRows }, index, { canEdit });
-      if (!res.ok && res.reason !== "readonly") {
-        setUiError("Errore durante l'eliminazione della riga.");
-        pushToast({ type: "error", message: "Errore durante l'eliminazione della riga." });
-      } else if (res.ok) {
-        pushToast({ type: "success", message: "Riga eliminata." });
-      }
-    } catch (e) {
-      console.error("[Rapportino] remove row error:", e);
-      setUiError("Errore durante l'eliminazione della riga.");
-      setUiErrorDetails(e?.message || String(e));
-      pushToast({
-        type: "error",
-        message: "Errore durante l'eliminazione della riga.",
-        detail: e?.message || String(e),
-      });
-    } finally {
-      setSaving(false);
+    if (field === "tempo" && targetForHeight) {
+      adjustOperatorTempoHeights(targetForHeight);
     }
   };
 
-  const handleRemoveOperatorFromRow = (rowIndex, operatorId) => {
-    if (!canEdit) return;
+  const handleRemoveRow = (rowIndex) => {
+    removeRow({ setRows }, rowIndex);
+    pushToast({ type: "info", message: "Riga rimossa." });
+  };
 
-    setUiError(null);
-    setUiErrorDetails(null);
-    setShowUiErrorDetails(false);
-
+  const handleRemoveOperatorFromRow = async (rowIndex, operatorId) => {
     try {
       removeOperatorFromRow({ setRows }, rowIndex, operatorId);
       pushToast({ type: "success", message: "Operatore rimosso." });
@@ -376,6 +359,32 @@ export default function RapportinoPage() {
 
   const canOpenCatalog = canEdit && !!String(shipId || "").trim() && !!String(commessa || "").trim();
 
+  // LEGACY set tempo per line (writes into r.tempo aligned to operatori lines)
+  const setLegacyTempoForLine = (rowIndex, lineIndex, tempoRaw) => {
+    setRows((prev) => {
+      const copy = [...prev];
+      const row = { ...(copy[rowIndex] || {}) };
+
+      const opLines = splitLinesKeepEmpties(row.operatori);
+      const aligned = normalizeLegacyTempoAlignment(row.operatori, row.tempo);
+      const tmLines = splitLinesKeepEmpties(aligned);
+
+      const targetLen = Math.max(opLines.length, tmLines.length, 0);
+      const padded = tmLines.concat(Array(Math.max(0, targetLen - tmLines.length)).fill(""));
+
+      padded[lineIndex] = String(tempoRaw ?? "");
+      row.tempo = joinLines(padded.slice(0, targetLen));
+
+      copy[rowIndex] = row;
+      return copy;
+    });
+  };
+
+  const isRowCanonical = (row) => {
+    const items = Array.isArray(row?.operator_items) ? row.operator_items : [];
+    return items.length > 0;
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-900/80">
       <ToastOverlay toast={toast} onClose={() => setToast(null)} />
@@ -467,9 +476,27 @@ export default function RapportinoPage() {
                 <span className="px-3 py-1 rounded-full bg-slate-50 text-slate-700 border border-slate-200 text-[11px] font-semibold">
                   Prodotto totale: {Number(prodottoTotale || 0).toFixed(2)}
                 </span>
+
+                {showIncaBlock ? (
+                  <button
+                    type="button"
+                    className={cn(
+                      "px-3 py-1 rounded-full border text-[11px] font-semibold",
+                      incaOpen
+                        ? "border-sky-300 bg-sky-50 text-sky-900"
+                        : "border-slate-300 bg-white hover:bg-slate-50 text-slate-900"
+                    )}
+                    onClick={() => setIncaOpen((v) => !v)}
+                    disabled={!canEditInca}
+                    title={!canEditInca ? "Salva prima per attivare INCA" : "Apri/chiudi sezione INCA"}
+                  >
+                    INCA
+                  </button>
+                ) : null}
               </div>
             </div>
 
+            {/* TABLE */}
             <RapportinoTable
               rows={rows}
               onRowChange={(idx, field, value, target) => {
@@ -487,64 +514,28 @@ export default function RapportinoPage() {
               readOnly={!canEdit}
             />
 
-            {/* INCA collapsible */}
-            {showIncaBlock ? (
-              <div className="mt-5 no-print">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">INCA</div>
-                    <div className="text-[12px] text-slate-700">Cavi collegati (collapsible)</div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setIncaOpen((v) => !v)}
-                    className={cn(
-                      "rounded-full border px-4 py-2 text-[12px] font-semibold",
-                      "border-slate-300 bg-white hover:bg-slate-100"
-                    )}
-                    title={incaOpen ? "Chiudi INCA" : "Apri INCA"}
-                  >
-                    {incaOpen ? "Chiudi" : "Apri"}
-                  </button>
-                </div>
-
-                {incaOpen ? (
-                  <div className="mt-3">
-                    <RapportinoIncaCaviSection
-                      rapportinoId={rapportinoId}
-                      reportDate={reportDate}
-                      costr={costr}
-                      commessa={commessa}
-                      canEdit={canEditInca}
-                    />
-                  </div>
-                ) : null}
+            {/* INCA BLOCK */}
+            {showIncaBlock && incaOpen ? (
+              <div className="mt-4">
+                <RapportinoIncaCaviSection
+                  rapportinoId={rapportinoId}
+                  reportDate={reportDate}
+                  costr={costr}
+                  commessa={commessa}
+                />
               </div>
             ) : null}
 
-            {/* ACTIONS — Tesla clean: primary left + secondary right */}
-            <div className="mt-4 flex items-center justify-between gap-3 text-[11px] no-print">
-              <div className="flex flex-wrap items-center gap-2">
-                {saving && <span className="text-slate-500">Operazione in corso…</span>}
-
-                {(uiErrorDetails || errorDetails) && (
-                  <button
-                    type="button"
-                    onClick={() => setShowUiErrorDetails((v) => !v)}
-                    className="px-2 py-1 rounded border border-red-400 text-red-700 bg-red-50 hover:bg-red-100"
-                  >
-                    Dettagli errore
-                  </button>
-                )}
-
+            {/* ACTION BAR */}
+            <div className="no-print mt-4 flex flex-col md:flex-row md:items-center md:justify-between gap-2 border-t border-slate-200 px-3 py-3">
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => handleSave()}
-                  className="px-3 py-2 rounded-xl border border-slate-800 bg-slate-950 text-slate-50 hover:bg-slate-900"
-                  disabled={!canEdit}
+                  onClick={() => handleSave(undefined)}
+                  className="px-3 py-2 rounded-xl border border-slate-700 bg-slate-900 text-white hover:bg-slate-950"
+                  disabled={!canEdit || saving}
                 >
-                  Salva
+                  {saving ? "Salvataggio…" : "Salva"}
                 </button>
 
                 <button
@@ -567,25 +558,6 @@ export default function RapportinoPage() {
               </div>
 
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setCatOpen(true)}
-                  disabled={!canOpenCatalog}
-                  className={cn(
-                    "px-3 py-2 rounded-xl border text-[12px] font-semibold",
-                    !canOpenCatalog
-                      ? "border-slate-200 bg-white text-slate-300 cursor-not-allowed"
-                      : "border-slate-300 bg-white hover:bg-slate-50 text-slate-900"
-                  )}
-                  title={
-                    !canOpenCatalog
-                      ? "Imposta Commessa (e contesto Ship) per usare il Catalogo"
-                      : "Aggiungi una riga dal Catalogo (Ship + Commessa)"
-                  }
-                >
-                  + Aggiungi riga
-                </button>
-
                 <button
                   type="button"
                   onClick={() => setCatOpen(true)}
@@ -655,11 +627,18 @@ export default function RapportinoPage() {
         onClose={closeTempoPicker}
         onSetTempoForLine={(lineIndex, tempoRaw) => {
           if (tmRowIndex == null) return;
-          setCanonicalTempoForLine({ setRows }, tmRowIndex, lineIndex, tempoRaw);
+          const row = rows[tmRowIndex];
+          if (isRowCanonical(row)) {
+            setCanonicalTempoForLine({ setRows }, tmRowIndex, lineIndex, tempoRaw);
+          } else {
+            setLegacyTempoForLine(tmRowIndex, lineIndex, tempoRaw);
+          }
         }}
         onRemoveOperator={(operatorId) => {
           if (tmRowIndex == null) return;
           if (!canEdit) return;
+          // Only meaningful for canonical; legacy operatorId is empty
+          if (!operatorId) return;
           handleRemoveOperatorFromRow(tmRowIndex, operatorId);
         }}
       />
