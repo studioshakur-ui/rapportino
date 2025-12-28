@@ -144,8 +144,8 @@ export default function ShipSelector() {
 
       try {
         const { data, error: qError } = await supabase.rpc("capo_my_ships_v1");
-
         if (qError) throw qError;
+
         if (alive) setShips(Array.isArray(data) ? data : []);
       } catch (e) {
         console.error("[ShipSelector] load ships error:", e);
@@ -163,10 +163,6 @@ export default function ShipSelector() {
 
   /* -----------------------------
      INCA donut summary via EXACT COUNTS (no 1000 limit)
-     For each ship:
-       total = count(*)
-       p/t/b = count where situazione = 'P'/'T'/'B'
-       np = count where situazione IS NULL
   ----------------------------- */
   useEffect(() => {
     if (!ships.length) {
@@ -373,15 +369,9 @@ export default function ShipSelector() {
     <div className="p-4 sm:p-6 space-y-4">
       {/* Header */}
       <div className="flex flex-col gap-1 mb-2">
-        <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-          Modulo Capo · Selezione nave
-        </span>
-        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-100">
-          Seleziona la nave su cui stai lavorando
-        </h1>
-        <p className="text-sm text-slate-400 max-w-2xl">
-          Rapportini e dati INCA sono sempre legati alla nave selezionata.
-        </p>
+        <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Modulo Capo · Selezione nave</span>
+        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-100">Seleziona la nave su cui stai lavorando</h1>
+        <p className="text-sm text-slate-400 max-w-2xl">Rapportini e dati INCA sono sempre legati alla nave selezionata.</p>
 
         {/* IMPORTANT: only show "Nave attuale" if it is in the allowed list */}
         {currentShip && ships.some((s) => String(s.id) === String(currentShip.id)) && (
@@ -395,16 +385,12 @@ export default function ShipSelector() {
       </div>
 
       {error && (
-        <div className="text-xs rounded-xl border border-amber-500/50 bg-amber-500/10 text-amber-100 px-3 py-2">
-          {error}
-        </div>
+        <div className="text-xs rounded-xl border border-amber-500/50 bg-amber-500/10 text-amber-100 px-3 py-2">{error}</div>
       )}
 
       {/* Empty */}
       {!loadingShips && ships.length === 0 && (
-        <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
-          Nessuna nave assegnata al tuo profilo.
-        </div>
+        <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">Nessuna nave assegnata al tuo profilo.</div>
       )}
 
       {/* Grid */}
@@ -421,11 +407,9 @@ export default function ShipSelector() {
 
               const deadlineText = eta?.deadline_est ? formatDate(eta.deadline_est) : "—";
 
-              const rateText =
-                eta && eta.rate_m_per_day > 0 ? `${roundInt(eta.rate_m_per_day)} m/g` : null;
+              const rateText = eta && eta.rate_m_per_day > 0 ? `${roundInt(eta.rate_m_per_day)} m/g` : null;
 
-              const remText =
-                eta && eta.total_m > 0 ? `${roundInt(eta.rem_m)} m rimanenti` : null;
+              const remText = eta && eta.total_m > 0 ? `${roundInt(eta.rem_m)} m rimanenti` : null;
 
               return (
                 <button
@@ -440,9 +424,7 @@ export default function ShipSelector() {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="text-[11px] uppercase tracking-[0.16em] text-sky-300 mb-1">
-                        NAVE {ship.code}
-                      </div>
+                      <div className="text-[11px] uppercase tracking-[0.16em] text-sky-300 mb-1">NAVE {ship.code}</div>
 
                       <div className="text-lg font-semibold text-slate-50 truncate">{ship.name}</div>
 
@@ -453,11 +435,7 @@ export default function ShipSelector() {
                       {/* INCA status pill */}
                       <div className="mt-2">
                         <span
-                          className={corePills(
-                            true,
-                            incaConnected ? "emerald" : "neutral",
-                            "text-[10px] px-2 py-0.5"
-                          )}
+                          className={corePills(true, incaConnected ? "emerald" : "neutral", "text-[10px] px-2 py-0.5")}
                           title={incaConnected ? "INCA presente (cavi importati)" : "INCA non disponibile"}
                         >
                           {incaConnected ? "INCA connesso" : "INCA non disponibile"}
@@ -466,8 +444,7 @@ export default function ShipSelector() {
 
                       {/* Deadline estimate from delta produzione */}
                       <div className="mt-2 text-[11px] text-slate-500">
-                        Deadline INCA (stima):{" "}
-                        <span className="text-slate-300">{deadlineText}</span>
+                        Deadline INCA (stima): <span className="text-slate-300">{deadlineText}</span>
                       </div>
 
                       {/* Small diagnostic line (only if real) */}
