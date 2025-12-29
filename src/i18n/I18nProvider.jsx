@@ -1,44 +1,43 @@
 // src/i18n/I18nProvider.jsx
-import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
-import { LANGS, createTranslator, getInitialLang, setLangStorage } from "./coreI18n";
+import React, { useCallback, useMemo, useState } from "react";
+import { CoreI18nContext, getInitialLang, setLangStorage, t as tRaw, useCoreI18n } from "./coreI18n";
 
-const I18nContext = createContext(null);
-
+/**
+ * Provider I18n global
+ * - it par défaut
+ * - persistance localStorage "core-lang"
+ * - exports: I18nProvider + useI18n (compat legacy) + useCoreI18n (si utilisé ailleurs)
+ */
 export function I18nProvider({ children }) {
-  const [lang, setLang] = useState(getInitialLang);
+  const [lang, _setLang] = useState(getInitialLang);
 
-  const setLanguage = useCallback((next) => {
-    const v = (next || "it").toString().toLowerCase().trim();
-    const safe = LANGS.includes(v) ? v : "it";
-    setLang(safe);
-    setLangStorage(safe);
+  const setLang = useCallback((next) => {
+    const v = (next || "it").toLowerCase();
+    _setLang(v);
+    setLangStorage(v);
   }, []);
-
-  const tr = useMemo(() => {
-    return createTranslator({ lang, warnMissing: true });
-  }, [lang]);
 
   const value = useMemo(() => {
     return {
       lang,
-      setLang: setLanguage,
-      t: (key, params) => tr(key, params),
-      langs: LANGS,
+      setLang,
+      t: (key) => tRaw(lang, key),
     };
-  }, [lang, setLanguage, tr]);
+  }, [lang, setLang]);
 
-  return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
+  return <CoreI18nContext.Provider value={value}>{children}</CoreI18nContext.Provider>;
 }
 
+/**
+ * ✅ Hook attendu par LangSwitcher.jsx
+ * Alias volontaire vers le hook canonique.
+ */
 export function useI18n() {
-  const ctx = useContext(I18nContext);
-  if (!ctx) {
-    return {
-      lang: "it",
-      setLang: () => {},
-      langs: LANGS,
-      t: (k) => k,
-    };
-  }
-  return ctx;
+  return useCoreI18n();
 }
+
+/**
+ * Optionnel: re-export pour usage direct.
+ * (Si certains fichiers font: import { useCoreI18n } from "../i18n/I18nProvider")
+ */
+export { useCoreI18n };

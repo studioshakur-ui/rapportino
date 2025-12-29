@@ -3,8 +3,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 import LoadingScreen from "../components/LoadingScreen";
-import IncaCockpitModal from "../inca/IncaCockpitModal";
-import IncaImportModal from "../inca/IncaImportModal";
+import IncaCockpitModal from "../features/inca/IncaCockpitModal";
+import IncaImportModal from "../features/inca/IncaImportModal";
 
 export default function UfficioIncaHub() {
   const [files, setFiles] = useState([]);

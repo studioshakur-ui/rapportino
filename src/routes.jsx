@@ -9,12 +9,13 @@ import Login from "./pages/Login";
 import Unauthorized from "./pages/Unauthorized";
 import ForcePasswordChange from "./pages/ForcePasswordChange";
 
-import AppShell from "./AppShell";
-import UfficioShell from "./UfficioShell";
-import DirectionShell from "./DirectionShell";
-import ManagerShell from "./ManagerShell";
+// SHELLS (déplacés)
+import AppShell from "./shells/AppShell";
+import UfficioShell from "./shells/UfficioShell";
+import DirectionShell from "./shells/DirectionShell";
+import ManagerShell from "./shells/ManagerShell";
 
-// ADMIN
+// ADMIN (AdminShell reste dans /admin)
 import AdminShell from "./admin/AdminShell";
 import AdminUsersPage from "./admin/AdminUsersPage";
 import AdminPlanningPage from "./admin/AdminPlanningPage";
@@ -23,10 +24,15 @@ import AdminAuditPage from "./admin/AdminAuditPage";
 import AdminOperatorsPage from "./admin/AdminOperatorsPage";
 import AdminCatalogoPage from "./admin/AdminCatalogoPage";
 
+// DIRECTION
+import DirectionOperatorKPI from "./features/kpi/pages/DirectionOperatorKPI";
+
+
 // CAPO
 import RapportinoPage from "./components/RapportinoPage";
 import RapportinoSheet from "./components/RapportinoSheet";
 import ShipSelector from "./pages/ShipSelector";
+import CapoOperatorKpi from "./features/kpi/pages/CapoOperatorKpi";
 import CapoModuleSelector from "./pages/CapoModuleSelector";
 import CapoRoleSelector from "./pages/CapoRoleSelector";
 import IncaCapoCockpit from "./capo/IncaCapoCockpit";
@@ -42,7 +48,7 @@ import ManagerDashboard from "./pages/ManagerDashboard";
 import ManagerAssignments from "./pages/ManagerAssignments";
 import ManagerCoreDrive from "./pages/ManagerCoreDrive";
 import ManagerAnalytics from "./pages/ManagerAnalytics";
-import ManagerOperatorKpi from "./pages/ManagerOperatorKpi";
+import ManagerOperatorKpi from "./features/kpi/pages/ManagerOperatorKpi";
 
 // CORE DRIVE
 import ArchivePage from "./pages/Archive";
@@ -97,6 +103,7 @@ export default function AppRoutes() {
         }
       >
         <Route index element={<ShipSelector />} />
+        <Route path="kpi-operatori" element={<CapoOperatorKpi isDark={true} />} />
         <Route path="ship/:shipId" element={<CapoModuleSelector />} />
         <Route path="ship/:shipId/rapportino/role" element={<CapoRoleSelector />} />
         <Route path="ship/:shipId/rapportino" element={<RapportinoPage />} />

@@ -1,15 +1,45 @@
 // /src/components/DirectionDashboard.jsx
 //
-// PATCH (go code 1): replace raw Recharts/ECharts usage with CORE Chart Kit wrappers.
-// - No commercial libs.
-// - Unified theme/tooltip/empty-state.
-// - Keeps your existing data loading & KPI logic intact.
-// NOTE: This file is complete (full content) and assumes your existing queries remain as-is.
+// Tesla X refactor + charts restored:
+// - KPI cards cliquables (drill-down modal)
+// - Lang (IT default via CoreI18nProvider + keys)
+// - "lampes ON": contrast boosted, stronger text
+// - Graphes bas restaurés (Timeline, INCA, Trend, Drivers) via CORE Chart Kit wrappers
+//
+// Sources:
+// - rapportini_with_capo_v1
+// - direzione_inca_teorico
+// - direzione_operator_facts_v1 (heures)
+// - kpi_operator_global_day_v2 (prod index)
+//
+// IMPORTANT:
+// - This file expects that your app wraps routes with <CoreI18nProvider> somewhere at root.
 
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
 
+import { useCoreI18n } from "../i18n/CoreI18n";
+import LangSwitcher from "../components/shell/LangSwitcher";
+import Modal from "../ui/Modal";
+import KpiCard from "./ui/KpiCard";
+
+import {
+  toISODate,
+  toNumber,
+  formatNumberIt,
+  formatIndexIt,
+  formatDateLabelIt,
+  cutoffNextDay0830,
+} from "./direzione/direzioneUtils";
+
+import KpiRapportiniDetails from "./direzione/kpiDetails/KpiRapportiniDetails";
+import KpiRigheDetails from "./direzione/kpiDetails/KpiRigheDetails";
+import KpiProdIndexDetails from "./direzione/kpiDetails/KpiProdIndexDetails";
+import KpiIncaDetails from "./direzione/kpiDetails/KpiIncaDetails";
+import KpiRitardiCapiDetails from "./direzione/kpiDetails/KpiRitardiCapiDetails";
+
+// CORE Chart Kit (restored graphs)
 import {
   CoreChartCard,
   CoreBarLineCombo,
@@ -19,90 +49,49 @@ import {
   formatNumberIT,
 } from "./charts";
 
-// Utils dates / format
-function toISODate(d) {
-  if (!(d instanceof Date)) return "";
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const da = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${da}`;
+function cn(...p) {
+  return p.filter(Boolean).join(" ");
 }
 
-function parseISODate(s) {
-  if (!s) return null;
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return null;
-  return d;
-}
-
-function formatDateLabel(dateString) {
-  if (!dateString) return "";
-  const d = new Date(dateString);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("it-IT");
-}
-
-function toNumber(v) {
-  if (v == null) return 0;
-  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
-
-  if (typeof v === "string") {
-    const s = v.trim();
-    if (!s) return 0;
-    const normalized = s
-      .replace(/\s/g, "")
-      .replace(/\.(?=\d{3}(\D|$))/g, "")
-      .replace(",", ".");
-    const n = Number.parseFloat(normalized);
-    return Number.isFinite(n) ? n : 0;
-  }
-  return 0;
-}
-
-function cutoffNextDay0830Z(reportDateISO) {
-  const d = parseISODate(reportDateISO);
-  if (!d) return null;
-  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 8, 30, 0, 0);
-  x.setDate(x.getDate() + 1);
-  return x;
-}
+const KPI_IDS = {
+  RAPPORTINI: "RAPPORTINI",
+  RIGHE: "RIGHE",
+  PROD: "PROD",
+  INCA_PREV: "INCA_PREV",
+  INCA_REAL: "INCA_REAL",
+  RITARDI: "RITARDI",
+};
 
 export default function DirectionDashboard() {
   const { profile } = useAuth();
+  const { t } = useCoreI18n();
 
-  // Filtres globaux
+  // filters
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [costrFilter, setCostrFilter] = useState("");
   const [commessaFilter, setCommessaFilter] = useState("");
 
-  // État data
+  // state
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Rapportini (vue enrichie) — canonique pour noms capo
+  // data
   const [rapportiniCurrent, setRapportiniCurrent] = useState([]);
   const [rapportiniPrevious, setRapportiniPrevious] = useState([]);
-
-  // INCA
   const [incaTeorico, setIncaTeorico] = useState([]);
-
-  // Produzioni (canonique): breakdown par descrizione sur la fenêtre
   const [produzioniAggCurrent, setProduzioniAggCurrent] = useState([]);
   const [produzioniAggPrevious, setProduzioniAggPrevious] = useState([]);
-
-  // KPI heures (facts tokenisés) — et drilldown
   const [hoursFactsCurrent, setHoursFactsCurrent] = useState([]);
   const [hoursFactsPrevious, setHoursFactsPrevious] = useState([]);
-
-  // KPI indice produttività (daily) su previsto (normalisé)
-  const [prodDailyCurrent, setProdDailyCurrent] = useState([]); // [{report_date, previsto_eff, prodotto_alloc}]
+  const [prodDailyCurrent, setProdDailyCurrent] = useState([]);
   const [prodDailyPrevious, setProdDailyPrevious] = useState([]);
-
-  // Retards capi (deadline J+1 08:30)
   const [capiDelayDaily, setCapiDelayDaily] = useState([]);
 
-  // INIT : dernière semaine glissante
+  // modal
+  const [activeKpi, setActiveKpi] = useState(null);
+
+  // init last 7 days
   useEffect(() => {
     if (dateFrom || dateTo) return;
 
@@ -114,7 +103,7 @@ export default function DirectionDashboard() {
     setDateTo(toISODate(today));
   }, [dateFrom, dateTo]);
 
-  // CHARGEMENT des données
+  // load data
   useEffect(() => {
     if (!profile) return;
     if (!dateFrom || !dateTo) return;
@@ -126,7 +115,7 @@ export default function DirectionDashboard() {
       setError(null);
 
       try {
-        // 1) Fenêtre actuelle (rapportini headers) — vue enrichie
+        // 1) current rapportini
         let qNow = supabase
           .from("rapportini_with_capo_v1")
           .select(
@@ -142,7 +131,7 @@ export default function DirectionDashboard() {
         const { data: rapNow, error: rapNowErr } = await qNow;
         if (rapNowErr) throw rapNowErr;
 
-        // 2) Fenêtre précédente (même durée juste avant) pour le Δ
+        // 2) previous window
         const fromDateObj = new Date(dateFrom);
         const toDateObj = new Date(dateTo);
         const diffMs = toDateObj.getTime() - fromDateObj.getTime();
@@ -164,7 +153,7 @@ export default function DirectionDashboard() {
         const { data: rapPrev, error: rapPrevErr } = await qPrev;
         if (rapPrevErr) throw rapPrevErr;
 
-        // 3) INCA (agrégé) – vue dédiée Direction
+        // 3) INCA aggregate
         let incaQ = supabase.from("direzione_inca_teorico").select("*");
         if (costrFilter.trim()) incaQ = incaQ.eq("costr", costrFilter.trim());
         if (commessaFilter.trim()) incaQ = incaQ.eq("commessa", commessaFilter.trim());
@@ -172,7 +161,7 @@ export default function DirectionDashboard() {
         const { data: incaRows, error: incaErr } = await incaQ;
         if (incaErr) throw incaErr;
 
-        // 4) Produzioni (canonique) – agrège par descrizione depuis rapportino_rows
+        // 4) Produzioni aggregate by descrizione
         const nowIds = (rapNow || []).map((r) => r.id).filter(Boolean);
         const prevIds = (rapPrev || []).map((r) => r.id).filter(Boolean);
 
@@ -185,7 +174,7 @@ export default function DirectionDashboard() {
 
           if (e) return [];
 
-          const m = new Map(); // descr -> { descrizione, prodotto_sum, righe }
+          const m = new Map();
           (rows || []).forEach((rr) => {
             const k = (rr?.descrizione ?? "—").toString().trim() || "—";
             const obj = m.get(k) || { descrizione: k, prodotto_sum: 0, righe: 0 };
@@ -199,11 +188,13 @@ export default function DirectionDashboard() {
 
         const [aggNow, aggPrev] = await Promise.all([aggByDescrizione(nowIds), aggByDescrizione(prevIds)]);
 
-        // 5) Facts heures (tokenisés) — direzione_operator_facts_v1
+        // 5) hours facts
         async function loadHoursFacts(rangeFrom, rangeTo) {
           let q = supabase
             .from("direzione_operator_facts_v1")
-            .select("report_date, manager_id, capo_id, ship_id, costr, commessa, ship_code, ship_name, operator_id, tempo_hours, unit")
+            .select(
+              "report_date, manager_id, capo_id, ship_id, costr, commessa, ship_code, ship_name, operator_id, tempo_hours, unit"
+            )
             .gte("report_date", rangeFrom)
             .lte("report_date", rangeTo);
 
@@ -215,8 +206,8 @@ export default function DirectionDashboard() {
           return data || [];
         }
 
-        // 5bis) KPI Indice Produttività (daily) — v2
-        function normalizeProdFromGlobalDayV2(rows) {
+        // 6) productivity daily (range = sum)
+        function normalizeProd(rows) {
           return (rows || []).map((r) => ({
             report_date: r?.report_date ? String(r.report_date) : null,
             previsto_eff: toNumber(r?.total_previsto_eff),
@@ -236,7 +227,7 @@ export default function DirectionDashboard() {
 
           const { data, error: e } = await q;
           if (e) throw e;
-          return normalizeProdFromGlobalDayV2(data);
+          return normalizeProd(data);
         }
 
         const [factsNow, factsPrev, prodNow, prodPrev] = await Promise.all([
@@ -246,7 +237,7 @@ export default function DirectionDashboard() {
           loadProdDaily(toISODate(prevFrom), toISODate(prevTo)),
         ]);
 
-        // 6) Retards capi J+1 08:30
+        // 7) capi delays
         async function loadCapiDelays(rangeFrom, rangeTo, rapListNow) {
           let pQ = supabase
             .from("manager_plans")
@@ -301,26 +292,28 @@ export default function DirectionDashboard() {
 
           let capoNameById = new Map();
           if (uniqueCapoIds.length) {
-            const { data: capiProfiles } = await supabase
+            const { data: capiProfiles, error: capiErr } = await supabase
               .from("profiles")
               .select("id, full_name, display_name, email")
               .in("id", uniqueCapoIds);
 
-            (capiProfiles || []).forEach((p) => {
-              const label =
-                (p?.display_name || "").trim() ||
-                (p?.full_name || "").trim() ||
-                (p?.email || "").trim() ||
-                "CAPO";
-              capoNameById.set(p.id, label);
-            });
+            if (!capiErr) {
+              (capiProfiles || []).forEach((p) => {
+                const label =
+                  (p?.display_name || "").trim() ||
+                  (p?.full_name || "").trim() ||
+                  (p?.email || "").trim() ||
+                  "CAPO";
+                capoNameById.set(p.id, label);
+              });
+            }
           }
 
           const dates = Array.from(expectedByDate.keys()).sort((a, b) => new Date(a) - new Date(b));
 
           return dates.map((d) => {
             const expected = expectedByDate.get(d) || new Set();
-            const cutoff = cutoffNextDay0830Z(d);
+            const cutoff = cutoffNextDay0830(d);
 
             let inOrario = 0;
             const lateIds = [];
@@ -364,9 +357,9 @@ export default function DirectionDashboard() {
           setCapiDelayDaily(delays || []);
         }
       } catch (err) {
-        console.error("[DirectionDashboard] Errore caricamento dati:", err);
+        console.error("[DirectionDashboard] load error:", err);
         if (!cancelled) {
-          setError("Errore nel caricamento dei dati Direzione. Riprova o contatta l’Ufficio.");
+          setError("Errore nel caricamento dei dati Direzione.");
           setRapportiniCurrent([]);
           setRapportiniPrevious([]);
           setIncaTeorico([]);
@@ -389,24 +382,24 @@ export default function DirectionDashboard() {
     };
   }, [profile, dateFrom, dateTo, costrFilter, commessaFilter]);
 
-  // KPI PRINCIPAUX
+  // KPIs computed (strip)
   const kpi = useMemo(() => {
     const currCount = rapportiniCurrent.length;
     const prevCount = rapportiniPrevious.length;
 
     const currRighe = (produzioniAggCurrent || []).reduce((sum, d) => sum + Number(d.righe || 0), 0);
-    const prevRighe = (produzioniAggPrevious || []).reduce((sum, d) => sum + Number(d.righe || 0), 0);
 
+    // INCA sums
     let incaPrevisti = 0;
     let incaRealizzati = 0;
     let incaPosati = 0;
-
     incaTeorico.forEach((row) => {
       incaPrevisti += toNumber(row.metri_previsti_totali);
       incaRealizzati += toNumber(row.metri_realizzati);
       incaPosati += toNumber(row.metri_posati);
     });
 
+    // hours indexed (facts)
     const sumHours = (facts) =>
       (facts || []).reduce((acc, f) => {
         const h = toNumber(f?.tempo_hours);
@@ -414,96 +407,88 @@ export default function DirectionDashboard() {
       }, 0);
 
     const currHours = sumHours(hoursFactsCurrent);
-    const prevHours = sumHours(hoursFactsPrevious);
 
-    const totalAttesi = (capiDelayDaily || []).reduce((a, d) => a + Number(d.capi_attesi || 0), 0);
-    const totalRitardo = (capiDelayDaily || []).reduce((a, d) => a + Number(d.capi_in_ritardo || 0), 0);
-    const lateRate = totalAttesi > 0 ? (totalRitardo / totalAttesi) * 100 : null;
-
+    // prod index range (sum on daily rows)
     const sumPrevNow = (prodDailyCurrent || []).reduce((a, r) => a + toNumber(r.previsto_eff), 0);
     const sumProdNow = (prodDailyCurrent || []).reduce((a, r) => a + toNumber(r.prodotto_alloc), 0);
     const productivityIndexNow = sumPrevNow > 0 ? sumProdNow / sumPrevNow : null;
 
-    const sumPrevPrev = (prodDailyPrevious || []).reduce((a, r) => a + toNumber(r.previsto_eff), 0);
-    const sumProdPrev = (prodDailyPrevious || []).reduce((a, r) => a + toNumber(r.prodotto_alloc), 0);
-    const productivityIndexPrev = sumPrevPrev > 0 ? sumProdPrev / sumPrevPrev : null;
+    // capi delays totals
+    const totalAttesi = (capiDelayDaily || []).reduce((a, d) => a + Number(d.capi_attesi || 0), 0);
+    const totalRitardo = (capiDelayDaily || []).reduce((a, d) => a + Number(d.capi_in_ritardo || 0), 0);
 
     return {
       currCount,
       prevCount,
       currRighe,
-      prevRighe,
       incaPrevisti,
       incaRealizzati,
       incaPosati,
       currHours,
-      prevHours,
-      totalAttesi,
-      totalRitardo,
-      lateRate,
-      productivityIndexNow,
-      productivityIndexPrev,
       sumPrevNow,
       sumProdNow,
+      productivityIndexNow,
+      totalAttesi,
+      totalRitardo,
     };
   }, [
     rapportiniCurrent,
     rapportiniPrevious,
-    incaTeorico,
     produzioniAggCurrent,
-    produzioniAggPrevious,
+    incaTeorico,
     hoursFactsCurrent,
-    hoursFactsPrevious,
-    capiDelayDaily,
     prodDailyCurrent,
-    prodDailyPrevious,
+    capiDelayDaily,
   ]);
 
-  // Timeline data (for combo chart)
+  // Timeline data (graphs)
   const timelineData = useMemo(() => {
     const map = new Map();
 
     (rapportiniCurrent || []).forEach((r) => {
       const key = r.report_date;
       if (!key) return;
-      if (!map.has(key)) map.set(key, { date: key, label: formatDateLabel(key), rapportini: 0, capi_ritardo: 0 });
+      if (!map.has(key)) map.set(key, { date: key, label: formatDateLabelIt(key), rapportini: 0, capi_ritardo: 0 });
       map.get(key).rapportini += 1;
     });
 
     (capiDelayDaily || []).forEach((d) => {
       const key = d.report_date;
       if (!key) return;
-      if (!map.has(key)) map.set(key, { date: key, label: formatDateLabel(key), rapportini: 0, capi_ritardo: 0 });
+      if (!map.has(key)) map.set(key, { date: key, label: formatDateLabelIt(key), rapportini: 0, capi_ritardo: 0 });
       map.get(key).capi_ritardo = Number(d.capi_in_ritardo || 0);
     });
 
     return Array.from(map.values()).sort((a, b) => new Date(a.date) - new Date(b.date));
-  }, [rapportiniCurrent, capiDelayDaily]);
+  }, [rapportiniCurrent, capiDelayDaily, dateFrom, dateTo, costrFilter, commessaFilter]);
 
-  // Trend productivity (line)
+  // Trend productivity (graphs)
   const prodTrend = useMemo(() => {
     const m = new Map(); // date -> {prev, prod}
     (prodDailyCurrent || []).forEach((r) => {
       if (!r.report_date) return;
-      const cur = m.get(r.report_date) || { report_date: r.report_date, label: formatDateLabel(r.report_date), prev: 0, prod: 0 };
+      const cur = m.get(r.report_date) || {
+        report_date: r.report_date,
+        label: formatDateLabelIt(r.report_date),
+        prev: 0,
+        prod: 0,
+      };
       cur.prev += toNumber(r.previsto_eff);
       cur.prod += toNumber(r.prodotto_alloc);
       m.set(r.report_date, cur);
     });
 
-    const arr = Array.from(m.values())
+    return Array.from(m.values())
       .sort((a, b) => new Date(a.report_date) - new Date(b.report_date))
       .map((x) => ({
         ...x,
         indice: x.prev > 0 ? x.prod / x.prev : null,
       }));
+  }, [prodDailyCurrent, dateFrom, dateTo, costrFilter, commessaFilter]);
 
-    return arr;
-  }, [prodDailyCurrent]);
-
-  // ECharts INCA option (themed by CoreEChart)
+  // ECharts INCA option (graphs)
   const incaOption = useMemo(() => {
-    const hasRows = incaTeorico.length > 0;
+    const hasRows = (incaTeorico || []).length > 0;
 
     if (!hasRows) {
       return {
@@ -515,7 +500,9 @@ export default function DirectionDashboard() {
       };
     }
 
-    const sorted = [...incaTeorico].sort((a, b) => toNumber(b.metri_previsti_totali) - toNumber(a.metri_previsti_totali));
+    const sorted = [...incaTeorico].sort(
+      (a, b) => toNumber(b.metri_previsti_totali) - toNumber(a.metri_previsti_totali)
+    );
     const top = sorted.slice(0, 12);
 
     const labels = top.map((row) => {
@@ -553,62 +540,91 @@ export default function DirectionDashboard() {
       ],
       color: [CORE_CHART_THEME.info, CORE_CHART_THEME.positive, CORE_CHART_THEME.warning],
     };
-  }, [incaTeorico]);
+  }, [incaTeorico, dateFrom, dateTo, costrFilter, commessaFilter]);
+
+  // modal rendering
+  const modalTitle = useMemo(() => {
+    switch (activeKpi) {
+      case KPI_IDS.RAPPORTINI:
+        return t("KPI_RAPPORTINI");
+      case KPI_IDS.RIGHE:
+        return t("KPI_RIGHE_ATTIVITA");
+      case KPI_IDS.PROD:
+        return t("KPI_INDICE_PROD");
+      case KPI_IDS.INCA_PREV:
+        return t("KPI_INCA_PREV");
+      case KPI_IDS.INCA_REAL:
+        return t("KPI_INCA_REAL");
+      case KPI_IDS.RITARDI:
+        return t("KPI_RITARDI_CAPI");
+      default:
+        return t("MODAL_DETAILS");
+    }
+  }, [activeKpi, t]);
+
+  const modalSubtitle = useMemo(() => {
+    return `${t("DIR_WINDOW")}: ${formatDateLabelIt(dateFrom)} → ${formatDateLabelIt(dateTo)} · ${t("DIR_COSTR")}: ${
+      costrFilter || "—"
+    } · ${t("DIR_COMMESSA")}: ${commessaFilter || "—"}`;
+  }, [t, dateFrom, dateTo, costrFilter, commessaFilter]);
 
   return (
     <div className="space-y-5">
+      {/* Header */}
       <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-1">Direzione · CNCS / CORE</div>
-          <h1 className="text-2xl md:text-3xl font-semibold text-slate-50">Dashboard Direzione</h1>
+          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400 mb-1">{t("DIR_KICKER")}</div>
+          <h1 className="text-2xl md:text-3xl font-semibold text-slate-50">{t("DIR_TITLE")}</h1>
         </div>
 
         <div className="flex flex-col items-end gap-2 text-[11px]">
-          <div className="inline-flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded-full border border-emerald-500/70 bg-emerald-900/40 text-emerald-100">
-              Sola lettura
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded-full border border-emerald-400/70 bg-emerald-500/12 text-emerald-50 shadow-[0_0_18px_rgba(16,185,129,0.14)]">
+              {t("DIR_READONLY")}
             </span>
+            <LangSwitcher compact />
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-slate-500">Finestra:</span>
+            <span className="text-slate-400">{t("DIR_WINDOW")}:</span>
             <input
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="rounded-lg border border-slate-700 bg-slate-950/80 px-2 py-1 text-[11px] text-slate-100"
+              className="rounded-lg border border-slate-700/80 bg-slate-950/70 px-2 py-1 text-[11px] text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-400/60"
             />
             <span className="text-slate-500">→</span>
             <input
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              className="rounded-lg border border-slate-700 bg-slate-950/80 px-2 py-1 text-[11px] text-slate-100"
+              className="rounded-lg border border-slate-700/80 bg-slate-950/70 px-2 py-1 text-[11px] text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-400/60"
             />
           </div>
         </div>
       </header>
 
+      {/* Filters */}
       <section className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[12px]">
         <div className="flex items-center gap-2">
-          <span className="text-slate-400 min-w-[72px]">COSTR</span>
+          <span className="text-slate-400 min-w-[72px]">{t("DIR_COSTR")}</span>
           <input
             type="text"
             value={costrFilter}
             onChange={(e) => setCostrFilter(e.target.value)}
             placeholder="es. 6368"
-            className="flex-1 rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1 text-slate-100 placeholder:text-slate-600"
+            className="flex-1 rounded-lg border border-slate-700/80 bg-slate-950/70 px-2 py-1 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-400/60"
           />
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-slate-400 min-w-[72px]">Commessa</span>
+          <span className="text-slate-400 min-w-[72px]">{t("DIR_COMMESSA")}</span>
           <input
             type="text"
             value={commessaFilter}
             onChange={(e) => setCommessaFilter(e.target.value)}
             placeholder="es. SDC"
-            className="flex-1 rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1 text-slate-100 placeholder:text-slate-600"
+            className="flex-1 rounded-lg border border-slate-700/80 bg-slate-950/70 px-2 py-1 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-400/60"
           />
         </div>
 
@@ -619,69 +635,107 @@ export default function DirectionDashboard() {
               setCostrFilter("");
               setCommessaFilter("");
             }}
-            className="px-3 py-1.5 rounded-full border border-slate-700 bg-slate-950/80 text-[11px] text-slate-300 hover:bg-slate-900"
+            className="px-3 py-1.5 rounded-full border border-slate-700/80 bg-slate-950/60 text-[11px] text-slate-200 hover:bg-slate-900/40 focus:outline-none focus:ring-2 focus:ring-emerald-400/60"
           >
-            Reset filtri
+            {t("DIR_RESET_FILTERS")}
           </button>
         </div>
       </section>
 
-      {error && (
-        <div className="rounded-xl border border-rose-500/60 bg-rose-900/30 px-4 py-2 text-[12px] text-rose-100">
+      {error ? (
+        <div className="rounded-2xl border border-rose-500/60 bg-rose-500/10 px-4 py-2 text-[12px] text-rose-100">
           {error}
         </div>
-      )}
-      {loading && !error && (
-        <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-4 py-2 text-[12px] text-slate-300">
-          Caricamento…
-        </div>
-      )}
+      ) : null}
 
-      {/* STRIP KPI */}
+      {loading && !error ? (
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/50 px-4 py-2 text-[12px] text-slate-300">
+          {t("DETAILS_LOADING")}
+        </div>
+      ) : null}
+
+      {/* KPI STRIP (all clickable) */}
       <section className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3">
-          <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Rapportini</div>
-          <div className="mt-1 text-2xl font-semibold text-slate-50">{kpi.currCount}</div>
-          <div className="mt-1 text-[11px] text-slate-500">{kpi.prevCount ? `Prev: ${kpi.prevCount}` : "Prev: —"}</div>
-        </div>
+        <KpiCard
+          title={t("KPI_RAPPORTINI")}
+          value={loading ? "—" : String(kpi.currCount)}
+          subline={loading ? "" : `${t("KPI_PREV")}: ${kpi.prevCount || "—"}`}
+          accent="slate"
+          onClick={() => setActiveKpi(KPI_IDS.RAPPORTINI)}
+        />
 
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3">
-          <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Righe attività</div>
-          <div className="mt-1 text-2xl font-semibold text-sky-300">{formatNumberIT(kpi.currRighe, 0)}</div>
-          <div className="mt-1 text-[11px] text-slate-500">vs prev</div>
-        </div>
+        <KpiCard
+          title={t("KPI_RIGHE_ATTIVITA")}
+          value={loading ? "—" : formatNumberIt(kpi.currRighe, 0)}
+          subline={t("KPI_VS_PREV")}
+          accent="sky"
+          onClick={() => setActiveKpi(KPI_IDS.RIGHE)}
+        />
 
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3">
-          <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Indice Produttività</div>
-          <div className="mt-1 text-2xl font-semibold text-fuchsia-300">
-            {kpi.productivityIndexNow == null ? "—" : formatNumberIT(kpi.productivityIndexNow, 2)}
-          </div>
-          <div className="mt-1 text-[11px] text-slate-500">Σrealizzato / Σprevisto_eff</div>
-        </div>
+        <KpiCard
+          title={t("KPI_INDICE_PROD")}
+          value={loading ? "—" : formatIndexIt(kpi.productivityIndexNow)}
+          subline="Σrealizzato / Σprevisto_eff"
+          accent="fuchsia"
+          onClick={() => setActiveKpi(KPI_IDS.PROD)}
+        />
 
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3">
-          <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">INCA prev</div>
-          <div className="mt-1 text-2xl font-semibold text-slate-50">{formatNumberIT(kpi.incaPrevisti, 0)}</div>
-          <div className="mt-1 text-[11px] text-slate-500">metri</div>
-        </div>
+        <KpiCard
+          title={t("KPI_INCA_PREV")}
+          value={loading ? "—" : formatNumberIt(kpi.incaPrevisti, 0)}
+          subline={t("KPI_METRI")}
+          accent="slate"
+          onClick={() => setActiveKpi(KPI_IDS.INCA_PREV)}
+        />
 
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3">
-          <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">INCA real</div>
-          <div className="mt-1 text-2xl font-semibold text-emerald-300">{formatNumberIT(kpi.incaRealizzati, 0)}</div>
-          <div className="mt-1 text-[11px] text-slate-500">metri</div>
-        </div>
+        <KpiCard
+          title={t("KPI_INCA_REAL")}
+          value={loading ? "—" : formatNumberIt(kpi.incaRealizzati, 0)}
+          subline={t("KPI_METRI")}
+          accent="emerald"
+          onClick={() => setActiveKpi(KPI_IDS.INCA_REAL)}
+        />
 
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3">
-          <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Ritardi Capi</div>
-          <div className="mt-1 text-2xl font-semibold text-rose-300">
-            {kpi.totalAttesi > 0 ? `${kpi.totalRitardo}/${kpi.totalAttesi}` : "—"}
-          </div>
-          <div className="mt-1 text-[11px] text-slate-500">
-            {kpi.lateRate != null ? `${formatNumberIT(kpi.lateRate, 1)}%` : "deadline 08:30 (J+1)"}
-          </div>
-        </div>
+        <KpiCard
+          title={t("KPI_RITARDI_CAPI")}
+          value={loading ? "—" : kpi.totalAttesi > 0 ? `${kpi.totalRitardo}/${kpi.totalAttesi}` : "—"}
+          subline={t("KPI_DEADLINE")}
+          accent="rose"
+          onClick={() => setActiveKpi(KPI_IDS.RITARDI)}
+        />
       </section>
 
+      {/* Modal drill-down */}
+      <Modal
+        open={!!activeKpi}
+        onClose={() => setActiveKpi(null)}
+        title={modalTitle}
+        subtitle={modalSubtitle}
+        maxWidthClass="max-w-5xl"
+      >
+        {activeKpi === KPI_IDS.RAPPORTINI ? (
+          <KpiRapportiniDetails rapportini={rapportiniCurrent} dateFrom={dateFrom} dateTo={dateTo} />
+        ) : null}
+
+        {activeKpi === KPI_IDS.RIGHE ? <KpiRigheDetails produzioniAgg={produzioniAggCurrent} /> : null}
+
+        {activeKpi === KPI_IDS.PROD ? (
+          <KpiProdIndexDetails
+            sumPrevEff={kpi.sumPrevNow}
+            sumProdAlloc={kpi.sumProdNow}
+            sumHoursIndexed={kpi.currHours}
+            productivityIndex={kpi.productivityIndexNow}
+          />
+        ) : null}
+
+        {activeKpi === KPI_IDS.INCA_PREV ? <KpiIncaDetails incaTeorico={incaTeorico} mode="PREV" /> : null}
+
+        {activeKpi === KPI_IDS.INCA_REAL ? <KpiIncaDetails incaTeorico={incaTeorico} mode="REAL" /> : null}
+
+        {activeKpi === KPI_IDS.RITARDI ? <KpiRitardiCapiDetails capiDelayDaily={capiDelayDaily} /> : null}
+      </Modal>
+
+      {/* GRAPHS RESTORED (bottom) */}
       <section className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1.4fr)] gap-4">
         <CoreChartCard title="Timeline" subtitle="Bar: Ritardi Capi · Line: Rapportini">
           <CoreBarLineCombo
@@ -695,12 +749,7 @@ export default function DirectionDashboard() {
             lineKey="rapportini"
             lineName="Rapportini"
             lineColor={CORE_CHART_THEME.positive}
-            labelFormatter={(label, payload) => {
-              if (!payload?.length) return label;
-              const d = payload[0]?.payload?.date;
-              if (!d) return label;
-              return `${label}`;
-            }}
+            labelFormatter={(label) => label}
             emptyHint="Nessun piano DAY FROZEN o nessun rapporto nella finestra."
           />
           <div className="mt-2 text-[11px] text-slate-500">
@@ -716,9 +765,7 @@ export default function DirectionDashboard() {
             empty={!!(!loading && (!incaTeorico || incaTeorico.length === 0))}
             emptyHint="Import INCA assente o non filtrabile con COSTR/Commessa."
           />
-          <div className="mt-2 text-[11px] text-slate-500">
-            Previsti / Realizzati / Posati: vista di lettura (non sostituisce il cockpit).
-          </div>
+          <div className="mt-2 text-[11px] text-slate-500">Previsti / Realizzati / Posati: vista di lettura (non sostituisce il cockpit).</div>
         </CoreChartCard>
       </section>
 
@@ -729,9 +776,7 @@ export default function DirectionDashboard() {
             data={prodTrend.map((x) => ({ ...x, indice: x.indice == null ? null : x.indice }))}
             height={260}
             xKey="label"
-            yLines={[
-              { key: "indice", name: "Indice", stroke: CORE_CHART_THEME.accent },
-            ]}
+            yLines={[{ key: "indice", name: "Indice", stroke: CORE_CHART_THEME.accent }]}
             yDomain={[0, "auto"]}
             emptyHint="Serve almeno 1 giorno con linee indicizzabili (QUANTITATIVE MT/PZ + previsto > 0)."
             yTickFormatter={(v) => (v == null ? "—" : formatNumberIT(v, 2))}
@@ -742,13 +787,13 @@ export default function DirectionDashboard() {
           </div>
         </CoreChartCard>
 
-        <CoreChartCard
-          title="Produzioni · Top descrizioni"
-          subtitle="Volume (prodotto) per leggere il “perché” senza aprire tabelle."
-        >
+        <CoreChartCard title="Produzioni · Top descrizioni" subtitle="Volume (prodotto) per leggere il “perché” senza aprire tabelle.">
           <div className="space-y-2">
             {(produzioniAggCurrent || []).slice(0, 6).map((r, idx) => (
-              <div key={`${r.descrizione}-${idx}`} className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2">
+              <div
+                key={`${r.descrizione}-${idx}`}
+                className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2"
+              >
                 <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">{`Driver #${idx + 1}`}</div>
                 <div className="mt-0.5 text-sm font-semibold text-slate-100">{String(r.descrizione || "—")}</div>
                 <div className="mt-1 text-[11px] text-slate-500">

@@ -181,21 +181,33 @@ export default function ManagerDashboard({ isDark = true }) {
 
         if (latestErr) throw latestErr;
 
-        // 6) KPI Produttività 7 giorni (percentuale pesata = sum(prodotto)/sum(previsto) *100)
-        // Nota: usiamo la view daily e facciamo il rollup in JS per evitare SQL dinamico lato client.
+        // 6) KPI Produttività 7 giorni (percentuale pesata = Σ(realizzato_alloc)/Σ(previsto_eff) *100)
+        // Nota: previsto_eff = previsto*(ore/8). Rollup in JS to avoid dynamic SQL.
+        // Try v3 first (includes capo_id), fallback to v2.
         let productivity7dPct = null;
         try {
-          const { data: prodRows, error: prodErr } = await supabase
-            .from("kpi_operator_productivity_daily_v1")
-            .select("previsto_alloc_sum, prodotto_alloc_sum")
-            .eq("manager_id", profile.id)
-            .gte("report_date", sinceISO)
-            .abortSignal(ac.signal);
+          const viewCandidates = ["kpi_operator_global_day_v3", "kpi_operator_global_day_v2"];
+          let prodRows = null;
 
-          if (prodErr) throw prodErr;
+          for (const viewName of viewCandidates) {
+            const { data, error } = await supabase
+              .from(viewName)
+              .select("total_previsto_eff, total_prodotto_alloc")
+              .eq("manager_id", profile.id)
+              .gte("report_date", sinceISO)
+              .abortSignal(ac.signal);
 
-          const sumPrev = (prodRows || []).reduce((a, r) => a + toNumber(r.previsto_alloc_sum), 0);
-          const sumProd = (prodRows || []).reduce((a, r) => a + toNumber(r.prodotto_alloc_sum), 0);
+            if (!error) {
+              prodRows = Array.isArray(data) ? data : [];
+              break;
+            }
+
+            // 42P01 = undefined_table (view doesn't exist)
+            if (String(error?.code || "") !== "42P01") throw error;
+          }
+
+          const sumPrev = (prodRows || []).reduce((a, r) => a + toNumber(r.total_previsto_eff), 0);
+          const sumProd = (prodRows || []).reduce((a, r) => a + toNumber(r.total_prodotto_alloc), 0);
           productivity7dPct = sumPrev > 0 ? (sumProd / sumPrev) * 100 : null;
         } catch (e) {
           console.warn("[ManagerDashboard] productivity KPI warning:", e);

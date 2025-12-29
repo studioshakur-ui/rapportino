@@ -1,0 +1,33 @@
+/* src/styles/tesla-x-lights.css */
+/* “Allumer les lampes” = lisibilité + contraste + hiérarchie sans casser le dark premium */
+
+:root {
+  --core-text-hi: rgba(248, 250, 252, 0.92);
+  --core-text: rgba(226, 232, 240, 0.78);
+  --core-muted: rgba(148, 163, 184, 0.68);
+  --core-border: rgba(148, 163, 184, 0.18);
+  --core-surface: rgba(2, 6, 23, 0.58);
+  --core-surface-2: rgba(2, 6, 23, 0.72);
+}
+
+html.dark,
+body {
+  color: var(--core-text);
+}
+
+/* Boost contrast for thin borders */
+.core-card,
+.core-panel {
+  border-color: var(--core-border);
+}
+
+/* Slightly brighter numbers */
+.core-kpi-value {
+  color: var(--core-text-hi);
+  text-shadow: 0 0 18px rgba(255, 255, 255, 0.06);
+}
+
+/* Improve axis labels readability (ECharts inherits canvas; this helps surrounding text) */
+.core-chart-title {
+  color: var(--core-text-hi);
+}
