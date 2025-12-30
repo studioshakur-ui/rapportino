@@ -6908,6 +6908,11 @@ ALTER TABLE ONLY "public"."navemaster_rows"
 
 
 
+ALTER TABLE ONLY "public"."navemaster_rows"
+    ADD CONSTRAINT "navemaster_rows_unique_import_codice" UNIQUE ("navemaster_import_id", "marcacavo");
+
+
+
 ALTER TABLE ONLY "public"."objectives"
     ADD CONSTRAINT "objectives_pkey" PRIMARY KEY ("id");
 
@@ -7275,6 +7280,10 @@ CREATE INDEX "manager_plans_week_idx" ON "public"."manager_plans" USING "btree" 
 
 
 
+CREATE UNIQUE INDEX "navemaster_imports_one_active_per_ship_idx" ON "public"."navemaster_imports" USING "btree" ("ship_id") WHERE ("is_active" = true);
+
+
+
 CREATE INDEX "navemaster_imports_ship_active_idx" ON "public"."navemaster_imports" USING "btree" ("ship_id", "is_active", "imported_at" DESC);
 
 
@@ -7299,7 +7308,15 @@ CREATE UNIQUE INDEX "navemaster_one_active_per_ship" ON "public"."navemaster_imp
 
 
 
+CREATE INDEX "navemaster_rows_import_id_idx" ON "public"."navemaster_rows" USING "btree" ("navemaster_import_id");
+
+
+
 CREATE INDEX "navemaster_rows_import_idx" ON "public"."navemaster_rows" USING "btree" ("navemaster_import_id");
+
+
+
+CREATE INDEX "navemaster_rows_marcacavo_idx" ON "public"."navemaster_rows" USING "btree" ("marcacavo");
 
 
 

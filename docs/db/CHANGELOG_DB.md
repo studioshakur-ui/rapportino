@@ -26,3 +26,20 @@ Change: Added schema_snapshot.sql and documentation structure
 Migrations: none  
 Impact: Documentation only  
 Rollback: Remove docs folder
+
+## 2025-12-30
+Author: <your-name>
+Reason: <business reason>
+Change: <what changed>
+Migration(s): <file(s) under supabase/migrations/>
+Impact/Risk: <impact>
+Rollback: <rollback plan>
+
+## 2025-12-30
+Author: <name>
+Reason:
+Change:
+Migration:
+Impact:
+Rollback:
+
