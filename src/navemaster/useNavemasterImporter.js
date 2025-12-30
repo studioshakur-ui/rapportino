@@ -1,13 +1,3 @@
-// /src/navemaster/useNavemasterImporter.js
-// Solution B: importer NAVEMASTER via backend non-edge (Netlify Function).
-//
-// Flow:
-// 1) Upload XLSX to Supabase Storage (bucket: navemaster)
-// 2) Call /.netlify/functions/navemaster-import with {mode, ship_id, costr, commessa, bucket, path, file_name, note}
-//
-// Important:
-// - Zero parsing on frontend.
-
 import { useCallback, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -25,9 +15,9 @@ function normalizeError(e) {
 function nowStamp() {
   const d = new Date();
   const pad = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(
-    d.getMinutes()
-  )}${pad(d.getSeconds())}`;
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(
+    d.getSeconds()
+  )}`;
 }
 
 async function uploadToStorage({ bucket, shipId, file }) {
@@ -36,8 +26,7 @@ async function uploadToStorage({ bucket, shipId, file }) {
 
   const { error } = await supabase.storage.from(bucket).upload(path, file, {
     upsert: true,
-    contentType:
-      file?.type || "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    contentType: file?.type || "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
 
   if (error) throw error;
@@ -45,8 +34,6 @@ async function uploadToStorage({ bucket, shipId, file }) {
 }
 
 async function callBackendFunction(payload) {
-  // En prod Netlify: même origine => pas de CORS.
-  // En local: recommandé d'utiliser `netlify dev` (port 8888) qui proxy vers Vite (5173).
   const isLocal = typeof window !== "undefined" && window.location.hostname === "localhost";
   const base = isLocal ? "http://localhost:8888" : "";
   const url = `${base}/.netlify/functions/navemaster-import`;
@@ -73,13 +60,17 @@ async function callBackendFunction(payload) {
     jsonBody = { ok: false, error: "invalid_json_response", raw: text };
   }
 
+  // Gestion propre des erreurs HTTP (dont 409 one-shot)
   if (!res.ok) {
     const msg =
       jsonBody?.message ||
       jsonBody?.details ||
       jsonBody?.error ||
       `HTTP ${res.status}`;
-    throw new Error(msg);
+    const err = new Error(msg);
+    err.status = res.status;
+    err.payload = jsonBody;
+    throw err;
   }
 
   return jsonBody;
@@ -158,6 +149,45 @@ export function useNavemasterImporter() {
       setPhase("done");
       return res;
     } catch (e) {
+      // cas one-shot: 409 => message métier plus clair (sans casser le debug)
+      if (e?.status === 409 && e?.payload?.error === "navemaster_already_initialized") {
+        setError("NAVEMASTER est déjà initialisé pour ce navire (one-shot). COMMIT refusé.");
+      } else {
+        setError(normalizeError(e));
+      }
+      setPhase("error");
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const forceCommit = useCallback(async ({ ship_id, costr, commessa, file, note, bucket = "navemaster" }) => {
+    setLoading(true);
+    setPhase("uploading");
+    setError(null);
+    setResult(null);
+
+    try {
+      const up = await uploadToStorage({ bucket, shipId: ship_id, file });
+      setPhase("calling");
+
+      const payload = {
+        mode: "FORCE_REPLACE",
+        ship_id,
+        costr: costr || null,
+        commessa: commessa || null,
+        bucket,
+        path: up.path,
+        file_name: up.file_name,
+        note: note || null,
+      };
+
+      const res = await callBackendFunction(payload);
+      setResult(res);
+      setPhase("done");
+      return res;
+    } catch (e) {
       setPhase("error");
       setError(normalizeError(e));
       throw e;
@@ -166,5 +196,5 @@ export function useNavemasterImporter() {
     }
   }, []);
 
-  return { dryRun, commit, loading, phase, error, result, reset };
+  return { dryRun, commit, forceCommit, loading, phase, error, result, reset };
 }

@@ -1,6 +1,6 @@
 // src/auth/AuthProvider.jsx
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { supabase } from "../lib/supabaseClient";
+import { supabase, resetSupabaseAuthStorage } from "../lib/supabaseClient";
 
 const AuthContext = createContext(null);
 
@@ -90,8 +90,14 @@ export function AuthProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const logout = async () => {
-    await supabase.auth.signOut();
+  const logout = async (opts = {}) => {
+    const reason = opts?.reason || "logout";
+    try {
+      await supabase.auth.signOut();
+    } finally {
+      // Ensure local auth artifacts are removed even in edge cases
+      resetSupabaseAuthStorage();
+    }
     setState({
       status: "UNAUTHENTICATED",
       session: null,

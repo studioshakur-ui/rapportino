@@ -16,8 +16,6 @@ function getInitialShip() {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
 
-    // Minimal sanity check
-    if (!parsed || typeof parsed !== "object") return null;
     if (!parsed.id || !parsed.code) return null;
 
     return parsed;
@@ -50,7 +48,8 @@ function normalizeShip(row) {
 }
 
 function safeStr(x) {
-  return (x ?? "").toString();
+  if (x === null || x === undefined) return "";
+  return String(x);
 }
 
 function sameId(a, b) {
@@ -85,6 +84,17 @@ export function ShipProvider({ children }) {
   );
 
   const clearShip = useCallback(() => setCurrentShip(null), []);
+
+  // Hard reset (used on logout / session invalidation)
+  const resetShipContext = useCallback(() => {
+    try {
+      window.localStorage.removeItem(STORAGE_KEY);
+    } catch {}
+    setCurrentShip(null);
+    setShips([]);
+    setShipsError(null);
+    setLoadingShips(false);
+  }, []);
 
   // Persist any change (but do not “trust” storage for authorization)
   useEffect(() => {
@@ -126,17 +136,19 @@ export function ShipProvider({ children }) {
         const { data, error } = await supabase.rpc("capo_my_ships_v1");
         if (error) throw error;
 
-        const list = Array.isArray(data) ? data.map(normalizeShip).filter(Boolean) : [];
         if (!alive) return;
 
+        const list = Array.isArray(data) ? data.map(normalizeShip).filter(Boolean) : [];
         setShips(list);
       } catch (e) {
-        console.error("[ShipContext] initial load ships error:", e);
         if (!alive) return;
+
+        console.error("[ShipContext] initial load ships error:", e);
         setShips([]);
         setShipsError("Impossibile recuperare le navi assegnate.");
       } finally {
-        if (alive) setLoadingShips(false);
+        if (!alive) return;
+        setLoadingShips(false);
       }
     })();
 
@@ -145,14 +157,9 @@ export function ShipProvider({ children }) {
     };
   }, []);
 
-  /* -----------------------------
-     Authorization guard:
-     If currentShip exists but is not in allowed list => clear it.
-     Also: if it's allowed, replace it with canonical row (fresh name/yard/etc.)
-  ----------------------------- */
+  // When ship list changes, ensure currentShip is still allowed and canonicalize label
   useEffect(() => {
     if (loadingShips) return;
-
     if (!currentShip) return;
 
     const allowed = shipsById.get(String(currentShip.id));
@@ -168,33 +175,33 @@ export function ShipProvider({ children }) {
     if (!canonical) return;
 
     const same =
-      sameId(canonical.id, currentShip.id) &&
-      safeStr(canonical.code) === safeStr(currentShip.code) &&
-      safeStr(canonical.name) === safeStr(currentShip.name) &&
-      safeStr(canonical.yard) === safeStr(currentShip.yard);
+      sameId(currentShip.id, canonical.id) &&
+      safeStr(currentShip.code) === safeStr(canonical.code) &&
+      safeStr(currentShip.name) === safeStr(canonical.name);
 
     if (!same) {
       setCurrentShip(canonical);
     }
-  }, [loadingShips, shipsById, currentShip]);
+  }, [shipsById, currentShip, loadingShips]);
 
   const value = useMemo(() => {
     return {
-      // Selected ship (nullable)
+      // State
       currentShip,
-      setCurrentShip: (ship) => setCurrentShip(ship ? normalizeShip(ship) : null),
-      clearShip,
-
-      // Allowed ships for this CAPO
       ships,
       loadingShips,
       shipsError,
+
+      // Mutations
+      setCurrentShip,
+      clearShip,
+      resetShipContext,
       refreshShips,
 
       // Helpers (useful for UI conditions)
       isShipAllowed,
     };
-  }, [currentShip, clearShip, ships, loadingShips, shipsError, refreshShips, isShipAllowed]);
+  }, [currentShip, clearShip, resetShipContext, ships, loadingShips, shipsError, refreshShips, isShipAllowed]);
 
   return <ShipContext.Provider value={value}>{children}</ShipContext.Provider>;
 }

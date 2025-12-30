@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import NavemasterImportModal from "./NavemasterImportModal";
+import NavemasterCockpitModal from "../components/NavemasterCockpitModal";
 import { corePills } from "../ui/designSystem";
 
 function Tile({ label, value, hint }) {
@@ -32,10 +33,9 @@ function RoleDenied({ role }) {
 }
 
 export default function NavemasterHub() {
-  // Role guard (do not depend on routing configuration)
+  // Role guard
   const [roleLoading, setRoleLoading] = useState(true);
   const [role, setRole] = useState(null);
-
   const allowed = role === "UFFICIO" || role === "DIREZIONE" || role === "ADMIN";
 
   const [ships, setShips] = useState([]);
@@ -47,7 +47,9 @@ export default function NavemasterHub() {
   const [importMeta, setImportMeta] = useState(null);
   const [error, setError] = useState(null);
 
+  // Modals
   const [importOpen, setImportOpen] = useState(false);
+  const [cockpitOpen, setCockpitOpen] = useState(false);
 
   const currentShip = useMemo(
     () => ships.find((s) => s.id === shipId) || null,
@@ -72,7 +74,6 @@ export default function NavemasterHub() {
       if (res.error) throw res.error;
       setRole(res.data?.app_role || null);
     } catch (e) {
-      // If role lookup fails, be conservative: deny.
       setRole(null);
       setError(e?.message || String(e));
     } finally {
@@ -130,7 +131,7 @@ export default function NavemasterHub() {
         )
         .eq("ship_id", sid)
         .order("marcacavo", { ascending: true })
-        .limit(5000);
+        .limit(50000); // cockpit virtualisé => on peut monter
 
       if (rowsErr) throw rowsErr;
       setRows(rowsData || []);
@@ -212,10 +213,21 @@ export default function NavemasterHub() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Toujours présent: bouton cockpit -> popup géant */}
+          <button
+            type="button"
+            onClick={() => setCockpitOpen(true)}
+            className="rounded-full border border-slate-700 bg-slate-950/30 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-200 hover:bg-slate-900/40 disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-950/20 disabled:text-slate-600"
+            disabled={!shipId || noShips}
+            title={noShips ? "Aucun navire visible. Vérifiez RLS/policies ships." : ""}
+          >
+            Cockpit
+          </button>
+
           <button
             type="button"
             onClick={() => loadNavemaster()}
-            className="rounded-full border border-slate-700 bg-slate-950/30 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-200 hover:bg-slate-900/40"
+            className="rounded-full border border-slate-700 bg-slate-950/30 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-200 hover:bg-slate-900/40 disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-950/20 disabled:text-slate-600"
             disabled={!shipId}
           >
             Refresh
@@ -244,18 +256,18 @@ export default function NavemasterHub() {
         {noShips ? (
           <div className="rounded-xl border border-slate-800 bg-slate-950/30 p-4">
             <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">NAVIRE</div>
-            <div className="mt-1 text-sm text-slate-200">
-              Aucun navire visible pour ce compte.
-            </div>
+            <div className="mt-1 text-sm text-slate-200">Aucun navire visible pour ce compte.</div>
             <div className="mt-1 text-xs text-slate-500">
-              Cause typique: RLS/policies sur <span className="text-slate-300">ships</span> trop restrictives.
-              Après ajout de la policy <span className="text-slate-300">ships_office_select</span>, ce bloc disparaît.
+              Cause typique: RLS/policies sur <span className="text-slate-300">ships</span> trop
+              restrictives.
             </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <label className="block sm:col-span-2">
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400 mb-1">Navire</div>
+              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400 mb-1">
+                Navire
+              </div>
               <select
                 value={shipId}
                 onChange={(e) => setShipId(e.target.value)}
@@ -271,9 +283,13 @@ export default function NavemasterHub() {
             </label>
 
             <div className="rounded-xl border border-slate-800 bg-slate-950/30 p-3">
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Snapshot actif</div>
+              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                Snapshot actif
+              </div>
               <div className="mt-1 text-sm text-slate-200">
-                {importMeta?.imported_at ? new Date(importMeta.imported_at).toLocaleString("it-IT") : "Aucun"}
+                {importMeta?.imported_at
+                  ? new Date(importMeta.imported_at).toLocaleString("it-IT")
+                  : "Aucun"}
               </div>
               <div className="text-xs text-slate-500 mt-1">{importMeta?.file_name || "—"}</div>
             </div>
@@ -289,6 +305,7 @@ export default function NavemasterHub() {
         <Tile label="Top SITUAZIONE" value={kpi.topSit} />
       </div>
 
+      {/* Mini table (page) — le vrai travail se fait dans le cockpit modal */}
       <div className="overflow-auto rounded-2xl border border-slate-800">
         <table className="min-w-[1100px] w-full text-sm">
           <thead className="bg-slate-950/50 text-slate-300">
@@ -304,7 +321,7 @@ export default function NavemasterHub() {
           </thead>
 
           <tbody className="divide-y divide-slate-800">
-            {(rows || []).slice(0, 500).map((r) => (
+            {(rows || []).slice(0, 30).map((r) => (
               <tr key={r.navemaster_row_id} className="hover:bg-slate-950/30">
                 <td className="px-3 py-2 font-medium text-slate-100">{r.marcacavo || "—"}</td>
                 <td className="px-3 py-2 text-slate-200">{r.descrizione || "—"}</td>
@@ -336,10 +353,11 @@ export default function NavemasterHub() {
               </tr>
             ) : null}
 
-            {rows.length > 500 ? (
+            {rows.length > 30 ? (
               <tr>
                 <td colSpan={7} className="px-3 py-3 text-xs text-slate-400">
-                  Limite UI: 500 lignes affichées. On ajoutera virtualisation ensuite.
+                  Vue page: 30 lignes. Ouvrez le <span className="text-slate-200">Cockpit</span>{" "}
+                  pour 20k+ lignes (virtualisation).
                 </td>
               </tr>
             ) : null}
@@ -347,6 +365,7 @@ export default function NavemasterHub() {
         </table>
       </div>
 
+      {/* Import modal */}
       <NavemasterImportModal
         open={importOpen}
         onClose={() => setImportOpen(false)}
@@ -355,6 +374,19 @@ export default function NavemasterHub() {
           setImportOpen(false);
           loadNavemaster();
         }}
+      />
+
+      {/* Cockpit popup géant */}
+      <NavemasterCockpitModal
+        open={cockpitOpen}
+        onClose={() => setCockpitOpen(false)}
+        ship={currentShip}
+        importMeta={importMeta}
+        rows={rows}
+        loading={loading}
+        error={error}
+        onRefresh={() => loadNavemaster()}
+        onOpenImport={() => setImportOpen(true)}
       />
     </div>
   );

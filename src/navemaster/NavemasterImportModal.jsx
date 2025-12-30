@@ -1,4 +1,3 @@
-// src/navemaster/NavemasterImportModal.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavemasterImporter } from "./useNavemasterImporter";
 import { corePills, cardSurface } from "../ui/designSystem";
@@ -7,7 +6,7 @@ function cx(...parts) {
   return parts.filter(Boolean).join(" ");
 }
 
-export default function NavemasterImportModal({ open, onClose, ship, onImported }) {
+export default function NavemasterImportModal({ open, onClose, ship, onImported, forceReplace = false, role }) {
   const fileInputRef = useRef(null);
 
   const [file, setFile] = useState(null);
@@ -15,8 +14,7 @@ export default function NavemasterImportModal({ open, onClose, ship, onImported 
   const [commessa, setCommessa] = useState(ship?.commessa || "");
   const [note, setNote] = useState("");
 
-  // FIX: le hook retourne dryRun/commit, pas uploadAndRun
-  const { dryRun, commit, loading, phase, error, result, reset } = useNavemasterImporter();
+  const { dryRun, commit, forceCommit, loading, phase, error, result, reset } = useNavemasterImporter();
 
   useEffect(() => {
     if (!open) return;
@@ -25,7 +23,8 @@ export default function NavemasterImportModal({ open, onClose, ship, onImported 
     setCommessa(ship?.commessa || "");
     setNote("");
     reset();
-  }, [open, ship?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, ship?.id]);
 
   const title = useMemo(() => {
     const code = ship?.code ? ` · ${ship.code}` : "";
@@ -34,17 +33,22 @@ export default function NavemasterImportModal({ open, onClose, ship, onImported 
 
   if (!open) return null;
 
+  const isAdmin = role === "ADMIN";
   const canRun = !!file && !!ship?.id && !loading;
+  const canForce = isAdmin && forceReplace;
 
   async function handleDryRun() {
     if (!canRun) return;
-    // FIX: signature attendue par le hook => ship_id + file
     await dryRun({ file, ship_id: ship.id, costr, commessa, note });
   }
 
   async function handleCommit() {
     if (!canRun) return;
-    // FIX: signature attendue par le hook => ship_id + file
+    if (canForce) {
+      await forceCommit({ file, ship_id: ship.id, costr, commessa, note });
+      onImported?.();
+      return;
+    }
     await commit({ file, ship_id: ship.id, costr, commessa, note });
     onImported?.();
   }
@@ -57,7 +61,7 @@ export default function NavemasterImportModal({ open, onClose, ship, onImported 
             <div className={corePills.kicker}>NAVEMASTER · Snapshot import</div>
             <div className="text-lg sm:text-xl font-semibold tracking-tight text-slate-100">{title}</div>
             <div className="text-xs text-slate-400 mt-1">
-              Upload XLSX → DRY-RUN (contrôles) → COMMIT (écrit en base). Aucun parsing côté front.
+              Upload XLSX → DRY-RUN (contrôles) → {canForce ? "FORCE_REPLACE (ADMIN)" : "COMMIT"} (écrit en base). Aucun parsing côté front.
             </div>
           </div>
           <button
@@ -70,6 +74,15 @@ export default function NavemasterImportModal({ open, onClose, ship, onImported 
         </div>
 
         <div className="p-4 sm:p-5 space-y-4">
+          {canForce ? (
+            <div className="rounded-2xl border border-rose-500/30 bg-rose-950/20 p-4 text-rose-200">
+              <div className="text-xs uppercase tracking-[0.18em]">ADMIN · FORCE_REPLACE</div>
+              <div className="mt-1 text-sm">
+                Ce mode supprime NAVEMASTER existant (imports + rows) pour ce navire puis réimporte le fichier.
+              </div>
+            </div>
+          ) : null}
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <label className="block">
               <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400 mb-1">COSTR</div>
@@ -185,11 +198,13 @@ export default function NavemasterImportModal({ open, onClose, ship, onImported 
                 className={cx(
                   "rounded-full border px-4 py-2 text-[11px] uppercase tracking-[0.18em] transition",
                   canRun && result?.mode === "DRY_RUN"
-                    ? "border-emerald-500/40 bg-emerald-950/20 text-emerald-200 hover:bg-emerald-900/20"
+                    ? canForce
+                      ? "border-rose-500/40 bg-rose-950/20 text-rose-200 hover:bg-rose-900/20"
+                      : "border-emerald-500/40 bg-emerald-950/20 text-emerald-200 hover:bg-emerald-900/20"
                     : "border-slate-800 bg-slate-950/20 text-slate-600 cursor-not-allowed"
                 )}
               >
-                COMMIT
+                {canForce ? "FORCE_REPLACE" : "COMMIT"}
               </button>
             </div>
           </div>
