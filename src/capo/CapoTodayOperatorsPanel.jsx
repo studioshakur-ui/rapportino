@@ -1,23 +1,7 @@
-// src/capo/CapoTodayOperatorsPanel.jsx
+// /src/capo/CapoTodayOperatorsPanel.jsx
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
-
-/**
- * CAPO — Operatori di oggi
- * - Source: view capo_my_team_v1 (défensif: select('*'))
- * - IMPORTANT: la vue dépend de auth.uid() => la requête DOIT partir avec JWT.
- *   Donc on attend authReady (sinon requête anon => 0 lignes).
- * - Ordre canonique: operator_position ASC (fallback: name)
- * - Dédup canonique: operator_id (fallback: name)
- * - Drag&drop HTML5:
- *    - DataTransfer:
- *        - "text/core-operator-name"
- *        - "text/core-operator-id"
- * - mode:
- *   - expanded: panel complet (titre + search + list)
- *   - collapsed: icône + compteur
- */
 
 function cn(...parts) {
   return parts.filter(Boolean).join(" ");
@@ -48,10 +32,7 @@ function guessOperatorId(row) {
 
 function guessOperatorPosition(row) {
   if (!row || typeof row !== "object") return null;
-  const candidates = [row.operator_position, row.position, row.pos].filter(
-    (v) => v !== undefined && v !== null
-  );
-
+  const candidates = [row.operator_position, row.position, row.pos].filter((v) => v !== undefined && v !== null);
   const v = candidates.length ? candidates[0] : null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
@@ -59,7 +40,6 @@ function guessOperatorPosition(row) {
 
 function pillBase() {
   return [
-    "inline-flex items-center justify-between gap-2",
     "w-full rounded-xl border px-3 py-2",
     "text-[12px] font-semibold",
     "border-slate-800 bg-slate-950/40 text-slate-100 hover:bg-slate-900/35",
@@ -80,7 +60,6 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
   const isCollapsed = mode === "collapsed";
 
   const load = useCallback(async () => {
-    // La vue dépend de auth.uid() => si pas de session prête, inutile de requêter.
     if (!authReady || !uid) {
       setLoading(false);
       setErr("");
@@ -105,7 +84,6 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
         })
         .filter(Boolean);
 
-      // Tri canonique: operator_position ASC, fallback name ASC (case-insensitive)
       mapped.sort((a, b) => {
         const ap = a.position;
         const bp = b.position;
@@ -123,7 +101,6 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
         return 0;
       });
 
-      // Dédup canonique: operator_id si présent, sinon name (case-insensitive)
       const seenIds = new Set();
       const seenNames = new Set();
       const dedup = [];
@@ -152,7 +129,6 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
     }
   }, [authReady, uid]);
 
-  // IMPORTANT: reload quand l'auth devient prête / change d'utilisateur
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -172,14 +148,10 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
 
   const count = items.length;
 
-  // Collapsed
   if (isCollapsed) {
     return (
       <div className="flex flex-col items-center gap-2">
-        <div
-          className={cn("w-full rounded-2xl border p-2", "border-slate-800 bg-slate-950/20")}
-          title="Operatori di oggi"
-        >
+        <div className={cn("w-full rounded-2xl border p-2", "border-slate-800 bg-slate-950/20")} title="Operatori di oggi">
           <div className="flex items-center justify-center">
             <div className="relative">
               <div className="h-10 w-10 rounded-xl border border-slate-800 bg-slate-950/40 flex items-center justify-center text-slate-200">
@@ -195,17 +167,12 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
     );
   }
 
-  // Expanded
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-950/20 p-3">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
-            Operatori di oggi
-          </div>
-          <div className="mt-1 text-[12px] text-slate-300">
-            Assegnati dal Manager · Trascina nelle righe
-          </div>
+          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Operatori di oggi</div>
+          <div className="mt-1 text-[12px] text-slate-300">Assegnati dal Manager · Trascina nelle righe</div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -265,10 +232,11 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
             </div>
           ) : (
             filtered.map((it) => (
-              <button
+              <div
                 key={it.id || it.name}
-                type="button"
                 draggable
+                role="button"
+                tabIndex={0}
                 onDragStart={(e) => {
                   try {
                     e.dataTransfer.setData("text/core-operator-name", it.name);
@@ -277,14 +245,20 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
                   } catch {}
                   onOperatorDragStart?.(it);
                 }}
+                onKeyDown={(e) => {
+                  // no-op: we don't "select" on Enter; we drag. keep accessible focus.
+                  if (e.key === "Enter") e.preventDefault();
+                }}
                 className={pillBase()}
                 title="Trascina nel rapportino"
               >
-                <span className="truncate">{it.name}</span>
-                <span className="inline-flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-sky-400/80" />
-                </span>
-              </button>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate">{it.name}</span>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-sky-400/80" />
+                  </span>
+                </div>
+              </div>
             ))
           )}
         </div>

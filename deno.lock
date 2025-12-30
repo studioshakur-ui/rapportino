@@ -16,21 +16,28 @@
         "npm:@vitejs/plugin-react-swc@^3.5.0",
         "npm:@vitejs/plugin-react@^4.7.0",
         "npm:autoprefixer@^10.4.0",
+        "npm:axios@^1.13.2",
         "npm:echarts-for-react@^3.0.5",
         "npm:echarts@^5.6.0",
         "npm:framer-motion@^12.23.26",
+        "npm:highcharts-react-official@^3.2.1",
+        "npm:highcharts@^11.4.8",
         "npm:html2canvas@^1.4.1",
         "npm:jspdf@^2.5.2",
+        "npm:node-fetch@^3.3.2",
         "npm:postcss@^8.4.0",
         "npm:qrcode@^1.5.4",
         "npm:react-dom@^18.2.0",
         "npm:react-router-dom@^6.28.0",
         "npm:react@^18.2.0",
         "npm:recharts@^2.15.4",
+        "npm:resend@^6.6.0",
+        "npm:stripe@^20.1.0",
         "npm:tailwindcss@^3.4.0",
         "npm:tesseract.js@^6.0.1",
         "npm:vite@5",
-        "npm:xlsx@~0.18.5"
+        "npm:xlsx@~0.18.5",
+        "npm:zod@^4.2.1"
       ]
     }
   }

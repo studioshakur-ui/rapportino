@@ -1,4 +1,4 @@
-// src/components/RapportinoPage.jsx
+// /src/components/RapportinoPage.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useOutletContext } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
@@ -104,10 +104,47 @@ function buildTempoPickerItemsFromRow(row) {
   const paddedTm = tmLines.concat(Array(Math.max(0, targetLen - tmLines.length)).fill(""));
 
   return paddedOps.map((label, i) => ({
-    operator_id: "", // legacy has no operator_id here
+    operator_id: "",
     label: String(label || "").trim(),
     tempo_raw: String(paddedTm[i] ?? ""),
   }));
+}
+
+/**
+ * INCA button (discret, dark blue, not flashy)
+ */
+function incaBtnClass(disabled) {
+  const base = [
+    "inline-flex items-center gap-2",
+    "rounded-full px-4 py-2",
+    "border text-[12px] font-extrabold tracking-[0.16em] uppercase",
+    "transition-colors duration-150",
+    "select-none",
+  ];
+
+  if (disabled) {
+    return cn(
+      ...base,
+      "border-slate-300 bg-slate-100 text-slate-400 cursor-not-allowed"
+    );
+  }
+
+  return cn(
+    ...base,
+    "border-slate-300/60 text-slate-50",
+    "focus:outline-none focus:ring-2 focus:ring-sky-500/25"
+  );
+}
+
+function incaBtnStyle(disabled) {
+  if (disabled) return undefined;
+  // sombre et discret: pas de glow, pas de gradient agressif
+  return {
+    backgroundImage: [
+      "linear-gradient(180deg, rgba(2,6,23,0.92) 0%, rgba(15,23,42,0.92) 100%)",
+      "repeating-linear-gradient(135deg, rgba(56,189,248,0.06) 0px, rgba(56,189,248,0.06) 1px, rgba(0,0,0,0) 1px, rgba(0,0,0,0) 9px)",
+    ].join(","),
+  };
 }
 
 export default function RapportinoPage() {
@@ -165,17 +202,22 @@ export default function RapportinoPage() {
   }, [showIncaBlock, rapportinoId, status]);
 
   useEffect(() => {
-    // When changing day/role, default closed (unless auto-open rule triggers)
     setIncaOpen(false);
   }, [reportDate, normalizedCrewRole]);
+
+  // Enlever lignes sans description (rendu + save + print)
+  const visibleRows = useMemo(() => {
+    const arr = Array.isArray(rows) ? rows : [];
+    return arr.filter((r) => String(r?.descrizione || "").trim().length > 0);
+  }, [rows]);
+
+  const prodottoTotale = useMemo(() => computeProdottoTotale(visibleRows, parseNumeric), [visibleRows]);
+  const statusLabel = STATUS_LABELS[status] || status;
 
   const { returnedCount, latestReturned, returnedLoading, loadReturnedInbox } = useReturnedInbox({
     profileId: profile?.id,
     crewRole: normalizedCrewRole,
   });
-
-  const prodottoTotale = useMemo(() => computeProdottoTotale(rows, parseNumeric), [rows]);
-  const statusLabel = STATUS_LABELS[status] || status;
 
   // Toast
   const [toast, setToast] = useState(null);
@@ -213,7 +255,7 @@ export default function RapportinoPage() {
   const [tmOpen, setTmOpen] = useState(false);
   const [tmRowIndex, setTmRowIndex] = useState(null);
 
-  const currentTempoRow = tmRowIndex != null ? rows[tmRowIndex] : null;
+  const currentTempoRow = tmRowIndex != null ? visibleRows[tmRowIndex] : null;
   const currentTempoItems = useMemo(() => buildTempoPickerItemsFromRow(currentTempoRow), [currentTempoRow]);
 
   const openOperatorPickerForRow = (rowIndex) => {
@@ -235,11 +277,21 @@ export default function RapportinoPage() {
   };
 
   const handleRowChange = (index, field, value, targetForHeight) => {
+    // IMPORTANT: visibleRows est filtré, mais rows est la source de vérité.
+    // Ici on modifie par index de visibleRows: on mappe via l'id si possible, sinon via index brut.
     setRows((prev) => {
-      const copy = [...prev];
-      const row = { ...(copy[index] || {}) };
+      const prevArr = Array.isArray(prev) ? prev : [];
+      const vr = visibleRows[index];
+      const key = vr?.id ? String(vr.id) : null;
+
+      const copy = prevArr.map((x) => ({ ...x }));
+      let targetIdx = -1;
+      if (key) targetIdx = copy.findIndex((x) => String(x?.id || "") === key);
+      if (targetIdx < 0) targetIdx = index;
+
+      const row = { ...(copy[targetIdx] || {}) };
       row[field] = value;
-      copy[index] = row;
+      copy[targetIdx] = row;
       return copy;
     });
 
@@ -249,13 +301,47 @@ export default function RapportinoPage() {
   };
 
   const handleRemoveRow = (rowIndex) => {
-    removeRow({ setRows }, rowIndex);
+    // rowIndex on visibleRows => map to source rows via id
+    const vr = visibleRows[rowIndex];
+    const key = vr?.id ? String(vr.id) : null;
+
+    if (!key) {
+      removeRow({ setRows }, rowIndex);
+      pushToast({ type: "info", message: "Riga rimossa." });
+      return;
+    }
+
+    setRows((prev) => (Array.isArray(prev) ? prev : []).filter((r) => String(r?.id || "") !== key));
     pushToast({ type: "info", message: "Riga rimossa." });
   };
 
   const handleRemoveOperatorFromRow = async (rowIndex, operatorId) => {
     try {
-      removeOperatorFromRow({ setRows }, rowIndex, operatorId);
+      // rowIndex on visibleRows => map to source by id
+      const vr = visibleRows[rowIndex];
+      const key = vr?.id ? String(vr.id) : null;
+
+      if (!key) {
+        removeOperatorFromRow({ setRows }, rowIndex, operatorId);
+      } else {
+        setRows((prev) => {
+          const arr = Array.isArray(prev) ? prev : [];
+          const idx = arr.findIndex((r) => String(r?.id || "") === key);
+          if (idx < 0) return prev;
+          const copy = [...arr];
+          const row = { ...(copy[idx] || {}) };
+          copy[idx] = row;
+          // reuse helper on a virtual rows list
+          const tmpSetRows = (fn) => {
+            const next = fn(copy);
+            return next;
+          };
+          // simpler: call removeOperatorFromRow on a copied state-like wrapper
+          removeOperatorFromRow({ setRows: (fn) => tmpSetRows(fn) }, idx, operatorId);
+          return copy;
+        });
+      }
+
       pushToast({ type: "success", message: "Operatore rimosso." });
     } catch (e) {
       console.error("[Rapportino] remove operator error:", e);
@@ -287,7 +373,7 @@ export default function RapportinoPage() {
         costr,
         commessa,
         prodottoTotale,
-        rows,
+        rows: visibleRows, // ✅ save uniquement lignes avec description
         rapportinoId,
         setRapportinoId,
         setRapportinoCrewRole,
@@ -315,6 +401,7 @@ export default function RapportinoPage() {
     await handleSave("VALIDATED_CAPO");
   };
 
+  // Export: UNIQUEMENT la feuille rapport (rapportino-document)
   const handlePrint = async () => {
     const ok = await handleSave(status);
     if (!ok) return;
@@ -352,18 +439,24 @@ export default function RapportinoPage() {
 
   const selectedIdsForModal = (() => {
     if (opRowIndex == null) return [];
-    const row = rows[opRowIndex];
+    const row = visibleRows[opRowIndex];
     const items = Array.isArray(row?.operator_items) ? row.operator_items : [];
     return items.map((it) => String(it.operator_id)).filter(Boolean);
   })();
 
   const canOpenCatalog = canEdit && !!String(shipId || "").trim() && !!String(commessa || "").trim();
 
-  // LEGACY set tempo per line (writes into r.tempo aligned to operatori lines)
   const setLegacyTempoForLine = (rowIndex, lineIndex, tempoRaw) => {
+    const vr = visibleRows[rowIndex];
+    const key = vr?.id ? String(vr.id) : null;
+
     setRows((prev) => {
-      const copy = [...prev];
-      const row = { ...(copy[rowIndex] || {}) };
+      const arr = Array.isArray(prev) ? prev : [];
+      const idx = key ? arr.findIndex((r) => String(r?.id || "") === key) : rowIndex;
+      if (idx < 0) return prev;
+
+      const copy = [...arr];
+      const row = { ...(copy[idx] || {}) };
 
       const opLines = splitLinesKeepEmpties(row.operatori);
       const aligned = normalizeLegacyTempoAlignment(row.operatori, row.tempo);
@@ -375,7 +468,7 @@ export default function RapportinoPage() {
       padded[lineIndex] = String(tempoRaw ?? "");
       row.tempo = joinLines(padded.slice(0, targetLen));
 
-      copy[rowIndex] = row;
+      copy[idx] = row;
       return copy;
     });
   };
@@ -463,7 +556,7 @@ export default function RapportinoPage() {
               onChangeDate={setReportDate}
             />
 
-            {/* META */}
+            {/* META (sans bouton INCA ici) */}
             <div className="no-print mt-3 flex flex-wrap items-center justify-between gap-2">
               <div className="text-[11px] text-slate-500">
                 <span className="font-semibold text-slate-700">Ruolo:</span> {crewLabel}
@@ -476,29 +569,12 @@ export default function RapportinoPage() {
                 <span className="px-3 py-1 rounded-full bg-slate-50 text-slate-700 border border-slate-200 text-[11px] font-semibold">
                   Prodotto totale: {Number(prodottoTotale || 0).toFixed(2)}
                 </span>
-
-                {showIncaBlock ? (
-                  <button
-                    type="button"
-                    className={cn(
-                      "px-3 py-1 rounded-full border text-[11px] font-semibold",
-                      incaOpen
-                        ? "border-sky-300 bg-sky-50 text-sky-900"
-                        : "border-slate-300 bg-white hover:bg-slate-50 text-slate-900"
-                    )}
-                    onClick={() => setIncaOpen((v) => !v)}
-                    disabled={!canEditInca}
-                    title={!canEditInca ? "Salva prima per attivare INCA" : "Apri/chiudi sezione INCA"}
-                  >
-                    INCA
-                  </button>
-                ) : null}
               </div>
             </div>
 
-            {/* TABLE */}
+            {/* TABLE (uniquement lignes avec descrizione) */}
             <RapportinoTable
-              rows={rows}
+              rows={visibleRows}
               onRowChange={(idx, field, value, target) => {
                 if (field === "tempo") {
                   handleTempoChangeLegacy({ setRows }, idx, value);
@@ -512,6 +588,15 @@ export default function RapportinoPage() {
               onOpenTempoPicker={(rowIndex) => openTempoPickerForRow(rowIndex)}
               onRemoveOperatorFromRow={handleRemoveOperatorFromRow}
               readOnly={!canEdit}
+              onDropOperatorToRow={(rowIndex, op) => {
+                if (!canEdit) return;
+                const id = op?.id ? String(op.id) : "";
+                const name = String(op?.name || "").trim();
+                if (!name) return;
+
+                toggleOperatorInRow({ setRows }, rowIndex, { id, name }, "add");
+                pushToast({ type: "success", message: `Aggiunto: ${name}` });
+              }}
             />
 
             {/* INCA BLOCK */}
@@ -527,55 +612,70 @@ export default function RapportinoPage() {
             ) : null}
 
             {/* ACTION BAR */}
-            <div className="no-print mt-4 flex flex-col md:flex-row md:items-center md:justify-between gap-2 border-t border-slate-200 px-3 py-3">
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleSave(undefined)}
-                  className="px-3 py-2 rounded-xl border border-slate-700 bg-slate-900 text-white hover:bg-slate-950"
-                  disabled={!canEdit || saving}
-                >
-                  {saving ? "Salvataggio…" : "Salva"}
-                </button>
+            <div className="no-print mt-4 border-t border-slate-200 px-3 py-3">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                {/* Primary actions (left) */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSave(undefined)}
+                    className="px-3 py-2 rounded-xl border border-slate-700 bg-slate-900 text-white hover:bg-slate-950"
+                    disabled={!canEdit || saving}
+                  >
+                    {saving ? "Salvataggio…" : "Salva"}
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={handleValidate}
-                  className="px-3 py-2 rounded-xl border border-emerald-700 bg-emerald-600/90 text-white hover:bg-emerald-700"
-                  disabled={!canEdit}
-                >
-                  Valida giornata
-                </button>
+                  <button
+                    type="button"
+                    onClick={handleValidate}
+                    className="px-3 py-2 rounded-xl border border-emerald-700 bg-emerald-600/90 text-white hover:bg-emerald-700"
+                    disabled={!canEdit}
+                  >
+                    Valida giornata
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={handlePrint}
-                  className="px-3 py-2 rounded-xl border border-sky-700 bg-sky-600/90 text-white hover:bg-sky-700"
-                  title="Stampa A4 orizzontale (stessa pagina)"
-                >
-                  Export / Print
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    onClick={handlePrint}
+                    className="px-3 py-2 rounded-xl border border-sky-700 bg-sky-600/90 text-white hover:bg-sky-700"
+                    title="Export / Print (solo foglio rapportino)"
+                  >
+                    Export / Print
+                  </button>
+                </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setCatOpen(true)}
-                  disabled={!canOpenCatalog}
-                  className={cn(
-                    "px-3 py-2 rounded-xl border text-[12px] font-semibold",
-                    !canOpenCatalog
-                      ? "border-slate-200 bg-slate-50 text-slate-300 cursor-not-allowed"
-                      : "border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-900"
-                  )}
-                  title={
-                    !canOpenCatalog
-                      ? "Imposta Commessa (e contesto Ship) per usare il Catalogo"
-                      : "Apri Catalogo (Ship + Commessa)"
-                  }
-                >
-                  Catalogo
-                </button>
+                {/* Secondary actions (RIGHT ALWAYS) */}
+                <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                  {/* ✅ Un seul bouton INCA: ici */}
+                  {showIncaBlock ? (
+                    <button
+                      type="button"
+                      className={incaBtnClass(!canEditInca)}
+                      style={incaBtnStyle(!canEditInca)}
+                      onClick={() => setIncaOpen((v) => !v)}
+                      disabled={!canEditInca}
+                      title={!canEditInca ? "Salva prima per attivare INCA" : "Apri/chiudi INCA Cockpit"}
+                    >
+                      <span className="inline-block h-2 w-2 rounded-full bg-slate-200/80" />
+                      INCA · COCKPIT
+                    </button>
+                  ) : null}
+
+                  <button
+                    type="button"
+                    onClick={() => setCatOpen(true)}
+                    disabled={!canOpenCatalog}
+                    className={cn(
+                      "px-3 py-2 rounded-xl border text-[12px] font-semibold",
+                      !canOpenCatalog
+                        ? "border-slate-200 bg-slate-50 text-slate-300 cursor-not-allowed"
+                        : "border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-900"
+                    )}
+                    title={!canOpenCatalog ? "Imposta Commessa (e contesto Ship) per usare il Catalogo" : "Apri Catalogo"}
+                  >
+                    Catalogo
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -612,7 +712,10 @@ export default function RapportinoPage() {
         open={opOpen}
         rowIndex={opRowIndex}
         selectedOperatorIds={selectedIdsForModal}
-        onClose={closeOperatorPicker}
+        onClose={() => {
+          setOpOpen(false);
+          setOpRowIndex(null);
+        }}
         onToggleOperator={(op, action) => {
           if (opRowIndex == null) return;
           if (!canEdit) return;
@@ -624,10 +727,13 @@ export default function RapportinoPage() {
         open={tmOpen}
         rowIndex={tmRowIndex}
         items={currentTempoItems}
-        onClose={closeTempoPicker}
+        onClose={() => {
+          setTmOpen(false);
+          setTmRowIndex(null);
+        }}
         onSetTempoForLine={(lineIndex, tempoRaw) => {
           if (tmRowIndex == null) return;
-          const row = rows[tmRowIndex];
+          const row = visibleRows[tmRowIndex];
           if (isRowCanonical(row)) {
             setCanonicalTempoForLine({ setRows }, tmRowIndex, lineIndex, tempoRaw);
           } else {
@@ -637,7 +743,6 @@ export default function RapportinoPage() {
         onRemoveOperator={(operatorId) => {
           if (tmRowIndex == null) return;
           if (!canEdit) return;
-          // Only meaningful for canonical; legacy operatorId is empty
           if (!operatorId) return;
           handleRemoveOperatorFromRow(tmRowIndex, operatorId);
         }}

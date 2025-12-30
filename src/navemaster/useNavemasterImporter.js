@@ -1,4 +1,4 @@
-// src/navemaster/useNavemasterImporter.js
+// /src/navemaster/useNavemasterImporter.js
 // Solution B: importer NAVEMASTER via backend non-edge (Netlify Function).
 //
 // Flow:
@@ -37,8 +37,7 @@ async function uploadToStorage({ bucket, shipId, file }) {
   const { error } = await supabase.storage.from(bucket).upload(path, file, {
     upsert: true,
     contentType:
-      file?.type ||
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      file?.type || "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
 
   if (error) throw error;

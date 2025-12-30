@@ -1,4 +1,4 @@
-// src/components/rapportino/RapportinoTable.jsx
+// /src/components/rapportino/RapportinoTable.jsx
 import React, { useMemo } from "react";
 import { formatPrevisto } from "../../rapportinoUtils";
 import { splitLinesKeepEmpties } from "../rapportino/page/rapportinoHelpers";
@@ -33,6 +33,19 @@ function hasAnyOperatorValueLegacy(v) {
   return s.split("\n").some((x) => String(x || "").trim().length > 0);
 }
 
+function readDroppedOperator(e) {
+  try {
+    const name = e.dataTransfer.getData("text/core-operator-name");
+    const id = e.dataTransfer.getData("text/core-operator-id");
+    const nm = String(name || "").trim();
+    const opId = String(id || "").trim();
+    if (!nm) return null;
+    return { id: opId || null, name: nm };
+  } catch {
+    return null;
+  }
+}
+
 export default function RapportinoTable({
   rows,
   onRowChange,
@@ -41,6 +54,7 @@ export default function RapportinoTable({
   readOnly = false,
   onOpenOperatorPicker,
   onOpenTempoPicker,
+  onDropOperatorToRow, // (rowIndex, {id,name}) => void
 }) {
   const ro = readOnly || !onRowChange;
 
@@ -49,10 +63,6 @@ export default function RapportinoTable({
       const items = Array.isArray(r?.operator_items) ? r.operator_items : [];
       return items.length > 0;
     });
-  }, [rows]);
-
-  const catalogLockedByIdx = useMemo(() => {
-    return rows.map((r) => !!r?.activity_id);
   }, [rows]);
 
   return (
@@ -65,7 +75,7 @@ export default function RapportinoTable({
 
             <th className="px-2 py-2 text-left w-[260px]">
               OPERATORE
-              <div className="text-[10px] text-slate-500 font-normal">(tap per scegliere)</div>
+              <div className="text-[10px] text-slate-500 font-normal">(tap per scegliere / drag&drop)</div>
             </th>
 
             <th className="px-2 py-2 text-center w-[140px]">
@@ -88,47 +98,43 @@ export default function RapportinoTable({
         <tbody>
           {rows.map((r, idx) => {
             const isCanonical = canonicalByIdx[idx];
-            const isCatalogLocked = catalogLockedByIdx[idx];
-            const cellDisabled = ro || isCatalogLocked;
+
+            // ENFORCEMENT: colonnes Catalog = non éditables (même si pas activity_id)
+            const catalogColsLocked = true;
 
             const opLines = splitLinesKeepEmpties(r.operatori);
-            const tmLines = splitLinesKeepEmpties(r.tempo);
-
             const canonItems = Array.isArray(r.operator_items) ? r.operator_items : [];
             const legacyHasOps = hasAnyOperatorValueLegacy(r.operatori);
 
-            const mismatch = false; // mismatch strict is no longer the primary signal in table (modal handles it)
             const hasOperators = isCanonical ? canonItems.length > 0 : legacyHasOps;
             const hasValues = hasNonZeroNumber(r.previsto) || hasNonZeroNumber(r.prodotto) || hasAnyTempoValue(r.tempo);
             const isIncomplete = hasOperators !== hasValues;
 
-            const tempoPillEnabled = !ro && hasOperators; // only open picker if there are operators
+            const tempoPillEnabled = !ro && hasOperators;
 
             return (
               <tr key={r.id || idx} className="align-top" data-ot-wrap>
-                {/* CATEGORIA */}
+                {/* CATEGORIA (LOCKED) */}
                 <td className="px-2 py-2">
                   <div className="flex items-start gap-2">
                     <input
-                      className={cn("w-full bg-transparent outline-none", cellDisabled ? "opacity-80 cursor-not-allowed" : "")}
+                      className={cn("w-full bg-transparent outline-none", "opacity-90 cursor-not-allowed")}
                       value={r.categoria || ""}
-                      onChange={cellDisabled ? undefined : (e) => onRowChange(idx, "categoria", e.target.value)}
-                      disabled={cellDisabled}
-                      readOnly={cellDisabled}
-                      title={isCatalogLocked ? "Categoria bloccata: proviene dal Catalogo" : undefined}
+                      onChange={undefined}
+                      disabled={true}
+                      readOnly={true}
+                      title="Colonna gestita dal Catalogo"
                     />
-                    {isCatalogLocked ? (
-                      <span
-                        className="no-print inline-flex items-center rounded-full border border-slate-300 bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-700"
-                        title="Riga collegata al Catalogo"
-                      >
-                        C
-                      </span>
-                    ) : null}
+                    <span
+                      className="no-print inline-flex items-center rounded-full border border-slate-300 bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-700"
+                      title="Catalogo"
+                    >
+                      C
+                    </span>
                     {!ro && isIncomplete ? (
                       <span
                         className="no-print inline-flex items-center rounded-full border border-amber-300 bg-amber-100 px-2 py-1 text-[10px] font-semibold text-amber-900"
-                        title="Riga incompleta: aggiungi operatori oppure compila previsto/prodotto/tempo"
+                        title="Riga incompleta: aggiungi operatori oppure compila prodotto/tempo"
                       >
                         !
                       </span>
@@ -136,40 +142,48 @@ export default function RapportinoTable({
                   </div>
                 </td>
 
-                {/* DESCRIZIONE */}
+                {/* DESCRIZIONE (LOCKED) */}
                 <td className="px-2 py-2">
                   <input
-                    className={cn("w-full bg-transparent outline-none", cellDisabled ? "opacity-80 cursor-not-allowed" : "")}
+                    className={cn("w-full bg-transparent outline-none", "opacity-90 cursor-not-allowed")}
                     value={r.descrizione || ""}
-                    onChange={cellDisabled ? undefined : (e) => onRowChange(idx, "descrizione", e.target.value)}
-                    disabled={cellDisabled}
-                    readOnly={cellDisabled}
-                    title={isCatalogLocked ? "Descrizione bloccata: proviene dal Catalogo" : undefined}
+                    onChange={undefined}
+                    disabled={true}
+                    readOnly={true}
+                    title="Colonna gestita dal Catalogo"
                   />
                 </td>
 
-                {/* OPERATORE */}
+                {/* OPERATORE (CLICK + DROP) */}
                 <td className="px-2 py-2">
                   {isCanonical ? (
                     <>
-                      <div
+                      <button
+                        type="button"
                         className={cn(
-                          "no-print w-full rounded-md border border-slate-200 bg-white/70 px-2 py-2",
-                          ro ? "opacity-80 cursor-not-allowed" : "cursor-pointer hover:bg-slate-50"
+                          "no-print w-full rounded-md border border-slate-200 bg-white/70 px-2 py-2 text-left",
+                          ro ? "opacity-80 cursor-not-allowed" : "cursor-pointer hover:bg-slate-50",
+                          !ro ? "focus:outline-none focus:ring-2 focus:ring-sky-500/35" : ""
                         )}
-                        role={ro ? undefined : "button"}
-                        tabIndex={ro ? -1 : 0}
-                        title={ro ? undefined : "Tocca per scegliere…"}
+                        disabled={ro}
+                        title={ro ? undefined : "Tocca per scegliere… o trascina un operatore qui"}
                         onClick={() => {
                           if (ro) return;
                           onOpenOperatorPicker?.(idx);
                         }}
-                        onKeyDown={(e) => {
+                        onDragOver={(e) => {
                           if (ro) return;
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            onOpenOperatorPicker?.(idx);
-                          }
+                          e.preventDefault();
+                          try {
+                            e.dataTransfer.dropEffect = "copy";
+                          } catch {}
+                        }}
+                        onDrop={(e) => {
+                          if (ro) return;
+                          e.preventDefault();
+                          const dropped = readDroppedOperator(e);
+                          if (!dropped) return;
+                          onDropOperatorToRow?.(idx, dropped);
                         }}
                       >
                         <div className="flex flex-wrap gap-2">
@@ -192,8 +206,8 @@ export default function RapportinoTable({
                                       className="rounded-full border border-slate-200 w-6 h-6 inline-flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-50"
                                       title="Rimuovi operatore"
                                       aria-label={`Rimuovi ${label}`}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
+                                      onClick={(ev) => {
+                                        ev.stopPropagation();
                                         if (!operatorId) return;
                                         onRemoveOperatorFromRow?.(idx, operatorId);
                                       }}
@@ -206,16 +220,19 @@ export default function RapportinoTable({
                             })
                           )}
                         </div>
-                      </div>
+                      </button>
+
                       <div className="print-only">
                         <PrintText value={r.operatori} />
                       </div>
                     </>
                   ) : (
                     <>
-                      {/* Legacy: keep simple multiline display; operator selection in legacy is text-based */}
+                      {/* Legacy (si te reste encore): affichage simple */}
                       <div className="no-print w-full rounded-md border border-slate-200 bg-white/60 px-2 py-2 text-[12px] text-slate-900 whitespace-pre-wrap">
-                        {prettyMultiline(r.operatori) ? prettyMultiline(r.operatori) : (
+                        {prettyMultiline(r.operatori) ? (
+                          prettyMultiline(r.operatori)
+                        ) : (
                           <span className="text-slate-400">Nomi operatori (uno per riga)</span>
                         )}
                       </div>
@@ -226,7 +243,7 @@ export default function RapportinoTable({
                   )}
                 </td>
 
-                {/* TEMPO — ALWAYS ACTIONABLE (canonical + legacy) */}
+                {/* TEMPO */}
                 <td className="px-2 py-2 text-center">
                   <div
                     className={cn(
@@ -237,13 +254,7 @@ export default function RapportinoTable({
                     )}
                     role={tempoPillEnabled ? "button" : undefined}
                     tabIndex={tempoPillEnabled ? 0 : -1}
-                    title={
-                      !hasOperators
-                        ? "Prima inserisci almeno un operatore"
-                        : ro
-                        ? undefined
-                        : "Tocca per impostare le ore…"
-                    }
+                    title={!hasOperators ? "Prima inserisci almeno un operatore" : ro ? undefined : "Tocca per impostare le ore…"}
                     onClick={() => {
                       if (!tempoPillEnabled) return;
                       onOpenTempoPicker?.(idx);
@@ -259,12 +270,9 @@ export default function RapportinoTable({
                     <div className="flex items-center justify-between gap-2">
                       <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Tempo</div>
                       <div className="flex items-center gap-2">
-                        {mismatch ? (
-                          <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900">
-                            Allineamento
-                          </span>
-                        ) : null}
-                        <span className="text-[11px] text-slate-500">{hasOperators ? `${opLines.filter(x => String(x||"").trim()).length || opLines.length} op` : "0 op"}</span>
+                        <span className="text-[11px] text-slate-500">
+                          {hasOperators ? `${opLines.filter((x) => String(x || "").trim()).length || opLines.length} op` : "0 op"}
+                        </span>
                         {tempoPillEnabled ? <span className="text-[12px] text-slate-400">›</span> : null}
                       </div>
                     </div>
@@ -279,22 +287,19 @@ export default function RapportinoTable({
                   </div>
                 </td>
 
-                {/* PREVISTO */}
+                {/* PREVISTO (LOCKED) */}
                 <td className="px-2 py-2 text-right">
                   <input
-                    className={cn(
-                      "w-full bg-transparent outline-none text-right",
-                      cellDisabled ? "opacity-80 cursor-not-allowed" : ""
-                    )}
+                    className={cn("w-full bg-transparent outline-none text-right", "opacity-90 cursor-not-allowed")}
                     value={formatPrevisto(r.previsto)}
-                    onChange={cellDisabled ? undefined : (e) => onRowChange(idx, "previsto", e.target.value)}
-                    disabled={cellDisabled}
-                    readOnly={cellDisabled}
-                    title={isCatalogLocked ? "Previsto bloccato: proviene dal Catalogo" : undefined}
+                    onChange={undefined}
+                    disabled={true}
+                    readOnly={true}
+                    title="Colonna gestita dal Catalogo"
                   />
                 </td>
 
-                {/* PRODOTTO */}
+                {/* PRODOTTO (editable) */}
                 <td className="px-2 py-2 text-right">
                   <input
                     className={cn("w-full bg-transparent outline-none text-right", ro ? "opacity-80 cursor-not-allowed" : "")}
@@ -306,7 +311,7 @@ export default function RapportinoTable({
                   />
                 </td>
 
-                {/* NOTE */}
+                {/* NOTE (editable) */}
                 <td className="px-2 py-2">
                   <input
                     className={cn("w-full bg-transparent outline-none", ro ? "opacity-80 cursor-not-allowed" : "")}
@@ -336,6 +341,13 @@ export default function RapportinoTable({
           })}
         </tbody>
       </table>
+
+      {/* Guardrail visuel (catalog-only) */}
+      {!ro && rows.length === 0 ? (
+        <div className="no-print mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-[12px] text-slate-700">
+          Nessuna riga: usa <span className="font-semibold">Catalogo</span> per aggiungere attività.
+        </div>
+      ) : null}
     </div>
   );
 }
