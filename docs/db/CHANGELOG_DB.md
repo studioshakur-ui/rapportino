@@ -10,6 +10,14 @@
 - Rollback
 
 ---
+## 2025-12-31
+Author: Hamidou  
+Reason: Ajout gestion Navemaster PDF  
+Change: Added table navemaster_imports, indexes, RLS  
+Migration: 20251231__add_navemaster_imports.sql  
+Impact: Nouveau flux import PDF  
+Rollback: Drop table navemaster_imports
+
 
 ## 2025-12-30
 Author: Hamidou  

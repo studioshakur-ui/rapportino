@@ -3498,6 +3498,7 @@ CREATE TABLE IF NOT EXISTS "public"."inca_files" (
     "uploaded_by" "uuid",
     "uploaded_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "file_path" "text",
+    "ship_id" "uuid",
     CONSTRAINT "inca_files_file_type_check" CHECK (("file_type" = ANY (ARRAY['PDF'::"text", 'XLSX'::"text"])))
 );
 
@@ -5146,6 +5147,67 @@ CREATE TABLE IF NOT EXISTS "public"."impianto_capi" (
 ALTER TABLE "public"."impianto_capi" OWNER TO "postgres";
 
 
+CREATE OR REPLACE VIEW "public"."inca_latest_file_by_ship_v1" AS
+ SELECT DISTINCT ON ("ship_id") "ship_id",
+    "id" AS "inca_file_id",
+    "uploaded_at"
+   FROM "public"."inca_files" "f"
+  WHERE ("ship_id" IS NOT NULL)
+  ORDER BY "ship_id", "uploaded_at" DESC NULLS LAST, "id" DESC;
+
+
+ALTER VIEW "public"."inca_latest_file_by_ship_v1" OWNER TO "postgres";
+
+
+CREATE OR REPLACE VIEW "public"."inca_cavi_live_by_ship_v1" AS
+ SELECT "lf"."ship_id",
+    "c"."id",
+    "c"."inca_file_id",
+    "c"."costr",
+    "c"."commessa",
+    "c"."codice",
+    "c"."descrizione",
+    "c"."impianto",
+    "c"."tipo",
+    "c"."sezione",
+    "c"."zona_da",
+    "c"."zona_a",
+    "c"."apparato_da",
+    "c"."apparato_a",
+    "c"."descrizione_da",
+    "c"."descrizione_a",
+    "c"."metri_teo",
+    "c"."metri_dis",
+    "c"."metri_sit_cavo",
+    "c"."metri_sit_tec",
+    "c"."pagina_pdf",
+    "c"."rev_inca",
+    "c"."stato_inca",
+    "c"."created_at",
+    "c"."updated_at",
+    "c"."situazione",
+    "c"."from_file_id",
+    "c"."metri_previsti",
+    "c"."metri_posati_teorici",
+    "c"."metri_totali",
+    "c"."marca_cavo",
+    "c"."livello",
+    "c"."metri_sta",
+    "c"."stato_tec",
+    "c"."stato_cantiere",
+    "c"."situazione_cavo",
+    "c"."livello_disturbo",
+    "c"."wbs",
+    "c"."codice_inca",
+    "c"."progress_percent",
+    "c"."progress_side"
+   FROM ("public"."inca_latest_file_by_ship_v1" "lf"
+     JOIN "public"."inca_cavi" "c" ON (("c"."inca_file_id" = "lf"."inca_file_id")));
+
+
+ALTER VIEW "public"."inca_cavi_live_by_ship_v1" OWNER TO "postgres";
+
+
 CREATE OR REPLACE VIEW "public"."inca_cavi_with_data_posa_v1" AS
  WITH "posed" AS (
          SELECT "ric"."inca_cavo_id",
@@ -6275,6 +6337,41 @@ CREATE TABLE IF NOT EXISTS "public"."navemaster_imports" (
 ALTER TABLE "public"."navemaster_imports" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."navemaster_inca_alerts" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "ship_id" "uuid" NOT NULL,
+    "inca_file_id" "uuid" NOT NULL,
+    "marcacavo" "text" NOT NULL,
+    "navemaster_state" "text",
+    "inca_state" "text",
+    "rule" "text" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."navemaster_inca_alerts" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."navemaster_inca_diff" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "ship_id" "uuid" NOT NULL,
+    "inca_file_id" "uuid" NOT NULL,
+    "marcacavo" "text" NOT NULL,
+    "nav_status" "text",
+    "inca_status_prev" "text",
+    "inca_status_new" "text",
+    "match_prev" boolean,
+    "match_new" boolean,
+    "severity" "text" NOT NULL,
+    "rule" "text" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "navemaster_inca_diff_severity_check" CHECK (("severity" = ANY (ARRAY['CRITICAL'::"text", 'MAJOR'::"text", 'INFO'::"text"])))
+);
+
+
+ALTER TABLE "public"."navemaster_inca_diff" OWNER TO "postgres";
+
+
 CREATE OR REPLACE VIEW "public"."navemaster_latest_import_v1" AS
  SELECT "id",
     "ship_id",
@@ -6344,7 +6441,7 @@ CREATE OR REPLACE VIEW "public"."navemaster_live_v1" AS
     "ic"."updated_at" AS "inca_updated_at"
    FROM (("public"."navemaster_latest_import_v1" "nm"
      JOIN "public"."navemaster_rows" "r" ON (("r"."navemaster_import_id" = "nm"."id")))
-     LEFT JOIN "public"."inca_cavi" "ic" ON (("ic"."codice" = "r"."marcacavo")));
+     LEFT JOIN "public"."inca_cavi_live_by_ship_v1" "ic" ON ((("ic"."ship_id" = "nm"."ship_id") AND ("ic"."codice" = "r"."marcacavo"))));
 
 
 ALTER VIEW "public"."navemaster_live_v1" OWNER TO "postgres";
@@ -6796,6 +6893,16 @@ ALTER TABLE ONLY "public"."navemaster_imports"
 
 
 
+ALTER TABLE ONLY "public"."navemaster_inca_alerts"
+    ADD CONSTRAINT "navemaster_inca_alerts_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."navemaster_inca_diff"
+    ADD CONSTRAINT "navemaster_inca_diff_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."navemaster_rows"
     ADD CONSTRAINT "navemaster_rows_pkey" PRIMARY KEY ("id");
 
@@ -7116,6 +7223,10 @@ CREATE INDEX "inca_files_project_idx" ON "public"."inca_files" USING "btree" ("c
 
 
 
+CREATE INDEX "inca_files_ship_id_idx" ON "public"."inca_files" USING "btree" ("ship_id");
+
+
+
 CREATE INDEX "inca_percorsi_cavo_ordine_idx" ON "public"."inca_percorsi" USING "btree" ("inca_cavo_id", "ordine");
 
 
@@ -7169,6 +7280,18 @@ CREATE INDEX "navemaster_imports_ship_active_idx" ON "public"."navemaster_import
 
 
 CREATE INDEX "navemaster_imports_ship_idx" ON "public"."navemaster_imports" USING "btree" ("ship_id");
+
+
+
+CREATE INDEX "navemaster_inca_alerts_ship_idx" ON "public"."navemaster_inca_alerts" USING "btree" ("ship_id", "created_at" DESC);
+
+
+
+CREATE INDEX "navemaster_inca_diff_inca_idx" ON "public"."navemaster_inca_diff" USING "btree" ("inca_file_id");
+
+
+
+CREATE INDEX "navemaster_inca_diff_ship_idx" ON "public"."navemaster_inca_diff" USING "btree" ("ship_id", "created_at" DESC);
 
 
 
@@ -7672,6 +7795,11 @@ ALTER TABLE ONLY "public"."inca_cavi"
 
 
 ALTER TABLE ONLY "public"."inca_files"
+    ADD CONSTRAINT "inca_files_ship_id_fkey" FOREIGN KEY ("ship_id") REFERENCES "public"."ships"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."inca_files"
     ADD CONSTRAINT "inca_files_uploaded_by_fkey" FOREIGN KEY ("uploaded_by") REFERENCES "public"."profiles"("id") ON DELETE SET NULL;
 
 
@@ -7728,6 +7856,26 @@ ALTER TABLE ONLY "public"."navemaster_imports"
 
 ALTER TABLE ONLY "public"."navemaster_imports"
     ADD CONSTRAINT "navemaster_imports_ship_id_fkey" FOREIGN KEY ("ship_id") REFERENCES "public"."ships"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."navemaster_inca_alerts"
+    ADD CONSTRAINT "navemaster_inca_alerts_inca_file_id_fkey" FOREIGN KEY ("inca_file_id") REFERENCES "public"."inca_files"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."navemaster_inca_alerts"
+    ADD CONSTRAINT "navemaster_inca_alerts_ship_id_fkey" FOREIGN KEY ("ship_id") REFERENCES "public"."ships"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."navemaster_inca_diff"
+    ADD CONSTRAINT "navemaster_inca_diff_inca_file_id_fkey" FOREIGN KEY ("inca_file_id") REFERENCES "public"."inca_files"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."navemaster_inca_diff"
+    ADD CONSTRAINT "navemaster_inca_diff_ship_id_fkey" FOREIGN KEY ("ship_id") REFERENCES "public"."ships"("id") ON DELETE CASCADE;
 
 
 
@@ -9855,6 +10003,18 @@ GRANT ALL ON TABLE "public"."impianto_capi" TO "service_role";
 
 
 
+GRANT ALL ON TABLE "public"."inca_latest_file_by_ship_v1" TO "anon";
+GRANT ALL ON TABLE "public"."inca_latest_file_by_ship_v1" TO "authenticated";
+GRANT ALL ON TABLE "public"."inca_latest_file_by_ship_v1" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."inca_cavi_live_by_ship_v1" TO "anon";
+GRANT ALL ON TABLE "public"."inca_cavi_live_by_ship_v1" TO "authenticated";
+GRANT ALL ON TABLE "public"."inca_cavi_live_by_ship_v1" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."inca_cavi_with_data_posa_v1" TO "anon";
 GRANT ALL ON TABLE "public"."inca_cavi_with_data_posa_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."inca_cavi_with_data_posa_v1" TO "service_role";
@@ -10068,6 +10228,18 @@ GRANT ALL ON SEQUENCE "public"."models_id_seq" TO "service_role";
 GRANT ALL ON TABLE "public"."navemaster_imports" TO "anon";
 GRANT ALL ON TABLE "public"."navemaster_imports" TO "authenticated";
 GRANT ALL ON TABLE "public"."navemaster_imports" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."navemaster_inca_alerts" TO "anon";
+GRANT ALL ON TABLE "public"."navemaster_inca_alerts" TO "authenticated";
+GRANT ALL ON TABLE "public"."navemaster_inca_alerts" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."navemaster_inca_diff" TO "anon";
+GRANT ALL ON TABLE "public"."navemaster_inca_diff" TO "authenticated";
+GRANT ALL ON TABLE "public"."navemaster_inca_diff" TO "service_role";
 
 
 
