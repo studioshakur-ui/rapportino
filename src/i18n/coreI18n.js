@@ -1,65 +1,97 @@
-// src/utils/formatHuman.js
+// src/i18n/coreI18n.js
+//
+// Compatibility layer (minimal-diff).
+// Legacy modules still import:
+//   - useCoreI18n()
+//   - t(lang, key)
+//   - LANGS, getInitialLang, setLangStorage
+//
+// Canonical source remains I18nProvider/useI18n,
+// but this file must keep legacy exports to avoid breaking Direzione/Admin.
 
-function safeStr(v) {
-  return (v ?? "").toString().trim();
-}
+import { useI18n, LANGS, getInitialLang, setLangStorage } from "./I18nProvider";
+
+export { LANGS, getInitialLang, setLangStorage };
 
 /**
- * Title Case “humain” robuste (espaces multiples, tirets, apostrophes).
- * - "maiga" -> "Maiga"
- * - "hamidou maiga" -> "Hamidou Maiga"
- * - "di marco" -> "Di Marco"
- * - "d'amico" -> "D'Amico"
- * - "jean-luc" -> "Jean-Luc"
+ * Legacy hook still used by Direzione pages.
+ * Maps directly to the canonical provider.
  */
-export function formatHumanName(input) {
-  const raw = safeStr(input);
-  if (!raw) return "";
+export function useCoreI18n() {
+  return useI18n();
+}
 
-  // keep email as-is (people prefer exact address)
-  if (raw.includes("@")) return raw;
+/* ------------------------------------------------------------------ */
+/* Legacy t(lang, key) export                                            */
+/* ------------------------------------------------------------------ */
 
-  const words = raw
-    .replace(/\s+/g, " ")
+const LEGACY_DICT = {
+  it: {
+    LANG: "Lingua",
+    LOGOUT: "Logout",
+    APP_LOADING_PROFILE: "Caricamento profilo…",
+
+    APP_RAPPORTINO: "Rapportino",
+    APP_CORE_DRIVE: "CORE Drive",
+    APP_KPI_OPERATORI: "KPI Operatori",
+
+    NAV_DASHBOARD: "Dashboard",
+    NAV_ASSIGNMENTS: "Assegnazioni",
+    NAV_CORE_DRIVE: "CORE Drive",
+    NAV_ANALYTICS: "Analytics",
+  },
+  fr: {
+    LANG: "Langue",
+    LOGOUT: "Déconnexion",
+    APP_LOADING_PROFILE: "Chargement du profil…",
+
+    APP_RAPPORTINO: "Rapportino",
+    APP_CORE_DRIVE: "CORE Drive",
+    APP_KPI_OPERATORI: "KPI Opérateurs",
+
+    NAV_DASHBOARD: "Tableau de bord",
+    NAV_ASSIGNMENTS: "Affectations",
+    NAV_CORE_DRIVE: "CORE Drive",
+    NAV_ANALYTICS: "Analytique",
+  },
+  en: {
+    LANG: "Language",
+    LOGOUT: "Logout",
+    APP_LOADING_PROFILE: "Loading profile…",
+
+    APP_RAPPORTINO: "Rapportino",
+    APP_CORE_DRIVE: "CORE Drive",
+    APP_KPI_OPERATORI: "Operator KPI",
+
+    NAV_DASHBOARD: "Dashboard",
+    NAV_ASSIGNMENTS: "Assignments",
+    NAV_CORE_DRIVE: "CORE Drive",
+    NAV_ANALYTICS: "Analytics",
+  },
+};
+
+function safeStr(x) {
+  return (x ?? "").toString();
+}
+
+function prettifyKey(key) {
+  const s = safeStr(key).trim();
+  if (!s) return "—";
+  return s
+    .replace(/[_]+/g, " ")
     .toLowerCase()
-    .split(" ")
-    .filter(Boolean);
-
-  const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
-
-  const formatToken = (token) => {
-    // handle hyphenated names: "jean-luc"
-    if (token.includes("-")) {
-      return token
-        .split("-")
-        .filter(Boolean)
-        .map((p) => formatToken(p))
-        .join("-");
-    }
-
-    // handle apostrophes: "d'amico"
-    if (token.includes("'")) {
-      const parts = token.split("'").filter((p) => p !== "");
-      if (parts.length === 0) return token;
-      return parts.map((p, i) => (i === 0 ? cap(p) : cap(p))).join("'");
-    }
-
-    return cap(token);
-  };
-
-  return words.map(formatToken).join(" ");
+    .replace(/\b[a-z]/g, (m) => m.toUpperCase());
 }
 
 /**
- * For profiles (Supabase Auth / profiles table).
+ * Legacy function signature used by Admin/Direzione:
+ * t(lang, "KEY") -> string
  */
-export function formatDisplayName(profile, fallback = "User") {
-  const raw =
-    profile?.display_name ||
-    profile?.full_name ||
-    profile?.email ||
-    fallback;
+export function t(lang, key) {
+  const L = LANGS.includes(lang) ? lang : "it";
+  const k = safeStr(key).trim();
+  if (!k) return "—";
 
-  const out = formatHumanName(raw);
-  return out || fallback;
+  const dict = LEGACY_DICT[L] || LEGACY_DICT.it;
+  return dict[k] ?? (LEGACY_DICT.it[k] ?? prettifyKey(k));
 }

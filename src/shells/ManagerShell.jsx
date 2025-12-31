@@ -1,13 +1,15 @@
-// src/ManagerShell.jsx
-import React, { useEffect, useMemo, useState } from "react";
+// src/shells/ManagerShell.jsx
+import React, { useMemo } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthProvider";
 import ConnectionIndicator from "../components/ConnectionIndicator";
 import CNCSSidebar from "../components/shell/CNCSSidebar";
 import CNCSTopbar from "../components/shell/CNCSTopbar";
+import LangSwitcher from "../components/shell/LangSwitcher";
 
-import { getInitialLang, setLangStorage, t } from "../i18n/coreI18n";
+import { useI18n } from "../i18n/I18nProvider";
+import { formatDisplayName } from "../utils/formatHuman";
 
 function cn(...parts) {
   return parts.filter(Boolean).join(" ");
@@ -17,16 +19,12 @@ export default function ManagerShell() {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { lang, t } = useI18n();
 
   const isDark = true;
-  const [lang, setLang] = useState(getInitialLang);
-
-  useEffect(() => {
-    setLangStorage(lang);
-  }, [lang]);
 
   const displayName = useMemo(() => {
-    return profile?.display_name || profile?.email || "Manager";
+    return formatDisplayName(profile, "Manager");
   }, [profile]);
 
   const handleLogout = async () => {
@@ -39,19 +37,19 @@ export default function ManagerShell() {
 
   const pathname = location.pathname || "";
   const pageTitle = pathname.startsWith("/manager/assegnazioni")
-    ? t(lang, "NAV_ASSIGNMENTS")
+    ? t("NAV_ASSIGNMENTS")
     : pathname.startsWith("/manager/drive")
-    ? t(lang, "NAV_CORE_DRIVE")
+    ? t("NAV_CORE_DRIVE")
     : pathname.startsWith("/manager/analytics")
-    ? t(lang, "NAV_ANALYTICS")
+    ? t("NAV_ANALYTICS")
     : pathname.startsWith("/manager/kpi-operatori")
-    ? "KPI Operatori"
-    : t(lang, "NAV_DASHBOARD");
+    ? t("APP_KPI_OPERATORI")
+    : t("NAV_DASHBOARD");
 
   if (!profile) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-400">
-        Caricamento profilo Manager…
+        {t("APP_LOADING_PROFILE")}
       </div>
     );
   }
@@ -67,32 +65,32 @@ export default function ManagerShell() {
           navItems={[
             {
               to: "/manager",
-              label: t(lang, "NAV_DASHBOARD"),
+              label: t("NAV_DASHBOARD"),
               icon: "dashboard",
               colorClass: "text-sky-400",
               end: true,
             },
             {
               to: "/manager/assegnazioni",
-              label: t(lang, "NAV_ASSIGNMENTS"),
+              label: t("NAV_ASSIGNMENTS"),
               icon: "users",
               colorClass: "text-emerald-400",
             },
             {
               to: "/manager/drive",
-              label: t(lang, "NAV_CORE_DRIVE"),
+              label: t("NAV_CORE_DRIVE"),
               icon: "archive",
               colorClass: "text-violet-400",
             },
             {
               to: "/manager/analytics",
-              label: t(lang, "NAV_ANALYTICS"),
+              label: t("NAV_ANALYTICS"),
               icon: "chart",
               colorClass: "text-amber-400",
             },
             {
               to: "/manager/kpi-operatori",
-              label: "KPI Operatori",
+              label: t("APP_KPI_OPERATORI"),
               icon: "chart",
               colorClass: "text-emerald-400",
             },
@@ -105,18 +103,34 @@ export default function ManagerShell() {
             kickerLeft="CNCS · Manager"
             title={pageTitle}
             right={
-              <>
+              <div className="flex items-center gap-2">
                 <ConnectionIndicator compact />
-                <span className="px-3 py-1.5 rounded-full border text-[11px] uppercase tracking-[0.18em] border-slate-800 bg-slate-950/20">
+                <div className="hidden sm:block">
+                  <LangSwitcher compact />
+                </div>
+
+                {/* ✅ Human name: NEVER uppercase */}
+                <span
+                  className={[
+                    "px-3 py-1.5 rounded-full border text-[11px]",
+                    "border-slate-800 bg-slate-950/20 text-slate-200",
+                    "normal-case tracking-normal",
+                    "max-w-[220px] truncate",
+                  ].join(" ")}
+                  title={displayName}
+                >
                   {displayName}
                 </span>
+
                 <button
                   onClick={handleLogout}
                   className="ml-2 px-3 py-1.5 rounded-full border border-rose-500/60 bg-rose-950/15 text-rose-200 text-[11px] uppercase tracking-[0.18em]"
+                  title={t("LOGOUT")}
+                  aria-label={t("LOGOUT")}
                 >
-                  Logout
+                  {t("LOGOUT")}
                 </button>
-              </>
+              </div>
             }
           />
 

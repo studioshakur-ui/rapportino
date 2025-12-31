@@ -221,7 +221,7 @@ export default function IdleSessionManager({
           await onLogout(reason);
         }
       } finally {
-        // Even if onLogout throws, we keep the component in a locked state
+        // locked
       }
     },
     [broadcast, clearWarningOwner, closeWarning, doBeforeLogout, onLogout]
@@ -233,7 +233,7 @@ export default function IdleSessionManager({
 
       // Throttle writes/broadcasts (avoid spam on mousemove/scroll)
       const lastB = lastBroadcastAtRef.current;
-      if (t - lastB < 4000 && source !== "extend") {
+      if (t - lastB < 4000 && source !== "extend" && source !== "bootstrap") {
         return;
       }
       lastBroadcastAtRef.current = t;
@@ -259,11 +259,11 @@ export default function IdleSessionManager({
         await onExtend();
       }
     } catch {
-      // ignore: the activity bump already refreshed local timers; auth refresh may still fail
+      // ignore
     } finally {
       closeWarning();
       clearWarningOwner();
-      broadcast({ type: "extend" });
+      broadcast({ type: "extend", at: nowMs() });
     }
   }, [bumpActivity, broadcast, clearWarningOwner, closeWarning, onExtend]);
 
@@ -276,15 +276,25 @@ export default function IdleSessionManager({
     if (!enabled) return;
 
     const existing = readLastActivityAt();
+    const now = nowMs();
+
+    // ✅ Critical fix:
+    // If stored activity timestamp is stale (older than logoutAfterMs),
+    // reset it on mount to avoid immediate logout after a new login.
     if (existing > 0) {
-      lastActivityAtRef.current = existing;
+      const idle = now - existing;
+      if (idle >= logoutAfterMs) {
+        writeLastActivityAt(now);
+        broadcast({ type: "activity", source: "bootstrap", at: now });
+      } else {
+        lastActivityAtRef.current = existing;
+      }
     } else {
-      const t = nowMs();
-      writeLastActivityAt(t);
-      broadcast({ type: "activity", source: "bootstrap", at: t });
+      writeLastActivityAt(now);
+      broadcast({ type: "activity", source: "bootstrap", at: now });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled]);
+  }, [enabled, logoutAfterMs]);
 
   // Setup multi-tab channel + storage events
   useEffect(() => {
@@ -305,7 +315,6 @@ export default function IdleSessionManager({
         const cur = lastActivityAtRef.current || readLastActivityAt();
         if (at > cur) {
           writeLastActivityAt(at);
-          // If we were warning, close (activity happened elsewhere)
           if (warningOpenRef.current) {
             closeWarning();
           }
@@ -313,7 +322,6 @@ export default function IdleSessionManager({
       }
 
       if (msg.type === "extend") {
-        // Treat as activity
         const at = Number(msg.at) || nowMs();
         const cur = lastActivityAtRef.current || readLastActivityAt();
         if (at > cur) writeLastActivityAt(at);
@@ -322,7 +330,6 @@ export default function IdleSessionManager({
       }
 
       if (msg.type === "logout") {
-        // Hard logout across tabs
         doLogout(msg.reason || "logout_from_other_tab");
       }
     };
@@ -387,7 +394,6 @@ export default function IdleSessionManager({
     const onScroll = () => bumpActivity("scroll");
 
     const onVisibility = () => {
-      // When tab becomes visible again, treat as activity (user “returned”)
       if (document.visibilityState === "visible") {
         bumpActivity("visibility");
       }
@@ -432,7 +438,6 @@ export default function IdleSessionManager({
       // Warning window
       const shouldWarn = idle >= warnAfterMs && idle < logoutAfterMs;
 
-      // Only show warning when this tab is visible (avoids “ghost” modals)
       const visible = document.visibilityState === "visible";
 
       if (shouldWarn && visible && !warningOpenRef.current) {
@@ -443,13 +448,11 @@ export default function IdleSessionManager({
         }
       }
 
-      // If activity happened (idle < warnAfterMs), ensure modal is closed
       if (!shouldWarn && warningOpenRef.current) {
         closeWarning();
         clearWarningOwner();
       }
 
-      // Keep countdown in sync even if modal is not open
       setRemainingMs(remaining);
     };
 
@@ -473,7 +476,6 @@ export default function IdleSessionManager({
 
   if (!enabled) return null;
 
-  // UI
   const mmss = useMemo(() => {
     const totalSec = Math.max(0, Math.ceil(remainingMs / 1000));
     const m = String(Math.floor(totalSec / 60)).padStart(2, "0");

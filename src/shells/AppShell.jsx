@@ -11,6 +11,7 @@ import ConnectionIndicator from "../components/ConnectionIndicator";
 import CNCSSidebar from "../components/shell/CNCSSidebar";
 import CNCSTopbar from "../components/shell/CNCSTopbar";
 import LangSwitcher from "../components/shell/LangSwitcher";
+
 import { useI18n } from "../i18n/I18nProvider";
 import { formatDisplayName } from "../utils/formatHuman";
 
@@ -80,9 +81,11 @@ export default function AppShell() {
     }
   };
 
-  /* ───────────────────────── Display name (Title Case) ───────────────────────── */
+  /* ───────────────────────── Display name (human-normalized) ───────────────────────── */
 
-  const displayName = useMemo(() => formatDisplayName(profile, "Capo"), [profile]);
+  const displayName = useMemo(() => {
+    return formatDisplayName(profile, "Capo");
+  }, [profile]);
 
   if (!profile) {
     return (
@@ -191,7 +194,7 @@ export default function AppShell() {
                       <LangSwitcher compact />
                     </div>
 
-                    {/* User name — Title Case */}
+                    {/* User name — human case */}
                     <span
                       className={[
                         "inline-flex items-center gap-2 rounded-xl border px-3 py-2",

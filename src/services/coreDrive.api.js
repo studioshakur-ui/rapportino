@@ -79,6 +79,13 @@ export async function uploadCoreFile({ file, meta }) {
   if (!meta?.cantiere) throw new Error("Missing meta.cantiere");
   if (!meta?.categoria) throw new Error("Missing meta.categoria");
 
+  // Resolve current user (created_by is NOT NULL in core_files)
+  const { data: userData, error: userErr } = await supabase.auth.getUser();
+  if (userErr || !userData?.user?.id) {
+    throw userErr || new Error("Invalid session (auth.getUser failed)");
+  }
+  const createdBy = userData.user.id;
+
   const originalName = file.name || "documento";
   const parts = originalName.split(".");
   const fileExt = parts.length > 1 ? parts.pop() : "";
@@ -103,6 +110,7 @@ export async function uploadCoreFile({ file, meta }) {
     .insert([
       {
         storage_bucket: CORE_DRIVE_BUCKET,
+        created_by: createdBy,
         storage_path: storagePath,
         filename: originalName,
         mime_type: file.type || null,

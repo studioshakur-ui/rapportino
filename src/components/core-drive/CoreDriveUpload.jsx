@@ -1,5 +1,5 @@
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { uploadCoreFile } from "../../services/coreDrive.api";
 import { bytes } from "./docs/coreDriveDocsUi";
 
@@ -31,6 +31,14 @@ export default function CoreDriveUpload({ defaultCantiere = "", defaultOrigine =
     setNote("");
     setErr(null);
   };
+
+  // When the lens changes (ex: CAPO changes ship), keep cantiere coherent.
+  useEffect(() => {
+    // Do not override user input for Ufficio/Staff unless we have a strict default.
+    if (!open) return;
+    if (defaultCantiere) setCantiere(defaultCantiere);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultCantiere, open]);
 
   async function doUpload() {
     if (!canSubmit) return;

@@ -1,67 +1,69 @@
 // src/utils/formatHuman.js
-// Canonical human formatting utilities (CORE)
-//
-// Rules:
-// - Human names must NEVER be forced uppercase in UI.
-// - We normalize to a readable Title Case for display.
-// - We do not mutate DB values; this is presentation-only.
 
 function safeStr(v) {
-  return (v == null ? "" : String(v)).trim();
+  return (v ?? "").toString().trim();
 }
 
-function capitalizeToken(token) {
-  const t = safeStr(token);
-  if (!t) return "";
-  return t.charAt(0).toUpperCase() + t.slice(1);
+function cap(s) {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 }
 
-// Best-effort Title Case for human names.
-// Handles spaces, hyphens, and apostrophes in a readable way:
-// - "maiga" -> "Maiga"
-// - "hamidou maiga" -> "Hamidou Maiga"
-// - "d'angelo" -> "D'Angelo"
-// - "di-marco" -> "Di-Marco"
-export function formatHumanName(raw) {
-  const s = safeStr(raw);
-  if (!s) return "";
+/**
+ * Title Case "humain" robuste (espaces, tirets, apostrophes).
+ * - "maiga" -> "Maiga"
+ * - "hamidou maiga" -> "Hamidou Maiga"
+ * - "jean-luc" -> "Jean-Luc"
+ * - "d'amico" -> "D'Amico"
+ *
+ * Note: si c’est un email, on le laisse tel quel.
+ */
+export function formatHumanName(input) {
+  const raw = safeStr(input);
+  if (!raw) return "";
 
-  const lower = s.toLowerCase();
+  if (raw.includes("@")) return raw;
 
-  const tokens = lower
-    .split(/\s+/)
+  const cleaned = raw.replace(/\s+/g, " ").toLowerCase();
+
+  const formatToken = (token) => {
+    if (!token) return token;
+
+    // hyphenated
+    if (token.includes("-")) {
+      return token
+        .split("-")
+        .filter(Boolean)
+        .map((p) => formatToken(p))
+        .join("-");
+    }
+
+    // apostrophe
+    if (token.includes("'")) {
+      const parts = token.split("'").filter((p) => p !== "");
+      if (parts.length === 0) return token;
+      return parts.map((p) => cap(p)).join("'");
+    }
+
+    return cap(token);
+  };
+
+  return cleaned
+    .split(" ")
     .filter(Boolean)
-    .map((tok) => {
-      // Keep hyphen parts
-      const hy = tok.split("-").filter(Boolean);
-      const hy2 = hy.map((part) => {
-        // Keep apostrophe parts
-        const ap = part.split("'");
-        if (ap.length === 1) return capitalizeToken(part);
-        return ap
-          .map((p) => capitalizeToken(p))
-          .filter(Boolean)
-          .join("'");
-      });
-      return hy2.join("-");
-    });
-
-  return tokens.join(" ");
+    .map(formatToken)
+    .join(" ");
 }
 
-// Canonical display name from a Supabase profile
-export function formatDisplayName(profile, fallback = "Capo") {
-  if (!profile || typeof profile !== "object") return formatHumanName(fallback);
+/**
+ * Profile → display name (safe fallback)
+ */
+export function formatDisplayName(profile, fallback = "User") {
   const raw =
-    profile.display_name ||
-    profile.full_name ||
-    profile.email ||
+    profile?.display_name ||
+    profile?.full_name ||
+    profile?.email ||
     fallback;
-  return formatHumanName(raw);
-}
 
-// Utility: normalize arbitrary name-ish fields from mixed rows
-export function formatMaybeHuman(v, fallback = "") {
-  const s = safeStr(v);
-  return formatHumanName(s || fallback);
+  const out = formatHumanName(raw);
+  return out || fallback;
 }

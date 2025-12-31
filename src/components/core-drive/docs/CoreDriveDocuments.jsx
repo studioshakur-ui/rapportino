@@ -17,33 +17,105 @@ import { bytes, formatDate, formatDateTime, uniqSorted } from "./coreDriveDocsUi
 import CoreDriveUpload from "../CoreDriveUpload";
 import CoreDrivePreviewDrawer from "../CoreDrivePreviewDrawer";
 
-const VIEW_OPTIONS = [
-  { value: "LIST", label: "Lista" },
-  { value: "TIMELINE", label: "Timeline" },
-  { value: "COMPARE", label: "Confronto" },
-];
+const LABELS_BY_VIEW = {
+  LIST: "Lista",
+  TIMELINE: "Timeline",
+  COMPARE: "Confronto",
+};
 
-export default function CoreDriveDocuments() {
+function safeUpper(v) {
+  return String(v || "").trim().toUpperCase();
+}
+
+export default function CoreDriveDocuments({ viewConfig = null }) {
   const { profile } = useAuth();
 
   const appRole = profile?.app_role || profile?.role || "";
+  const role = safeUpper(appRole);
 
-  const canDelete = ["UFFICIO", "MANAGER", "DIREZIONE", "ADMIN"].includes(String(appRole).toUpperCase());
-  const canFreeze = ["UFFICIO", "DIREZIONE", "ADMIN"].includes(String(appRole).toUpperCase());
+  const cfg = viewConfig || {};
+  const lockedFilters = cfg.lockedFilters || {};
 
-  const [view, setView] = useState("LIST");
+  const allowedViews = useMemo(() => {
+    const v = Array.isArray(cfg.allowedViews) ? cfg.allowedViews.map((x) => safeUpper(x)) : [];
+    const dedup = Array.from(new Set(v)).filter(Boolean);
+    return dedup.length ? dedup : ["LIST", "TIMELINE", "COMPARE"];
+  }, [cfg.allowedViews]);
 
-  const [filters, setFilters] = useState({
-    cantiere: "",
-    categoria: "",
-    commessa: "",
-    origine: "",
-    stato_doc: "",
-    mimeGroup: "",
-    text: "",
-    dateFrom: "",
-    dateTo: "",
-  });
+  const viewOptions = useMemo(() => {
+    return allowedViews.map((v) => ({ value: v, label: LABELS_BY_VIEW[v] || v }));
+  }, [allowedViews]);
+
+  const defaultView = safeUpper(cfg.defaultView) || allowedViews[0] || "LIST";
+  const [view, setView] = useState(defaultView);
+
+  useEffect(() => {
+    if (!allowedViews.includes(view)) {
+      setView(defaultView);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allowedViews.join("|"), defaultView]);
+
+  const baseFilters = useMemo(
+    () => ({
+      cantiere: "",
+      categoria: "",
+      commessa: "",
+      origine: "",
+      stato_doc: "",
+      mimeGroup: "",
+      text: "",
+      dateFrom: "",
+      dateTo: "",
+    }),
+    []
+  );
+
+  const initialFiltersKey = useMemo(() => {
+    try {
+      return JSON.stringify(cfg.initialFilters || {});
+    } catch {
+      return "{}";
+    }
+  }, [cfg.initialFilters]);
+
+  const [filters, setFilters] = useState(() => ({ ...baseFilters, ...(cfg.initialFilters || {}) }));
+
+  // When lens changes (ship change, shell change), re-apply initialFilters (especially locked ones)
+  useEffect(() => {
+    const init = { ...baseFilters, ...(cfg.initialFilters || {}) };
+    setFilters((prev) => {
+      const next = { ...prev };
+      for (const k of Object.keys(init)) {
+        if (lockedFilters?.[k]) {
+          next[k] = init[k] ?? "";
+        } else if (prev[k] === undefined) {
+          next[k] = init[k] ?? "";
+        }
+      }
+      // Also, if initial provides a value and current is empty, prefer init (no surprises)
+      for (const k of Object.keys(init)) {
+        if (!lockedFilters?.[k]) {
+          const cur = String(next[k] ?? "");
+          const ini = String(init[k] ?? "");
+          if (!cur && ini) next[k] = init[k];
+        }
+      }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialFiltersKey]);
+
+  const canDelete =
+    typeof cfg.canDelete === "boolean"
+      ? cfg.canDelete
+      : ["UFFICIO", "MANAGER", "DIREZIONE", "ADMIN"].includes(role);
+  const canFreeze =
+    typeof cfg.canFreeze === "boolean" ? cfg.canFreeze : ["UFFICIO", "DIREZIONE", "ADMIN"].includes(role);
+
+  const showUpload = typeof cfg.showUpload === "boolean" ? cfg.showUpload : true;
+  const defaultOrigine = cfg.defaultOrigine || role || "UFFICIO";
+  const defaultCantiere = cfg.defaultCantiere || filters.cantiere || "";
 
   const [items, setItems] = useState([]);
   const [cursor, setCursor] = useState(null);
@@ -266,11 +338,14 @@ export default function CoreDriveDocuments() {
           </div>
 
           <div className="flex items-center justify-between gap-2">
-            <Segmented value={view} onChange={setView} options={VIEW_OPTIONS} />
-            <CoreDriveUpload
-              defaultOrigine={profile?.app_role || profile?.role || "UFFICIO"}
-              onUploaded={loadFirstPage}
-            />
+            <Segmented value={view} onChange={setView} options={viewOptions} />
+            {showUpload ? (
+              <CoreDriveUpload
+                defaultCantiere={defaultCantiere}
+                defaultOrigine={defaultOrigine}
+                onUploaded={loadFirstPage}
+              />
+            ) : null}
           </div>
         </div>
 
@@ -280,8 +355,14 @@ export default function CoreDriveDocuments() {
             <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Cantiere</div>
             <select
               value={filters.cantiere}
-              onChange={(e) => setFilters((p) => ({ ...p, cantiere: e.target.value }))}
-              className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+              disabled={!!lockedFilters?.cantiere}
+              onChange={(e) =>
+                lockedFilters?.cantiere ? null : setFilters((p) => ({ ...p, cantiere: e.target.value }))
+              }
+              className={[
+                "mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100",
+                lockedFilters?.cantiere ? "opacity-60 cursor-not-allowed" : "",
+              ].join(" ")}
             >
               <option value="">Tutti</option>
               {facets.cantieri.map((x) => (
@@ -296,8 +377,14 @@ export default function CoreDriveDocuments() {
             <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Categoria</div>
             <select
               value={filters.categoria}
-              onChange={(e) => setFilters((p) => ({ ...p, categoria: e.target.value }))}
-              className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+              disabled={!!lockedFilters?.categoria}
+              onChange={(e) =>
+                lockedFilters?.categoria ? null : setFilters((p) => ({ ...p, categoria: e.target.value }))
+              }
+              className={[
+                "mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100",
+                lockedFilters?.categoria ? "opacity-60 cursor-not-allowed" : "",
+              ].join(" ")}
             >
               <option value="">Tutte</option>
               {facets.categorie.map((x) => (
@@ -312,8 +399,14 @@ export default function CoreDriveDocuments() {
             <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Commessa</div>
             <select
               value={filters.commessa}
-              onChange={(e) => setFilters((p) => ({ ...p, commessa: e.target.value }))}
-              className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+              disabled={!!lockedFilters?.commessa}
+              onChange={(e) =>
+                lockedFilters?.commessa ? null : setFilters((p) => ({ ...p, commessa: e.target.value }))
+              }
+              className={[
+                "mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100",
+                lockedFilters?.commessa ? "opacity-60 cursor-not-allowed" : "",
+              ].join(" ")}
             >
               <option value="">Tutte</option>
               {facets.commesse.map((x) => (
@@ -328,8 +421,14 @@ export default function CoreDriveDocuments() {
             <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Origine</div>
             <select
               value={filters.origine}
-              onChange={(e) => setFilters((p) => ({ ...p, origine: e.target.value }))}
-              className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+              disabled={!!lockedFilters?.origine}
+              onChange={(e) =>
+                lockedFilters?.origine ? null : setFilters((p) => ({ ...p, origine: e.target.value }))
+              }
+              className={[
+                "mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100",
+                lockedFilters?.origine ? "opacity-60 cursor-not-allowed" : "",
+              ].join(" ")}
             >
               <option value="">Tutte</option>
               {facets.origini.map((x) => (
@@ -344,8 +443,14 @@ export default function CoreDriveDocuments() {
             <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Stato</div>
             <select
               value={filters.stato_doc}
-              onChange={(e) => setFilters((p) => ({ ...p, stato_doc: e.target.value }))}
-              className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+              disabled={!!lockedFilters?.stato_doc}
+              onChange={(e) =>
+                lockedFilters?.stato_doc ? null : setFilters((p) => ({ ...p, stato_doc: e.target.value }))
+              }
+              className={[
+                "mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100",
+                lockedFilters?.stato_doc ? "opacity-60 cursor-not-allowed" : "",
+              ].join(" ")}
             >
               <option value="">Tutti</option>
               {facets.stati.map((x) => (
@@ -360,8 +465,14 @@ export default function CoreDriveDocuments() {
             <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Tipo file</div>
             <select
               value={filters.mimeGroup}
-              onChange={(e) => setFilters((p) => ({ ...p, mimeGroup: e.target.value }))}
-              className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+              disabled={!!lockedFilters?.mimeGroup}
+              onChange={(e) =>
+                lockedFilters?.mimeGroup ? null : setFilters((p) => ({ ...p, mimeGroup: e.target.value }))
+              }
+              className={[
+                "mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100",
+                lockedFilters?.mimeGroup ? "opacity-60 cursor-not-allowed" : "",
+              ].join(" ")}
             >
               <option value="">Tutti</option>
               <option value="PDF">PDF</option>
@@ -374,9 +485,15 @@ export default function CoreDriveDocuments() {
             <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Ricerca</div>
             <input
               value={filters.text}
-              onChange={(e) => setFilters((p) => ({ ...p, text: e.target.value }))}
+              disabled={!!lockedFilters?.text}
+              onChange={(e) =>
+                lockedFilters?.text ? null : setFilters((p) => ({ ...p, text: e.target.value }))
+              }
               placeholder="Filename, note, commessa, categoria…"
-              className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600"
+              className={[
+                "mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600",
+                lockedFilters?.text ? "opacity-60 cursor-not-allowed" : "",
+              ].join(" ")}
             />
           </div>
 
@@ -385,8 +502,14 @@ export default function CoreDriveDocuments() {
             <input
               type="date"
               value={filters.dateFrom}
-              onChange={(e) => setFilters((p) => ({ ...p, dateFrom: e.target.value }))}
-              className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+              disabled={!!lockedFilters?.dateFrom}
+              onChange={(e) =>
+                lockedFilters?.dateFrom ? null : setFilters((p) => ({ ...p, dateFrom: e.target.value }))
+              }
+              className={[
+                "mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100",
+                lockedFilters?.dateFrom ? "opacity-60 cursor-not-allowed" : "",
+              ].join(" ")}
             />
           </div>
 
@@ -395,8 +518,14 @@ export default function CoreDriveDocuments() {
             <input
               type="date"
               value={filters.dateTo}
-              onChange={(e) => setFilters((p) => ({ ...p, dateTo: e.target.value }))}
-              className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+              disabled={!!lockedFilters?.dateTo}
+              onChange={(e) =>
+                lockedFilters?.dateTo ? null : setFilters((p) => ({ ...p, dateTo: e.target.value }))
+              }
+              className={[
+                "mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100",
+                lockedFilters?.dateTo ? "opacity-60 cursor-not-allowed" : "",
+              ].join(" ")}
             />
           </div>
         </div>

@@ -87,6 +87,17 @@ function IconCatalog() {
   );
 }
 
+function IconDrive() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
+      <path d="M4 7h16" stroke="currentColor" />
+      <path d="M4 7l2-3h12l2 3" stroke="currentColor" />
+      <rect x="4" y="7" width="16" height="13" rx="2" stroke="currentColor" />
+      <path d="M9 12h6" stroke="currentColor" />
+    </svg>
+  );
+}
+
 export default function AdminShell() {
   const { profile, signOut } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
@@ -188,6 +199,11 @@ export default function AdminShell() {
               to="/admin/audit"
               label={collapsed ? "" : "Audit planning"}
               icon={<IconHistory />}
+            />
+            <Item
+              to="/admin/core-drive"
+              label={collapsed ? "" : "CORE Drive"}
+              icon={<IconDrive />}
             />
           </nav>
 

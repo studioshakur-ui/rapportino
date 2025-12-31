@@ -91,6 +91,8 @@ export default function AppRoutes() {
         <Route path="planning" element={<AdminPlanningPage />} />
         <Route path="assignments" element={<AdminAssignmentsPage />} />
         <Route path="audit" element={<AdminAuditPage />} />
+        <Route path="core-drive" element={<ArchivePage />} />
+        <Route path="archive" element={<Navigate to="../core-drive" replace />} />
       </Route>
 
       {/* ===== CAPO ===== */}
@@ -142,6 +144,8 @@ export default function AppRoutes() {
         <Route index element={<ManagerDashboard isDark={true} />} />
         <Route path="assegnazioni" element={<ManagerAssignments isDark={true} />} />
         <Route path="drive" element={<ManagerCoreDrive isDark={true} />} />
+        <Route path="core-drive" element={<ArchivePage />} />
+        <Route path="archive" element={<Navigate to="../core-drive" replace />} />
         <Route path="analytics" element={<ManagerAnalytics isDark={true} />} />
         <Route path="kpi-operatori" element={<ManagerOperatorKpi isDark={true} />} />
       </Route>

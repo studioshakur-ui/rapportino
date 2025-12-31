@@ -5,6 +5,7 @@ import ReactECharts from "echarts-for-react";
 import { supabase } from "../lib/supabaseClient";
 import { useShip } from "../context/ShipContext";
 import { corePills } from "../ui/designSystem";
+import { useI18n } from "../i18n/I18nProvider";
 
 /* -----------------------------
    Utils dates / numbers
@@ -22,11 +23,17 @@ function addDaysISO(iso, days) {
   return toISODate(d);
 }
 
-function formatDate(itDateString) {
-  if (!itDateString) return "—";
-  const d = new Date(`${itDateString}T00:00:00`);
+function localeFromLang(lang) {
+  if (lang === "fr") return "fr-FR";
+  if (lang === "en") return "en-GB";
+  return "it-IT";
+}
+
+function formatDateByLang(dateISO, lang) {
+  if (!dateISO) return "—";
+  const d = new Date(`${dateISO}T00:00:00`);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("it-IT");
+  return d.toLocaleDateString(localeFromLang(lang));
 }
 
 function safeNum(x) {
@@ -39,14 +46,13 @@ function roundInt(n) {
 }
 
 /* -----------------------------
-   Donut INCA (mini, no fake)
-   centre = total cavi (pas de %)
+   Donut INCA
 ----------------------------- */
-function IncaDonut({ summary, loading }) {
+function IncaDonut({ summary, loading, cablesLabel, loadingLabel, notAvailableLabel }) {
   if (loading) {
     return (
       <div className="h-[88px] w-[88px] rounded-xl border border-white/10 bg-white/5 flex items-center justify-center text-[11px] text-slate-400">
-        INCA…
+        {loadingLabel}
       </div>
     );
   }
@@ -55,7 +61,7 @@ function IncaDonut({ summary, loading }) {
     return (
       <div className="h-[88px] w-[88px] rounded-xl border border-white/10 bg-white/5 flex flex-col items-center justify-center text-[10px] text-slate-400">
         <span>INCA</span>
-        <span className="text-slate-500">non disponibile</span>
+        <span className="text-slate-500">{notAvailableLabel}</span>
       </div>
     );
   }
@@ -75,10 +81,10 @@ function IncaDonut({ summary, loading }) {
         label: { show: false },
         labelLine: { show: false },
         data: [
-          { name: "P", value: summary.p, itemStyle: { color: "#34d399" } }, // emerald
-          { name: "T", value: summary.t, itemStyle: { color: "#38bdf8" } }, // sky
-          { name: "B", value: summary.b, itemStyle: { color: "#f59e0b" } }, // amber
-          { name: "NP", value: summary.np, itemStyle: { color: "#64748b" } }, // slate
+          { name: "P", value: summary.p, itemStyle: { color: "#34d399" } },
+          { name: "T", value: summary.t, itemStyle: { color: "#38bdf8" } },
+          { name: "B", value: summary.b, itemStyle: { color: "#f59e0b" } },
+          { name: "NP", value: summary.np, itemStyle: { color: "#64748b" } },
         ].filter((d) => d.value > 0),
       },
     ],
@@ -99,7 +105,7 @@ function IncaDonut({ summary, loading }) {
         left: "center",
         top: "56%",
         style: {
-          text: "cavi",
+          text: cablesLabel,
           fill: "#94a3b8",
           fontSize: 10,
         },
@@ -115,43 +121,91 @@ function IncaDonut({ summary, loading }) {
 }
 
 /* -----------------------------
+   Normalisation row (si fallback view)
+----------------------------- */
+function normalizeShipRow(r) {
+  if (!r || typeof r !== "object") return null;
+
+  const id = r.id ?? r.ship_id ?? r.ship_uuid ?? null;
+  const code = r.code ?? r.ship_code ?? r.costr ?? r.costr_code ?? null;
+  const name = r.name ?? r.ship_name ?? r.nome ?? (code ? `COSTR ${code}` : null);
+  const yard = r.yard ?? r.cantiere ?? r.site ?? r.location ?? null;
+
+  if (!id || !code) return null;
+
+  return {
+    id: String(id),
+    code: String(code),
+    name: String(name || code),
+    yard: yard ? String(yard) : null,
+  };
+}
+
+/* -----------------------------
    Page
 ----------------------------- */
 export default function ShipSelector() {
   const navigate = useNavigate();
   const { currentShip, setCurrentShip } = useShip();
+  const { lang, t } = useI18n();
 
   const [ships, setShips] = useState([]);
-  const [incaByCostr, setIncaByCostr] = useState({}); // donut counts
-  const [etaByCostr, setEtaByCostr] = useState({}); // deadline estimate + rate
+  const [incaByCostr, setIncaByCostr] = useState({});
+  const [etaByCostr, setEtaByCostr] = useState({});
   const [loadingShips, setLoadingShips] = useState(true);
   const [loadingInca, setLoadingInca] = useState(true);
   const [loadingEta, setLoadingEta] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState("");
 
   const todayISO = useMemo(() => toISODate(new Date()), []);
 
   /* -----------------------------
-     Load ships (CAPO scope only, no direct ships read)
-     Source of truth: RPC public.capo_my_ships_v1()
+     Load ships (source of truth = RPC)
+     1) RPC capo_my_ships_v1()
+     2) Fallback view capo_my_team_v1 (best-effort)
   ----------------------------- */
   useEffect(() => {
     let alive = true;
 
     async function loadShips() {
       setLoadingShips(true);
-      setError(null);
+      setError("");
 
+      // 1) RPC
       try {
-        const { data, error: qError } = await supabase.rpc("capo_my_ships_v1");
-        if (qError) throw qError;
+        const { data, error: rpcErr } = await supabase.rpc("capo_my_ships_v1");
+        if (rpcErr) throw rpcErr;
 
-        if (alive) setShips(Array.isArray(data) ? data : []);
+        const rows = Array.isArray(data) ? data : [];
+        if (alive) {
+          setShips(rows);
+          setLoadingShips(false);
+        }
+        console.info(`[ShipSelector] ships source=rpc.capo_my_ships_v1 count=${rows.length}`);
+        return;
       } catch (e) {
-        console.error("[ShipSelector] load ships error:", e);
-        if (alive) setError("Impossibile recuperare le navi assegnate al tuo profilo.");
-      } finally {
-        if (alive) setLoadingShips(false);
+        console.warn("[ShipSelector] RPC capo_my_ships_v1 failed:", String(e?.message || e || ""));
+      }
+
+      // 2) Fallback view
+      try {
+        const { data, error: qErr } = await supabase.from("capo_my_team_v1").select("*");
+        if (qErr) throw qErr;
+
+        const rows = (Array.isArray(data) ? data : []).map(normalizeShipRow).filter(Boolean);
+
+        if (alive) {
+          setShips(rows);
+          setLoadingShips(false);
+        }
+        console.info(`[ShipSelector] ships source=capo_my_team_v1 count=${rows.length}`);
+      } catch (e) {
+        console.error("[ShipSelector] fallback view capo_my_team_v1 failed:", e);
+        if (alive) {
+          setShips([]);
+          setError(t("CAPO_SHIP_DB_ERROR"));
+          setLoadingShips(false);
+        }
       }
     }
 
@@ -159,10 +213,11 @@ export default function ShipSelector() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [t]);
 
   /* -----------------------------
-     INCA donut summary via EXACT COUNTS (no 1000 limit)
+     INCA donut summary via EXACT COUNTS
+     (same logic as your working file)
   ----------------------------- */
   useEffect(() => {
     if (!ships.length) {
@@ -174,6 +229,7 @@ export default function ShipSelector() {
 
     async function loadCounts() {
       setLoadingInca(true);
+
       try {
         const tasks = ships.map(async (ship) => {
           const costr = ship.code;
@@ -216,11 +272,11 @@ export default function ShipSelector() {
 
           const total = safeNum(rTotal.count);
           const p = safeNum(rP.count);
-          const t = safeNum(rT.count);
+          const tCount = safeNum(rT.count);
           const b = safeNum(rB.count);
           const np = safeNum(rNP.count);
 
-          return [costr, { total, p, t, b, np }];
+          return [costr, { total, p, t: tCount, b, np }];
         });
 
         const pairs = await Promise.all(tasks);
@@ -244,7 +300,7 @@ export default function ShipSelector() {
   }, [ships]);
 
   /* -----------------------------
-     ETA / Deadline estimate from delta di produzione
+     ETA estimate (same logic as your working file)
   ----------------------------- */
   useEffect(() => {
     if (!ships.length) {
@@ -367,16 +423,22 @@ export default function ShipSelector() {
 
   return (
     <div className="p-4 sm:p-6 space-y-4">
-      {/* Header */}
       <div className="flex flex-col gap-1 mb-2">
-        <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Modulo Capo · Selezione nave</span>
-        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-100">Seleziona la nave su cui stai lavorando</h1>
-        <p className="text-sm text-slate-400 max-w-2xl">Rapportini e dati INCA sono sempre legati alla nave selezionata.</p>
+        <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+          {t("CAPO_SHIP_KICKER")}
+        </span>
 
-        {/* IMPORTANT: only show "Nave attuale" if it is in the allowed list */}
+        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-100">
+          {t("CAPO_SHIP_TITLE")}
+        </h1>
+
+        <p className="text-sm text-slate-400 max-w-2xl">
+          {t("CAPO_SHIP_DESC")}
+        </p>
+
         {currentShip && ships.some((s) => String(s.id) === String(currentShip.id)) && (
           <div className="mt-1 text-xs text-slate-500">
-            Nave attuale:{" "}
+            {t("CAPO_SHIP_CURRENT")}{" "}
             <span className="font-semibold text-slate-200">
               {currentShip.code} · {currentShip.name}
             </span>
@@ -385,15 +447,17 @@ export default function ShipSelector() {
       </div>
 
       {error && (
-        <div className="text-xs rounded-xl border border-amber-500/50 bg-amber-500/10 text-amber-100 px-3 py-2">{error}</div>
+        <div className="text-xs rounded-xl border border-amber-500/50 bg-amber-500/10 text-amber-100 px-3 py-2">
+          {error}
+        </div>
       )}
 
-      {/* Empty */}
-      {!loadingShips && ships.length === 0 && (
-        <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">Nessuna nave assegnata al tuo profilo.</div>
+      {!loadingShips && ships.length === 0 && !error && (
+        <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+          {t("CAPO_SHIP_NONE_ASSIGNED")}
+        </div>
       )}
 
-      {/* Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {loadingShips
           ? Array.from({ length: 2 }).map((_, i) => (
@@ -402,20 +466,17 @@ export default function ShipSelector() {
           : ships.map((ship) => {
               const summary = incaByCostr[ship.code];
               const eta = etaByCostr[ship.code];
-
               const incaConnected = !!summary && summary.total > 0;
 
-              const deadlineText = eta?.deadline_est ? formatDate(eta.deadline_est) : "—";
-
+              const deadlineText = eta?.deadline_est ? formatDateByLang(eta.deadline_est, lang) : "—";
               const rateText = eta && eta.rate_m_per_day > 0 ? `${roundInt(eta.rate_m_per_day)} m/g` : null;
-
-              const remText = eta && eta.total_m > 0 ? `${roundInt(eta.rem_m)} m rimanenti` : null;
+              const remText = eta && eta.total_m > 0 ? `${roundInt(eta.rem_m)} m` : null;
 
               return (
                 <button
                   key={ship.id}
                   type="button"
-                  aria-label={`Seleziona nave ${ship.code}`}
+                  aria-label={`${t("CAPO_SHIP_ARIA_SELECT")} ${ship.code}`}
                   onClick={() => handleSelectShip(ship)}
                   className={[
                     "group relative overflow-hidden rounded-2xl border px-4 py-4 text-left transition-all",
@@ -424,46 +485,55 @@ export default function ShipSelector() {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="text-[11px] uppercase tracking-[0.16em] text-sky-300 mb-1">NAVE {ship.code}</div>
+                      <div className="text-[11px] uppercase tracking-[0.16em] text-sky-300 mb-1">
+                        {t("CAPO_SHIP_LABEL_SHIP")} {ship.code}
+                      </div>
 
                       <div className="text-lg font-semibold text-slate-50 truncate">{ship.name}</div>
 
                       <div className="text-xs text-slate-400">
-                        Cantiere: <span className="text-slate-200">{ship.yard ?? "—"}</span>
+                        {t("CAPO_SHIP_YARD")}{" "}
+                        <span className="text-slate-200">{ship.yard ?? "—"}</span>
                       </div>
 
-                      {/* INCA status pill */}
                       <div className="mt-2">
                         <span
                           className={corePills(true, incaConnected ? "emerald" : "neutral", "text-[10px] px-2 py-0.5")}
-                          title={incaConnected ? "INCA presente (cavi importati)" : "INCA non disponibile"}
+                          title={incaConnected ? t("CAPO_SHIP_INCA_TOOLTIP_CONNECTED") : t("CAPO_SHIP_INCA_TOOLTIP_MISSING")}
                         >
-                          {incaConnected ? "INCA connesso" : "INCA non disponibile"}
+                          {incaConnected ? t("CAPO_SHIP_INCA_CONNECTED") : t("CAPO_SHIP_INCA_NOT_AVAILABLE")}
                         </span>
                       </div>
 
-                      {/* Deadline estimate from delta produzione */}
                       <div className="mt-2 text-[11px] text-slate-500">
-                        Deadline INCA (stima): <span className="text-slate-300">{deadlineText}</span>
+                        {t("CAPO_SHIP_DEADLINE_EST")}{" "}
+                        <span className="text-slate-300">{deadlineText}</span>
                       </div>
 
-                      {/* Small diagnostic line (only if real) */}
                       <div className="mt-1 text-[11px] text-slate-600">
                         {loadingEta ? (
-                          <span>Calcolo produzione…</span>
+                          <span>{t("CAPO_SHIP_PROD_CALC")}</span>
                         ) : eta && eta.total_m > 0 ? (
                           <span className="text-slate-500">
-                            {remText}
+                            {t("CAPO_SHIP_METERS_REMAIN")} {remText ?? "—"}
                             <span className="text-slate-700"> · </span>
-                            <span className="text-slate-500">Δ 7g: {rateText ?? "—"}</span>
+                            <span className="text-slate-500">
+                              {t("CAPO_SHIP_DELTA_7D")} {rateText ?? "—"}
+                            </span>
                           </span>
                         ) : (
-                          <span>Produzione/INCA metri non disponibili</span>
+                          <span>{t("CAPO_SHIP_PROD_NOT_AVAILABLE")}</span>
                         )}
                       </div>
                     </div>
 
-                    <IncaDonut summary={summary} loading={loadingInca} />
+                    <IncaDonut
+                      summary={summary}
+                      loading={loadingInca}
+                      cablesLabel={t("CAPO_SHIP_CABLES_LABEL")}
+                      loadingLabel={t("CAPO_SHIP_INCA_LOADING")}
+                      notAvailableLabel={t("CAPO_SHIP_INCA_NOT_AVAILABLE")}
+                    />
                   </div>
                 </button>
               );
