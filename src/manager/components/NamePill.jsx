@@ -1,6 +1,7 @@
 // src/manager/components/NamePill.jsx
 import React from "react";
 import { corePills } from "../../ui/designSystem";
+import { formatHumanName } from "../../utils/formatHuman";
 
 function cn(...parts) {
   return parts.filter(Boolean).join(" ");
@@ -14,7 +15,7 @@ function safeText(v) {
  * NamePill
  * - tone: "emerald" for CAPO, "sky" for OPERATORE
  * - renders the NAME directly as a pill (no extra label)
- * - ALWAYS uppercase for display (deterministic UI rule)
+ * - Human names are displayed in Title Case (never forced uppercase)
  */
 export default function NamePill({
   isDark = true,
@@ -24,20 +25,18 @@ export default function NamePill({
   title = "",
 }) {
   const raw = safeText(children);
-  const upper = raw ? raw.toUpperCase() : "—";
+  const name = raw ? formatHumanName(raw) : "—";
 
   return (
     <span
       className={cn(
         corePills(isDark, tone),
         "max-w-full truncate",
-        // enforce visual + semantic uppercase (even if CSS differs elsewhere)
-        "uppercase",
         className
       )}
-      title={title || upper}
+      title={title || name}
     >
-      {upper}
+      {name}
     </span>
   );
 }

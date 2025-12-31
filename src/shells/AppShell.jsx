@@ -10,27 +10,19 @@ import IdleSessionManager from "../auth/IdleSessionManager";
 import ConnectionIndicator from "../components/ConnectionIndicator";
 import CNCSSidebar from "../components/shell/CNCSSidebar";
 import CNCSTopbar from "../components/shell/CNCSTopbar";
+import LangSwitcher from "../components/shell/LangSwitcher";
+import { useI18n } from "../i18n/I18nProvider";
+import { formatDisplayName } from "../utils/formatHuman";
 
 // CAPO
 import CapoTodayOperatorsPanel from "../capo/CapoTodayOperatorsPanel";
-
-/* ───────────────────────── Utils ───────────────────────── */
-
-// Normalize human names for display (Title Case)
-function toTitleCase(str = "") {
-  return str
-    .toLowerCase()
-    .split(" ")
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-}
 
 export default function AppShell() {
   const { profile, signOut, refresh } = useAuth();
   const { resetShipContext } = useShip();
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useI18n();
 
   // CORE 1.0 – CAPO dark-only
   const isDark = true;
@@ -44,10 +36,10 @@ export default function AppShell() {
   const isKpi = pathname.startsWith("/app/kpi-operatori");
 
   const pageLabel = isCoreDrive
-    ? "CORE Drive"
+    ? t("APP_CORE_DRIVE")
     : isKpi
-    ? "KPI Operatori"
-    : "Rapportino";
+    ? t("APP_KPI_OPERATORI")
+    : t("APP_RAPPORTINO");
 
   /* ───────────────────────── Sidebar state ───────────────────────── */
 
@@ -90,20 +82,12 @@ export default function AppShell() {
 
   /* ───────────────────────── Display name (Title Case) ───────────────────────── */
 
-  const displayName = useMemo(() => {
-    const raw =
-      profile?.display_name ||
-      profile?.full_name ||
-      profile?.email ||
-      "Capo";
-
-    return toTitleCase(raw);
-  }, [profile]);
+  const displayName = useMemo(() => formatDisplayName(profile, "Capo"), [profile]);
 
   if (!profile) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-400">
-        Caricamento profilo…
+        {t("APP_LOADING_PROFILE")}
       </div>
     );
   }
@@ -163,14 +147,14 @@ export default function AppShell() {
             navItems={[
               {
                 to: "/app",
-                label: "Rapportino",
+                label: t("APP_RAPPORTINO"),
                 icon: "rapportino",
                 colorClass: "text-sky-400",
                 end: true,
               },
               {
                 to: "/app/core-drive",
-                label: "CORE Drive",
+                label: t("APP_CORE_DRIVE"),
                 icon: "archive",
                 colorClass: "text-violet-400",
               },
@@ -203,6 +187,10 @@ export default function AppShell() {
                 title={pageLabel}
                 right={
                   <div className="flex items-center gap-2">
+                    <div className="hidden sm:block">
+                      <LangSwitcher compact />
+                    </div>
+
                     {/* User name — Title Case */}
                     <span
                       className={[
@@ -226,11 +214,11 @@ export default function AppShell() {
                         "hover:bg-rose-900/25 transition",
                         "text-xs font-semibold tracking-[0.18em] uppercase",
                       ].join(" ")}
-                      title="Logout"
-                      aria-label="Logout"
+                      title={t("LOGOUT")}
+                      aria-label={t("LOGOUT")}
                     >
                       <span className="h-1.5 w-1.5 rounded-full bg-rose-400" />
-                      LOGOUT
+                      {t("LOGOUT")}
                     </button>
                   </div>
                 }

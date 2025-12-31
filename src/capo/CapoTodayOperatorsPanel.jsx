@@ -2,6 +2,8 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
+import { useI18n } from "../i18n/I18nProvider";
+import { formatHumanName } from "../utils/formatHuman";
 
 function cn(...parts) {
   return parts.filter(Boolean).join(" ");
@@ -51,6 +53,7 @@ function pillBase() {
 
 export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorDragStart }) {
   const { authReady, uid } = useAuth();
+  const { t } = useI18n();
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -77,7 +80,7 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
       const raw = Array.isArray(data) ? data : [];
       const mapped = raw
         .map((r) => {
-          const name = guessOperatorName(r);
+          const name = formatHumanName(guessOperatorName(r));
           const id = guessOperatorId(r);
           const position = guessOperatorPosition(r);
           return name ? { id, name, position, raw: r } : null;
@@ -122,7 +125,7 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
       setItems(dedup);
     } catch (e) {
       console.error("[CapoTodayOperatorsPanel] load error:", e);
-      setErr("Impossibile caricare gli operatori di oggi.");
+      setErr(t("CAPO_TODAY_LOAD_ERROR"));
       setItems([]);
     } finally {
       setLoading(false);
@@ -151,7 +154,10 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
   if (isCollapsed) {
     return (
       <div className="flex flex-col items-center gap-2">
-        <div className={cn("w-full rounded-2xl border p-2", "border-slate-800 bg-slate-950/20")} title="Operatori di oggi">
+        <div
+          className={cn("w-full rounded-2xl border p-2", "border-slate-800 bg-slate-950/20")}
+          title={t("CAPO_TODAY_TITLE")}
+        >
           <div className="flex items-center justify-center">
             <div className="relative">
               <div className="h-10 w-10 rounded-xl border border-slate-800 bg-slate-950/40 flex items-center justify-center text-slate-200">
@@ -171,8 +177,8 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
     <div className="rounded-2xl border border-slate-800 bg-slate-950/20 p-3">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Operatori di oggi</div>
-          <div className="mt-1 text-[12px] text-slate-300">Assegnati dal Manager · Trascina nelle righe</div>
+          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{t("CAPO_TODAY_TITLE")}</div>
+          <div className="mt-1 text-[12px] text-slate-300">{t("CAPO_TODAY_SUB")}</div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -184,9 +190,9 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
               "border-slate-800 bg-slate-950/40 text-slate-100 hover:bg-slate-900/35",
               "focus:outline-none focus:ring-2 focus:ring-sky-500/35"
             )}
-            title="Ricarica"
+            title={t("CAPO_TODAY_RELOAD")}
           >
-            Ricarica
+            {t("CAPO_TODAY_RELOAD")}
           </button>
 
           <div className="rounded-full border border-slate-800 bg-slate-950/40 px-2.5 py-1 text-[11px] font-semibold text-slate-100">
@@ -197,7 +203,7 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
 
       {!authReady ? (
         <div className="mt-3 rounded-xl border border-slate-800 bg-slate-950/30 p-3 text-[12px] text-slate-400">
-          Sessione in avvio…
+          {t("CAPO_TODAY_SESSION_START")}
         </div>
       ) : null}
 
@@ -205,7 +211,7 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Cerca…"
+          placeholder={t("CAPO_TODAY_SEARCH")}
           className={[
             "w-full rounded-xl border",
             "border-slate-800 bg-slate-950/40",
@@ -225,10 +231,10 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
 
         <div className="mt-2 max-h-[40vh] overflow-auto pr-1 space-y-2">
           {loading ? (
-            <div className="text-[12px] text-slate-400">Caricamento…</div>
+            <div className="text-[12px] text-slate-400">{t("CAPO_TODAY_LOADING")}</div>
           ) : filtered.length === 0 ? (
             <div className="rounded-xl border border-slate-800 bg-slate-950/30 p-3 text-[12px] text-slate-400">
-              Nessun operatore.
+              {t("CAPO_TODAY_EMPTY")}
             </div>
           ) : (
             filtered.map((it) => (
@@ -250,7 +256,7 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
                   if (e.key === "Enter") e.preventDefault();
                 }}
                 className={pillBase()}
-                title="Trascina nel rapportino"
+                title={t("CAPO_TODAY_DRAG_HINT")}
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate">{it.name}</span>

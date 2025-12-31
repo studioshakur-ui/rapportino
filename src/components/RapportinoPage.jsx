@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useOutletContext } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
+import { formatDisplayName } from "../utils/formatHuman";
 
 import LoadingScreen from "./LoadingScreen";
 import RapportinoHeader from "./rapportino/RapportinoHeader";
@@ -159,9 +160,7 @@ export default function RapportinoPage() {
 
   const [reportDate, setReportDate] = useState(getTodayISO());
 
-  const capoName = useMemo(() => {
-    return (profile?.display_name || profile?.full_name || profile?.email || "Capo Squadra").toUpperCase().trim();
-  }, [profile]);
+  const capoName = useMemo(() => formatDisplayName(profile, "Capo Squadra"), [profile]);
 
   const {
     rapportinoId,

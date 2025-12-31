@@ -6,6 +6,7 @@ import { supabase } from "../lib/supabaseClient";
 import LoadingScreen from "../components/LoadingScreen";
 import RapportinoHeader from "../components/rapportino/RapportinoHeader";
 import RapportinoTable from "../components/rapportino/RapportinoTable";
+import { formatHumanName } from "../utils/formatHuman";
 
 import { getBaseRows, parseNumeric } from "../rapportinoUtils";
 
@@ -169,7 +170,7 @@ export default function CapoPresentation() {
                 costr={rapportino?.costr || ""}
                 commessa={rapportino?.commessa || ""}
                 reportDate={rapportino?.report_date || rapportino?.data || ""}
-                capoName={(rapportino?.capo_name || "Capo Squadra").toUpperCase()}
+                capoName={formatHumanName(rapportino?.capo_name || "Capo Squadra")}
                 readOnly
               />
 
