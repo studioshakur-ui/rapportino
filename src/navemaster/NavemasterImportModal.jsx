@@ -1,3 +1,4 @@
+// /src/navemaster/NavemasterImportModal.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavemasterImporter } from "./useNavemasterImporter";
 import { corePills, cardSurface } from "../ui/designSystem";
@@ -54,7 +55,7 @@ export default function NavemasterImportModal({ open, onClose, ship, onImported,
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4">
       <div className={cx("w-full max-w-4xl rounded-2xl border border-slate-800 bg-[#050910] shadow-2xl", cardSurface)}>
         <div className="flex items-start justify-between gap-3 p-4 sm:p-5 border-b border-slate-800">
           <div className="min-w-0">

@@ -1,5 +1,6 @@
 // /src/components/core-drive/docs/CoreDriveDocuments.jsx
 import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../auth/AuthProvider";
 
 import Badge from "../ui/Badge";
@@ -17,105 +18,34 @@ import { bytes, formatDate, formatDateTime, uniqSorted } from "./coreDriveDocsUi
 import CoreDriveUpload from "../CoreDriveUpload";
 import CoreDrivePreviewDrawer from "../CoreDrivePreviewDrawer";
 
-const LABELS_BY_VIEW = {
-  LIST: "Lista",
-  TIMELINE: "Timeline",
-  COMPARE: "Confronto",
-};
+const VIEW_OPTIONS = [
+  { value: "LIST", label: "Lista" },
+  { value: "TIMELINE", label: "Timeline" },
+  { value: "COMPARE", label: "Confronto" },
+];
 
-function safeUpper(v) {
-  return String(v || "").trim().toUpperCase();
-}
-
-export default function CoreDriveDocuments({ viewConfig = null }) {
+export default function CoreDriveDocuments() {
   const { profile } = useAuth();
+  const navigate = useNavigate();
 
   const appRole = profile?.app_role || profile?.role || "";
-  const role = safeUpper(appRole);
 
-  const cfg = viewConfig || {};
-  const lockedFilters = cfg.lockedFilters || {};
+  const canDelete = ["UFFICIO", "MANAGER", "DIREZIONE", "ADMIN"].includes(String(appRole).toUpperCase());
+  const canFreeze = ["UFFICIO", "DIREZIONE", "ADMIN"].includes(String(appRole).toUpperCase());
 
-  const allowedViews = useMemo(() => {
-    const v = Array.isArray(cfg.allowedViews) ? cfg.allowedViews.map((x) => safeUpper(x)) : [];
-    const dedup = Array.from(new Set(v)).filter(Boolean);
-    return dedup.length ? dedup : ["LIST", "TIMELINE", "COMPARE"];
-  }, [cfg.allowedViews]);
+  const [view, setView] = useState("LIST");
 
-  const viewOptions = useMemo(() => {
-    return allowedViews.map((v) => ({ value: v, label: LABELS_BY_VIEW[v] || v }));
-  }, [allowedViews]);
-
-  const defaultView = safeUpper(cfg.defaultView) || allowedViews[0] || "LIST";
-  const [view, setView] = useState(defaultView);
-
-  useEffect(() => {
-    if (!allowedViews.includes(view)) {
-      setView(defaultView);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allowedViews.join("|"), defaultView]);
-
-  const baseFilters = useMemo(
-    () => ({
-      cantiere: "",
-      categoria: "",
-      commessa: "",
-      origine: "",
-      stato_doc: "",
-      mimeGroup: "",
-      text: "",
-      dateFrom: "",
-      dateTo: "",
-    }),
-    []
-  );
-
-  const initialFiltersKey = useMemo(() => {
-    try {
-      return JSON.stringify(cfg.initialFilters || {});
-    } catch {
-      return "{}";
-    }
-  }, [cfg.initialFilters]);
-
-  const [filters, setFilters] = useState(() => ({ ...baseFilters, ...(cfg.initialFilters || {}) }));
-
-  // When lens changes (ship change, shell change), re-apply initialFilters (especially locked ones)
-  useEffect(() => {
-    const init = { ...baseFilters, ...(cfg.initialFilters || {}) };
-    setFilters((prev) => {
-      const next = { ...prev };
-      for (const k of Object.keys(init)) {
-        if (lockedFilters?.[k]) {
-          next[k] = init[k] ?? "";
-        } else if (prev[k] === undefined) {
-          next[k] = init[k] ?? "";
-        }
-      }
-      // Also, if initial provides a value and current is empty, prefer init (no surprises)
-      for (const k of Object.keys(init)) {
-        if (!lockedFilters?.[k]) {
-          const cur = String(next[k] ?? "");
-          const ini = String(init[k] ?? "");
-          if (!cur && ini) next[k] = init[k];
-        }
-      }
-      return next;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialFiltersKey]);
-
-  const canDelete =
-    typeof cfg.canDelete === "boolean"
-      ? cfg.canDelete
-      : ["UFFICIO", "MANAGER", "DIREZIONE", "ADMIN"].includes(role);
-  const canFreeze =
-    typeof cfg.canFreeze === "boolean" ? cfg.canFreeze : ["UFFICIO", "DIREZIONE", "ADMIN"].includes(role);
-
-  const showUpload = typeof cfg.showUpload === "boolean" ? cfg.showUpload : true;
-  const defaultOrigine = cfg.defaultOrigine || role || "UFFICIO";
-  const defaultCantiere = cfg.defaultCantiere || filters.cantiere || "";
+  const [filters, setFilters] = useState({
+    cantiere: "",
+    categoria: "",
+    commessa: "",
+    origine: "",
+    stato_doc: "",
+    mimeGroup: "",
+    text: "",
+    dateFrom: "",
+    dateTo: "",
+  });
 
   const [items, setItems] = useState([]);
   const [cursor, setCursor] = useState(null);
@@ -125,6 +55,38 @@ export default function CoreDriveDocuments({ viewConfig = null }) {
   const [err, setErr] = useState(null);
 
   const [preview, setPreview] = useState(null);
+
+  function canOpenNavemasterCockpit(f) {
+    // Canonical rule: if the file is linked to an INCA import OR is tagged as INCA source,
+    // we treat it as a cockpit-entry (NAVEMASTER).
+    // Note: in your CORE Drive taxonomy, "INCA_SRC" may be stored either in `origine` OR in `categoria`
+    // depending on the uploader path (SYSTEM/user). We therefore accept both.
+    const origine = String(f?.origine || "").trim().toUpperCase();
+    const categoria = String(f?.categoria || "").trim().toUpperCase();
+    return !!f?.inca_file_id || origine === "INCA_SRC" || categoria === "INCA_SRC";
+  }
+
+  function openNavemasterCockpitFromFile(f) {
+    if (!f) return;
+
+    const roleUp = String(appRole || "").trim().toUpperCase();
+    const base = roleUp === "CAPO" ? "/app/navemaster" : "/ufficio/navemaster";
+
+    // CORE Drive meta fields map naturally to ship COSTR/COMMESSA
+    const costr = String(f.cantiere || "").trim();
+    const commessa = String(f.commessa || "").trim();
+    const incaFileId = String(f.inca_file_id || "").trim();
+
+    const params = new URLSearchParams();
+    if (costr) params.set("costr", costr);
+    if (commessa) params.set("commessa", commessa);
+    if (incaFileId) params.set("incaFileId", incaFileId);
+    params.set("cockpit", "1");
+    params.set("from", "core-drive");
+    params.set("fileId", String(f.id || ""));
+
+    navigate(`${base}?${params.toString()}`);
+  }
 
   const facets = useMemo(() => {
     return {
@@ -302,234 +264,205 @@ export default function CoreDriveDocuments({ viewConfig = null }) {
   }
 
   return (
-    <div className="space-y-5">
-      {/* KPI strip (wow, sans bruit) */}
-      <section className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <KpiTile label="Documenti" value={kpis.total} hint="Totale in vista" />
-        <KpiTile label="Ultimi 7 giorni" value={kpis.last7} hint="Upload recenti" tone="info" />
-        <KpiTile label="Dimensione" value={bytes(kpis.totalBytes)} hint="Somma file" />
-        <KpiTile
-          label="Top categoria"
-          value={kpis.topCategoria.k}
-          hint={`${kpis.topCategoria.v} doc`}
-        />
-        <KpiTile
-          label="Top origine"
-          value={kpis.topOrigine.k}
-          hint={`${kpis.topOrigine.v} doc`}
-        />
-        <KpiTile
-          label="Più vecchio"
-          value={kpis.oldest ? formatDate(kpis.oldest) : "—"}
-          hint="Punto storico"
-        />
-      </section>
-
-      {/* Search spotlight + filtres (clean) */}
+    <div className="p-3 space-y-3">
       <section className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Documents</div>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-slate-400">
-              <Badge tone="neutral">Ricerca + preview</Badge>
-              <Badge tone="neutral">Facette rapide</Badge>
-              <Badge tone="neutral">Audit-ready</Badge>
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">CORE Drive</div>
+            <div className="text-xl font-semibold text-slate-100">Documenti</div>
+            <div className="mt-1 text-sm text-slate-400">
+              Governance: append-only eventi · freeze inviolabile · audit.
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-2">
-            <Segmented value={view} onChange={setView} options={viewOptions} />
-            {showUpload ? (
-              <CoreDriveUpload
-                defaultCantiere={defaultCantiere}
-                defaultOrigine={defaultOrigine}
-                onUploaded={loadFirstPage}
-              />
-            ) : null}
+          <div className="flex items-center gap-2">
+            <Segmented
+              value={view}
+              options={VIEW_OPTIONS}
+              onChange={(v) => setView(v)}
+            />
           </div>
         </div>
 
-        {/* Filters grid */}
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Cantiere</div>
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-3">
+          <KpiTile label="Documenti" value={kpis.total} />
+          <KpiTile label="Peso totale" value={bytes(kpis.totalBytes)} />
+          <KpiTile label="Ultimi 7 giorni" value={kpis.last7} />
+          <KpiTile label="Origine top" value={`${kpis.topOrigine.k} (${kpis.topOrigine.v})`} />
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-slate-800 bg-slate-950/60 overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+          <div className="text-sm font-semibold text-slate-100">Filtri</div>
+          <div className="text-xs text-slate-500">Dataset: {items.length} / pagina</div>
+        </div>
+
+        <div className="p-4 grid grid-cols-1 lg:grid-cols-12 gap-3">
+          <div className="lg:col-span-3">
+            <label className="text-[12px] text-slate-400">Cantiere</label>
             <select
               value={filters.cantiere}
-              disabled={!!lockedFilters?.cantiere}
-              onChange={(e) =>
-                lockedFilters?.cantiere ? null : setFilters((p) => ({ ...p, cantiere: e.target.value }))
-              }
-              className={[
-                "mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100",
-                lockedFilters?.cantiere ? "opacity-60 cursor-not-allowed" : "",
-              ].join(" ")}
+              onChange={(e) => setFilters((p) => ({ ...p, cantiere: e.target.value }))}
+              className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100"
             >
               <option value="">Tutti</option>
               {facets.cantieri.map((x) => (
-                <option key={x || "—"} value={x || ""}>
-                  {x || "—"}
+                <option key={x} value={x}>
+                  {x}
                 </option>
               ))}
             </select>
           </div>
 
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Categoria</div>
+          <div className="lg:col-span-3">
+            <label className="text-[12px] text-slate-400">Categoria</label>
             <select
               value={filters.categoria}
-              disabled={!!lockedFilters?.categoria}
-              onChange={(e) =>
-                lockedFilters?.categoria ? null : setFilters((p) => ({ ...p, categoria: e.target.value }))
-              }
-              className={[
-                "mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100",
-                lockedFilters?.categoria ? "opacity-60 cursor-not-allowed" : "",
-              ].join(" ")}
+              onChange={(e) => setFilters((p) => ({ ...p, categoria: e.target.value }))}
+              className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100"
             >
               <option value="">Tutte</option>
               {facets.categorie.map((x) => (
-                <option key={x || "—"} value={x || ""}>
-                  {x || "—"}
+                <option key={x} value={x}>
+                  {x}
                 </option>
               ))}
             </select>
           </div>
 
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Commessa</div>
+          <div className="lg:col-span-3">
+            <label className="text-[12px] text-slate-400">Commessa</label>
             <select
               value={filters.commessa}
-              disabled={!!lockedFilters?.commessa}
-              onChange={(e) =>
-                lockedFilters?.commessa ? null : setFilters((p) => ({ ...p, commessa: e.target.value }))
-              }
-              className={[
-                "mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100",
-                lockedFilters?.commessa ? "opacity-60 cursor-not-allowed" : "",
-              ].join(" ")}
+              onChange={(e) => setFilters((p) => ({ ...p, commessa: e.target.value }))}
+              className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100"
             >
               <option value="">Tutte</option>
               {facets.commesse.map((x) => (
-                <option key={x || "—"} value={x || ""}>
-                  {x || "—"}
+                <option key={x} value={x}>
+                  {x}
                 </option>
               ))}
             </select>
           </div>
 
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Origine</div>
+          <div className="lg:col-span-3">
+            <label className="text-[12px] text-slate-400">Origine</label>
             <select
               value={filters.origine}
-              disabled={!!lockedFilters?.origine}
-              onChange={(e) =>
-                lockedFilters?.origine ? null : setFilters((p) => ({ ...p, origine: e.target.value }))
-              }
-              className={[
-                "mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100",
-                lockedFilters?.origine ? "opacity-60 cursor-not-allowed" : "",
-              ].join(" ")}
+              onChange={(e) => setFilters((p) => ({ ...p, origine: e.target.value }))}
+              className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100"
             >
               <option value="">Tutte</option>
               {facets.origini.map((x) => (
-                <option key={x || "—"} value={x || ""}>
-                  {x || "—"}
+                <option key={x} value={x}>
+                  {x}
                 </option>
               ))}
             </select>
           </div>
 
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Stato</div>
+          <div className="lg:col-span-3">
+            <label className="text-[12px] text-slate-400">Stato doc</label>
             <select
               value={filters.stato_doc}
-              disabled={!!lockedFilters?.stato_doc}
-              onChange={(e) =>
-                lockedFilters?.stato_doc ? null : setFilters((p) => ({ ...p, stato_doc: e.target.value }))
-              }
-              className={[
-                "mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100",
-                lockedFilters?.stato_doc ? "opacity-60 cursor-not-allowed" : "",
-              ].join(" ")}
+              onChange={(e) => setFilters((p) => ({ ...p, stato_doc: e.target.value }))}
+              className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100"
             >
               <option value="">Tutti</option>
               {facets.stati.map((x) => (
-                <option key={x || "—"} value={x || ""}>
-                  {x || "—"}
+                <option key={x} value={x}>
+                  {x}
                 </option>
               ))}
             </select>
           </div>
 
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Tipo file</div>
+          <div className="lg:col-span-3">
+            <label className="text-[12px] text-slate-400">Mime group</label>
             <select
               value={filters.mimeGroup}
-              disabled={!!lockedFilters?.mimeGroup}
-              onChange={(e) =>
-                lockedFilters?.mimeGroup ? null : setFilters((p) => ({ ...p, mimeGroup: e.target.value }))
-              }
-              className={[
-                "mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100",
-                lockedFilters?.mimeGroup ? "opacity-60 cursor-not-allowed" : "",
-              ].join(" ")}
+              onChange={(e) => setFilters((p) => ({ ...p, mimeGroup: e.target.value }))}
+              className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100"
             >
               <option value="">Tutti</option>
               <option value="PDF">PDF</option>
               <option value="IMG">Immagini</option>
               <option value="XLSX">Excel</option>
+              <option value="DOC">Office</option>
+              <option value="OTHER">Altro</option>
             </select>
           </div>
 
-          <div className="sm:col-span-2">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Ricerca</div>
+          <div className="lg:col-span-6">
+            <label className="text-[12px] text-slate-400">Testo</label>
             <input
               value={filters.text}
-              disabled={!!lockedFilters?.text}
-              onChange={(e) =>
-                lockedFilters?.text ? null : setFilters((p) => ({ ...p, text: e.target.value }))
-              }
-              placeholder="Filename, note, commessa, categoria…"
-              className={[
-                "mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600",
-                lockedFilters?.text ? "opacity-60 cursor-not-allowed" : "",
-              ].join(" ")}
+              onChange={(e) => setFilters((p) => ({ ...p, text: e.target.value }))}
+              placeholder="Cerca: filename, note, commessa…"
+              className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100"
             />
           </div>
 
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Da</div>
+          <div className="lg:col-span-3">
+            <label className="text-[12px] text-slate-400">Da</label>
             <input
               type="date"
               value={filters.dateFrom}
-              disabled={!!lockedFilters?.dateFrom}
-              onChange={(e) =>
-                lockedFilters?.dateFrom ? null : setFilters((p) => ({ ...p, dateFrom: e.target.value }))
-              }
-              className={[
-                "mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100",
-                lockedFilters?.dateFrom ? "opacity-60 cursor-not-allowed" : "",
-              ].join(" ")}
+              onChange={(e) => setFilters((p) => ({ ...p, dateFrom: e.target.value }))}
+              className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100"
             />
           </div>
 
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">A</div>
+          <div className="lg:col-span-3">
+            <label className="text-[12px] text-slate-400">A</label>
             <input
               type="date"
               value={filters.dateTo}
-              disabled={!!lockedFilters?.dateTo}
-              onChange={(e) =>
-                lockedFilters?.dateTo ? null : setFilters((p) => ({ ...p, dateTo: e.target.value }))
-              }
-              className={[
-                "mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100",
-                lockedFilters?.dateTo ? "opacity-60 cursor-not-allowed" : "",
-              ].join(" ")}
+              onChange={(e) => setFilters((p) => ({ ...p, dateTo: e.target.value }))}
+              className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100"
             />
+          </div>
+
+          <div className="lg:col-span-12 flex items-center justify-between gap-3">
+            <div className="text-xs text-slate-500">
+              {filters.dateFrom || filters.dateTo ? (
+                <>
+                  Range:{" "}
+                  <span className="text-slate-200">
+                    {filters.dateFrom || "—"} → {filters.dateTo || "—"}
+                  </span>
+                </>
+              ) : (
+                <>Range: —</>
+              )}
+            </div>
+
+            <button
+              type="button"
+              className="h-9 rounded-xl border border-slate-800 bg-slate-950/60 px-4 text-sm text-slate-200 hover:border-slate-600"
+              onClick={() =>
+                setFilters({
+                  cantiere: "",
+                  categoria: "",
+                  commessa: "",
+                  origine: "",
+                  stato_doc: "",
+                  mimeGroup: "",
+                  text: "",
+                  dateFrom: "",
+                  dateTo: "",
+                })
+              }
+            >
+              Reset
+            </button>
           </div>
         </div>
       </section>
+
+      <CoreDriveUpload onUploaded={() => loadFirstPage()} />
 
       <section className="rounded-2xl border border-slate-800 bg-slate-950/60 overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
@@ -549,7 +482,13 @@ export default function CoreDriveDocuments({ viewConfig = null }) {
               <div
                 key={f.id}
                 className="group flex items-center justify-between px-4 py-3 hover:bg-slate-900/40 cursor-pointer"
-                onClick={() => setPreview(f)}
+                onClick={() => {
+                  if (canOpenNavemasterCockpit(f)) {
+                    openNavemasterCockpitFromFile(f);
+                  } else {
+                    setPreview(f);
+                  }
+                }}
               >
                 <div className="min-w-0">
                   <div className="truncate text-sm font-medium text-slate-100">{f.filename}</div>
@@ -599,13 +538,22 @@ export default function CoreDriveDocuments({ viewConfig = null }) {
                   ) : null}
                   <button
                     type="button"
-                    className="h-8 rounded-lg border border-slate-800 bg-slate-950/60 px-3 text-xs text-slate-200 hover:border-slate-600"
+                    className={[
+                      "h-8 rounded-lg border bg-slate-950/60 px-3 text-xs",
+                      canOpenNavemasterCockpit(f)
+                        ? "border-emerald-500/40 text-emerald-200 hover:border-emerald-400/60 hover:text-emerald-100"
+                        : "border-slate-800 text-slate-200 hover:border-slate-600",
+                    ].join(" ")}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setPreview(f);
+                      if (canOpenNavemasterCockpit(f)) {
+                        openNavemasterCockpitFromFile(f);
+                      } else {
+                        setPreview(f);
+                      }
                     }}
                   >
-                    Preview
+                    {canOpenNavemasterCockpit(f) ? "Cockpit" : "Preview"}
                   </button>
                 </div>
               </div>

@@ -12,26 +12,29 @@ import { headerPill, themeIconBg, buttonPrimary } from "../ui/designSystem";
 const PERF = {
   // Canvas snow
   snow: {
-    // Limite FPS du canvas (30 = nettement plus fluide côté perf)
     maxFps: 30,
-    // Réduction globale du nombre de particules (multiplie le baseCount)
     countMul: 0.6,
-    // Désactive shadows (coûteux) sur les flocons "proches"
     enableFlakeShadows: false,
-    // Opacité globale du canvas
     opacity: 0.9,
+  },
+
+  // Fireworks canvas (New Year)
+  fireworks: {
+    maxFps: 30,
+    countMul: 0.9,
+    opacity: 0.92,
+    // Limite hard pour éviter les explosions trop lourdes
+    maxSparks: 1100,
   },
 
   // Accumulation (banquette)
   accumulation: {
-    // Désactive shimmer (animation + mix-blend), coûteux
     shimmer: false,
   },
 
   // ElectricFlow SVG dash animation
   flow: {
     enabled: true,
-    // ralentit un peu (moins de frames perçues)
     dashDurationMs: 9000,
     sparkDurationMs: 7800,
   },
@@ -61,6 +64,10 @@ const COPY = {
     footerRight: "CORE · Operazioni di cantiere",
     holidayNote: "Periodo festivo · operatività invariata",
     seasonalBadge: "SEASONAL · HOLIDAY",
+    nyBadge: "HAPPY NEW YEAR · 2026",
+    nyNote: "Edizione 31/12 · premium · operatività invariata",
+    nyCountdownLabel: "Verso 00:00",
+    nyWelcome: "BENVENUTO 2026",
   },
 
   fr: {
@@ -81,6 +88,10 @@ const COPY = {
     footerRight: "CORE · Opérations de chantier",
     holidayNote: "Période festive · opérativité inchangée",
     seasonalBadge: "SAISON · FÊTES",
+    nyBadge: "HAPPY NEW YEAR · 2026",
+    nyNote: "Édition 31/12 · premium · opérativité inchangée",
+    nyCountdownLabel: "Vers 00:00",
+    nyWelcome: "BIENVENUE 2026",
   },
 
   en: {
@@ -101,6 +112,10 @@ const COPY = {
     footerRight: "CORE · Shipyard operations",
     holidayNote: "Holiday season · operations unchanged",
     seasonalBadge: "SEASONAL · HOLIDAY",
+    nyBadge: "HAPPY NEW YEAR · 2026",
+    nyNote: "31/12 edition · premium · operations unchanged",
+    nyCountdownLabel: "To 00:00",
+    nyWelcome: "WELCOME 2026",
   },
 };
 
@@ -118,13 +133,18 @@ function safeGetInitialLang() {
 }
 
 /* =========================================================
-   HOLIDAY (Noël) — flag auto + override
+   SEASON FLAGS (Holiday + New Year) — auto + override
    ========================================================= */
 function isHolidaySeasonNow() {
   const d = new Date();
   const m = d.getMonth(); // 0-11
   const day = d.getDate();
   return (m === 11 && day >= 15) || (m === 0 && day <= 6);
+}
+
+function isNewYearEveNow() {
+  const d = new Date();
+  return d.getMonth() === 11 && d.getDate() === 31;
 }
 
 function getQueryParamsSafe() {
@@ -146,9 +166,27 @@ function getHolidayOverrideFromQuery() {
   return null;
 }
 
+function getNewYearOverrideFromQuery() {
+  const p = getQueryParamsSafe();
+  if (p.has("ny")) {
+    const v = p.get("ny");
+    if (v === "1" || v === "true") return true;
+    if (v === "0" || v === "false") return false;
+  }
+  return null;
+}
+
 function getSnowIntensityFromQuery() {
   const p = getQueryParamsSafe();
   const raw = (p.get("snow") || "").trim();
+  const n = Number(raw);
+  if (n === 1 || n === 2 || n === 3) return n;
+  return 2;
+}
+
+function getFireworksIntensityFromQuery() {
+  const p = getQueryParamsSafe();
+  const raw = (p.get("fw") || "").trim();
   const n = Number(raw);
   if (n === 1 || n === 2 || n === 3) return n;
   return 2;
@@ -172,8 +210,9 @@ function shouldResetSnowFromQuery() {
 
 /* =========================================================
    Electric Flow (SVG + WAAPI) — slow, industrial (perf tuned)
+   theme: "sky" | "amber" | "gold"
    ========================================================= */
-function ElectricFlow({ t }) {
+function ElectricFlow({ t, theme = "sky" }) {
   const dashRef = useRef(null);
   const sparkRef = useRef(null);
 
@@ -201,6 +240,31 @@ function ElectricFlow({ t }) {
       .replace(/\s+/g, " ")
       .trim();
   }, [x0, x1, x2, x3, y]);
+
+  const colors = useMemo(() => {
+    if (theme === "gold") {
+      return {
+        rail: ["rgba(148,163,184,0.16)", "rgba(148,163,184,0.30)", "rgba(148,163,184,0.16)"],
+        current: ["rgba(245,158,11,0.22)", "rgba(255,231,180,0.95)", "rgba(245,158,11,0.22)"],
+        glow: "rgba(245,158,11,0.08)",
+        nodeStroke: "rgba(245,158,11,0.70)",
+      };
+    }
+    if (theme === "amber") {
+      return {
+        rail: ["rgba(148,163,184,0.18)", "rgba(148,163,184,0.30)", "rgba(148,163,184,0.18)"],
+        current: ["rgba(245,158,11,0.18)", "rgba(245,158,11,0.92)", "rgba(245,158,11,0.18)"],
+        glow: "rgba(245,158,11,0.07)",
+        nodeStroke: "rgba(245,158,11,0.70)",
+      };
+    }
+    return {
+      rail: ["rgba(148,163,184,0.18)", "rgba(148,163,184,0.28)", "rgba(148,163,184,0.18)"],
+      current: ["rgba(56,189,248,0.22)", "rgba(56,189,248,0.92)", "rgba(56,189,248,0.22)"],
+      glow: "rgba(56,189,248,0.06)",
+      nodeStroke: "rgba(56,189,248,0.72)",
+    };
+  }, [theme]);
 
   useEffect(() => {
     if (!PERF.flow.enabled) return;
@@ -291,15 +355,16 @@ function ElectricFlow({ t }) {
 
       <div className="metalPanel p-6 md:p-7">
         <div className="flex items-center justify-between gap-4 mb-5">
-          <div className="min-w-0 text-[11px] uppercase tracking-[0.28em] text-slate-500">
-            {t.spec}
-          </div>
+          <div className="min-w-0 text-[11px] uppercase tracking-[0.28em] text-slate-500">{t.spec}</div>
 
           <div className="shrink-0 inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/55 px-3 py-1.5">
-            <span className="text-[11px] uppercase tracking-[0.20em] text-slate-400">
-              CORE 1.0
-            </span>
-            <span className="text-[11px] uppercase tracking-[0.20em] text-sky-200">
+            <span className="text-[11px] uppercase tracking-[0.20em] text-slate-400">CORE 1.0</span>
+            <span
+              className={cx(
+                "text-[11px] uppercase tracking-[0.20em]",
+                theme === "gold" ? "text-amber-200" : theme === "amber" ? "text-amber-200" : "text-sky-200"
+              )}
+            >
               LIVE
             </span>
           </div>
@@ -308,26 +373,20 @@ function ElectricFlow({ t }) {
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[190px] md:h-[210px]" aria-hidden="true">
           <defs>
             <linearGradient id="railGrad" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="rgba(148,163,184,0.18)" />
-              <stop offset="50%" stopColor="rgba(148,163,184,0.28)" />
-              <stop offset="100%" stopColor="rgba(148,163,184,0.18)" />
+              <stop offset="0%" stopColor={colors.rail[0]} />
+              <stop offset="50%" stopColor={colors.rail[1]} />
+              <stop offset="100%" stopColor={colors.rail[2]} />
             </linearGradient>
+
             <linearGradient id="currentGrad" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="rgba(56,189,248,0.22)" />
-              <stop offset="55%" stopColor="rgba(56,189,248,0.92)" />
-              <stop offset="100%" stopColor="rgba(56,189,248,0.22)" />
+              <stop offset="0%" stopColor={colors.current[0]} />
+              <stop offset="55%" stopColor={colors.current[1]} />
+              <stop offset="100%" stopColor={colors.current[2]} />
             </linearGradient>
           </defs>
 
           <path d={d} fill="none" stroke="url(#railGrad)" strokeWidth="3" strokeLinecap="round" opacity="0.95" />
-          <path
-            d={d}
-            fill="none"
-            stroke="rgba(56,189,248,0.09)"
-            strokeWidth="12"
-            strokeLinecap="round"
-            opacity="0.52"
-          />
+          <path d={d} fill="none" stroke={colors.glow} strokeWidth="12" strokeLinecap="round" opacity="0.62" />
           <path
             ref={dashRef}
             d={d}
@@ -351,35 +410,21 @@ function ElectricFlow({ t }) {
             opacity="0.70"
           />
 
-          <Node x={x0} y={y} label={t.nodes[0]} sub={t.nodeSubs[0]} />
-          <Node x={x1} y={y} label={t.nodes[1]} sub={t.nodeSubs[1]} />
-          <Node x={x2} y={y} label={t.nodes[2]} sub={t.nodeSubs[2]} />
-          <Node x={x3} y={y} label={t.nodes[3]} sub={t.nodeSubs[3]} />
+          <Node x={x0} y={y} label={t.nodes[0]} sub={t.nodeSubs[0]} stroke={colors.nodeStroke} />
+          <Node x={x1} y={y} label={t.nodes[1]} sub={t.nodeSubs[1]} stroke={colors.nodeStroke} />
+          <Node x={x2} y={y} label={t.nodes[2]} sub={t.nodeSubs[2]} stroke={colors.nodeStroke} />
+          <Node x={x3} y={y} label={t.nodes[3]} sub={t.nodeSubs[3]} stroke={colors.nodeStroke} />
         </svg>
       </div>
     </div>
   );
 }
 
-function Node({ x, y, label, sub }) {
+function Node({ x, y, label, sub, stroke }) {
   return (
     <>
-      <circle
-        cx={x}
-        cy={y}
-        r="9.5"
-        fill="rgba(2,6,23,0.92)"
-        stroke="rgba(56,189,248,0.72)"
-        strokeWidth="2"
-      />
-      <circle
-        cx={x}
-        cy={y}
-        r="5"
-        fill="rgba(2,6,23,0.98)"
-        stroke="rgba(226,232,240,0.22)"
-        strokeWidth="1"
-      />
+      <circle cx={x} cy={y} r="9.5" fill="rgba(2,6,23,0.92)" stroke={stroke} strokeWidth="2" />
+      <circle cx={x} cy={y} r="5" fill="rgba(2,6,23,0.98)" stroke="rgba(226,232,240,0.22)" strokeWidth="1" />
       <circle cx={x} cy={y} r="2.6" fill="rgba(226,232,240,0.92)" />
       <circle cx={x} cy={y} r="6.5" fill="rgba(56,189,248,0.06)" />
 
@@ -433,13 +478,12 @@ function SnowCanvas({ enabled, intensity = 2 }) {
     const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
 
     const config = (() => {
-      // baseCount réduit + multiplicateur global PERF.countMul
       const baseCountRaw = intensity === 3 ? 260 : intensity === 2 ? 200 : 150;
       const baseCount = Math.max(80, Math.round(baseCountRaw * PERF.snow.countMul));
 
       const wind = intensity === 3 ? 0.24 : intensity === 2 ? 0.20 : 0.14;
       const gust = intensity === 3 ? 0.12 : intensity === 2 ? 0.09 : 0.06;
-      const speedBoost = intensity === 3 ? 1.20 : intensity === 2 ? 1.05 : 0.95;
+      const speedBoost = intensity === 3 ? 1.2 : intensity === 2 ? 1.05 : 0.95;
 
       return { baseCount, wind, gust, speedBoost };
     })();
@@ -500,7 +544,6 @@ function SnowCanvas({ enabled, intensity = 2 }) {
       rafRef.current = requestAnimationFrame(step);
       if (visPauseRef.current) return;
 
-      // FPS limiter
       const targetFrameMs = 1000 / Math.max(10, PERF.snow.maxFps);
       const lastTick = accRef.current || ts;
       if (ts - lastTick < targetFrameMs) return;
@@ -515,7 +558,6 @@ function SnowCanvas({ enabled, intensity = 2 }) {
 
       ctx.clearRect(0, 0, w, h);
 
-      // PERF: éviter globalCompositeOperation "lighter" (coûteux sur certains GPU)
       ctx.save();
       ctx.globalCompositeOperation = "source-over";
 
@@ -543,7 +585,6 @@ function SnowCanvas({ enabled, intensity = 2 }) {
         ctx.beginPath();
         ctx.globalAlpha = p.alpha;
 
-        // PERF: pas de shadowBlur (désactivable)
         if (PERF.snow.enableFlakeShadows && p.r >= 3.0) {
           ctx.fillStyle = "rgba(255,255,255,0.95)";
           ctx.shadowColor = "rgba(255,255,255,0.12)";
@@ -680,7 +721,6 @@ function SnowAccumulation({ enabled, intensity = 2 }) {
               rgba(255,255,255,0.00)
             )
           `,
-          // PERF: évite blur lourd
           filter: "none",
         }}
       />
@@ -700,7 +740,6 @@ function SnowAccumulation({ enabled, intensity = 2 }) {
             radial-gradient(140px 26px at 86% 78%, rgba(255,255,255,0.18), transparent 66%)
           `,
           opacity: 0.9,
-          // PERF: blur réduit fortement
           filter: "blur(0.6px)",
         }}
       />
@@ -731,6 +770,374 @@ function SnowAccumulation({ enabled, intensity = 2 }) {
 }
 
 /* =========================================================
+   NEW YEAR — Fireworks Canvas (perf tuned)
+   intensity: 1|2|3 (fw=1|2|3)
+   ========================================================= */
+function FireworksCanvas({ enabled, intensity = 2 }) {
+  const canvasRef = useRef(null);
+  const rafRef = useRef(0);
+  const lastRef = useRef(0);
+  const accRef = useRef(0);
+  const visPauseRef = useRef(false);
+
+  const rocketsRef = useRef([]);
+  const sparksRef = useRef([]);
+  const spawnAccRef = useRef(0);
+
+  const reduceMotion = useMemo(() => {
+    try {
+      return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!enabled) return;
+    if (reduceMotion) return;
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d", { alpha: true });
+    if (!ctx) return;
+
+    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+
+    const config = (() => {
+      // Intensité = densité + fréquence (mais plafonnée)
+      const spawnPerSec = intensity === 3 ? 2.0 : intensity === 2 ? 1.35 : 0.9;
+      const rocketSpeed = intensity === 3 ? 980 : intensity === 2 ? 860 : 760;
+      const sparkCount = intensity === 3 ? 120 : intensity === 2 ? 96 : 78;
+      const sparkLife = intensity === 3 ? 1.65 : intensity === 2 ? 1.45 : 1.25;
+      return { spawnPerSec, rocketSpeed, sparkCount, sparkLife };
+    })();
+
+    function resize() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      canvas.style.width = `${w}px`;
+      canvas.style.height = `${h}px`;
+      canvas.width = Math.floor(w * dpr);
+      canvas.height = Math.floor(h * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function rand(min, max) {
+      return min + Math.random() * (max - min);
+    }
+
+    function clamp(n, a, b) {
+      return Math.max(a, Math.min(b, n));
+    }
+
+    function makeRocket(w, h) {
+      const x = rand(w * 0.08, w * 0.92);
+      const y = h + rand(18, 80);
+      // cible haute (explosion)
+      const targetY = rand(h * 0.18, h * 0.45);
+      // léger drift horizontal
+      const vx = rand(-46, 46);
+      const vy = -rand(config.rocketSpeed * 0.78, config.rocketSpeed * 1.0);
+      return {
+        x,
+        y,
+        vx,
+        vy,
+        targetY,
+        t: 0,
+        // couleur "champagne"
+        hue: rand(38, 52), // zone or/ambre
+        bright: rand(0.82, 0.98),
+      };
+    }
+
+    function explode(rocket) {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+
+      const cx0 = clamp(rocket.x, 8, w - 8);
+      const cy0 = clamp(rocket.y, 8, h - 8);
+
+      const base = config.sparkCount;
+      const count = Math.round(base * PERF.fireworks.countMul);
+
+      // ring + burst
+      const ringCount = Math.round(count * 0.25);
+      const burstCount = count - ringCount;
+
+      const sparks = sparksRef.current;
+
+      const maxAllow = PERF.fireworks.maxSparks;
+      if (sparks.length > maxAllow) {
+        sparks.splice(0, sparks.length - Math.floor(maxAllow * 0.8));
+      }
+
+      // anneau
+      const ringR = rand(160, 260);
+      for (let i = 0; i < ringCount; i++) {
+        const a = (i / ringCount) * Math.PI * 2;
+        const speed = ringR * rand(1.9, 2.4);
+        sparks.push({
+          x: cx0,
+          y: cy0,
+          vx: Math.cos(a) * speed,
+          vy: Math.sin(a) * speed,
+          life: config.sparkLife * rand(0.85, 1.15),
+          age: 0,
+          r: rand(0.9, 1.8),
+          alpha: rand(0.55, 0.95),
+          hue: rocket.hue + rand(-6, 6),
+          white: Math.random() < 0.16,
+        });
+      }
+
+      // burst
+      for (let i = 0; i < burstCount; i++) {
+        const a = rand(0, Math.PI * 2);
+        const speed = rand(220, 680);
+        sparks.push({
+          x: cx0,
+          y: cy0,
+          vx: Math.cos(a) * speed,
+          vy: Math.sin(a) * speed,
+          life: config.sparkLife * rand(0.75, 1.25),
+          age: 0,
+          r: rand(0.8, 1.9),
+          alpha: rand(0.45, 0.92),
+          hue: rocket.hue + rand(-8, 8),
+          white: Math.random() < 0.12,
+        });
+      }
+
+      // flash (très léger)
+      sparks.push({
+        x: cx0,
+        y: cy0,
+        vx: 0,
+        vy: 0,
+        life: 0.18,
+        age: 0,
+        r: rand(10, 18),
+        alpha: 0.18,
+        hue: rocket.hue,
+        white: true,
+        isFlash: true,
+      });
+    }
+
+    function step(ts) {
+      rafRef.current = requestAnimationFrame(step);
+      if (visPauseRef.current) return;
+
+      const targetFrameMs = 1000 / Math.max(10, PERF.fireworks.maxFps);
+      const lastTick = accRef.current || ts;
+      if (ts - lastTick < targetFrameMs) return;
+      accRef.current = ts;
+
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+
+      const last = lastRef.current || ts;
+      const dt = Math.min(0.05, Math.max(0.001, (ts - last) / 1000));
+      lastRef.current = ts;
+
+      // fade (trails) — via clear + alpha overlay
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = "rgba(2,6,23,0.22)";
+      ctx.fillRect(0, 0, w, h);
+      ctx.restore();
+
+      // spawn rockets
+      spawnAccRef.current += dt * config.spawnPerSec;
+      const rockets = rocketsRef.current;
+      while (spawnAccRef.current >= 1) {
+        spawnAccRef.current -= 1;
+        rockets.push(makeRocket(w, h));
+      }
+
+      // update rockets
+      for (let i = rockets.length - 1; i >= 0; i--) {
+        const r = rockets[i];
+        r.t += dt;
+        // simple physics
+        r.x += r.vx * dt;
+        r.y += r.vy * dt;
+
+        // slight gravity
+        r.vy += 220 * dt;
+
+        // draw rocket head (tiny)
+        const a = clamp(0.22 + r.bright * 0.55, 0.18, 0.92);
+        ctx.globalAlpha = a;
+        ctx.beginPath();
+        ctx.fillStyle = "rgba(255,231,180,0.95)";
+        ctx.arc(r.x, r.y, 1.3, 0, Math.PI * 2);
+        ctx.fill();
+
+        // explode condition
+        if (r.y <= r.targetY || r.t > 1.6) {
+          explode(r);
+          rockets.splice(i, 1);
+        }
+
+        // out-of-bounds cleanup
+        if (r.y < -120 || r.x < -120 || r.x > w + 120) {
+          rockets.splice(i, 1);
+        }
+      }
+      ctx.globalAlpha = 1;
+
+      // update sparks
+      const sparks = sparksRef.current;
+
+      // PERF: pas de lighter constant (GPU), on reste source-over
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+
+      for (let i = sparks.length - 1; i >= 0; i--) {
+        const s = sparks[i];
+        s.age += dt;
+        if (s.age >= s.life) {
+          sparks.splice(i, 1);
+          continue;
+        }
+
+        const k = 1 - s.age / s.life;
+
+        // physics
+        if (!s.isFlash) {
+          s.vy += 300 * dt; // gravity
+          s.vx *= 0.985; // air drag
+          s.vy *= 0.985;
+          s.x += s.vx * dt;
+          s.y += s.vy * dt;
+        }
+
+        const alpha = s.alpha * Math.pow(k, 0.9);
+        ctx.globalAlpha = alpha;
+
+        if (s.isFlash) {
+          ctx.beginPath();
+          ctx.fillStyle = "rgba(255,255,255,0.85)";
+          ctx.arc(s.x, s.y, s.r * (0.55 + 0.9 * k), 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          // champagne/gold particle
+          const hue = Math.round(s.hue);
+          const col = s.white ? "rgba(255,255,255,0.92)" : `hsla(${hue}, 92%, 70%, 0.95)`;
+
+          ctx.beginPath();
+          ctx.fillStyle = col;
+          ctx.arc(s.x, s.y, s.r * (0.85 + 0.35 * k), 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      ctx.restore();
+      ctx.globalAlpha = 1;
+    }
+
+    function onVis() {
+      visPauseRef.current = document.visibilityState !== "visible";
+    }
+
+    resize();
+
+    window.addEventListener("resize", resize);
+    document.addEventListener("visibilitychange", onVis);
+
+    // seed first rockets for instant wow
+    rocketsRef.current = [];
+    sparksRef.current = [];
+    spawnAccRef.current = 0.6;
+
+    // initial clear
+    ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+
+    rafRef.current = requestAnimationFrame(step);
+
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      window.removeEventListener("resize", resize);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [enabled, intensity, reduceMotion]);
+
+  if (!enabled) return null;
+
+  return (
+    <canvas
+      ref={canvasRef}
+      aria-hidden="true"
+      className="pointer-events-none fixed inset-0"
+      style={{
+        zIndex: 70,
+        opacity: PERF.fireworks.opacity,
+      }}
+    />
+  );
+}
+
+/* =========================================================
+   New Year Countdown (lightweight)
+   ========================================================= */
+function NewYearCountdown({ enabled, t }) {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    if (!enabled) return;
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    const tickMs = reduce ? 1000 : 500;
+    const id = window.setInterval(() => setNow(new Date()), tickMs);
+    return () => window.clearInterval(id);
+  }, [enabled]);
+
+  if (!enabled) return null;
+
+  const y = now.getFullYear();
+  const target = new Date(y + 1, 0, 1, 0, 0, 0, 0); // next Jan 1
+  const ms = target.getTime() - now.getTime();
+
+  const done = ms <= 0;
+
+  function pad2(n) {
+    return String(Math.max(0, n)).padStart(2, "0");
+  }
+
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const hh = Math.floor(totalSec / 3600);
+  const mm = Math.floor((totalSec % 3600) / 60);
+  const ss = totalSec % 60;
+
+  return (
+    <div className="mt-5">
+      <div
+        className={cx(
+          "inline-flex items-center gap-3 rounded-2xl border px-4 py-3",
+          "bg-slate-950/40 backdrop-blur",
+          "border-amber-400/30"
+        )}
+        style={{
+          boxShadow: "0 18px 55px rgba(245,158,11,0.10), inset 0 1px 0 rgba(255,255,255,0.05)",
+        }}
+      >
+        <span className="h-1.5 w-1.5 rounded-full bg-amber-200/80" />
+        <div className="min-w-0">
+          <div className="text-[10px] uppercase tracking-[0.26em] text-amber-200/80">
+            {done ? "NEW YEAR" : t.nyCountdownLabel}
+          </div>
+          <div className={cx("font-semibold tracking-tight", done ? "text-amber-100" : "text-slate-100")}>
+            {done ? t.nyWelcome : `${pad2(hh)}:${pad2(mm)}:${pad2(ss)}`}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
    LANDING — Démo-grade (perf tuned)
    ========================================================= */
 export default function Landing() {
@@ -747,14 +1154,29 @@ export default function Landing() {
     } catch {}
   }, [lang]);
 
-  const holiday = useMemo(() => {
-    const override = getHolidayOverrideFromQuery();
-    if (override !== null) return override;
-    return isHolidaySeasonNow();
+  // Determine season mode with strict priority:
+  // 1) ny override
+  // 2) new year eve (31/12)
+  // 3) xmas override
+  // 4) holiday season auto
+  const seasonMode = useMemo(() => {
+    const nyOverride = getNewYearOverrideFromQuery();
+    if (nyOverride !== null) return nyOverride ? "ny" : "none";
+
+    if (isNewYearEveNow()) return "ny";
+
+    const holidayOverride = getHolidayOverrideFromQuery();
+    if (holidayOverride !== null) return holidayOverride ? "holiday" : "none";
+
+    return isHolidaySeasonNow() ? "holiday" : "none";
   }, []);
+
+  const holiday = seasonMode === "holiday";
+  const ny = seasonMode === "ny";
 
   const snowIntensity = useMemo(() => getSnowIntensityFromQuery(), []);
   const snowAccEnabled = useMemo(() => getAccumulationEnabledFromQuery(), []);
+  const fwIntensity = useMemo(() => getFireworksIntensityFromQuery(), []);
 
   const accessHref = useMemo(() => {
     const subject = encodeURIComponent("Richiesta accesso CORE");
@@ -764,21 +1186,45 @@ export default function Landing() {
     return `mailto:info@core.local?subject=${subject}&body=${body}`;
   }, []);
 
+  const heroTitleStyle = useMemo(() => {
+    if (!ny) return null;
+    return {
+      backgroundImage:
+        "linear-gradient(90deg, rgba(255,231,180,1), rgba(245,158,11,1), rgba(255,231,180,1))",
+      WebkitBackgroundClip: "text",
+      backgroundClip: "text",
+      color: "transparent",
+    };
+  }, [ny]);
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       {/* BACKDROP */}
       <div
         className="pointer-events-none fixed inset-0"
         style={{
-          backgroundImage: `
-            radial-gradient(1200px 620px at 14% 18%, rgba(56,189,248,0.08), transparent 62%),
-            radial-gradient(900px 520px at 78% 22%, ${holiday ? "rgba(234,179,8,0.10)" : "rgba(16,185,129,0.05)"}, transparent 64%),
-            radial-gradient(900px 520px at 48% 86%, ${holiday ? "rgba(245,158,11,0.08)" : "rgba(139,92,246,0.035)"}, transparent 66%),
-            linear-gradient(to bottom, rgba(2,6,23,0.0), rgba(2,6,23,0.48))
-          `,
+          backgroundImage: ny
+            ? `
+              radial-gradient(1200px 680px at 14% 18%, rgba(255,231,180,0.10), transparent 62%),
+              radial-gradient(900px 560px at 78% 22%, rgba(245,158,11,0.14), transparent 64%),
+              radial-gradient(900px 560px at 52% 86%, rgba(16,185,129,0.05), transparent 66%),
+              radial-gradient(1100px 520px at 46% 40%, rgba(255,255,255,0.03), transparent 70%),
+              linear-gradient(to bottom, rgba(2,6,23,0.0), rgba(2,6,23,0.62))
+            `
+            : `
+              radial-gradient(1200px 620px at 14% 18%, rgba(56,189,248,0.08), transparent 62%),
+              radial-gradient(900px 520px at 78% 22%, ${
+                holiday ? "rgba(234,179,8,0.10)" : "rgba(16,185,129,0.05)"
+              }, transparent 64%),
+              radial-gradient(900px 520px at 48% 86%, ${
+                holiday ? "rgba(245,158,11,0.08)" : "rgba(139,92,246,0.035)"
+              }, transparent 66%),
+              linear-gradient(to bottom, rgba(2,6,23,0.0), rgba(2,6,23,0.48))
+            `,
         }}
       />
-      {/* PERF: réduire grain (moins d’opacité) */}
+
+      {/* GRAIN (reduced opacity) */}
       <div
         className="pointer-events-none fixed inset-0 opacity-[0.045]"
         style={{
@@ -795,6 +1241,32 @@ export default function Landing() {
         }}
       />
 
+      {/* NEW YEAR — gold foil overlay (subtle) */}
+      {ny ? (
+        <div
+          className="pointer-events-none fixed inset-0"
+          style={{
+            zIndex: 65,
+            backgroundImage: `
+              conic-gradient(
+                from 180deg at 50% 35%,
+                rgba(245,158,11,0.00),
+                rgba(255,231,180,0.07),
+                rgba(245,158,11,0.00),
+                rgba(255,255,255,0.04),
+                rgba(245,158,11,0.00)
+              )
+            `,
+            mixBlendMode: "screen",
+            opacity: 0.85,
+          }}
+          aria-hidden="true"
+        />
+      ) : null}
+
+      {/* CANVAS LAYERS */}
+      <FireworksCanvas enabled={ny} intensity={fwIntensity} />
+
       {/* SNOW: falling + accumulation (holiday only) */}
       <SnowCanvas enabled={holiday} intensity={snowIntensity} />
       <SnowAccumulation enabled={holiday && snowAccEnabled} intensity={snowIntensity} />
@@ -806,12 +1278,10 @@ export default function Landing() {
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0 flex items-center gap-3">
                 <div className={cx(headerPill(true), "border-slate-700 text-slate-200 bg-slate-900/40")}>
-                  <span className={themeIconBg(true, holiday ? "amber" : "sky")}>●</span>
+                  <span className={themeIconBg(true, ny || holiday ? "amber" : "sky")}>●</span>
                   <span>CORE</span>
                 </div>
-                <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500 truncate">
-                  {t.eyebrow}
-                </div>
+                <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500 truncate">{t.eyebrow}</div>
               </div>
 
               <div className="flex items-center gap-2">
@@ -823,7 +1293,11 @@ export default function Landing() {
                       onClick={() => setLang(l)}
                       className={cx(
                         "px-2.5 py-1.5 rounded-lg text-[11px] uppercase tracking-[0.18em] transition",
-                        l === lang ? (holiday ? "text-amber-200" : "text-sky-200") : "text-slate-500 hover:text-slate-300"
+                        l === lang
+                          ? ny || holiday
+                            ? "text-amber-200"
+                            : "text-sky-200"
+                          : "text-slate-500 hover:text-slate-300"
                       )}
                       aria-label={`Language ${l}`}
                       title={l.toUpperCase()}
@@ -833,7 +1307,7 @@ export default function Landing() {
                   ))}
                 </div>
 
-                {holiday ? (
+                {(ny || holiday) && !ny ? (
                   <span
                     className="hidden md:inline-flex items-center gap-2 rounded-full border border-amber-400/35 bg-amber-500/12 px-3 py-1.5"
                     style={{
@@ -842,9 +1316,21 @@ export default function Landing() {
                     title="Seasonal mode — snow=1|2|3 — reset snowreset=1"
                   >
                     <span className="h-1.5 w-1.5 rounded-full bg-amber-200/80" />
-                    <span className="text-[10px] uppercase tracking-[0.22em] text-amber-200">
-                      {t.seasonalBadge}
-                    </span>
+                    <span className="text-[10px] uppercase tracking-[0.22em] text-amber-200">{t.seasonalBadge}</span>
+                  </span>
+                ) : null}
+
+                {ny ? (
+                  <span
+                    className="hidden md:inline-flex items-center gap-2 rounded-full border border-amber-300/35 bg-amber-500/10 px-3 py-1.5"
+                    style={{
+                      boxShadow: "0 12px 38px rgba(245,158,11,0.12), inset 0 1px 0 rgba(255,255,255,0.05)",
+                    }}
+                    title="New Year mode — fw=1|2|3"
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-200/85" />
+                    <span className="text-[10px] uppercase tracking-[0.22em] text-amber-200">NEW YEAR · 31/12</span>
+                    <span className="text-[10px] uppercase tracking-[0.22em] text-slate-500">LIMITED</span>
                   </span>
                 ) : null}
 
@@ -852,7 +1338,10 @@ export default function Landing() {
                   to="/login"
                   className={cx(
                     buttonPrimary(true),
-                    "h-9 px-4 rounded-xl shadow-[0_18px_45px_rgba(56,189,248,0.14)]"
+                    "h-9 px-4 rounded-xl",
+                    ny
+                      ? "shadow-[0_18px_52px_rgba(245,158,11,0.16)]"
+                      : "shadow-[0_18px_45px_rgba(56,189,248,0.14)]"
                   )}
                 >
                   {t.ctaPrimary}
@@ -869,13 +1358,27 @@ export default function Landing() {
           <section className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
             <div className="lg:col-span-6 space-y-9">
               <div className="space-y-3">
+                {ny ? (
+                  <div
+                    className="inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-slate-950/40 px-4 py-2 backdrop-blur"
+                    style={{
+                      boxShadow: "0 18px 60px rgba(245,158,11,0.12), inset 0 1px 0 rgba(255,255,255,0.05)",
+                    }}
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-200/80" />
+                    <span className="text-[11px] uppercase tracking-[0.22em] text-amber-200">{t.nyBadge}</span>
+                  </div>
+                ) : null}
+
                 <div className="text-[12px] uppercase tracking-[0.30em] text-slate-500">{t.eyebrow}</div>
 
-                <h1 className="text-7xl md:text-7xl font-semibold tracking-tight leading-[0.95]">
+                <h1 className="text-7xl md:text-7xl font-semibold tracking-tight leading-[0.95]" style={heroTitleStyle || undefined}>
                   {t.title}
                 </h1>
 
                 <div className="text-2xl text-slate-300 tracking-tight">{t.subtitle}</div>
+
+                {ny ? <NewYearCountdown enabled={ny} t={t} /> : null}
               </div>
 
               <div className="space-y-2 text-[22px] leading-relaxed">
@@ -891,7 +1394,9 @@ export default function Landing() {
                   to="/login"
                   className={cx(
                     buttonPrimary(true),
-                    holiday
+                    ny
+                      ? "px-7 py-3 rounded-xl shadow-[0_20px_60px_rgba(245,158,11,0.18)]"
+                      : holiday
                       ? "px-7 py-3 rounded-xl shadow-[0_18px_52px_rgba(245,158,11,0.10)]"
                       : "px-7 py-3 rounded-xl shadow-[0_18px_50px_rgba(56,189,248,0.14)]"
                   )}
@@ -903,21 +1408,25 @@ export default function Landing() {
                   href={accessHref}
                   className={cx(
                     "inline-flex items-center justify-center rounded-xl border border-slate-800 bg-slate-950/45 px-7 py-3",
-                    holiday ? "text-amber-100 hover:bg-amber-500/8 hover:border-amber-400/25" : "text-slate-200 hover:bg-slate-950/70",
+                    ny
+                      ? "text-amber-100 hover:bg-amber-500/8 hover:border-amber-300/25"
+                      : holiday
+                      ? "text-amber-100 hover:bg-amber-500/8 hover:border-amber-400/25"
+                      : "text-slate-200 hover:bg-slate-950/70",
                     "transition"
                   )}
                 >
                   {t.ctaSecondary}
                 </a>
 
-                <span className={cx("text-sm", holiday ? "text-amber-200/70" : "text-slate-500")}>
-                  {holiday ? t.holidayNote : t.accessNote}
+                <span className={cx("text-sm", ny ? "text-amber-200/75" : holiday ? "text-amber-200/70" : "text-slate-500")}>
+                  {ny ? t.nyNote : holiday ? t.holidayNote : t.accessNote}
                 </span>
               </div>
             </div>
 
             <div className="lg:col-span-6">
-              <ElectricFlow t={t} />
+              <ElectricFlow t={t} theme={ny ? "gold" : holiday ? "amber" : "sky"} />
             </div>
           </section>
 

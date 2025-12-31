@@ -1,5 +1,6 @@
 // /src/navemaster/NavemasterHub.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import NavemasterImportModal from "./NavemasterImportModal";
 import NavemasterCockpitModal from "../components/NavemasterCockpitModal";
@@ -33,6 +34,16 @@ function RoleDenied({ role }) {
 }
 
 export default function NavemasterHub() {
+  const [searchParams] = useSearchParams();
+  const qpShipId = String(searchParams.get("shipId") || "").trim();
+  const qpOpenCockpit = String(searchParams.get("openCockpit") || "").trim() === "1";
+  const qpIncaFileId = String(searchParams.get("incaFileId") || "").trim();
+
+  const didAutoOpenRef = useRef(false);
+
+  const [launchInca, setLaunchInca] = useState(null);
+  const [launchIncaError, setLaunchIncaError] = useState(null);
+
   // Role guard
   const [roleLoading, setRoleLoading] = useState(true);
   const [role, setRole] = useState(null);
@@ -46,6 +57,7 @@ export default function NavemasterHub() {
   const [rows, setRows] = useState([]);
   const [importMeta, setImportMeta] = useState(null);
   const [error, setError] = useState(null);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   // Modals
   const [importOpen, setImportOpen] = useState(false);
@@ -65,12 +77,7 @@ export default function NavemasterHub() {
         setRole(null);
         return;
       }
-      const res = await supabase
-        .from("profiles")
-        .select("app_role")
-        .eq("id", userId)
-        .maybeSingle();
-
+      const res = await supabase.from("profiles").select("app_role").eq("id", userId).maybeSingle();
       if (res.error) throw res.error;
       setRole(res.data?.app_role || null);
     } catch (e) {
@@ -95,7 +102,9 @@ export default function NavemasterHub() {
       const list = (data || []).filter((s) => s?.is_active !== false);
       setShips(list);
 
-      if (!shipId && list?.[0]?.id) {
+      if (qpShipId && list.some((s) => s.id === qpShipId)) {
+        setShipId(qpShipId);
+      } else if (!shipId && list?.[0]?.id) {
         setShipId(list[0].id);
       }
     } catch (e) {
@@ -131,7 +140,7 @@ export default function NavemasterHub() {
         )
         .eq("ship_id", sid)
         .order("marcacavo", { ascending: true })
-        .limit(50000); // cockpit virtualisé => on peut monter
+        .limit(50000);
 
       if (rowsErr) throw rowsErr;
       setRows(rowsData || []);
@@ -140,6 +149,7 @@ export default function NavemasterHub() {
       setRows([]);
     } finally {
       setLoading(false);
+      setHasLoadedOnce(true);
     }
   }
 
@@ -147,6 +157,38 @@ export default function NavemasterHub() {
     loadRole();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Optional deep-link context: show which INCA file triggered the NAVEMASTER cockpit.
+  useEffect(() => {
+    let alive = true;
+
+    async function loadLaunchInca() {
+      setLaunchIncaError(null);
+      setLaunchInca(null);
+
+      if (!qpIncaFileId) return;
+
+      try {
+        const { data, error: e } = await supabase
+          .from("inca_files")
+          .select("id, file_name, uploaded_at, costr, commessa")
+          .eq("id", qpIncaFileId)
+          .maybeSingle();
+
+        if (e) throw e;
+        if (!alive) return;
+        setLaunchInca(data || null);
+      } catch (err) {
+        if (!alive) return;
+        setLaunchIncaError(err?.message || String(err));
+      }
+    }
+
+    loadLaunchInca();
+    return () => {
+      alive = false;
+    };
+  }, [qpIncaFileId]);
 
   useEffect(() => {
     if (!roleLoading && allowed) loadShips();
@@ -157,6 +199,18 @@ export default function NavemasterHub() {
     if (!roleLoading && allowed) loadNavemaster(shipId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shipId, roleLoading, allowed]);
+
+  // URL deep-link behavior: auto-open the giant cockpit modal.
+  useEffect(() => {
+    if (!qpOpenCockpit) return;
+    if (roleLoading || !allowed) return;
+    if (!shipId) return;
+    if (!hasLoadedOnce) return;
+    if (didAutoOpenRef.current) return;
+
+    didAutoOpenRef.current = true;
+    setCockpitOpen(true);
+  }, [qpOpenCockpit, roleLoading, allowed, shipId, hasLoadedOnce]);
 
   const kpi = useMemo(() => {
     const total = rows.length;
@@ -213,7 +267,6 @@ export default function NavemasterHub() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Toujours présent: bouton cockpit -> popup géant */}
           <button
             type="button"
             onClick={() => setCockpitOpen(true)}
@@ -252,22 +305,43 @@ export default function NavemasterHub() {
         </div>
       ) : null}
 
+      {launchInca ? (
+        <div className="rounded-2xl border border-emerald-500/25 bg-emerald-950/15 p-4 text-emerald-100">
+          <div className="text-xs uppercase tracking-[0.18em]">Deep-link INCA</div>
+          <div className="mt-1 text-sm">
+            Ouvert depuis un fichier INCA:{" "}
+            <span className="text-emerald-50 font-semibold">{launchInca.file_name || "—"}</span>
+          </div>
+          <div className="mt-1 text-xs text-emerald-200/80">
+            {launchInca.costr ? `COSTR ${launchInca.costr}` : "COSTR —"}
+            {" · "}
+            {launchInca.commessa ? `Commessa ${launchInca.commessa}` : "Commessa —"}
+            {" · "}
+            {launchInca.uploaded_at
+              ? `Importato ${new Date(launchInca.uploaded_at).toLocaleString("it-IT")}`
+              : "Importato —"}
+          </div>
+        </div>
+      ) : launchIncaError ? (
+        <div className="rounded-2xl border border-amber-500/25 bg-amber-950/15 p-4 text-amber-100">
+          <div className="text-xs uppercase tracking-[0.18em]">Deep-link INCA</div>
+          <div className="mt-1 text-sm">Impossible de lire le fichier INCA demandé (incaFileId).</div>
+        </div>
+      ) : null}
+
       <div className="rounded-2xl border border-slate-800 bg-slate-950/20 p-4">
         {noShips ? (
           <div className="rounded-xl border border-slate-800 bg-slate-950/30 p-4">
             <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">NAVIRE</div>
             <div className="mt-1 text-sm text-slate-200">Aucun navire visible pour ce compte.</div>
             <div className="mt-1 text-xs text-slate-500">
-              Cause typique: RLS/policies sur <span className="text-slate-300">ships</span> trop
-              restrictives.
+              Cause typique: RLS/policies sur <span className="text-slate-300">ships</span> trop restrictives.
             </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <label className="block sm:col-span-2">
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400 mb-1">
-                Navire
-              </div>
+              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400 mb-1">Navire</div>
               <select
                 value={shipId}
                 onChange={(e) => setShipId(e.target.value)}
@@ -283,13 +357,9 @@ export default function NavemasterHub() {
             </label>
 
             <div className="rounded-xl border border-slate-800 bg-slate-950/30 p-3">
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
-                Snapshot actif
-              </div>
+              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Snapshot actif</div>
               <div className="mt-1 text-sm text-slate-200">
-                {importMeta?.imported_at
-                  ? new Date(importMeta.imported_at).toLocaleString("it-IT")
-                  : "Aucun"}
+                {importMeta?.imported_at ? new Date(importMeta.imported_at).toLocaleString("it-IT") : "Aucun"}
               </div>
               <div className="text-xs text-slate-500 mt-1">{importMeta?.file_name || "—"}</div>
             </div>
@@ -305,7 +375,6 @@ export default function NavemasterHub() {
         <Tile label="Top SITUAZIONE" value={kpi.topSit} />
       </div>
 
-      {/* Mini table (page) — le vrai travail se fait dans le cockpit modal */}
       <div className="overflow-auto rounded-2xl border border-slate-800">
         <table className="min-w-[1100px] w-full text-sm">
           <thead className="bg-slate-950/50 text-slate-300">
@@ -370,6 +439,7 @@ export default function NavemasterHub() {
         open={importOpen}
         onClose={() => setImportOpen(false)}
         ship={currentShip}
+        role={role}
         onImported={() => {
           setImportOpen(false);
           loadNavemaster();

@@ -1,11 +1,36 @@
-// /src/components/core-drive/docs/CoreDrivePreviewDrawer.jsx
+// /src/components/core-drive/CoreDrivePreviewDrawer.jsx
 import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+
 import { getSignedUrl } from "../../services/coreDrive.api";
-import Badge from "./ui/Badge";
-import { bytes, formatDateTime } from "./docs/coreDriveDocsUi";
 import { useCoreDriveEvents } from "../../hooks/useCoreDriveEvents";
 
+import Badge from "./ui/Badge";
+import { bytes, formatDateTime } from "./docs/coreDriveDocsUi";
+
+function safeUpper(v) {
+  return String(v || "").trim().toUpperCase();
+}
+
+function isSpreadsheetMime(mimeType) {
+  const mt = String(mimeType || "").toLowerCase();
+  return (
+    mt.includes("spreadsheet") ||
+    mt.includes("excel") ||
+    mt.includes("officedocument.spreadsheetml")
+  );
+}
+
+function extFromName(name) {
+  const s = String(name || "");
+  const idx = s.lastIndexOf(".");
+  if (idx < 0) return "";
+  return s.slice(idx + 1).toLowerCase();
+}
+
 export default function CoreDrivePreviewDrawer({ file, onClose }) {
+  const navigate = useNavigate();
+
   const [url, setUrl] = useState(null);
   const [err, setErr] = useState(null);
 
@@ -15,10 +40,56 @@ export default function CoreDrivePreviewDrawer({ file, onClose }) {
     error: eventsError,
   } = useCoreDriveEvents(file?.id, { limit: 12 });
 
+  const mimeType = String(file?.mime_type || "");
+  const fileName = String(file?.filename || "");
+  const ext = useMemo(() => extFromName(fileName), [fileName]);
+
   const isPdf = useMemo(() => {
-    const mt = (file?.mime_type || "").toLowerCase();
-    return mt.includes("pdf");
+    const mt = mimeType.toLowerCase();
+    return mt.includes("pdf") || ext === "pdf";
+  }, [mimeType, ext]);
+
+  const isImage = useMemo(() => {
+    const mt = mimeType.toLowerCase();
+    return mt.startsWith("image/");
+  }, [mimeType]);
+
+  const isSpreadsheet = useMemo(() => {
+    return isSpreadsheetMime(mimeType) || ext === "xlsx" || ext === "xls" || ext === "csv";
+  }, [mimeType, ext]);
+
+  const isIncaSource = useMemo(() => {
+    // In CORE Drive, INCA source tagging may live in `categoria` (e.g. INCA_SRC)
+    // while `origine` may be SYSTEM/USER. Accept both to avoid mis-routing.
+    const origine = safeUpper(file?.origine);
+    const categoria = safeUpper(file?.categoria);
+    return !!file?.inca_file_id || origine === "INCA_SRC" || categoria === "INCA_SRC";
   }, [file]);
+
+  const cockpitBasePath = useMemo(() => {
+    // If user is in CAPO space (/app/*) we route to /app/navemaster (read-only cockpit)
+    // Otherwise use the UFFICIO cockpit route.
+    const p = String(window?.location?.pathname || "");
+    return p.startsWith("/app/") ? "/app/navemaster" : "/ufficio/navemaster";
+  }, []);
+
+  function openCockpit() {
+    if (!file) return;
+
+    const costr = String(file.cantiere || "").trim();
+    const commessa = String(file.commessa || "").trim();
+    const incaFileId = String(file.inca_file_id || "").trim();
+
+    const params = new URLSearchParams();
+    if (costr) params.set("costr", costr);
+    if (commessa) params.set("commessa", commessa);
+    if (incaFileId) params.set("incaFileId", incaFileId);
+    params.set("cockpit", "1");
+    params.set("from", "core-drive");
+    if (file.id) params.set("fileId", String(file.id));
+
+    navigate(`${cockpitBasePath}?${params.toString()}`);
+  }
 
   useEffect(() => {
     let alive = true;
@@ -45,6 +116,9 @@ export default function CoreDrivePreviewDrawer({ file, onClose }) {
 
   if (!file) return null;
 
+  const canOpenCockpit = isIncaSource;
+  const showInlinePreview = !!url && (isPdf || isImage);
+
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm">
       <div className="absolute right-0 top-0 h-full w-full max-w-3xl border-l border-slate-800 bg-slate-950 shadow-2xl shadow-black/40">
@@ -67,16 +141,29 @@ export default function CoreDrivePreviewDrawer({ file, onClose }) {
           </div>
 
           <div className="flex items-center gap-2">
-            {url && (
+            {canOpenCockpit ? (
+              <button
+                type="button"
+                onClick={openCockpit}
+                className="inline-flex h-8 items-center rounded-lg border border-emerald-500/40 bg-emerald-950/20 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-200 hover:bg-emerald-900/20"
+                title="Apri NAVEMASTER Cockpit (popup géant)"
+              >
+                Cockpit
+              </button>
+            ) : null}
+
+            {url ? (
               <a
                 href={url}
                 target="_blank"
                 rel="noreferrer"
-                className="hidden sm:inline-flex h-8 items-center rounded-lg border border-slate-800 bg-slate-950/60 px-3 text-xs text-slate-200 hover:border-slate-600"
+                className="inline-flex h-8 items-center rounded-lg border border-slate-800 bg-slate-950/60 px-3 text-xs text-slate-200 hover:border-slate-600"
+                title="Apri/Scarica il file"
               >
                 Apri
               </a>
-            )}
+            ) : null}
+
             <button
               type="button"
               onClick={onClose}
@@ -100,13 +187,49 @@ export default function CoreDrivePreviewDrawer({ file, onClose }) {
             </div>
           )}
 
-          {url && (
+          {url && showInlinePreview && (
             <div className="h-full overflow-hidden rounded-xl border border-slate-800 bg-white">
               {isPdf ? (
                 <iframe src={url} className="h-full w-full" title="CORE Drive Preview PDF" />
-              ) : (
-                <iframe src={url} className="h-full w-full" title="CORE Drive Preview" />
-              )}
+              ) : isImage ? (
+                <img src={url} alt={file.filename} className="h-full w-full object-contain" />
+              ) : null}
+            </div>
+          )}
+
+          {url && !showInlinePreview && (
+            <div className="h-full rounded-xl border border-slate-800 bg-slate-950/60 p-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Anteprima</div>
+              <div className="mt-1 text-sm text-slate-200">
+                {isSpreadsheet
+                  ? "Les fichiers Excel ne sont pas prévisualisables ici."
+                  : "Ce type de fichier n'est pas prévisualisable ici."}
+              </div>
+
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                {canOpenCockpit ? (
+                  <button
+                    type="button"
+                    onClick={openCockpit}
+                    className="inline-flex h-10 items-center justify-center rounded-xl border border-emerald-500/40 bg-emerald-950/20 px-4 text-[12px] font-semibold uppercase tracking-[0.14em] text-emerald-200 hover:bg-emerald-900/20"
+                  >
+                    Ouvrir Cockpit
+                  </button>
+                ) : null}
+
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-800 bg-slate-950/40 px-4 text-[12px] uppercase tracking-[0.14em] text-slate-200 hover:border-slate-600"
+                >
+                  Télécharger
+                </a>
+
+                <div className="text-[12px] text-slate-400">
+                  {isSpreadsheet && canOpenCockpit ? "Recommandé: Cockpit (données INCA/NAVEMASTER)." : null}
+                </div>
+              </div>
             </div>
           )}
 
