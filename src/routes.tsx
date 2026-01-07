@@ -1,5 +1,4 @@
 // src/routes.tsx
-import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 
 import RequireRole from "./auth/RequireRole";
@@ -50,6 +49,8 @@ import ManagerAssignments from "./pages/ManagerAssignments";
 import ManagerCoreDrive from "./pages/ManagerCoreDrive";
 import ManagerAnalytics from "./pages/ManagerAnalytics";
 import ManagerOperatorKpi from "./features/kpi/pages/ManagerOperatorKpi";
+import ManagerCapoShipPlanning from "./pages/ManagerCapoShipPlanning";
+
 
 // CORE DRIVE
 import ArchivePage from "./pages/Archive";
@@ -70,7 +71,7 @@ export default function AppRoutes(): JSX.Element {
       <Route
         path="/app/rapportino/sheet"
         element={
-          <RequireRole allow={["CAPO"]}>
+          <RequireRole allowed={[ "CAPO"]}>
             <RapportinoSheet />
           </RequireRole>
         }
@@ -80,7 +81,7 @@ export default function AppRoutes(): JSX.Element {
       <Route
         path="/admin/*"
         element={
-          <RequireRole allow={["ADMIN"]}>
+          <RequireRole allowed={[ "ADMIN"]}>
             <AdminShell />
           </RequireRole>
         }
@@ -100,7 +101,7 @@ export default function AppRoutes(): JSX.Element {
       <Route
         path="/app/*"
         element={
-          <RequireRole allow={["CAPO"]}>
+          <RequireRole allowed={[ "CAPO"]}>
             <AppShell />
           </RequireRole>
         }
@@ -143,7 +144,7 @@ export default function AppRoutes(): JSX.Element {
       <Route
         path="/ufficio/*"
         element={
-          <RequireRole allow={["UFFICIO", "DIREZIONE", "MANAGER", "ADMIN"]}>
+          <RequireRole allowed={[ "UFFICIO", "DIREZIONE", "MANAGER", "ADMIN"]}>
             <UfficioShell />
           </RequireRole>
         }
@@ -161,7 +162,7 @@ export default function AppRoutes(): JSX.Element {
       <Route
         path="/manager/*"
         element={
-          <RequireRole allow={["MANAGER", "ADMIN"]}>
+          <RequireRole allowed={[ "MANAGER", "ADMIN"]}>
             <ManagerShell />
           </RequireRole>
         }
@@ -173,13 +174,15 @@ export default function AppRoutes(): JSX.Element {
         <Route path="archive" element={<Navigate to="../core-drive" replace />} />
         <Route path="analytics" element={<ManagerAnalytics isDark={true} />} />
         <Route path="kpi-operatori" element={<ManagerOperatorKpi isDark={true} />} />
+        <Route path="capi-cantieri" element={<ManagerCapoShipPlanning isDark={true} />} />
+
       </Route>
 
       {/* ===== DIREZIONE ===== */}
       <Route
         path="/direction/*"
         element={
-          <RequireRole allow={["DIREZIONE", "MANAGER"]}>
+          <RequireRole allowed={[ "DIREZIONE", "MANAGER"]}>
             <DirectionShell />
           </RequireRole>
         }

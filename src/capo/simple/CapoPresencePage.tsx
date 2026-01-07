@@ -1,5 +1,5 @@
 // src/capo/simple/CapoPresencePage.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -52,6 +52,7 @@ export default function CapoPresencePage(): JSX.Element {
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string>("");
+  const [shipWarn, setShipWarn] = useState<string>("");
   const [ship, setShip] = useState<ShipRow | null>(null);
   const [expected, setExpected] = useState<ExpectedOperator[]>([]);
   const [attendance, setAttendance] = useState<Record<string, AttendanceState>>({});
@@ -64,6 +65,10 @@ export default function CapoPresencePage(): JSX.Element {
     async function load() {
       setLoading(true);
       setErr("");
+      setShipWarn("");
+      setShip(null);
+      setExpected([]);
+      setAttendance({});
 
       try {
         if (!shipId) {
@@ -71,7 +76,7 @@ export default function CapoPresencePage(): JSX.Element {
           return;
         }
 
-        // Security: must be assigned today; otherwise back to entry
+        // 1) Security: must be assigned today; otherwise back to entry
         const { data: assigned, error: aErr } = await supabase
           .from("capo_today_ship_assignments_v1")
           .select("ship_id")
@@ -85,16 +90,28 @@ export default function CapoPresencePage(): JSX.Element {
           return;
         }
 
+        // 2) Ship info: DO NOT BLOCK the page if ship row is not visible (RLS) or missing
         const { data: s, error: sErr } = await supabase
           .from("ships")
           .select("id, code, name, costr, commessa")
           .eq("id", shipId)
-          .single();
+          .maybeSingle();
 
-        if (sErr) throw sErr;
-        if (!mounted) return;
-        setShip((s || null) as ShipRow | null);
+        if (sErr) {
+          // Keep page functional even if ship lookup fails
+          console.error("[CapoPresencePage] ships load error:", sErr);
+          if (mounted) {
+            setShip(null);
+            setShipWarn("Ship non visibile (RLS) o non presente. La presenza resta utilizzabile.");
+          }
+        } else {
+          if (mounted) setShip((s || null) as ShipRow | null);
+          if (!s && mounted) {
+            setShipWarn("Ship non trovato o non visibile (RLS). La presenza resta utilizzabile.");
+          }
+        }
 
+        // 3) Expected operators
         const { data: rows, error: eErr } = await supabase
           .from("capo_expected_operators_today_v1")
           .select("operator_id, operator_name, operator_code")
@@ -103,12 +120,12 @@ export default function CapoPresencePage(): JSX.Element {
           .order("operator_name", { ascending: true });
 
         if (eErr) throw eErr;
+
         if (!mounted) return;
 
         const list = (Array.isArray(rows) ? rows : []) as ExpectedOperator[];
         setExpected(list);
 
-        // Pre-fill: all PRESENT by default
         const next: Record<string, AttendanceState> = {};
         for (const r of list) {
           next[r.operator_id] = { status: "PRESENT", reason: null, note: "" };
@@ -117,10 +134,7 @@ export default function CapoPresencePage(): JSX.Element {
       } catch (e) {
         console.error("[CapoPresencePage] load error:", e);
         if (!mounted) return;
-        setErr("Impossibile caricare presenza / operatori attesi (verifica view/RLS)." );
-        setShip(null);
-        setExpected([]);
-        setAttendance({});
+        setErr("Impossibile caricare presenza / operatori attesi (verifica view/RLS).");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -200,15 +214,17 @@ export default function CapoPresencePage(): JSX.Element {
         };
       });
 
-      const { error: opErr } = await supabase
-        .from("operator_ship_attendance")
-        .upsert(payload, { onConflict: "plan_date,ship_id,operator_id" });
-      if (opErr) throw opErr;
+      if (payload.length > 0) {
+        const { error: opErr } = await supabase
+          .from("operator_ship_attendance")
+          .upsert(payload, { onConflict: "plan_date,ship_id,operator_id" });
+        if (opErr) throw opErr;
+      }
 
       nav(`/app/ship/${shipId}/rapportino`, { replace: true });
     } catch (e) {
       console.error("[CapoPresencePage] confirmPresence error:", e);
-      setErr("Errore durante conferma presenza (verifica RLS/constraint)." );
+      setErr("Errore durante conferma presenza (verifica RLS/constraint).");
     }
   };
 
@@ -231,6 +247,10 @@ export default function CapoPresencePage(): JSX.Element {
           <div className="text-[12px] text-slate-400">COSTR {ship.costr || "—"} · COMMESSA {ship.commessa || "—"}</div>
         ) : null}
       </div>
+
+      {shipWarn ? (
+        <div className="rounded-2xl border border-amber-400/40 bg-amber-500/10 p-4 text-amber-100">{shipWarn}</div>
+      ) : null}
 
       {err ? (
         <div className="rounded-2xl border border-rose-400/40 bg-rose-500/10 p-4 text-rose-100">{err}</div>

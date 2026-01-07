@@ -1,13 +1,32 @@
-// src/components/shell/CNCSSidebar.jsx
+// src/shell/CNCSSidebar.tsx
 import React, { useMemo } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import ConnectionIndicator from "../ConnectionIndicator";
 
-function cn(...parts) {
+function cn(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
 }
 
-function NavIcon({ name, className = "" }) {
+type NavIconName =
+  | "dashboard"
+  | "presentation"
+  | "ufficio"
+  | "inca"
+  | "rapportino"
+  | "archive"
+  | "history"
+  | "users"
+  | "chart";
+
+export type NavItem = {
+  to: string;
+  label: string;
+  icon: NavIconName;
+  colorClass?: string;
+  end?: boolean;
+};
+
+function NavIcon({ name, className = "" }: { name: NavIconName; className?: string }) {
   const base = "h-4 w-4";
   switch (name) {
     case "dashboard":
@@ -86,6 +105,27 @@ function NavIcon({ name, className = "" }) {
   }
 }
 
+type CNCSSidebarProps = {
+  isDark: boolean;
+  title?: string;
+  subtitle?: string;
+  roleLabel?: string;
+  roleCaption?: string;
+  expandLabel?: string;
+  collapseLabel?: string;
+
+  collapsed?: boolean;
+  setCollapsed?: (v: boolean) => void;
+  sidebarPeek?: boolean;
+  setSidebarPeek?: (v: boolean) => void;
+
+  storageKey?: string;
+  navItems?: NavItem[];
+
+  bottomSlot?: React.ReactNode;
+  bottomSlotCollapsed?: React.ReactNode;
+};
+
 export default function CNCSSidebar({
   isDark,
   title = "CNCS",
@@ -102,12 +142,11 @@ export default function CNCSSidebar({
   storageKey = "core-sidebar-collapsed",
   navItems = [],
 
-  // NEW: slot bas (ex: "Operatori di oggi")
   bottomSlot = null,
-  bottomSlotCollapsed = null, // rendu compact si sidebar collapsed
-}) {
+  bottomSlotCollapsed = null,
+}: CNCSSidebarProps): JSX.Element {
   const location = useLocation();
-  const effectiveCollapsed = collapsed && !sidebarPeek;
+  const effectiveCollapsed = Boolean(collapsed) && !sidebarPeek;
 
   const shellClasses = useMemo(() => {
     return cn(
@@ -123,7 +162,7 @@ export default function CNCSSidebar({
     isDark ? "border-slate-800 bg-slate-950/20" : "border-slate-200 bg-white"
   );
 
-  const navItemClasses = (active) => {
+  const navItemClasses = (active: boolean) => {
     const base =
       "w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm border transition-colors";
     if (active) {
@@ -162,9 +201,7 @@ export default function CNCSSidebar({
                   <div className="text-[11px] uppercase tracking-[0.24em] text-slate-500">
                     {title}
                   </div>
-                  <div className="text-sm font-semibold truncate">
-                    {subtitle || "CORE"}
-                  </div>
+                  <div className="text-sm font-semibold truncate">{subtitle || "CORE"}</div>
                 </div>
               )}
             </div>
@@ -172,7 +209,7 @@ export default function CNCSSidebar({
             <button
               type="button"
               onClick={() => {
-                const next = !collapsed;
+                const next = !Boolean(collapsed);
                 setCollapsed?.(next);
                 try {
                   window.localStorage.setItem(storageKey, next ? "1" : "0");
@@ -198,9 +235,7 @@ export default function CNCSSidebar({
                 <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
                   {roleCaption}
                 </div>
-                <div className="text-sm font-semibold truncate">
-                  {roleLabel || "—"}
-                </div>
+                <div className="text-sm font-semibold truncate">{roleLabel || "—"}</div>
               </div>
             ) : null}
             <ConnectionIndicator compact />
@@ -213,8 +248,7 @@ export default function CNCSSidebar({
         {navItems.map((it) => {
           const active = it.end
             ? location.pathname === it.to || location.pathname === `${it.to}/`
-            : location.pathname === it.to ||
-              location.pathname.startsWith(it.to + "/");
+            : location.pathname === it.to || location.pathname.startsWith(it.to + "/");
 
           return (
             <NavLink
@@ -241,7 +275,7 @@ export default function CNCSSidebar({
         })}
       </nav>
 
-      {/* Bottom slot (Operators today) */}
+      {/* Bottom slot */}
       {bottomSlot || bottomSlotCollapsed ? (
         <div
           className={cn(

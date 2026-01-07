@@ -1,18 +1,29 @@
-import React from "react";
+// src/auth/RequireRole.tsx
+import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "./AuthProvider";
 import LoadingScreen from "../components/LoadingScreen";
 
+type RequireRoleProps = {
+  /**
+   * Canonique: utiliser "allowed".
+   * On garde "allow" pour rétro-compatibilité.
+   */
+  allowed?: string[];
+  allow?: string[];
+  children: ReactNode;
+};
+
 /**
  * Compatible:
- *  - <RequireRole allow={["CAPO"]} />
- *  - <RequireRole allowed={["CAPO"]} />
+ *  - <RequireRole allowed={["CAPO"]}>...</RequireRole>
+ *  - <RequireRole allow={["CAPO"]}>...</RequireRole> (legacy)
  */
-export default function RequireRole({ allow, allowed, children }) {
+export default function RequireRole({ allow, allowed, children }: RequireRoleProps) {
   const { session, profile, loading, authReady, isReady } = useAuth();
   const location = useLocation();
 
-  const ready = typeof authReady === "boolean" ? authReady : !!isReady;
+  const ready = typeof authReady === "boolean" ? authReady : Boolean(isReady);
 
   if (!ready || loading) {
     return <LoadingScreen message="Inizializzazione sicurezza CORE…" />;
@@ -24,26 +35,28 @@ export default function RequireRole({ allow, allowed, children }) {
 
   // Enforce password change globally, but avoid redirect loop
   const isForcePwdRoute = location.pathname.startsWith("/force-password-change");
-  if (profile?.must_change_password === true && !isForcePwdRoute) {
+  if ((profile as any)?.must_change_password === true && !isForcePwdRoute) {
     return <Navigate to="/force-password-change" replace state={{ from: location.pathname }} />;
   }
 
-  const roles = Array.isArray(allowed)
+  const roles: string[] = Array.isArray(allowed)
     ? allowed
     : Array.isArray(allow)
-    ? allow
-    : [];
+      ? allow
+      : [];
 
   // If no role constraint => allow
   if (roles.length === 0) {
     return <>{children}</>;
   }
 
-  if (!profile?.app_role) {
+  const appRole = (profile as any)?.app_role as string | undefined;
+
+  if (!appRole) {
     return <Navigate to="/unauthorized" replace />;
   }
 
-  if (!roles.includes(profile.app_role)) {
+  if (!roles.includes(appRole)) {
     return <Navigate to="/unauthorized" replace />;
   }
 

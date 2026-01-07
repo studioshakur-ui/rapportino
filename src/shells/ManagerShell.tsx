@@ -1,4 +1,4 @@
-// src/shells/ManagerShell.jsx
+// src/shells/ManagerShell.tsx
 import React, { useMemo } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
@@ -11,23 +11,31 @@ import LangSwitcher from "../components/shell/LangSwitcher";
 import { useI18n } from "../i18n/I18nProvider";
 import { formatDisplayName } from "../utils/formatHuman";
 
-function cn(...parts) {
+function cn(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
 }
 
 export default function ManagerShell() {
-  const { profile, signOut } = useAuth();
+  // Typage minimal et non intrusif (on évite de “deviner” tes types Auth)
+  const { profile, signOut } = useAuth() as unknown as {
+    profile: any;
+    signOut: () => Promise<void>;
+  };
+
   const navigate = useNavigate();
   const location = useLocation();
-  const { lang, t } = useI18n();
+  const { lang, t } = useI18n() as unknown as {
+    lang: string;
+    t: (key: string) => string;
+  };
 
   const isDark = true;
 
-  const displayName = useMemo(() => {
+  const displayName = useMemo((): string => {
     return formatDisplayName(profile, "Manager");
   }, [profile]);
 
-  const handleLogout = async () => {
+  const handleLogout = async (): Promise<void> => {
     try {
       await signOut();
     } finally {

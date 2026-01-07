@@ -1,5 +1,5 @@
 // src/capo/simple/CapoEntryRouter.tsx
-import React, { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -9,6 +9,8 @@ type Profile = {
   capo_ui_mode?: "simple" | "rich" | string;
 };
 
+const CapoSimpleEntry = lazy(() => import("./CapoSimpleEntry"));
+
 export default function CapoEntryRouter(): JSX.Element {
   const nav = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -17,16 +19,21 @@ export default function CapoEntryRouter(): JSX.Element {
 
   useEffect(() => {
     let mounted = true;
+
     async function load() {
       try {
         setLoading(true);
         setError("");
+
         const { data, error: rpcErr } = await supabase.rpc("core_current_profile");
         if (rpcErr) throw rpcErr;
+
         const p = (data || null) as Profile | null;
         const m = String(p?.capo_ui_mode || "simple").toLowerCase();
         const finalMode = (m === "rich" ? "rich" : "simple") as "simple" | "rich";
+
         if (!mounted) return;
+
         setMode(finalMode);
 
         if (finalMode === "rich") {
@@ -35,13 +42,14 @@ export default function CapoEntryRouter(): JSX.Element {
       } catch (e) {
         console.error("[CapoEntryRouter] load error:", e);
         if (!mounted) return;
-        setError("Impossibile caricare il profilo (core_current_profile)."
-        );
+        setError("Impossibile caricare il profilo (core_current_profile).");
       } finally {
         if (mounted) setLoading(false);
       }
     }
+
     load();
+
     return () => {
       mounted = false;
     };
@@ -70,7 +78,6 @@ export default function CapoEntryRouter(): JSX.Element {
     );
   }
 
-  // If rich, we already redirected.
   if (mode === "rich") {
     return (
       <div className="p-4">
@@ -79,10 +86,8 @@ export default function CapoEntryRouter(): JSX.Element {
     );
   }
 
-  // Simple: render simple entry page
-  const CapoSimpleEntry = React.lazy(() => import("./CapoSimpleEntry"));
   return (
-    <React.Suspense
+    <Suspense
       fallback={
         <div className="p-4">
           <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-slate-200">Caricamento…</div>
@@ -90,6 +95,6 @@ export default function CapoEntryRouter(): JSX.Element {
       }
     >
       <CapoSimpleEntry />
-    </React.Suspense>
+    </Suspense>
   );
 }
