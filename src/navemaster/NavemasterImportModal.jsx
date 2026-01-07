@@ -1,4 +1,3 @@
-// /src/navemaster/NavemasterImportModal.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavemasterImporter } from "./useNavemasterImporter";
 import { corePills, cardSurface } from "../ui/designSystem";

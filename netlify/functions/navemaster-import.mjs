@@ -1,50 +1,34 @@
-// netlify/functions/navemaster-import.mjs
-// SOLUTION B — NAVEMASTER one-shot + dédoublonnage canonique (1 ligne par MARCACAVO)
-//
-// Règles:
-// - Zéro parsing XLSX côté front.
-// - Le front upload le fichier dans Supabase Storage (bucket: navemaster) et passe bucket+path.
-// - Cette function (Node / Netlify) télécharge, parse, renvoie DRY_RUN ou COMMIT.
-// - Auth: JWT utilisateur (Authorization: Bearer <access_token>) + contrôle profiles.app_role.
-// - Écritures DB + Storage download via SERVICE ROLE.
-// - One-shot par ship: si déjà initialisé => COMMIT refusé (sauf ADMIN avec {force:true}).
-// - Canonique: si MARCACAVO dupliqué dans le fichier => on garde UNE seule ligne (best-of) selon scoring.
-//
-// Contrat JSON (POST):
-// {
-//   "mode": "DRY_RUN" | "COMMIT",
-//   "ship_id": "<uuid>",
-//   "costr": "6368",
-//   "commessa": "SDC",
-//   "bucket": "navemaster",
-//   "path": "ships/<ship_id>/navemaster/<file>.xlsx",
-//   "file_name": "NAVEMASTER.xlsx",
-//   "note": "optional",
-//   "force": false // optional (ADMIN only) => overwrite
-// }
-
 import { createClient } from "@supabase/supabase-js";
 import XLSX from "xlsx";
 import crypto from "crypto";
 
+/**
+ * NAVEMASTER Import Function (Netlify)
+ *
+ * Modes:
+ * - DRY_RUN: parse + canonicalize, returns meta + sample
+ * - COMMIT: writes navemaster_imports + navemaster_rows (canonicalized)
+ *
+ * Constraints:
+ * - One-shot by ship (only ADMIN can force overwrite), BUT:
+ *   If latest import has 0 rows -> treat as broken initialization and allow re-import.
+ */
+
 const SHEET_NAME = "NAVEMASTER";
 
-// CORS: en prod Netlify -> même origine, mais on garde un CORS “clean” pour debug/local.
 function corsHeaders(origin) {
-  const allowOrigin = origin || "*";
+  const o = origin || "*";
   return {
-    "access-control-allow-origin": allowOrigin,
+    "access-control-allow-origin": o,
+    "access-control-allow-headers": "content-type, authorization, apikey",
     "access-control-allow-methods": "POST, OPTIONS",
-    "access-control-allow-headers": "authorization, content-type, apikey, x-client-info",
-    "access-control-max-age": "86400",
-    "content-type": "application/json; charset=utf-8",
   };
 }
 
-function json(status, body, origin) {
+function json(statusCode, body, origin) {
   return {
-    statusCode: status,
-    headers: corsHeaders(origin),
+    statusCode,
+    headers: { "content-type": "application/json; charset=utf-8", ...corsHeaders(origin) },
     body: JSON.stringify(body),
   };
 }
@@ -55,101 +39,98 @@ function mustEnv(name) {
   return v;
 }
 
-function asText(v) {
-  if (v === null || v === undefined) return null;
-  const s = String(v).trim();
-  return s.length ? s : null;
+function sha256Hex(buf) {
+  return crypto.createHash("sha256").update(buf).digest("hex");
 }
 
-function safePick(obj, keys) {
+function normStr(v) {
+  const s = String(v ?? "").trim();
+  return s ? s : null;
+}
+
+function safePick(row, keys) {
   for (const k of keys) {
-    if (obj && Object.prototype.hasOwnProperty.call(obj, k)) {
-      const s = asText(obj[k]);
+    if (Object.prototype.hasOwnProperty.call(row, k)) {
+      const v = row[k];
+      const s = normStr(v);
       if (s) return s;
     }
   }
   return null;
 }
 
-function sha256Hex(buffer) {
-  return crypto.createHash("sha256").update(buffer).digest("hex");
-}
-
-function asDateMs(v) {
+function parseExcelDateMaybe(v) {
+  // XLSX may give JS Date or number or string.
   if (!v) return null;
-  // XLSX peut fournir Date, nombre Excel, ou string
-  if (v instanceof Date && !Number.isNaN(v.getTime())) return v.getTime();
-  if (typeof v === "number" && Number.isFinite(v)) {
-    // Excel date serial -> JS date via XLSX.SSF.parse_date_code
-    const dc = XLSX.SSF.parse_date_code(v);
-    if (dc && dc.y && dc.m && dc.d) {
-      const dt = new Date(Date.UTC(dc.y, dc.m - 1, dc.d, dc.H || 0, dc.M || 0, dc.S || 0));
-      const ms = dt.getTime();
-      return Number.isNaN(ms) ? null : ms;
-    }
+
+  if (v instanceof Date && !Number.isNaN(v.getTime())) {
+    return v.toISOString();
   }
+
+  if (typeof v === "number") {
+    // Excel date serial -> JS Date
+    const d = XLSX.SSF.parse_date_code(v);
+    if (!d) return null;
+    const js = new Date(Date.UTC(d.y, d.m - 1, d.d, d.H, d.M, d.S));
+    if (Number.isNaN(js.getTime())) return null;
+    return js.toISOString();
+  }
+
   const s = String(v).trim();
   if (!s) return null;
-  const dt = new Date(s);
-  const ms = dt.getTime();
-  return Number.isNaN(ms) ? null : ms;
+
+  // Try Date parse
+  const d = new Date(s);
+  if (!Number.isNaN(d.getTime())) return d.toISOString();
+
+  return null;
 }
 
 /**
- * Scoring canonique:
- * - privilégier lignes avec dates présentes (DATA_P, DATA_T*, DATA RIPRESA)
- * - privilégier lignes avec endpoints renseignés (APP/ PT / locale)
- * - privilégier présence de STATO/SITUAZIONE
- * - tie-break: date la plus récente (parmi dates pertinentes), sinon nombre de champs non vides
+ * Canonicalization rules (best row per MARCACAVO):
+ * - Prefer rows with more populated dates
+ * - Prefer newer max date
+ * - Prefer higher "density" (more filled fields)
  */
-function scoreRow(parsed) {
-  const dateKeys = ["data_p_ms", "data_t_finc_ms", "data_t_conit_ms", "data_ripresa_ms"];
-  const datesPresent = dateKeys.reduce((acc, k) => acc + (parsed[k] ? 1 : 0), 0);
+function scoreRow(r) {
+  const dateKeys = ["data_p", "data_t_finc", "data_t_conit", "data_ripresa"];
+  const dateCount = dateKeys.reduce((acc, k) => acc + (r[k] ? 1 : 0), 0);
 
-  const endpointsPresent =
-    (parsed.apparato_da ? 1 : 0) +
-    (parsed.apparato_a ? 1 : 0) +
-    (parsed.punto_da ? 1 : 0) +
-    (parsed.punto_a ? 1 : 0) +
-    (parsed.descr_locale_arrivo ? 1 : 0) +
-    (parsed.id_locale_arrivo ? 1 : 0);
+  const dates = dateKeys
+    .map((k) => (r[k] ? new Date(r[k]).getTime() : null))
+    .filter((x) => Number.isFinite(x));
 
-  const statusPresent = (parsed.stato_cavo ? 1 : 0) + (parsed.situazione_cavo_conit ? 1 : 0);
+  const maxDate = dates.length ? Math.max(...dates) : 0;
 
-  // date la plus récente parmi les clés
-  const maxDate = Math.max(
-    0,
-    parsed.data_p_ms || 0,
-    parsed.data_t_finc_ms || 0,
-    parsed.data_t_conit_ms || 0,
-    parsed.data_ripresa_ms || 0
-  );
+  const densityKeys = [
+    "descrizione",
+    "stato_cavo",
+    "situazione_cavo_conit",
+    "apparato_da",
+    "apparato_a",
+    "punto_da",
+    "punto_a",
+    "id_locale_arrivo",
+    "descr_locale_arrivo",
+    "livello",
+    "sezione",
+    "impianto",
+    "rack",
+    "spare",
+    "note",
+  ];
 
-  // densité de champs
-  const density =
-    (parsed.descrizione ? 1 : 0) +
-    (parsed.livello ? 1 : 0) +
-    (parsed.sezione ? 1 : 0) +
-    (parsed.impianto ? 1 : 0) +
-    (parsed.rack ? 1 : 0) +
-    (parsed.spare ? 1 : 0) +
-    (parsed.note ? 1 : 0);
+  const density = densityKeys.reduce((acc, k) => acc + (r[k] ? 1 : 0), 0);
 
-  // Pondération simple, stable, explicable
-  const score =
-    datesPresent * 1000 +
-    statusPresent * 200 +
-    endpointsPresent * 150 +
-    density * 25 +
-    (maxDate > 0 ? 10 : 0);
-
-  return { score, maxDate, density };
+  return { dateCount, maxDate, density };
 }
 
 function pickBest(currentBest, candidate) {
   if (!currentBest) return candidate;
-  if (candidate._score.score !== currentBest._score.score) {
-    return candidate._score.score > currentBest._score.score ? candidate : currentBest;
+  if (!candidate) return currentBest;
+
+  if (candidate._score.dateCount !== currentBest._score.dateCount) {
+    return candidate._score.dateCount > currentBest._score.dateCount ? candidate : currentBest;
   }
   if (candidate._score.maxDate !== currentBest._score.maxDate) {
     return candidate._score.maxDate > currentBest._score.maxDate ? candidate : currentBest;
@@ -157,7 +138,7 @@ function pickBest(currentBest, candidate) {
   if (candidate._score.density !== currentBest._score.density) {
     return candidate._score.density > currentBest._score.density ? candidate : currentBest;
   }
-  // stable fallback: garder le premier (déterministe)
+  // stable fallback
   return currentBest;
 }
 
@@ -197,11 +178,7 @@ export async function handler(event) {
       .maybeSingle();
 
     if (profErr) {
-      return json(
-        500,
-        { ok: false, error: "profile_lookup_failed", details: profErr.message },
-        origin
-      );
+      return json(500, { ok: false, error: "profile_lookup_failed", details: profErr.message }, origin);
     }
 
     const role = String(profile?.app_role ?? "");
@@ -233,11 +210,7 @@ export async function handler(event) {
     if (!ship_id || !path) {
       return json(
         400,
-        {
-          ok: false,
-          error: "missing_required_fields",
-          required: ["ship_id", "path"],
-        },
+        { ok: false, error: "missing_required_fields", required: ["ship_id", "path"] },
         origin
       );
     }
@@ -261,42 +234,54 @@ export async function handler(event) {
       }
 
       const already = (existing || [])[0] || null;
-      if (already && !(role === "ADMIN" && force)) {
-        return json(
-          409,
-          {
-            ok: false,
-            error: "navemaster_already_initialized",
-            message: "NAVEMASTER est one-shot pour ce navire. Import refusé.",
-            hint: "ADMIN peut forcer avec {force:true}.",
-            existing_import_id: already.id,
-            existing_imported_at: already.imported_at,
-          },
-          origin
-        );
+
+      // Recovery guard: if the latest import exists but has 0 rows, treat it as a broken initialization
+      // and allow a normal re-import (not ADMIN-only). This prevents one-shot lock-in on empty snapshots.
+      if (already) {
+        const { count, error: cntErr } = await adminClient
+          .from("navemaster_rows")
+          .select("id", { count: "exact", head: true })
+          .eq("navemaster_import_id", already.id);
+
+        if (cntErr) {
+          return json(500, { ok: false, error: "one_shot_rowcount_failed", details: cntErr.message }, origin);
+        }
+
+        if ((count || 0) === 0) {
+          // Cleanup empty import and proceed.
+          const { error: delEmptyErr } = await adminClient.from("navemaster_imports").delete().eq("id", already.id);
+
+          if (delEmptyErr) {
+            return json(
+              500,
+              { ok: false, error: "one_shot_empty_cleanup_failed", details: delEmptyErr.message },
+              origin
+            );
+          }
+        } else if (!(role === "ADMIN" && force)) {
+          return json(
+            409,
+            {
+              ok: false,
+              error: "navemaster_already_initialized",
+              message: "NAVEMASTER est one-shot pour ce navire. Import refusé.",
+              hint: "ADMIN peut forcer avec {force:true}.",
+              existing_import_id: already.id,
+              existing_imported_at: already.imported_at,
+            },
+            origin
+          );
+        }
       }
 
-      // Si ADMIN force, on fera un overwrite propre: désactiver imports + supprimer rows liées
+      // Si ADMIN force, overwrite propre: désactiver imports + supprimer rows liées
       if (already && role === "ADMIN" && force) {
-        // désactiver tous imports actifs
-        const { error: deAllErr } = await adminClient
-          .from("navemaster_imports")
-          .update({ is_active: false })
-          .eq("ship_id", ship_id);
-
+        const { error: deAllErr } = await adminClient.from("navemaster_imports").update({ is_active: false }).eq("ship_id", ship_id);
         if (deAllErr) {
           return json(500, { ok: false, error: "force_deactivate_failed", details: deAllErr.message }, origin);
         }
 
-        // supprimer toutes rows des imports de ce ship
-        // NOTE: on suppose navemaster_rows.navemaster_import_id FK -> navemaster_imports.id
-        // donc on supprime les imports (cascade) si cascade existe; sinon on supprime rows via join logique (2 étapes).
-        // On tente d'abord delete imports; si contrainte empêche, on renvoie erreur explicite.
-        const { error: delImpErr } = await adminClient
-          .from("navemaster_imports")
-          .delete()
-          .eq("ship_id", ship_id);
-
+        const { error: delImpErr } = await adminClient.from("navemaster_imports").delete().eq("ship_id", ship_id);
         if (delImpErr) {
           return json(
             500,
@@ -318,13 +303,7 @@ export async function handler(event) {
     if (dl.error || !dl.data) {
       return json(
         400,
-        {
-          ok: false,
-          error: "storage_download_failed",
-          details: dl.error?.message,
-          bucket,
-          path,
-        },
+        { ok: false, error: "storage_download_failed", details: dl.error?.message, bucket, path },
         origin
       );
     }
@@ -335,37 +314,31 @@ export async function handler(event) {
 
     // Parse workbook
     const wb = XLSX.read(buf, { type: "buffer", cellDates: true });
-    const ws = wb.Sheets[SHEET_NAME];
+
+    // Sheet selection (robust)
+    let sheet_used = SHEET_NAME;
+    let ws = wb.Sheets[SHEET_NAME];
     if (!ws) {
-      return json(
-        400,
-        {
-          ok: false,
-          error: "missing_sheet",
-          sheet: SHEET_NAME,
-          sheets: wb.SheetNames,
-        },
-        origin
-      );
+      const lower = (s) => String(s || "").toLowerCase();
+      const exactCI = wb.SheetNames.find((n) => lower(n) === lower(SHEET_NAME));
+      const contains = wb.SheetNames.find((n) => lower(n).includes("navemaster"));
+      const chosen = exactCI || contains || null;
+      if (chosen) {
+        sheet_used = chosen;
+        ws = wb.Sheets[chosen];
+      }
+    }
+    if (!ws) {
+      return json(400, { ok: false, error: "missing_sheet", sheet: SHEET_NAME, sheets: wb.SheetNames }, origin);
     }
 
     // NAVEMASTER: ligne 1 = totaux, ligne 2 = headers, données dès ligne 3
-    // sheet_to_json range=1 => saute la ligne 1 (0-index rows), prend la ligne 2 comme header
-    const rows = XLSX.utils.sheet_to_json(ws, {
-      defval: null,
-      raw: true,
-      range: 1,
-    });
+    const rows = XLSX.utils.sheet_to_json(ws, { defval: null, raw: true, range: 1 });
 
     if (rows.length && !("MARCACAVO" in rows[0])) {
       return json(
         400,
-        {
-          ok: false,
-          error: "invalid_header_row",
-          expected: "MARCACAVO",
-          headers_detected: Object.keys(rows[0] || {}),
-        },
+        { ok: false, error: "invalid_header_row", expected: "MARCACAVO", headers_detected: Object.keys(rows[0] || {}) },
         origin
       );
     }
@@ -387,7 +360,7 @@ export async function handler(event) {
       const parsed = {
         marcacavo,
 
-        // Champs “UI” / cockpit: alignés sur les headers réels de ce NAVEMASTER
+        // Champs UI
         descrizione: safePick(r, ["DESCR. LOCALE APP. ARRIVO", "DESCRIZIONE", "DESC", "DESCR"]),
         stato_cavo: safePick(r, ["STATO CAVO", "STATO"]),
         situazione_cavo_conit: safePick(r, ["SITUAZIONE CAVO CONIT", "SITUAZIONE CONIT", "SITUAZIONE"]),
@@ -400,7 +373,7 @@ export async function handler(event) {
         id_locale_arrivo: safePick(r, ["ID LOCALE ARRIVO"]),
         descr_locale_arrivo: safePick(r, ["DESCR. LOCALE APP. ARRIVO"]),
 
-        // Autres (souvent présents)
+        // Autres
         livello: safePick(r, ["LIVELLO"]),
         sezione: safePick(r, ["SEZIONE"]),
         impianto: safePick(r, ["IMPIANTO"]),
@@ -408,13 +381,11 @@ export async function handler(event) {
         spare: safePick(r, ["SPARE"]),
         note: safePick(r, ["NOTE", "NOTE 1", "NOTE 2", "NOTE 3"]),
 
-        // Dates pour scoring
-        data_p_ms: asDateMs(r["DATA_P"]),
-        data_t_finc_ms: asDateMs(r["DATA_T FINCANTIERI"]),
-        data_t_conit_ms: asDateMs(r["DATA_T CONIT"]),
-        data_ripresa_ms: asDateMs(r["DATA RIPRESA"]),
-
-        payload: r,
+        // Dates
+        data_p: parseExcelDateMaybe(safePick(r, ["DATA P", "DATA POSA", "DATA_P"])),
+        data_t_finc: parseExcelDateMaybe(safePick(r, ["DATA T FINC", "DATA T. FINC", "DATA_T_FINC"])),
+        data_t_conit: parseExcelDateMaybe(safePick(r, ["DATA T CONIT", "DATA T. CONIT", "DATA_T_CONIT"])),
+        data_ripresa: parseExcelDateMaybe(safePick(r, ["DATA RIPRESA", "DATA_RIPRESA"])),
       };
 
       parsed._score = scoreRow(parsed);
@@ -424,31 +395,27 @@ export async function handler(event) {
     }
 
     const out = Array.from(bestBy.values()).map((x) => {
-      // nettoyer champs internes
-      const { _score, data_p_ms, data_t_finc_ms, data_t_conit_ms, data_ripresa_ms, ...rest } = x;
+      const { _score, ...rest } = x;
       return rest;
     });
 
     // Duplicates summary
     const dups = [];
-    let totalDupRows = 0;
     for (const [k, n] of dupCount.entries()) {
-      if (n > 1) {
-        dups.push({ marcacavo: k, count: n });
-        totalDupRows += n;
-      }
+      if (n > 1) dups.push({ marcacavo: k, count: n });
     }
     dups.sort((a, b) => b.count - a.count || String(a.marcacavo).localeCompare(String(b.marcacavo)));
 
     if (dups.length) {
       const sample = dups.slice(0, 10).map((d) => `${d.marcacavo}×${d.count}`).join(", ");
       warnings.push(
-        `MARCACAVO dupliqués: ${dups.length} codes. Canonique appliqué => 1 ligne conservée par code. Exemples: ${sample}${
-          dups.length > 10 ? "…" : ""
-        }`
+        `MARCACAVO dupliqués: ${dups.length} codes. Canonique appliqué => 1 ligne conservée par code. Exemples: ${sample}${dups.length > 10 ? "…" : ""}`
       );
     }
     if (out.length === 0) warnings.push("No importable rows found (missing MARCACAVO/CODICE).");
+
+    // UI helpers
+    const headers_found = rows?.length ? Object.keys(rows[0] || {}).length : 0;
 
     if (mode === "DRY_RUN") {
       return json(
@@ -463,10 +430,14 @@ export async function handler(event) {
             bucket,
             path,
             file_name,
+            sheet_used,
             sha256: sha,
             rows_in_sheet: rows.length,
             rows_with_marcacavo: importableSeen,
+            // compat
+            rows_importable: importableSeen,
             rows_canonical: out.length,
+            headers_found,
             duplicated_codes: dups.length,
           },
           warnings,
@@ -477,8 +448,37 @@ export async function handler(event) {
       );
     }
 
+    // Guardrail: never create an empty snapshot
+    if (out.length === 0) {
+      return json(
+        422,
+        {
+          ok: false,
+          error: "no_importable_rows",
+          message: "Aucune ligne importable détectée (MARCACAVO manquant ou feuille vide). COMMIT refusé.",
+          meta: {
+            ship_id,
+            costr,
+            commessa,
+            bucket,
+            path,
+            file_name,
+            sheet_used,
+            sha256: sha,
+            rows_in_sheet: rows.length,
+            rows_with_marcacavo: importableSeen,
+            rows_importable: importableSeen,
+            rows_canonical: out.length,
+            headers_found,
+            duplicated_codes: dups.length,
+          },
+          warnings,
+        },
+        origin
+      );
+    }
+
     // COMMIT
-    // 1) Désactiver l'import actif précédent (si existait, mais one-shot => normalement aucun sauf ADMIN force)
     const { error: deErr } = await adminClient
       .from("navemaster_imports")
       .update({ is_active: false })
@@ -489,7 +489,6 @@ export async function handler(event) {
       return json(500, { ok: false, error: "deactivate_failed", details: deErr.message }, origin);
     }
 
-    // 2) Créer le nouvel import
     const { data: imp, error: impErr } = await adminClient
       .from("navemaster_imports")
       .insert({
@@ -513,7 +512,7 @@ export async function handler(event) {
 
     const import_id = imp.id;
 
-    // 3) Bulk insert rows (chunks) — canonical, donc unique sur marcacavo OK
+    // Bulk insert rows (canonical)
     const chunkSize = 1000;
     let inserted = 0;
 
@@ -521,19 +520,7 @@ export async function handler(event) {
       for (let i = 0; i < out.length; i += chunkSize) {
         const chunk = out.slice(i, i + chunkSize).map((x) => ({
           navemaster_import_id: import_id,
-          marcacavo: x.marcacavo,
-          descrizione: x.descrizione,
-          stato_cavo: x.stato_cavo,
-          situazione_cavo_conit: x.situazione_cavo_conit,
-          livello: x.livello,
-          sezione: x.sezione,
-          tipologia: x.tipologia, // si absent => null OK
-          zona_da: x.punto_da || x.zona_da || null, // compat
-          zona_a: x.punto_a || x.zona_a || null,
-          apparato_da: x.apparato_da,
-          apparato_a: x.apparato_a,
-          impianto: x.impianto,
-          payload: x.payload,
+          ...x,
         }));
 
         const { error: insErr } = await adminClient.from("navemaster_rows").insert(chunk);
@@ -542,7 +529,7 @@ export async function handler(event) {
         inserted += chunk.length;
       }
     } catch (e) {
-      // Rollback “soft”: supprimer l'import si échec
+      // soft rollback
       await adminClient.from("navemaster_imports").delete().eq("id", import_id);
       return json(500, { ok: false, error: "bulk_insert_failed", message: String(e) }, origin);
     }
@@ -561,11 +548,15 @@ export async function handler(event) {
           bucket,
           path,
           file_name,
+          sheet_used,
           sha256: sha,
           rows_in_sheet: rows.length,
           rows_with_marcacavo: importableSeen,
+          rows_importable: importableSeen,
           rows_canonical: out.length,
+          headers_found,
           duplicated_codes: dups.length,
+          inserted_rows: inserted,
         },
         warnings,
       },

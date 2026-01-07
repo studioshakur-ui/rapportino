@@ -25,6 +25,19 @@ const PERF = {
     opacity: 0.92,
     // Limite hard pour éviter les explosions trop lourdes
     maxSparks: 1100,
+    // Zone "ciel" (ratio du viewport) — premium = jamais sur les CTA
+    skyRatio: 0.58,
+  },
+
+  // Glitter / paillettes (New Year) — premium, très fin
+  glitter: {
+    maxFps: 24,
+    countMul: 1.0,
+    opacity: 0.72,
+    // Hard cap pour éviter toute dérive
+    maxParticles: 420,
+    // Zone "ciel" pour garder le hero clean
+    skyRatio: 0.62,
   },
 
   // Accumulation (banquette)
@@ -192,6 +205,14 @@ function getFireworksIntensityFromQuery() {
   return 2;
 }
 
+function getGlitterIntensityFromQuery() {
+  const p = getQueryParamsSafe();
+  const raw = (p.get("gl") || "").trim();
+  const n = Number(raw);
+  if (n === 1 || n === 2 || n === 3) return n;
+  return null;
+}
+
 function getAccumulationEnabledFromQuery() {
   const p = getQueryParamsSafe();
   if (!p.has("acc")) return true;
@@ -276,15 +297,17 @@ function ElectricFlow({ t, theme = "sky" }) {
     const sparkEl = sparkRef.current;
     if (!dashEl || !sparkEl) return;
 
-    const dashAnim = dashEl.animate(
-      [{ strokeDashoffset: 0 }, { strokeDashoffset: -320 }],
-      { duration: PERF.flow.dashDurationMs, iterations: Infinity, easing: "linear" }
-    );
+    const dashAnim = dashEl.animate([{ strokeDashoffset: 0 }, { strokeDashoffset: -320 }], {
+      duration: PERF.flow.dashDurationMs,
+      iterations: Infinity,
+      easing: "linear",
+    });
 
-    const sparkAnim = sparkEl.animate(
-      [{ strokeDashoffset: 0 }, { strokeDashoffset: -680 }],
-      { duration: PERF.flow.sparkDurationMs, iterations: Infinity, easing: "linear" }
-    );
+    const sparkAnim = sparkEl.animate([{ strokeDashoffset: 0 }, { strokeDashoffset: -680 }], {
+      duration: PERF.flow.sparkDurationMs,
+      iterations: Infinity,
+      easing: "linear",
+    });
 
     const onVis = () => {
       const visible = document.visibilityState === "visible";
@@ -349,8 +372,6 @@ function ElectricFlow({ t, theme = "sky" }) {
             );
           opacity: 0.28;
         }
-        /* PERF: supprimer drop-shadows SVG (très coûteux) */
-        .softGlow { }
       `}</style>
 
       <div className="metalPanel p-6 md:p-7">
@@ -481,7 +502,7 @@ function SnowCanvas({ enabled, intensity = 2 }) {
       const baseCountRaw = intensity === 3 ? 260 : intensity === 2 ? 200 : 150;
       const baseCount = Math.max(80, Math.round(baseCountRaw * PERF.snow.countMul));
 
-      const wind = intensity === 3 ? 0.24 : intensity === 2 ? 0.20 : 0.14;
+      const wind = intensity === 3 ? 0.24 : intensity === 2 ? 0.2 : 0.14;
       const gust = intensity === 3 ? 0.12 : intensity === 2 ? 0.09 : 0.06;
       const speedBoost = intensity === 3 ? 1.2 : intensity === 2 ? 1.05 : 0.95;
 
@@ -509,11 +530,11 @@ function SnowCanvas({ enabled, intensity = 2 }) {
       if (depthRoll < 0.38) {
         r = rand(0.8, 1.5);
         speed = rand(18, 48);
-        alpha = rand(0.16, 0.30);
+        alpha = rand(0.16, 0.3);
       } else if (depthRoll < 0.82) {
         r = rand(1.4, 2.5);
         speed = rand(45, 92);
-        alpha = rand(0.22, 0.40);
+        alpha = rand(0.22, 0.4);
       } else {
         r = rand(2.2, 3.6);
         speed = rand(72, 135);
@@ -570,7 +591,7 @@ function SnowCanvas({ enabled, intensity = 2 }) {
         const p = ps[i];
 
         p.phase += dt * 1.1;
-        const sway = Math.sin(p.phase) * (0.30 + p.r * 0.05);
+        const sway = Math.sin(p.phase) * (0.3 + p.r * 0.05);
 
         p.x += (p.vx + wind * 110 + p.drift * 14 + sway * 20) * dt;
         p.y += p.vy * dt;
@@ -640,7 +661,6 @@ function SnowCanvas({ enabled, intensity = 2 }) {
 
 /* =========================================================
    Snow Accumulation — growing snowbank at bottom (perf tuned)
-   - shimmer désactivé par défaut (PERF.accumulation.shimmer)
    ========================================================= */
 function SnowAccumulation({ enabled, intensity = 2 }) {
   const KEY = "core_snow_acc_v1";
@@ -770,7 +790,7 @@ function SnowAccumulation({ enabled, intensity = 2 }) {
 }
 
 /* =========================================================
-   NEW YEAR — Fireworks Canvas (perf tuned)
+   NEW YEAR — Fireworks Canvas (premium, "sky-only")
    intensity: 1|2|3 (fw=1|2|3)
    ========================================================= */
 function FireworksCanvas({ enabled, intensity = 2 }) {
@@ -805,12 +825,17 @@ function FireworksCanvas({ enabled, intensity = 2 }) {
     const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
 
     const config = (() => {
-      // Intensité = densité + fréquence (mais plafonnée)
-      const spawnPerSec = intensity === 3 ? 2.0 : intensity === 2 ? 1.35 : 0.9;
-      const rocketSpeed = intensity === 3 ? 980 : intensity === 2 ? 860 : 760;
+      // Premium: cadence plus rare, explosions plus "posées"
+      const baseSpawnPerSec = intensity === 3 ? 1.05 : intensity === 2 ? 0.78 : 0.55;
+      const rocketSpeed = intensity === 3 ? 980 : intensity === 2 ? 860 : 780;
       const sparkCount = intensity === 3 ? 120 : intensity === 2 ? 96 : 78;
-      const sparkLife = intensity === 3 ? 1.65 : intensity === 2 ? 1.45 : 1.25;
-      return { spawnPerSec, rocketSpeed, sparkCount, sparkLife };
+      const sparkLife = intensity === 3 ? 1.7 : intensity === 2 ? 1.5 : 1.3;
+
+      // Burst windows: cérémonie (pulses) au lieu d'un flux constant "jeu"
+      const cycleSec = 8.6;
+      const windowSec = intensity === 3 ? 2.6 : intensity === 2 ? 2.2 : 1.9;
+
+      return { baseSpawnPerSec, rocketSpeed, sparkCount, sparkLife, cycleSec, windowSec };
     })();
 
     function resize() {
@@ -831,14 +856,29 @@ function FireworksCanvas({ enabled, intensity = 2 }) {
       return Math.max(a, Math.min(b, n));
     }
 
+    function smoothstep(edge0, edge1, x) {
+      const t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
+      return t * t * (3 - 2 * t);
+    }
+
+    function getSkyH() {
+      const h = window.innerHeight;
+      return Math.max(260, Math.floor(h * PERF.fireworks.skyRatio));
+    }
+
     function makeRocket(w, h) {
-      const x = rand(w * 0.08, w * 0.92);
+      const skyH = getSkyH();
+
+      const x = rand(w * 0.12, w * 0.88);
       const y = h + rand(18, 80);
-      // cible haute (explosion)
-      const targetY = rand(h * 0.18, h * 0.45);
-      // léger drift horizontal
-      const vx = rand(-46, 46);
+
+      // cible haute (explosion) = toujours dans le ciel
+      const targetY = rand(skyH * 0.24, skyH * 0.72);
+
+      // drift horizontal très léger
+      const vx = rand(-38, 38);
       const vy = -rand(config.rocketSpeed * 0.78, config.rocketSpeed * 1.0);
+
       return {
         x,
         y,
@@ -846,8 +886,7 @@ function FireworksCanvas({ enabled, intensity = 2 }) {
         vy,
         targetY,
         t: 0,
-        // couleur "champagne"
-        hue: rand(38, 52), // zone or/ambre
+        hue: rand(38, 52), // champagne/ambre
         bright: rand(0.82, 0.98),
       };
     }
@@ -855,29 +894,30 @@ function FireworksCanvas({ enabled, intensity = 2 }) {
     function explode(rocket) {
       const w = window.innerWidth;
       const h = window.innerHeight;
+      const skyH = getSkyH();
 
       const cx0 = clamp(rocket.x, 8, w - 8);
-      const cy0 = clamp(rocket.y, 8, h - 8);
+      const cy0 = clamp(rocket.y, 8, skyH - 8);
 
       const base = config.sparkCount;
       const count = Math.round(base * PERF.fireworks.countMul);
 
-      // ring + burst
-      const ringCount = Math.round(count * 0.25);
+      // ring + burst, plus "bijou" que "explosion"
+      const ringCount = Math.round(count * 0.28);
       const burstCount = count - ringCount;
 
       const sparks = sparksRef.current;
 
       const maxAllow = PERF.fireworks.maxSparks;
       if (sparks.length > maxAllow) {
-        sparks.splice(0, sparks.length - Math.floor(maxAllow * 0.8));
+        sparks.splice(0, sparks.length - Math.floor(maxAllow * 0.78));
       }
 
       // anneau
-      const ringR = rand(160, 260);
+      const ringR = rand(160, 250);
       for (let i = 0; i < ringCount; i++) {
         const a = (i / ringCount) * Math.PI * 2;
-        const speed = ringR * rand(1.9, 2.4);
+        const speed = ringR * rand(1.85, 2.25);
         sparks.push({
           x: cx0,
           y: cy0,
@@ -885,17 +925,18 @@ function FireworksCanvas({ enabled, intensity = 2 }) {
           vy: Math.sin(a) * speed,
           life: config.sparkLife * rand(0.85, 1.15),
           age: 0,
-          r: rand(0.9, 1.8),
-          alpha: rand(0.55, 0.95),
+          r: rand(0.85, 1.75),
+          alpha: rand(0.48, 0.88),
           hue: rocket.hue + rand(-6, 6),
-          white: Math.random() < 0.16,
+          white: Math.random() < 0.14,
+          isFlash: false,
         });
       }
 
       // burst
       for (let i = 0; i < burstCount; i++) {
         const a = rand(0, Math.PI * 2);
-        const speed = rand(220, 680);
+        const speed = rand(210, 640);
         sparks.push({
           x: cx0,
           y: cy0,
@@ -903,23 +944,24 @@ function FireworksCanvas({ enabled, intensity = 2 }) {
           vy: Math.sin(a) * speed,
           life: config.sparkLife * rand(0.75, 1.25),
           age: 0,
-          r: rand(0.8, 1.9),
-          alpha: rand(0.45, 0.92),
+          r: rand(0.8, 1.85),
+          alpha: rand(0.38, 0.84),
           hue: rocket.hue + rand(-8, 8),
-          white: Math.random() < 0.12,
+          white: Math.random() < 0.10,
+          isFlash: false,
         });
       }
 
-      // flash (très léger)
+      // flash très léger (ciné)
       sparks.push({
         x: cx0,
         y: cy0,
         vx: 0,
         vy: 0,
-        life: 0.18,
+        life: 0.16,
         age: 0,
         r: rand(10, 18),
-        alpha: 0.18,
+        alpha: 0.16,
         hue: rocket.hue,
         white: true,
         isFlash: true,
@@ -937,20 +979,38 @@ function FireworksCanvas({ enabled, intensity = 2 }) {
 
       const w = window.innerWidth;
       const h = window.innerHeight;
+      const skyH = getSkyH();
 
       const last = lastRef.current || ts;
       const dt = Math.min(0.05, Math.max(0.001, (ts - last) / 1000));
       lastRef.current = ts;
 
-      // fade (trails) — via clear + alpha overlay
+      // Clean bottom always (premium: zéro pollution sous le ciel)
+      ctx.clearRect(0, skyH, w, h - skyH);
+
+      // Trails uniquement dans le ciel
       ctx.save();
       ctx.globalCompositeOperation = "source-over";
-      ctx.fillStyle = "rgba(2,6,23,0.22)";
-      ctx.fillRect(0, 0, w, h);
-      ctx.restore();
+      ctx.beginPath();
+      ctx.rect(0, 0, w, skyH);
+      ctx.clip();
+
+      // Fade (trails) — filmic
+      ctx.fillStyle = "rgba(2,6,23,0.23)";
+      ctx.fillRect(0, 0, w, skyH);
+
+      // Burst windows
+      const tSec = ts / 1000;
+      const m = tSec % config.cycleSec;
+      // window shape: montée douce + descente douce
+      const wIn = smoothstep(0, 0.45, m);
+      const wOut = 1 - smoothstep(config.windowSec - 0.45, config.windowSec, m);
+      const windowGate = clamp(Math.min(wIn, wOut), 0, 1);
+
+      const spawnPerSec = config.baseSpawnPerSec * windowGate;
 
       // spawn rockets
-      spawnAccRef.current += dt * config.spawnPerSec;
+      spawnAccRef.current += dt * spawnPerSec;
       const rockets = rocketsRef.current;
       while (spawnAccRef.current >= 1) {
         spawnAccRef.current -= 1;
@@ -961,28 +1021,24 @@ function FireworksCanvas({ enabled, intensity = 2 }) {
       for (let i = rockets.length - 1; i >= 0; i--) {
         const r = rockets[i];
         r.t += dt;
-        // simple physics
+
         r.x += r.vx * dt;
         r.y += r.vy * dt;
-
-        // slight gravity
-        r.vy += 220 * dt;
+        r.vy += 220 * dt; // gravity
 
         // draw rocket head (tiny)
         const a = clamp(0.22 + r.bright * 0.55, 0.18, 0.92);
         ctx.globalAlpha = a;
         ctx.beginPath();
-        ctx.fillStyle = "rgba(255,231,180,0.95)";
-        ctx.arc(r.x, r.y, 1.3, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(255,231,180,0.92)";
+        ctx.arc(r.x, r.y, 1.2, 0, Math.PI * 2);
         ctx.fill();
 
-        // explode condition
-        if (r.y <= r.targetY || r.t > 1.6) {
+        if (r.y <= r.targetY || r.t > 1.65) {
           explode(r);
           rockets.splice(i, 1);
         }
 
-        // out-of-bounds cleanup
         if (r.y < -120 || r.x < -120 || r.x > w + 120) {
           rockets.splice(i, 1);
         }
@@ -991,10 +1047,6 @@ function FireworksCanvas({ enabled, intensity = 2 }) {
 
       // update sparks
       const sparks = sparksRef.current;
-
-      // PERF: pas de lighter constant (GPU), on reste source-over
-      ctx.save();
-      ctx.globalCompositeOperation = "source-over";
 
       for (let i = sparks.length - 1; i >= 0; i--) {
         const s = sparks[i];
@@ -1006,34 +1058,44 @@ function FireworksCanvas({ enabled, intensity = 2 }) {
 
         const k = 1 - s.age / s.life;
 
-        // physics
         if (!s.isFlash) {
-          s.vy += 300 * dt; // gravity
-          s.vx *= 0.985; // air drag
+          s.vy += 300 * dt;
+          s.vx *= 0.985;
           s.vy *= 0.985;
           s.x += s.vx * dt;
           s.y += s.vy * dt;
         }
 
-        const alpha = s.alpha * Math.pow(k, 0.9);
+        // clamp to sky (au-delà, on ne dessine pas)
+        if (s.y > skyH + 40) continue;
+
+        const alpha = s.alpha * Math.pow(k, 0.92);
         ctx.globalAlpha = alpha;
 
         if (s.isFlash) {
           ctx.beginPath();
-          ctx.fillStyle = "rgba(255,255,255,0.85)";
+          ctx.fillStyle = "rgba(255,255,255,0.80)";
           ctx.arc(s.x, s.y, s.r * (0.55 + 0.9 * k), 0, Math.PI * 2);
           ctx.fill();
         } else {
-          // champagne/gold particle
           const hue = Math.round(s.hue);
-          const col = s.white ? "rgba(255,255,255,0.92)" : `hsla(${hue}, 92%, 70%, 0.95)`;
-
+          const col = s.white ? "rgba(255,255,255,0.88)" : `hsla(${hue}, 92%, 70%, 0.92)`;
           ctx.beginPath();
           ctx.fillStyle = col;
           ctx.arc(s.x, s.y, s.r * (0.85 + 0.35 * k), 0, Math.PI * 2);
           ctx.fill();
         }
       }
+
+      // Fade-out premium vers le bas du ciel (masque "cérémonie")
+      const fadeStart = Math.floor(skyH * 0.70);
+      const fadeH = Math.max(80, skyH - fadeStart);
+      const g = ctx.createLinearGradient(0, fadeStart, 0, fadeStart + fadeH);
+      g.addColorStop(0, "rgba(2,6,23,0.00)");
+      g.addColorStop(1, "rgba(2,6,23,0.92)");
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = g;
+      ctx.fillRect(0, fadeStart, w, fadeH);
 
       ctx.restore();
       ctx.globalAlpha = 1;
@@ -1044,18 +1106,14 @@ function FireworksCanvas({ enabled, intensity = 2 }) {
     }
 
     resize();
-
     window.addEventListener("resize", resize);
     document.addEventListener("visibilitychange", onVis);
 
-    // seed first rockets for instant wow
     rocketsRef.current = [];
     sparksRef.current = [];
-    spawnAccRef.current = 0.6;
+    spawnAccRef.current = 0.85;
 
-    // initial clear
     ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-
     rafRef.current = requestAnimationFrame(step);
 
     return () => {
@@ -1075,6 +1133,285 @@ function FireworksCanvas({ enabled, intensity = 2 }) {
       style={{
         zIndex: 70,
         opacity: PERF.fireworks.opacity,
+      }}
+    />
+  );
+}
+
+/* =========================================================
+   NEW YEAR — Glitter / Paillettes Canvas (premium, slow)
+   intensity: 1|2|3 (gl=1|2|3 optional, sinon fw)
+   ========================================================= */
+function GlitterCanvas({ enabled, intensity = 2 }) {
+  const canvasRef = useRef(null);
+  const rafRef = useRef(0);
+  const lastRef = useRef(0);
+  const accRef = useRef(0);
+  const visPauseRef = useRef(false);
+
+  const partsRef = useRef([]);
+
+  const reduceMotion = useMemo(() => {
+    try {
+      return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!enabled) return;
+    if (reduceMotion) return;
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d", { alpha: true });
+    if (!ctx) return;
+
+    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+
+    const config = (() => {
+      const base = intensity === 3 ? 170 : intensity === 2 ? 135 : 110;
+      const count = Math.round(base * PERF.glitter.countMul);
+      const fall = intensity === 3 ? 30 : intensity === 2 ? 24 : 19; // px/s
+      const drift = intensity === 3 ? 18 : intensity === 2 ? 14 : 10;
+      return { count, fall, drift };
+    })();
+
+    function resize() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      canvas.style.width = `${w}px`;
+      canvas.style.height = `${h}px`;
+      canvas.width = Math.floor(w * dpr);
+      canvas.height = Math.floor(h * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function rand(min, max) {
+      return min + Math.random() * (max - min);
+    }
+
+    function clamp(n, a, b) {
+      return Math.max(a, Math.min(b, n));
+    }
+
+    function getSkyH() {
+      const h = window.innerHeight;
+      return Math.max(280, Math.floor(h * PERF.glitter.skyRatio));
+    }
+
+    function makeParticle(w, h) {
+      const skyH = getSkyH();
+      const kindRoll = Math.random();
+
+      // Shapes: bar (foil), diamond (sparkle), starlet (rare)
+      const kind = kindRoll < 0.72 ? "bar" : kindRoll < 0.94 ? "diamond" : "star";
+
+      const x = rand(0, w);
+      const y = rand(-skyH, skyH);
+
+      const size = kind === "bar" ? rand(5, 10) : kind === "diamond" ? rand(4, 9) : rand(6, 12);
+      const aspect = kind === "bar" ? rand(2.0, 3.6) : 1.0;
+
+      // champagne / pearl
+      const hue = rand(40, 52);
+      const isPearl = Math.random() < 0.28;
+
+      return {
+        x,
+        y,
+        vx: rand(-config.drift, config.drift),
+        vy: rand(config.fall * 0.7, config.fall * 1.15),
+        rot: rand(0, Math.PI * 2),
+        vr: rand(-0.8, 0.8),
+        size,
+        aspect,
+        alpha: rand(0.08, 0.20),
+        tw: rand(0, Math.PI * 2),
+        kind,
+        hue,
+        isPearl,
+      };
+    }
+
+    function seed() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const arr = [];
+      const c = clamp(config.count, 60, PERF.glitter.maxParticles);
+      for (let i = 0; i < c; i++) arr.push(makeParticle(w, h));
+      partsRef.current = arr;
+    }
+
+    function drawDiamond(x, y, s) {
+      ctx.beginPath();
+      ctx.moveTo(x, y - s);
+      ctx.lineTo(x + s, y);
+      ctx.lineTo(x, y + s);
+      ctx.lineTo(x - s, y);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function drawStarlet(x, y, s) {
+      // 4-branches "kira"
+      ctx.beginPath();
+      ctx.moveTo(x, y - s);
+      ctx.lineTo(x, y + s);
+      ctx.moveTo(x - s, y);
+      ctx.lineTo(x + s, y);
+      ctx.stroke();
+      // small diagonals
+      ctx.beginPath();
+      ctx.moveTo(x - s * 0.72, y - s * 0.72);
+      ctx.lineTo(x + s * 0.72, y + s * 0.72);
+      ctx.moveTo(x + s * 0.72, y - s * 0.72);
+      ctx.lineTo(x - s * 0.72, y + s * 0.72);
+      ctx.stroke();
+    }
+
+    function step(ts) {
+      rafRef.current = requestAnimationFrame(step);
+      if (visPauseRef.current) return;
+
+      const targetFrameMs = 1000 / Math.max(10, PERF.glitter.maxFps);
+      const lastTick = accRef.current || ts;
+      if (ts - lastTick < targetFrameMs) return;
+      accRef.current = ts;
+
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const skyH = getSkyH();
+
+      const last = lastRef.current || ts;
+      const dt = Math.min(0.05, Math.max(0.001, (ts - last) / 1000));
+      lastRef.current = ts;
+
+      // clear bottom and softly clear sky (no trails needed, this is glitter)
+      ctx.clearRect(0, 0, w, h);
+      ctx.clearRect(0, skyH, w, h - skyH);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, w, skyH);
+      ctx.clip();
+
+      const ps = partsRef.current;
+
+      for (let i = 0; i < ps.length; i++) {
+        const p = ps[i];
+
+        p.tw += dt * 1.25;
+        p.rot += p.vr * dt;
+
+        // very slow drift (premium)
+        const sway = Math.sin(p.tw) * 6;
+        p.x += (p.vx + sway) * dt;
+        p.y += p.vy * dt;
+
+        // wrap
+        if (p.y > skyH + 18) {
+          p.y = -rand(18, skyH * 0.22);
+          p.x = rand(0, w);
+        }
+        if (p.x < -24) p.x = w + 24;
+        if (p.x > w + 24) p.x = -24;
+
+        // twinkle: subtle (no disco)
+        const tw = 0.65 + 0.35 * (0.5 + 0.5 * Math.sin(p.tw));
+        const a = p.alpha * tw;
+
+        ctx.globalAlpha = a;
+
+        const baseFill = p.isPearl ? "rgba(255,255,255,0.90)" : `hsla(${Math.round(p.hue)}, 90%, 72%, 0.92)`;
+        const edge = p.isPearl ? "rgba(255,255,255,0.55)" : "rgba(255,231,180,0.45)";
+
+        if (p.kind === "bar") {
+          // tiny foil bar, rotated
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.rot);
+          ctx.fillStyle = baseFill;
+          ctx.strokeStyle = edge;
+          ctx.lineWidth = 0.6;
+
+          const w0 = p.size * p.aspect;
+          const h0 = Math.max(1.0, p.size * 0.35);
+
+          ctx.beginPath();
+          ctx.roundRect(-w0 * 0.5, -h0 * 0.5, w0, h0, Math.min(3, h0 * 0.6));
+          ctx.fill();
+          ctx.globalAlpha = a * 0.65;
+          ctx.stroke();
+          ctx.restore();
+        } else if (p.kind === "diamond") {
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.rot);
+          ctx.fillStyle = baseFill;
+          drawDiamond(0, 0, p.size * 0.48);
+          ctx.restore();
+        } else {
+          // starlet (rare), stroke only for ultra-fine look
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.rot * 0.2);
+          ctx.globalAlpha = a * 0.9;
+          ctx.strokeStyle = p.isPearl ? "rgba(255,255,255,0.78)" : "rgba(255,231,180,0.72)";
+          ctx.lineWidth = 0.8;
+          drawStarlet(0, 0, p.size * 0.48);
+          ctx.restore();
+        }
+      }
+
+      // fade bottom of sky (sanctuarise le hero)
+      const fadeStart = Math.floor(skyH * 0.72);
+      const fadeH = Math.max(90, skyH - fadeStart);
+      const g = ctx.createLinearGradient(0, fadeStart, 0, fadeStart + fadeH);
+      g.addColorStop(0, "rgba(2,6,23,0.00)");
+      g.addColorStop(1, "rgba(2,6,23,0.92)");
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = g;
+      ctx.fillRect(0, fadeStart, w, fadeH);
+
+      ctx.restore();
+      ctx.globalAlpha = 1;
+    }
+
+    function onVis() {
+      visPauseRef.current = document.visibilityState !== "visible";
+    }
+
+    resize();
+    seed();
+
+    window.addEventListener("resize", () => {
+      resize();
+      seed();
+    });
+    document.addEventListener("visibilitychange", onVis);
+
+    rafRef.current = requestAnimationFrame(step);
+
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      window.removeEventListener("resize", resize);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [enabled, intensity, reduceMotion]);
+
+  if (!enabled) return null;
+
+  return (
+    <canvas
+      ref={canvasRef}
+      aria-hidden="true"
+      className="pointer-events-none fixed inset-0"
+      style={{
+        zIndex: 71,
+        opacity: PERF.glitter.opacity,
       }}
     />
   );
@@ -1138,7 +1475,7 @@ function NewYearCountdown({ enabled, t }) {
 }
 
 /* =========================================================
-   LANDING — Démo-grade (perf tuned)
+   LANDING
    ========================================================= */
 export default function Landing() {
   useEffect(() => {
@@ -1177,6 +1514,10 @@ export default function Landing() {
   const snowIntensity = useMemo(() => getSnowIntensityFromQuery(), []);
   const snowAccEnabled = useMemo(() => getAccumulationEnabledFromQuery(), []);
   const fwIntensity = useMemo(() => getFireworksIntensityFromQuery(), []);
+  const glitterIntensity = useMemo(() => {
+    const gl = getGlitterIntensityFromQuery();
+    return gl || fwIntensity; // gl optionnel, sinon aligné sur fw
+  }, [fwIntensity]);
 
   const accessHref = useMemo(() => {
     const subject = encodeURIComponent("Richiesta accesso CORE");
@@ -1241,31 +1582,69 @@ export default function Landing() {
         }}
       />
 
-      {/* NEW YEAR — gold foil overlay (subtle) */}
+      {/* NEW YEAR — gold foil overlay (subtle, controlled) */}
+      {ny ? (
+        <>
+          <div
+            className="pointer-events-none fixed inset-0"
+            style={{
+              zIndex: 65,
+              backgroundImage: `
+                conic-gradient(
+                  from 180deg at 50% 35%,
+                  rgba(245,158,11,0.00),
+                  rgba(255,231,180,0.07),
+                  rgba(245,158,11,0.00),
+                  rgba(255,255,255,0.04),
+                  rgba(245,158,11,0.00)
+                )
+              `,
+              mixBlendMode: "screen",
+              opacity: 0.85,
+            }}
+            aria-hidden="true"
+          />
+          {/* Bokeh premium (très soft) */}
+          <div
+            className="pointer-events-none fixed inset-0"
+            style={{
+              zIndex: 66,
+              backgroundImage: `
+                radial-gradient(260px 180px at 18% 22%, rgba(255,231,180,0.05), transparent 70%),
+                radial-gradient(220px 160px at 74% 18%, rgba(255,255,255,0.04), transparent 72%),
+                radial-gradient(280px 200px at 86% 34%, rgba(245,158,11,0.04), transparent 72%),
+                radial-gradient(260px 190px at 40% 34%, rgba(255,231,180,0.03), transparent 74%)
+              `,
+              opacity: 0.95,
+            }}
+            aria-hidden="true"
+          />
+        </>
+      ) : null}
+
+      {/* CANVAS LAYERS (NY) */}
+      <FireworksCanvas enabled={ny} intensity={fwIntensity} />
+      <GlitterCanvas enabled={ny} intensity={glitterIntensity} />
+
+      {/* NY mask overlay: sanctuarise le bas (CTA/texte) */}
       {ny ? (
         <div
           className="pointer-events-none fixed inset-0"
           style={{
-            zIndex: 65,
+            zIndex: 72,
             backgroundImage: `
-              conic-gradient(
-                from 180deg at 50% 35%,
-                rgba(245,158,11,0.00),
-                rgba(255,231,180,0.07),
-                rgba(245,158,11,0.00),
-                rgba(255,255,255,0.04),
-                rgba(245,158,11,0.00)
+              linear-gradient(
+                to bottom,
+                rgba(2,6,23,0.00) 0%,
+                rgba(2,6,23,0.00) 46%,
+                rgba(2,6,23,0.65) 72%,
+                rgba(2,6,23,0.92) 100%
               )
             `,
-            mixBlendMode: "screen",
-            opacity: 0.85,
           }}
           aria-hidden="true"
         />
       ) : null}
-
-      {/* CANVAS LAYERS */}
-      <FireworksCanvas enabled={ny} intensity={fwIntensity} />
 
       {/* SNOW: falling + accumulation (holiday only) */}
       <SnowCanvas enabled={holiday} intensity={snowIntensity} />
@@ -1293,11 +1672,7 @@ export default function Landing() {
                       onClick={() => setLang(l)}
                       className={cx(
                         "px-2.5 py-1.5 rounded-lg text-[11px] uppercase tracking-[0.18em] transition",
-                        l === lang
-                          ? ny || holiday
-                            ? "text-amber-200"
-                            : "text-sky-200"
-                          : "text-slate-500 hover:text-slate-300"
+                        l === lang ? (ny || holiday ? "text-amber-200" : "text-sky-200") : "text-slate-500 hover:text-slate-300"
                       )}
                       aria-label={`Language ${l}`}
                       title={l.toUpperCase()}
@@ -1307,7 +1682,7 @@ export default function Landing() {
                   ))}
                 </div>
 
-                {(ny || holiday) && !ny ? (
+                {holiday && !ny ? (
                   <span
                     className="hidden md:inline-flex items-center gap-2 rounded-full border border-amber-400/35 bg-amber-500/12 px-3 py-1.5"
                     style={{
@@ -1326,7 +1701,7 @@ export default function Landing() {
                     style={{
                       boxShadow: "0 12px 38px rgba(245,158,11,0.12), inset 0 1px 0 rgba(255,255,255,0.05)",
                     }}
-                    title="New Year mode — fw=1|2|3"
+                    title="New Year mode — fw=1|2|3 — gl=1|2|3"
                   >
                     <span className="h-1.5 w-1.5 rounded-full bg-amber-200/85" />
                     <span className="text-[10px] uppercase tracking-[0.22em] text-amber-200">NEW YEAR · 31/12</span>
@@ -1339,9 +1714,7 @@ export default function Landing() {
                   className={cx(
                     buttonPrimary(true),
                     "h-9 px-4 rounded-xl",
-                    ny
-                      ? "shadow-[0_18px_52px_rgba(245,158,11,0.16)]"
-                      : "shadow-[0_18px_45px_rgba(56,189,248,0.14)]"
+                    ny ? "shadow-[0_18px_52px_rgba(245,158,11,0.16)]" : "shadow-[0_18px_45px_rgba(56,189,248,0.14)]"
                   )}
                 >
                   {t.ctaPrimary}
@@ -1372,7 +1745,10 @@ export default function Landing() {
 
                 <div className="text-[12px] uppercase tracking-[0.30em] text-slate-500">{t.eyebrow}</div>
 
-                <h1 className="text-7xl md:text-7xl font-semibold tracking-tight leading-[0.95]" style={heroTitleStyle || undefined}>
+                <h1
+                  className="text-7xl md:text-7xl font-semibold tracking-tight leading-[0.95]"
+                  style={heroTitleStyle || undefined}
+                >
                   {t.title}
                 </h1>
 
