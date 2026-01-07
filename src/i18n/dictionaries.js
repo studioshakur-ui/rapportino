@@ -32,6 +32,59 @@ const coreDict = {
     CAPO_TODAY_DRAG_HINT: "Trascina nel rapportino",
     CAPO_TODAY_LOAD_ERROR: "Impossibile caricare gli operatori di oggi.",
 
+    // CAPO Simple – entry + presence
+    CAPO_SIMPLE_LOADING: "Caricamento assegnazioni…",
+    CAPO_SIMPLE_ERROR_TITLE: "Errore",
+    CAPO_SIMPLE_LOAD_ERROR: "Impossibile caricare le assegnazioni di oggi.",
+    CAPO_SIMPLE_NO_ASSIGNMENTS_TITLE: "Nessuna assegnazione per oggi",
+    CAPO_SIMPLE_NO_ASSIGNMENTS_BODY:
+      "Non risulti assegnato a nessuna nave per oggi. Contatta il Manager.",
+    CAPO_SIMPLE_NO_ASSIGNMENTS_HINT: "Nota: la nave deve essere assegnata dal Manager (max 2).",
+    CAPO_SIMPLE_SELECT_SHIP_TITLE: "Seleziona la nave",
+    CAPO_SIMPLE_SELECT_SHIP_SUB: "Hai più navi assegnate oggi. Scegli quella su cui lavori.",
+    CAPO_SIMPLE_SHIP_SLOT: "Nave {n}",
+
+    CAPO_PRESENCE_GATE_LOADING: "Verifica presenza…",
+    CAPO_SHIP_NOT_ASSIGNED_TITLE: "Nave non assegnata",
+    CAPO_SHIP_NOT_ASSIGNED_BODY:
+      "Oggi non sei assegnato a questa nave. Torna alla home o contatta il Manager.",
+    CAPO_GO_HOME: "Torna a home",
+
+    CAPO_PRESENCE_LOADING: "Caricamento presenza…",
+    CAPO_PRESENCE_KICKER: "Presenza · {d}",
+    CAPO_PRESENCE_TITLE: "Conferma presenza",
+    CAPO_PRESENCE_SUB:
+      "Conferma la tua presenza e segnala eventuali assenze. Dopo la conferma puoi aprire il rapportino.",
+    CAPO_PRESENCE_EXPECTED_TITLE: "Lista presenza",
+    CAPO_PRESENCE_EXPECTED_SUB: "Operatori assegnati dal Manager per oggi.",
+    CAPO_PRESENCE_NONE_EXPECTED:
+      "Nessun operatore assegnato per oggi. Se è corretto, puoi confermare comunque.",
+    CAPO_PRESENCE_PRESENT: "Presente",
+    CAPO_PRESENCE_ABSENT: "Assente",
+    CAPO_PRESENCE_REASON_LABEL: "Motivo",
+    CAPO_PRESENCE_REASON_PLACEHOLDER: "Seleziona motivo…",
+    CAPO_PRESENCE_REASON_REQUIRED: "Motivo obbligatorio",
+    CAPO_PRESENCE_NOTE_LABEL: "Note",
+    CAPO_PRESENCE_NOTE_PLACEHOLDER: "Aggiungi una nota…",
+    CAPO_PRESENCE_NOTE_REQUIRED: "Nota obbligatoria",
+    CAPO_PRESENCE_BACK: "Indietro",
+    CAPO_PRESENCE_CONFIRM: "Conferma e apri rapportino",
+    CAPO_PRESENCE_SAVING: "Salvataggio…",
+    CAPO_PRESENCE_HINT:
+      "Regola: se un operatore è assente, il motivo è obbligatorio. Se il motivo è 'Altro', serve anche una nota.",
+    CAPO_PRESENCE_LOAD_ERROR: "Impossibile caricare i dati di presenza.",
+    CAPO_PRESENCE_CONFIRM_ERROR: "Errore durante la conferma presenza. Riprova.",
+
+    // Motivi assenza
+    CAPO_PRESENCE_REASON_CONCORDATO: "Concordato",
+    CAPO_PRESENCE_REASON_FERIE: "Ferie",
+    CAPO_PRESENCE_REASON_MALATTIA: "Malattia",
+    CAPO_PRESENCE_REASON_SENZA_AVVISARE: "Senza avvisare",
+    CAPO_PRESENCE_REASON_IMPREVISTO: "Imprevisto",
+    CAPO_PRESENCE_REASON_PATERNITA: "Paternità",
+    CAPO_PRESENCE_REASON_CONGEDO_PARENTALE: "Congedo parentale",
+    CAPO_PRESENCE_REASON_ALTRO: "Altro",
+
     // Dashboard Direzione
     DIR_DASH_TITLE: "Dashboard Direzione",
     DIR_WINDOW: "Finestra",
@@ -129,6 +182,59 @@ const coreDict = {
     CAPO_TODAY_DRAG_HINT: "Glisser dans le rapport",
     CAPO_TODAY_LOAD_ERROR: "Impossible de charger les opérateurs du jour.",
 
+    // CAPO Simple – entrée + présence
+    CAPO_SIMPLE_LOADING: "Chargement des affectations…",
+    CAPO_SIMPLE_ERROR_TITLE: "Erreur",
+    CAPO_SIMPLE_LOAD_ERROR: "Impossible de charger les affectations du jour.",
+    CAPO_SIMPLE_NO_ASSIGNMENTS_TITLE: "Aucune affectation pour aujourd'hui",
+    CAPO_SIMPLE_NO_ASSIGNMENTS_BODY:
+      "Aucune affectation n'est prévue pour aujourd'hui. Contactez le Manager.",
+    CAPO_SIMPLE_NO_ASSIGNMENTS_HINT: "Note : le navire doit être affecté par le Manager (max 2).",
+    CAPO_SIMPLE_SELECT_SHIP_TITLE: "Sélectionnez le navire",
+    CAPO_SIMPLE_SELECT_SHIP_SUB: "Plusieurs navires vous sont affectés aujourd'hui. Choisissez celui où vous travaillez.",
+    CAPO_SIMPLE_SHIP_SLOT: "Navire {n}",
+
+    CAPO_PRESENCE_GATE_LOADING: "Vérification présence…",
+    CAPO_SHIP_NOT_ASSIGNED_TITLE: "Navire non affecté",
+    CAPO_SHIP_NOT_ASSIGNED_BODY:
+      "Vous n'êtes pas affecté à ce navire aujourd'hui. Retournez à l'accueil ou contactez le Manager.",
+    CAPO_GO_HOME: "Retour à l'accueil",
+
+    CAPO_PRESENCE_LOADING: "Chargement présence…",
+    CAPO_PRESENCE_KICKER: "Présence · {d}",
+    CAPO_PRESENCE_TITLE: "Confirmer la présence",
+    CAPO_PRESENCE_SUB:
+      "Confirmez votre présence et signalez les absences. Après validation, vous pourrez ouvrir le rapport.",
+    CAPO_PRESENCE_EXPECTED_TITLE: "Liste de présence",
+    CAPO_PRESENCE_EXPECTED_SUB: "Opérateurs affectés par le Manager pour aujourd'hui.",
+    CAPO_PRESENCE_NONE_EXPECTED:
+      "Aucun opérateur affecté pour aujourd'hui. Si c'est correct, vous pouvez quand même confirmer.",
+    CAPO_PRESENCE_PRESENT: "Présent",
+    CAPO_PRESENCE_ABSENT: "Absent",
+    CAPO_PRESENCE_REASON_LABEL: "Motif",
+    CAPO_PRESENCE_REASON_PLACEHOLDER: "Choisir un motif…",
+    CAPO_PRESENCE_REASON_REQUIRED: "Motif obligatoire",
+    CAPO_PRESENCE_NOTE_LABEL: "Notes",
+    CAPO_PRESENCE_NOTE_PLACEHOLDER: "Ajouter une note…",
+    CAPO_PRESENCE_NOTE_REQUIRED: "Note obligatoire",
+    CAPO_PRESENCE_BACK: "Retour",
+    CAPO_PRESENCE_CONFIRM: "Confirmer et ouvrir le rapport",
+    CAPO_PRESENCE_SAVING: "Enregistrement…",
+    CAPO_PRESENCE_HINT:
+      "Règle : si un opérateur est absent, le motif est obligatoire. Si le motif est 'Autre', une note est aussi requise.",
+    CAPO_PRESENCE_LOAD_ERROR: "Impossible de charger les données de présence.",
+    CAPO_PRESENCE_CONFIRM_ERROR: "Erreur pendant la confirmation de présence. Réessayez.",
+
+    // Motifs d'absence
+    CAPO_PRESENCE_REASON_CONCORDATO: "Convenu",
+    CAPO_PRESENCE_REASON_FERIE: "Congés",
+    CAPO_PRESENCE_REASON_MALATTIA: "Maladie",
+    CAPO_PRESENCE_REASON_SENZA_AVVISARE: "Sans prévenir",
+    CAPO_PRESENCE_REASON_IMPREVISTO: "Imprévu",
+    CAPO_PRESENCE_REASON_PATERNITA: "Paternité",
+    CAPO_PRESENCE_REASON_CONGEDO_PARENTALE: "Congé parental",
+    CAPO_PRESENCE_REASON_ALTRO: "Autre",
+
     DIR_DASH_TITLE: "Dashboard Direction",
     DIR_WINDOW: "Fenêtre",
     DIR_RESET_FILTERS: "Réinitialiser filtres",
@@ -220,6 +326,59 @@ const coreDict = {
     CAPO_TODAY_SESSION_START: "Starting session…",
     CAPO_TODAY_DRAG_HINT: "Drag into report",
     CAPO_TODAY_LOAD_ERROR: "Unable to load today’s operators.",
+
+    // CAPO Simple – entry + presence
+    CAPO_SIMPLE_LOADING: "Loading assignments…",
+    CAPO_SIMPLE_ERROR_TITLE: "Error",
+    CAPO_SIMPLE_LOAD_ERROR: "Unable to load today’s assignments.",
+    CAPO_SIMPLE_NO_ASSIGNMENTS_TITLE: "No assignment for today",
+    CAPO_SIMPLE_NO_ASSIGNMENTS_BODY:
+      "You have no ship assigned for today. Please contact your Manager.",
+    CAPO_SIMPLE_NO_ASSIGNMENTS_HINT: "Note: the ship must be assigned by the Manager (max 2).",
+    CAPO_SIMPLE_SELECT_SHIP_TITLE: "Select ship",
+    CAPO_SIMPLE_SELECT_SHIP_SUB: "You have multiple ships assigned today. Choose the one you work on.",
+    CAPO_SIMPLE_SHIP_SLOT: "Ship {n}",
+
+    CAPO_PRESENCE_GATE_LOADING: "Checking presence…",
+    CAPO_SHIP_NOT_ASSIGNED_TITLE: "Ship not assigned",
+    CAPO_SHIP_NOT_ASSIGNED_BODY:
+      "You are not assigned to this ship today. Go back home or contact the Manager.",
+    CAPO_GO_HOME: "Back to home",
+
+    CAPO_PRESENCE_LOADING: "Loading presence…",
+    CAPO_PRESENCE_KICKER: "Presence · {d}",
+    CAPO_PRESENCE_TITLE: "Confirm presence",
+    CAPO_PRESENCE_SUB:
+      "Confirm your presence and report any absences. After confirmation, you can open the rapportino.",
+    CAPO_PRESENCE_EXPECTED_TITLE: "Attendance list",
+    CAPO_PRESENCE_EXPECTED_SUB: "Operators assigned by the Manager for today.",
+    CAPO_PRESENCE_NONE_EXPECTED:
+      "No operators are assigned today. If this is correct, you can still confirm.",
+    CAPO_PRESENCE_PRESENT: "Present",
+    CAPO_PRESENCE_ABSENT: "Absent",
+    CAPO_PRESENCE_REASON_LABEL: "Reason",
+    CAPO_PRESENCE_REASON_PLACEHOLDER: "Select a reason…",
+    CAPO_PRESENCE_REASON_REQUIRED: "Reason is required",
+    CAPO_PRESENCE_NOTE_LABEL: "Notes",
+    CAPO_PRESENCE_NOTE_PLACEHOLDER: "Add a note…",
+    CAPO_PRESENCE_NOTE_REQUIRED: "Note is required",
+    CAPO_PRESENCE_BACK: "Back",
+    CAPO_PRESENCE_CONFIRM: "Confirm and open rapportino",
+    CAPO_PRESENCE_SAVING: "Saving…",
+    CAPO_PRESENCE_HINT:
+      "Rule: if an operator is absent, the reason is required. If the reason is 'Other', a note is also required.",
+    CAPO_PRESENCE_LOAD_ERROR: "Unable to load presence data.",
+    CAPO_PRESENCE_CONFIRM_ERROR: "Error while confirming presence. Please retry.",
+
+    // Absence reasons
+    CAPO_PRESENCE_REASON_CONCORDATO: "Agreed",
+    CAPO_PRESENCE_REASON_FERIE: "Holiday",
+    CAPO_PRESENCE_REASON_MALATTIA: "Sick leave",
+    CAPO_PRESENCE_REASON_SENZA_AVVISARE: "No notice",
+    CAPO_PRESENCE_REASON_IMPREVISTO: "Unexpected",
+    CAPO_PRESENCE_REASON_PATERNITA: "Paternity",
+    CAPO_PRESENCE_REASON_CONGEDO_PARENTALE: "Parental leave",
+    CAPO_PRESENCE_REASON_ALTRO: "Other",
 
     DIR_DASH_TITLE: "Direction Dashboard",
     DIR_WINDOW: "Window",

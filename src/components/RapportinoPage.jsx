@@ -357,6 +357,39 @@ export default function RapportinoPage() {
   const handleSave = async (forcedStatus) => {
     if (!profile?.id) return false;
 
+    // ─────────────────────────────────────────────────────────
+    // HARD RULE (CAPO step): if PRODOTTO is NULL/empty => NOTE is mandatory.
+    // Prevent validating the rapportino with silent data corruption.
+    // ─────────────────────────────────────────────────────────
+    if (forcedStatus === "VALIDATED_CAPO") {
+      const invalid = (Array.isArray(visibleRows) ? visibleRows : [])
+        .map((r, i) => ({
+          i,
+          descr: String(r?.descrizione || "").trim(),
+          prod: parseNumeric(r?.prodotto),
+          note: String(r?.note || "").trim(),
+        }))
+        .filter((x) => x.descr && x.prod === null && !x.note);
+
+      if (invalid.length > 0) {
+        const preview = invalid
+          .slice(0, 5)
+          .map((x) => `Riga ${x.i + 1}: ${x.descr}`)
+          .join("\n");
+
+        pushToast({
+          type: "error",
+          message: "Validazione bloccata: PRODOTTO mancante.",
+          detail:
+            "Se PRODOTTO è vuoto/null, devi inserire una NOTA (obbligatoria).\n" +
+            preview +
+            (invalid.length > 5 ? `\n(+${invalid.length - 5} altre)` : ""),
+        });
+
+        return false;
+      }
+    }
+
     setSaving(true);
     setUiError(null);
     setUiErrorDetails(null);

@@ -1,4 +1,4 @@
-// src/routes.jsx
+// src/routes.tsx
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 
@@ -9,13 +9,13 @@ import Login from "./pages/Login";
 import Unauthorized from "./pages/Unauthorized";
 import ForcePasswordChange from "./pages/ForcePasswordChange";
 
-// SHELLS (déplacés)
+// SHELLS
 import AppShell from "./shells/AppShell";
 import UfficioShell from "./shells/UfficioShell";
 import DirectionShell from "./shells/DirectionShell";
 import ManagerShell from "./shells/ManagerShell";
 
-// ADMIN (AdminShell reste dans /admin)
+// ADMIN
 import AdminShell from "./admin/AdminShell";
 import AdminUsersPage from "./admin/AdminUsersPage";
 import AdminPlanningPage from "./admin/AdminPlanningPage";
@@ -23,10 +23,6 @@ import AdminAssignmentsPage from "./admin/AdminAssignmentsPage";
 import AdminAuditPage from "./admin/AdminAuditPage";
 import AdminOperatorsPage from "./admin/AdminOperatorsPage";
 import AdminCatalogoPage from "./admin/AdminCatalogoPage";
-
-// DIRECTION
-import DirectionOperatorKPI from "./features/kpi/pages/DirectionOperatorKPI";
-
 
 // CAPO
 import RapportinoPage from "./components/RapportinoPage";
@@ -36,6 +32,11 @@ import CapoOperatorKpi from "./features/kpi/pages/CapoOperatorKpi";
 import CapoModuleSelector from "./pages/CapoModuleSelector";
 import CapoRoleSelector from "./pages/CapoRoleSelector";
 import IncaCapoCockpit from "./capo/IncaCapoCockpit";
+
+// CAPO SIMPLE (new)
+import CapoEntryRouter from "./capo/simple/CapoEntryRouter";
+import CapoPresencePage from "./capo/simple/CapoPresencePage";
+import CapoPresenceGate from "./capo/simple/CapoPresenceGate";
 
 // UFFICIO
 import UfficioRapportiniList from "./ufficio/UfficioRapportiniList";
@@ -56,7 +57,7 @@ import ArchivePage from "./pages/Archive";
 // EVOLUZIONE
 import Evoluzione from "./data/Evoluzione";
 
-export default function AppRoutes() {
+export default function AppRoutes(): JSX.Element {
   return (
     <Routes>
       {/* PUBLIC */}
@@ -104,11 +105,35 @@ export default function AppRoutes() {
           </RequireRole>
         }
       >
-        <Route index element={<ShipSelector />} />
+        {/* ENTRY ROUTER (ADMIN decides simple vs rich) */}
+        <Route index element={<CapoEntryRouter />} />
+
+        {/* CAPO SIMPLE */}
+        <Route path="ship/:shipId/presence" element={<CapoPresencePage />} />
+
+        {/* CAPO RICH (legacy) */}
+        <Route path="ship-selector" element={<ShipSelector />} />
         <Route path="kpi-operatori" element={<CapoOperatorKpi isDark={true} />} />
         <Route path="ship/:shipId" element={<CapoModuleSelector />} />
-        <Route path="ship/:shipId/rapportino/role" element={<CapoRoleSelector />} />
-        <Route path="ship/:shipId/rapportino" element={<RapportinoPage />} />
+
+        {/* Rapportino routes gated by presence (for CAPO Simple) */}
+        <Route
+          path="ship/:shipId/rapportino/role"
+          element={
+            <CapoPresenceGate>
+              <CapoRoleSelector />
+            </CapoPresenceGate>
+          }
+        />
+        <Route
+          path="ship/:shipId/rapportino"
+          element={
+            <CapoPresenceGate>
+              <RapportinoPage />
+            </CapoPresenceGate>
+          }
+        />
+
         <Route path="ship/:shipId/inca" element={<IncaCapoCockpit />} />
         <Route path="core-drive" element={<ArchivePage />} />
         <Route path="archive" element={<Navigate to="../core-drive" replace />} />

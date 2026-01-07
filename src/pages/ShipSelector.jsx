@@ -161,6 +161,7 @@ export default function ShipSelector() {
 
   /* -----------------------------
      Load ships (source of truth = RPC)
+     0) View capo_today_ship_assignments_v1 (CAPO planned ships for today)
      1) RPC capo_my_ships_v1()
      2) Fallback view capo_my_team_v1 (best-effort)
   ----------------------------- */
@@ -170,6 +171,43 @@ export default function ShipSelector() {
     async function loadShips() {
       setLoadingShips(true);
       setError("");
+
+      // 0) Planned ships for today (new CAPO Simple/Rich source of truth)
+      try {
+        const { data, error: vErr } = await supabase
+          .from("capo_today_ship_assignments_v1")
+          .select("plan_date, ship_id, ship_code, ship_name, position")
+          .eq("plan_date", todayISO)
+          .order("position", { ascending: true });
+        if (vErr) throw vErr;
+
+        const rows = Array.isArray(data) ? data : [];
+
+        if (rows.length > 0) {
+          const planned = rows
+            .map((r) => ({
+              id: String(r.ship_id),
+              code: String(r.ship_code || ""),
+              name: String(r.ship_name || r.ship_code || ""),
+              yard: null,
+            }))
+            .filter((s) => s.id && s.code);
+
+          if (alive) {
+            setShips(planned);
+            setLoadingShips(false);
+          }
+          console.info(
+            `[ShipSelector] ships source=view.capo_today_ship_assignments_v1 count=${planned.length}`
+          );
+          return;
+        }
+      } catch (e) {
+        console.warn(
+          "[ShipSelector] view capo_today_ship_assignments_v1 failed:",
+          String(e?.message || e || "")
+        );
+      }
 
       // 1) RPC
       try {
