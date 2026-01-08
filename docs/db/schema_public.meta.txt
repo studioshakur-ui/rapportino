@@ -1,0 +1,4 @@
+snapshot_utc=20260108_200027
+linked_project_ref=hzbiqnupswoqnyztxpvr
+public_only=True
+schema_file=schema_public.sql
