@@ -13,13 +13,48 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 
-CREATE SCHEMA IF NOT EXISTS "public";
+CREATE SCHEMA IF NOT EXISTS "archive";
 
 
-ALTER SCHEMA "public" OWNER TO "pg_database_owner";
+ALTER SCHEMA "archive" OWNER TO "postgres";
 
 
 COMMENT ON SCHEMA "public" IS 'standard public schema';
+
+
+
+CREATE EXTENSION IF NOT EXISTS "pg_graphql" WITH SCHEMA "graphql";
+
+
+
+
+
+
+CREATE EXTENSION IF NOT EXISTS "pg_stat_statements" WITH SCHEMA "extensions";
+
+
+
+
+
+
+CREATE EXTENSION IF NOT EXISTS "pgcrypto" WITH SCHEMA "extensions";
+
+
+
+
+
+
+CREATE EXTENSION IF NOT EXISTS "supabase_vault" WITH SCHEMA "vault";
+
+
+
+
+
+
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA "extensions";
+
+
+
 
 
 
@@ -2446,6 +2481,127 @@ $$;
 
 
 ALTER FUNCTION "public"."updated_at"() OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "archive"."rapportini" (
+    "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
+    "data" "date" NOT NULL,
+    "capo_id" "uuid",
+    "capo_name" "text" DEFAULT 'CAPO SCONOSCIUTO'::"text" NOT NULL,
+    "status" "text" DEFAULT 'DRAFT'::"text" NOT NULL,
+    "cost" "text",
+    "commessa" "text",
+    "totale_prodotto" numeric(12,2) DEFAULT 0 NOT NULL,
+    "ufficio_note" "text",
+    "validated_by_capo_at" timestamp with time zone,
+    "approved_by_ufficio_at" timestamp with time zone,
+    "approved_by_ufficio" "uuid",
+    "returned_by_ufficio_at" timestamp with time zone,
+    "returned_by_ufficio" "uuid",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "user_id" "uuid",
+    "crew_role" "text",
+    "report_date" "date",
+    "prodotto_tot" numeric,
+    "note_ufficio" "text",
+    "costr" "text",
+    "prodotto_totale" numeric,
+    "supersedes_rapportino_id" "uuid",
+    "superseded_by_rapportino_id" "uuid",
+    "correction_reason" "text",
+    "correction_created_by" "uuid",
+    "correction_created_at" timestamp with time zone,
+    CONSTRAINT "rapportini_crew_role_check" CHECK (("crew_role" = ANY (ARRAY['ELETTRICISTA'::"text", 'CARPENTERIA'::"text", 'MONTAGGIO'::"text"]))),
+    CONSTRAINT "rapportini_status_check" CHECK (("status" = ANY (ARRAY['DRAFT'::"text", 'VALIDATED_CAPO'::"text", 'APPROVED_UFFICIO'::"text", 'RETURNED'::"text"])))
+);
+
+
+ALTER TABLE "archive"."rapportini" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "archive"."rapportino_cavi" (
+    "id" bigint NOT NULL,
+    "rapportino_id" "uuid" NOT NULL,
+    "codice" "text" NOT NULL,
+    "descrizione" "text",
+    "metri_totali" numeric(12,2) DEFAULT 0 NOT NULL,
+    "percentuale" numeric(5,2) DEFAULT 0 NOT NULL,
+    "metri_posati" numeric(12,2) DEFAULT 0 NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "inca_cavo_id" "uuid"
+);
+
+
+ALTER TABLE "archive"."rapportino_cavi" OWNER TO "postgres";
+
+
+CREATE SEQUENCE IF NOT EXISTS "archive"."rapportino_cavi_id_seq"
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE "archive"."rapportino_cavi_id_seq" OWNER TO "postgres";
+
+
+ALTER SEQUENCE "archive"."rapportino_cavi_id_seq" OWNED BY "archive"."rapportino_cavi"."id";
+
+
+
+CREATE TABLE IF NOT EXISTS "archive"."rapportino_righe" (
+    "id" bigint NOT NULL,
+    "rapportino_id" "uuid" NOT NULL,
+    "idx" integer NOT NULL,
+    "categoria" "text",
+    "descrizione" "text",
+    "previsto" "text",
+    "prodotto" "text",
+    "note" "text",
+    "operai" "jsonb" DEFAULT '[]'::"jsonb" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "archive"."rapportino_righe" OWNER TO "postgres";
+
+
+CREATE SEQUENCE IF NOT EXISTS "archive"."rapportino_righe_id_seq"
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE "archive"."rapportino_righe_id_seq" OWNER TO "postgres";
+
+
+ALTER SEQUENCE "archive"."rapportino_righe_id_seq" OWNED BY "archive"."rapportino_righe"."id";
+
+
+
+CREATE TABLE IF NOT EXISTS "archive"."rapportino_rows" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "rapportino_id" "uuid" NOT NULL,
+    "row_index" integer DEFAULT 0 NOT NULL,
+    "categoria" "text",
+    "descrizione" "text",
+    "operatori" "text",
+    "tempo" "text",
+    "previsto" numeric,
+    "prodotto" numeric,
+    "note" "text",
+    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()),
+    "updated_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"())
+);
+
+
+ALTER TABLE "archive"."rapportino_rows" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."manager_capo_assignments" (
@@ -7066,7 +7222,45 @@ CREATE OR REPLACE VIEW "public"."ufficio_rapportini_list_v1" AS
 ALTER VIEW "public"."ufficio_rapportini_list_v1" OWNER TO "postgres";
 
 
+ALTER TABLE ONLY "archive"."rapportino_cavi" ALTER COLUMN "id" SET DEFAULT "nextval"('"archive"."rapportino_cavi_id_seq"'::"regclass");
+
+
+
+ALTER TABLE ONLY "archive"."rapportino_righe" ALTER COLUMN "id" SET DEFAULT "nextval"('"archive"."rapportino_righe_id_seq"'::"regclass");
+
+
+
 ALTER TABLE ONLY "public"."models" ALTER COLUMN "id" SET DEFAULT "nextval"('"public"."models_id_seq"'::"regclass");
+
+
+
+ALTER TABLE ONLY "archive"."rapportini"
+    ADD CONSTRAINT "rapportini_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "archive"."rapportini"
+    ADD CONSTRAINT "rapportini_user_crew_date_key" UNIQUE ("user_id", "crew_role", "report_date");
+
+
+
+ALTER TABLE ONLY "archive"."rapportino_cavi"
+    ADD CONSTRAINT "rapportino_cavi_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "archive"."rapportino_righe"
+    ADD CONSTRAINT "rapportino_righe_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "archive"."rapportino_righe"
+    ADD CONSTRAINT "rapportino_righe_rapportino_id_idx_key" UNIQUE ("rapportino_id", "idx");
+
+
+
+ALTER TABLE ONLY "archive"."rapportino_rows"
+    ADD CONSTRAINT "rapportino_rows_pkey" PRIMARY KEY ("id");
 
 
 
@@ -7342,6 +7536,18 @@ ALTER TABLE ONLY "public"."ship_operators"
 
 ALTER TABLE ONLY "public"."ships"
     ADD CONSTRAINT "ships_pkey" PRIMARY KEY ("id");
+
+
+
+CREATE INDEX "cavi_rapportino_idx" ON "archive"."rapportino_cavi" USING "btree" ("rapportino_id");
+
+
+
+CREATE INDEX "rapportini_capo_date_idx" ON "archive"."rapportini" USING "btree" ("capo_id", "data" DESC);
+
+
+
+CREATE INDEX "rapportino_cavi_inca_cavo_idx" ON "archive"."rapportino_cavi" USING "btree" ("inca_cavo_id");
 
 
 
@@ -7825,6 +8031,30 @@ CREATE UNIQUE INDEX "uniq_ripresa_per_cavo" ON "public"."rapportino_inca_cavi" U
 
 
 
+CREATE OR REPLACE TRIGGER "set_rapportino_row_updated_at" BEFORE UPDATE ON "archive"."rapportino_rows" FOR EACH ROW EXECUTE FUNCTION "public"."set_rapportino_row_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "set_rapportino_updated_at" BEFORE UPDATE ON "archive"."rapportini" FOR EACH ROW EXECUTE FUNCTION "public"."set_rapportino_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "set_updated_at_cavi" BEFORE UPDATE ON "archive"."rapportino_cavi" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "set_updated_at_rapportini" BEFORE UPDATE ON "archive"."rapportini" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "set_updated_at_righe" BEFORE UPDATE ON "archive"."rapportino_righe" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "sync_capo_id_from_user_id_trg" BEFORE INSERT OR UPDATE ON "archive"."rapportini" FOR EACH ROW EXECUTE FUNCTION "public"."sync_capo_id_from_user_id"();
+
+
+
 CREATE OR REPLACE TRIGGER "before_ins_rapportino_inca_cache" BEFORE INSERT ON "public"."rapportino_inca_cavi" FOR EACH ROW EXECUTE FUNCTION "public"."trg_fill_rapportino_inca_cache"();
 
 
@@ -7942,6 +8172,46 @@ CREATE OR REPLACE TRIGGER "trg_rro_updated_at" BEFORE UPDATE ON "public"."rappor
 
 
 CREATE OR REPLACE TRIGGER "trg_ship_operators_updated_at" BEFORE UPDATE ON "public"."ship_operators" FOR EACH ROW EXECUTE FUNCTION "public"."updated_at"();
+
+
+
+ALTER TABLE ONLY "archive"."rapportini"
+    ADD CONSTRAINT "rapportini_approved_by_ufficio_fkey" FOREIGN KEY ("approved_by_ufficio") REFERENCES "auth"."users"("id");
+
+
+
+ALTER TABLE ONLY "archive"."rapportini"
+    ADD CONSTRAINT "rapportini_capo_id_fkey" FOREIGN KEY ("capo_id") REFERENCES "auth"."users"("id");
+
+
+
+ALTER TABLE ONLY "archive"."rapportini"
+    ADD CONSTRAINT "rapportini_returned_by_ufficio_fkey" FOREIGN KEY ("returned_by_ufficio") REFERENCES "auth"."users"("id");
+
+
+
+ALTER TABLE ONLY "archive"."rapportini"
+    ADD CONSTRAINT "rapportini_user_fk" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "archive"."rapportino_cavi"
+    ADD CONSTRAINT "rapportino_cavi_inca_cavo_id_fkey" FOREIGN KEY ("inca_cavo_id") REFERENCES "public"."inca_cavi"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "archive"."rapportino_cavi"
+    ADD CONSTRAINT "rapportino_cavi_rapportino_id_fkey" FOREIGN KEY ("rapportino_id") REFERENCES "archive"."rapportini"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "archive"."rapportino_righe"
+    ADD CONSTRAINT "rapportino_righe_rapportino_id_fkey" FOREIGN KEY ("rapportino_id") REFERENCES "archive"."rapportini"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "archive"."rapportino_rows"
+    ADD CONSTRAINT "rapportino_rows_rapportino_id_fkey" FOREIGN KEY ("rapportino_id") REFERENCES "archive"."rapportini"("id") ON DELETE CASCADE;
 
 
 
@@ -8412,6 +8682,82 @@ ALTER TABLE ONLY "public"."ship_operators"
 
 ALTER TABLE ONLY "public"."ship_operators"
     ADD CONSTRAINT "ship_operators_ship_id_fkey" FOREIGN KEY ("ship_id") REFERENCES "public"."ships"("id") ON DELETE CASCADE;
+
+
+
+CREATE POLICY "capo own cavi CRUD" ON "archive"."rapportino_cavi" TO "authenticated" USING ((EXISTS ( SELECT 1
+   FROM "archive"."rapportini" "r"
+  WHERE (("r"."id" = "rapportino_cavi"."rapportino_id") AND (("r"."capo_id" = "auth"."uid"()) OR "public"."is_admin"()))))) WITH CHECK ((EXISTS ( SELECT 1
+   FROM "archive"."rapportini" "r"
+  WHERE (("r"."id" = "rapportino_cavi"."rapportino_id") AND (("r"."capo_id" = "auth"."uid"()) OR "public"."is_admin"())))));
+
+
+
+CREATE POLICY "capo own rapportini CRUD" ON "archive"."rapportini" TO "authenticated" USING ((("capo_id" = "auth"."uid"()) OR "public"."is_admin"())) WITH CHECK ((("capo_id" = "auth"."uid"()) OR "public"."is_admin"()));
+
+
+
+CREATE POLICY "capo own righe CRUD" ON "archive"."rapportino_righe" TO "authenticated" USING ((EXISTS ( SELECT 1
+   FROM "archive"."rapportini" "r"
+  WHERE (("r"."id" = "rapportino_righe"."rapportino_id") AND (("r"."capo_id" = "auth"."uid"()) OR "public"."is_admin"()))))) WITH CHECK ((EXISTS ( SELECT 1
+   FROM "archive"."rapportini" "r"
+  WHERE (("r"."id" = "rapportino_righe"."rapportino_id") AND (("r"."capo_id" = "auth"."uid"()) OR "public"."is_admin"())))));
+
+
+
+CREATE POLICY "capo_manage_rapportino_rows" ON "archive"."rapportino_rows" USING ((EXISTS ( SELECT 1
+   FROM "archive"."rapportini" "r"
+  WHERE (("r"."id" = "rapportino_rows"."rapportino_id") AND ("r"."capo_id" = "auth"."uid"()))))) WITH CHECK ((EXISTS ( SELECT 1
+   FROM "archive"."rapportini" "r"
+  WHERE (("r"."id" = "rapportino_rows"."rapportino_id") AND ("r"."capo_id" = "auth"."uid"())))));
+
+
+
+ALTER TABLE "archive"."rapportini" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "rapportini_modify_own" ON "archive"."rapportini" USING (("auth"."uid"() = "user_id")) WITH CHECK (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "rapportini_select_own" ON "archive"."rapportini" FOR SELECT USING (("auth"."uid"() = "user_id"));
+
+
+
+ALTER TABLE "archive"."rapportino_cavi" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "archive"."rapportino_righe" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "archive"."rapportino_rows" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "rapportino_rows_via_own_rapportino" ON "archive"."rapportino_rows" USING ((EXISTS ( SELECT 1
+   FROM "archive"."rapportini" "r"
+  WHERE (("r"."id" = "rapportino_rows"."rapportino_id") AND ("r"."user_id" = "auth"."uid"()))))) WITH CHECK ((EXISTS ( SELECT 1
+   FROM "archive"."rapportini" "r"
+  WHERE (("r"."id" = "rapportino_rows"."rapportino_id") AND ("r"."user_id" = "auth"."uid"())))));
+
+
+
+CREATE POLICY "ufficio can read validated" ON "archive"."rapportini" FOR SELECT TO "authenticated" USING (("public"."is_ufficio"() AND ("status" = ANY (ARRAY['VALIDATED_CAPO'::"text", 'APPROVED_UFFICIO'::"text", 'RETURNED'::"text"]))));
+
+
+
+CREATE POLICY "ufficio can update status" ON "archive"."rapportini" FOR UPDATE TO "authenticated" USING ("public"."is_ufficio"()) WITH CHECK ("public"."is_ufficio"());
+
+
+
+CREATE POLICY "ufficio read cavi for validated" ON "archive"."rapportino_cavi" FOR SELECT TO "authenticated" USING (("public"."is_ufficio"() AND (EXISTS ( SELECT 1
+   FROM "archive"."rapportini" "r"
+  WHERE (("r"."id" = "rapportino_cavi"."rapportino_id") AND ("r"."status" = ANY (ARRAY['VALIDATED_CAPO'::"text", 'APPROVED_UFFICIO'::"text", 'RETURNED'::"text"])))))));
+
+
+
+CREATE POLICY "ufficio read righe for validated" ON "archive"."rapportino_righe" FOR SELECT TO "authenticated" USING (("public"."is_ufficio"() AND (EXISTS ( SELECT 1
+   FROM "archive"."rapportini" "r"
+  WHERE (("r"."id" = "rapportino_righe"."rapportino_id") AND ("r"."status" = ANY (ARRAY['VALIDATED_CAPO'::"text", 'APPROVED_UFFICIO'::"text", 'RETURNED'::"text"])))))));
 
 
 
@@ -9310,10 +9656,165 @@ CREATE POLICY "ufficio_validate" ON "public"."percorso_lot_validations" FOR INSE
 
 
 
+
+
+ALTER PUBLICATION "supabase_realtime" OWNER TO "postgres";
+
+
 GRANT USAGE ON SCHEMA "public" TO "postgres";
 GRANT USAGE ON SCHEMA "public" TO "anon";
 GRANT USAGE ON SCHEMA "public" TO "authenticated";
 GRANT USAGE ON SCHEMA "public" TO "service_role";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -9746,6 +10247,57 @@ GRANT ALL ON FUNCTION "public"."ufficio_create_correction_rapportino"("p_rapport
 GRANT ALL ON FUNCTION "public"."updated_at"() TO "anon";
 GRANT ALL ON FUNCTION "public"."updated_at"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."updated_at"() TO "service_role";
+
+
+
+
+
+
+
+
+
+
+
+
+GRANT ALL ON TABLE "archive"."rapportini" TO "anon";
+GRANT ALL ON TABLE "archive"."rapportini" TO "authenticated";
+GRANT ALL ON TABLE "archive"."rapportini" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "archive"."rapportino_cavi" TO "anon";
+GRANT ALL ON TABLE "archive"."rapportino_cavi" TO "authenticated";
+GRANT ALL ON TABLE "archive"."rapportino_cavi" TO "service_role";
+
+
+
+GRANT ALL ON SEQUENCE "archive"."rapportino_cavi_id_seq" TO "anon";
+GRANT ALL ON SEQUENCE "archive"."rapportino_cavi_id_seq" TO "authenticated";
+GRANT ALL ON SEQUENCE "archive"."rapportino_cavi_id_seq" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "archive"."rapportino_righe" TO "anon";
+GRANT ALL ON TABLE "archive"."rapportino_righe" TO "authenticated";
+GRANT ALL ON TABLE "archive"."rapportino_righe" TO "service_role";
+
+
+
+GRANT ALL ON SEQUENCE "archive"."rapportino_righe_id_seq" TO "anon";
+GRANT ALL ON SEQUENCE "archive"."rapportino_righe_id_seq" TO "authenticated";
+GRANT ALL ON SEQUENCE "archive"."rapportino_righe_id_seq" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "archive"."rapportino_rows" TO "anon";
+GRANT ALL ON TABLE "archive"."rapportino_rows" TO "authenticated";
+GRANT ALL ON TABLE "archive"."rapportino_rows" TO "service_role";
+
+
+
+
+
+
 
 
 
@@ -10576,6 +11128,12 @@ GRANT ALL ON TABLE "public"."ufficio_rapportini_list_v1" TO "service_role";
 
 
 
+
+
+
+
+
+
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "postgres";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "anon";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "authenticated";
@@ -10600,6 +11158,30 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TAB
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "anon";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "authenticated";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "service_role";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
