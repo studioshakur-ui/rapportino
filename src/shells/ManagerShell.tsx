@@ -46,6 +46,8 @@ export default function ManagerShell() {
   const pathname = location.pathname || "";
   const pageTitle = pathname.startsWith("/manager/assegnazioni")
     ? t("NAV_ASSIGNMENTS")
+    : pathname.startsWith("/manager/capi-cantieri")
+    ? t("NAV_CAPI_CANTIERI")
     : pathname.startsWith("/manager/drive")
     ? t("NAV_CORE_DRIVE")
     : pathname.startsWith("/manager/analytics")
@@ -83,6 +85,12 @@ export default function ManagerShell() {
               label: t("NAV_ASSIGNMENTS"),
               icon: "users",
               colorClass: "text-emerald-400",
+            },
+            {
+              to: "/manager/capi-cantieri",
+              label: t("NAV_CAPI_CANTIERI"),
+              icon: "presentation",
+              colorClass: "text-sky-400",
             },
             {
               to: "/manager/drive",

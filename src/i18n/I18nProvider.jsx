@@ -30,6 +30,7 @@ const DICTS = {
 
     NAV_DASHBOARD: "Dashboard",
     NAV_ASSIGNMENTS: "Assegnazioni",
+    NAV_CAPI_CANTIERI: "Capi · Cantieri",
     NAV_CORE_DRIVE: "CORE Drive",
     NAV_ANALYTICS: "Analytics",
 
@@ -68,6 +69,7 @@ const DICTS = {
 
     NAV_DASHBOARD: "Tableau de bord",
     NAV_ASSIGNMENTS: "Affectations",
+    NAV_CAPI_CANTIERI: "Chefs · Chantiers",
     NAV_CORE_DRIVE: "CORE Drive",
     NAV_ANALYTICS: "Analytique",
 
@@ -106,6 +108,7 @@ const DICTS = {
 
     NAV_DASHBOARD: "Dashboard",
     NAV_ASSIGNMENTS: "Assignments",
+    NAV_CAPI_CANTIERI: "Capo · Yards",
     NAV_CORE_DRIVE: "CORE Drive",
     NAV_ANALYTICS: "Analytics",
 
