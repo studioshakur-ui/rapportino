@@ -4,13 +4,31 @@ import { supabase, resetSupabaseAuthStorage } from "../lib/supabaseClient";
 
 const AuthContext = createContext(null);
 
+function inferRole(profile) {
+  if (!profile) return null;
+  const raw = String(profile.app_role || "").toUpperCase();
+  if (["ADMIN", "MANAGER", "CAPO", "UFFICIO", "DIREZIONE"].includes(raw)) return raw;
+  return null;
+}
+
+function isRefreshTokenError(err) {
+  const msg = String(err?.message || err?.error_description || err?.error || "").toLowerCase();
+  return msg.includes("refresh token") || msg.includes("invalid refresh") || msg.includes("token not found");
+}
+
 export function AuthProvider({ children }) {
   const [state, setState] = useState({
-    status: "BOOTSTRAP", // BOOTSTRAP | UNAUTHENTICATED | AUTHENTICATED_LOADING | AUTHENTICATED_READY | AUTH_ERROR
+    status: "BOOTSTRAP", // BOOTSTRAP | AUTHENTICATED | UNAUTHENTICATED | AUTH_ERROR
     session: null,
     profile: null,
     error: null,
   });
+
+  const uid = state.session?.user?.id || null;
+
+  const setUnauthed = () => {
+    setState({ status: "UNAUTHENTICATED", session: null, profile: null, error: null });
+  };
 
   const bootstrapAuth = async () => {
     try {
@@ -18,120 +36,118 @@ export function AuthProvider({ children }) {
 
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
 
-      if (sessionError || !sessionData?.session) {
-        setState({
-          status: "UNAUTHENTICATED",
-          session: null,
-          profile: null,
-          error: sessionError || null,
-        });
+      if (sessionError) {
+        if (isRefreshTokenError(sessionError)) {
+          resetSupabaseAuthStorage({ force: true });
+          setUnauthed();
+          return;
+        }
+        setState({ status: "AUTH_ERROR", session: null, profile: null, error: sessionError });
         return;
       }
 
-      setState((s) => ({
-        ...s,
-        status: "AUTHENTICATED_LOADING",
-        session: sessionData.session,
-        error: null,
-      }));
-
-      const userId = sessionData.session.user?.id;
-
-      if (!userId) {
-        setState({
-          status: "AUTH_ERROR",
-          session: sessionData.session,
-          profile: null,
-          error: new Error("Missing user id in session"),
-        });
+      const session = sessionData?.session || null;
+      if (!session) {
+        setUnauthed();
         return;
       }
 
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .single();
-
-      if (profileError || !profile) {
-        setState({
-          status: "AUTH_ERROR",
-          session: sessionData.session,
-          profile: null,
-          error: profileError || new Error("Profile not found"),
-        });
+      const { data: p, error: pErr } = await supabase.from("profiles").select("*").eq("id", session.user.id).maybeSingle();
+      if (pErr) {
+        setState({ status: "AUTH_ERROR", session, profile: null, error: pErr });
         return;
       }
 
-      setState({
-        status: "AUTHENTICATED_READY",
-        session: sessionData.session,
-        profile,
-        error: null,
-      });
-    } catch (err) {
-      setState({
-        status: "AUTH_ERROR",
-        session: null,
-        profile: null,
-        error: err,
-      });
+      setState({ status: "AUTHENTICATED", session, profile: p || null, error: null });
+    } catch (e) {
+      if (isRefreshTokenError(e)) {
+        resetSupabaseAuthStorage({ force: true });
+        setUnauthed();
+        return;
+      }
+      setState({ status: "AUTH_ERROR", session: null, profile: null, error: e });
     }
   };
 
   useEffect(() => {
     bootstrapAuth();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(() => {
-      bootstrapAuth();
+    const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === "TOKEN_REFRESH_FAILED") {
+        resetSupabaseAuthStorage({ force: true });
+        setUnauthed();
+        return;
+      }
+
+      if (!session) {
+        setUnauthed();
+        return;
+      }
+
+      const { data: p, error: pErr } = await supabase.from("profiles").select("*").eq("id", session.user.id).maybeSingle();
+      if (pErr) {
+        if (isRefreshTokenError(pErr)) {
+          resetSupabaseAuthStorage({ force: true });
+          setUnauthed();
+          return;
+        }
+        setState({ status: "AUTH_ERROR", session, profile: null, error: pErr });
+        return;
+      }
+
+      setState({ status: "AUTHENTICATED", session, profile: p || null, error: null });
     });
 
-    return () => authListener?.subscription?.unsubscribe();
+    return () => {
+      listener?.subscription?.unsubscribe?.();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const logout = async (opts = {}) => {
-    const reason = opts?.reason || "logout";
+  /**
+   * signOut(opts?)
+   * - compatible avec AppShell: signOut({ reason })
+   * - hard clear storage pour éliminer les refresh tokens cassés
+   */
+  const signOut = async (opts = {}) => {
     try {
+      // tu peux logguer opts.reason côté audit si tu veux plus tard
       await supabase.auth.signOut();
+    } catch (e) {
+      console.warn("[AuthProvider] signOut warning:", e, opts);
     } finally {
-      // Ensure local auth artifacts are removed even in edge cases
-      resetSupabaseAuthStorage();
+      resetSupabaseAuthStorage({ force: true });
+      setUnauthed();
     }
-    setState({
-      status: "UNAUTHENTICATED",
-      session: null,
-      profile: null,
-      error: null,
-    });
   };
 
-  // Ajouts compat : user + uid (clé pour les pages qui testent user?.id)
-  const user = useMemo(() => state.session?.user ?? null, [state.session]);
-  const uid = useMemo(() => state.session?.user?.id ?? null, [state.session]);
+  const refresh = bootstrapAuth;
 
   const authReady = state.status !== "BOOTSTRAP";
-  const loading = state.status === "BOOTSTRAP" || state.status === "AUTHENTICATED_LOADING";
+  const loading = state.status === "BOOTSTRAP";
 
-  const value = {
-    ...state,
-    user, // ✅ compat
-    uid, // ✅ utile partout
-    authReady,
-    loading,
-    isReady: state.status === "AUTHENTICATED_READY",
-    isAuthenticated: state.status === "AUTHENTICATED_READY" || state.status === "AUTHENTICATED_LOADING",
-    logout,
-    // Alias compat avec AppShell/usages existants
-    signOut: logout,
-    refresh: bootstrapAuth,
-  };
+  const value = useMemo(() => {
+    return {
+      status: state.status,
+      session: state.session,
+      uid,
+      profile: state.profile,
+      app_role: inferRole(state.profile),
+      error: state.error,
+
+      authReady,
+      loading,
+
+      signOut,
+      refresh,
+    };
+  }, [state, uid, authReady, loading]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used inside AuthProvider");
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }

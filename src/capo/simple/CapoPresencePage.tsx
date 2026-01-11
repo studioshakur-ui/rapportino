@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
+import { useAuth } from "../../auth/AuthProvider";
 
 type ExpectedOperator = {
   operator_id: string;
@@ -49,6 +50,7 @@ const ABSENCE_REASONS = [
 export default function CapoPresencePage(): JSX.Element {
   const nav = useNavigate();
   const { shipId } = useParams();
+  const { uid, session } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string>("");
@@ -71,6 +73,12 @@ export default function CapoPresencePage(): JSX.Element {
       setAttendance({});
 
       try {
+        // If auth is not available, force user back to login.
+        if (!uid || !session) {
+          nav("/login", { replace: true });
+          return;
+        }
+
         if (!shipId) {
           nav("/app", { replace: true });
           return;
@@ -99,6 +107,7 @@ export default function CapoPresencePage(): JSX.Element {
 
         if (sErr) {
           // Keep page functional even if ship lookup fails
+          // eslint-disable-next-line no-console
           console.error("[CapoPresencePage] ships load error:", sErr);
           if (mounted) {
             setShip(null);
@@ -132,6 +141,7 @@ export default function CapoPresencePage(): JSX.Element {
         }
         setAttendance(next);
       } catch (e) {
+        // eslint-disable-next-line no-console
         console.error("[CapoPresencePage] load error:", e);
         if (!mounted) return;
         setErr("Impossibile caricare presenza / operatori attesi (verifica view/RLS).");
@@ -144,7 +154,7 @@ export default function CapoPresencePage(): JSX.Element {
     return () => {
       mounted = false;
     };
-  }, [shipId, today, nav]);
+  }, [shipId, today, nav, uid, session]);
 
   const setOperator = (operatorId: string, patch: Partial<AttendanceState>) => {
     setAttendance((prev) => {
@@ -178,22 +188,23 @@ export default function CapoPresencePage(): JSX.Element {
     setErr("");
     if (!shipId) return;
 
+    if (!uid || !session) {
+      setErr("Sessione non valida. Esegui di nuovo il login.");
+      nav("/login", { replace: true });
+      return;
+    }
+
     if (blockingIssues.length > 0) {
       setErr("Completa i motivi di assenza prima di confermare.");
       return;
     }
 
     try {
-      const { data: userRes, error: userErr } = await supabase.auth.getUser();
-      if (userErr) throw userErr;
-      const capoId = userRes.user?.id;
-      if (!capoId) throw new Error("Not authenticated");
-
       const { error: capoErr } = await supabase.from("capo_ship_attendance").upsert(
         {
           plan_date: today,
           ship_id: shipId,
-          capo_id: capoId,
+          capo_id: uid,
           status: "PRESENT",
           confirmed_at: new Date().toISOString()
         },
@@ -223,7 +234,17 @@ export default function CapoPresencePage(): JSX.Element {
 
       nav(`/app/ship/${shipId}/rapportino`, { replace: true });
     } catch (e) {
+      // eslint-disable-next-line no-console
       console.error("[CapoPresencePage] confirmPresence error:", e);
+      const msg = String((e as any)?.message || "").toLowerCase();
+      if (msg.includes("row-level security") || msg.includes("rls")) {
+        setErr("Errore RLS: accesso negato. Verifica che la sessione sia valida e che il ship sia assegnato al Capo.");
+        return;
+      }
+      if (msg.includes("refresh token")) {
+        setErr("Sessione scaduta o corrotta. Esegui logout/login e riprova.");
+        return;
+      }
       setErr("Errore durante conferma presenza (verifica RLS/constraint).");
     }
   };
@@ -361,10 +382,10 @@ export default function CapoPresencePage(): JSX.Element {
         <button
           type="button"
           onClick={confirmPresence}
-          disabled={expected.length === 0 || blockingIssues.length > 0}
+          disabled={blockingIssues.length > 0}
           className={cn(
             "rounded-full border px-4 py-2 text-[12px] font-semibold",
-            expected.length === 0 || blockingIssues.length > 0
+            blockingIssues.length > 0
               ? "border-slate-800 bg-slate-950/40 text-slate-500"
               : "border-emerald-400/40 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15"
           )}

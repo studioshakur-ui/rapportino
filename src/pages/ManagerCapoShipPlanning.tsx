@@ -1,584 +1,470 @@
-// src/pages/ManagerCapoShipPlanning.tsx
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
-import { useI18n } from "../i18n/I18nProvider";
 
-type CapoItem = {
-  id: string;
-  label: string;
-  email?: string;
+type CapoRow = {
+  capo_id: string;
+  display_name: string | null;
+  email: string | null;
 };
 
-type ShipItem = {
-  id: string;
-  label: string;
-  costr?: string;
-  commessa?: string;
+type ShipRow = {
+  ship_id: string;
+  ship_code: string | null;
+  ship_name: string | null;
+  costr: string | null;
+  commessa: string | null;
 };
 
-type OperatorItem = {
+type ShipOption = {
   id: string;
-  label: string;
-  code?: string;
-  roles?: string[];
+  code: string | null;
+  name: string | null;
+  costr: string | null;
+  commessa: string | null;
 };
 
-function cn(...parts: Array<string | false | null | undefined>) {
-  return parts.filter(Boolean).join(" ");
+function cn(...p: Array<string | false | null | undefined>): string {
+  return p.filter(Boolean).join(" ");
 }
 
-function safeText(v: unknown) {
+function safeText(v: unknown): string {
   return (v == null ? "" : String(v)).trim();
 }
 
-function fmtDateYYYYMMDD(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${dd}`;
-}
-
-function card() {
+function cardClass(): string {
   return cn(
     "rounded-2xl border border-slate-800 bg-slate-950",
     "shadow-[0_10px_40px_rgba(0,0,0,0.35)]"
   );
 }
 
-function btnPrimary(disabled?: boolean) {
-  return cn(
-    "inline-flex items-center justify-center gap-2 rounded-full border px-3 py-2",
-    "text-[12px] font-semibold",
-    "border-sky-400/55 text-slate-50 bg-slate-950/60 hover:bg-slate-900/50",
-    "focus:outline-none focus:ring-2 focus:ring-sky-500/35",
-    disabled ? "opacity-50 cursor-not-allowed" : ""
-  );
-}
-
-function btnGhost(disabled?: boolean) {
+function btnGhost(): string {
   return cn(
     "inline-flex items-center justify-center rounded-full border px-3 py-2",
     "text-[12px] font-semibold",
     "border-slate-700 text-slate-100 bg-slate-950/60 hover:bg-slate-900/50",
     "focus:outline-none focus:ring-2 focus:ring-sky-500/35",
-    disabled ? "opacity-50 cursor-not-allowed" : ""
+    "disabled:opacity-50 disabled:cursor-not-allowed"
   );
 }
 
-function inputClass() {
+function btnPrimary(): string {
   return cn(
-    "w-full rounded-xl border border-slate-800 bg-slate-950/60",
-    "px-3 py-2 text-[13px] text-slate-100",
+    "inline-flex items-center justify-center rounded-full border px-3 py-2",
+    "text-[12px] font-semibold",
+    "border-sky-400/55 text-slate-50 bg-slate-950/60 hover:bg-slate-900/50",
+    "focus:outline-none focus:ring-2 focus:ring-sky-500/35",
+    "disabled:opacity-50 disabled:cursor-not-allowed"
+  );
+}
+
+function sectionTitle(kicker: string, title: string, right?: React.ReactNode) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">{kicker}</div>
+        <div className="mt-1 text-[14px] font-semibold text-slate-50 truncate">{title}</div>
+      </div>
+      {right ? <div className="flex items-center gap-2">{right}</div> : null}
+    </div>
+  );
+}
+
+function pillClass(active: boolean): string {
+  const base = "inline-flex items-center gap-2 rounded-full border px-3 py-2 text-[12px] font-semibold leading-none";
+  return cn(
+    base,
+    active
+      ? "border-sky-400/65 bg-slate-50/10 text-slate-50"
+      : "border-slate-700 bg-slate-950/60 text-slate-200 hover:bg-slate-900/45",
     "focus:outline-none focus:ring-2 focus:ring-sky-500/35"
   );
 }
 
-function selectClass() {
-  return inputClass();
-}
+export default function ManagerCapoShipPlanning(): JSX.Element {
+  const { uid, session } = useAuth();
 
-function pillMuted() {
-  return cn(
-    "inline-flex items-center rounded-full border px-2.5 py-1",
-    "border-slate-800 bg-slate-950/40 text-slate-300 text-[11px] font-semibold"
-  );
-}
-
-type ExpectedState = {
-  ship1: Set<string>;
-  ship2: Set<string>;
-};
-
-export default function ManagerCapoShipPlanning({ isDark = true }: { isDark?: boolean }) {
-  const { uid, session } = useAuth() as any;
-  const { t } = useI18n() as any;
-
-  const [dayDate, setDayDate] = useState<string>(fmtDateYYYYMMDD(new Date()));
-
-  const [capi, setCapi] = useState<CapoItem[]>([]);
-  const [ships, setShips] = useState<ShipItem[]>([]);
-  const [operators, setOperators] = useState<OperatorItem[]>([]);
-
-  const [capoId, setCapoId] = useState<string>("");
-  const [ship1, setShip1] = useState<string>("");
-  const [ship2, setShip2] = useState<string>("");
-
-  const [expectedByShip, setExpectedByShip] = useState<ExpectedState>({
-    ship1: new Set<string>(),
-    ship2: new Set<string>(),
-  });
-
-  const [loading, setLoading] = useState<boolean>(false);
-  const [loadingPerimeter, setLoadingPerimeter] = useState<boolean>(false);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string>("");
   const [toast, setToast] = useState<string>("");
 
-  const activeShips = useMemo(() => {
+  const [capi, setCapi] = useState<CapoRow[]>([]);
+  const [ships, setShips] = useState<ShipOption[]>([]);
+
+  const [capoId, setCapoId] = useState<string>("");
+
+  // Ship assignment is PERENNE: we store it in ship_capos, not capo_ship_assignments.
+  const [ship1, setShip1] = useState<string>("");
+  const [ship2, setShip2] = useState<string>("");
+
+  const assignedLabel = useMemo(() => {
+    const byId = new Map(ships.map((s) => [s.id, s]));
     const ids = [ship1, ship2].filter(Boolean);
-    return Array.from(new Set(ids));
-  }, [ship1, ship2]);
-
-  const shipMap = useMemo(() => {
-    const m = new Map<string, ShipItem>();
-    (ships || []).forEach((s) => m.set(s.id, s));
-    return m;
-  }, [ships]);
-
-  const ship1Name = ship1 ? safeText(shipMap.get(ship1)?.label) : "";
-  const ship2Name = ship2 ? safeText(shipMap.get(ship2)?.label) : "";
-
-  const setToastSoft = (m: string) => {
-    setToast(m);
-    window.setTimeout(() => setToast(""), 1600);
-  };
-
-  // ---------- Load perimeter ----------
-  const loadCapi = async () => {
-    // RPC must exist: manager_my_capi_v1()
-    const { data, error } = await supabase.rpc("manager_my_capi_v1");
-    if (error) throw error;
-
-    const list: CapoItem[] = (Array.isArray(data) ? data : []).map((r: any) => ({
-      id: r.capo_id,
-      label: safeText(r.display_name) || safeText(r.email) || "—",
-      email: safeText(r.email) || "",
-    }));
-    list.sort((a, b) => a.label.localeCompare(b.label));
-    setCapi(list);
-  };
-
-  const loadOperators = async () => {
-    // RPC must exist: manager_my_operators_v1()
-    const { data, error } = await supabase.rpc("manager_my_operators_v1");
-    if (error) throw error;
-
-    const list: OperatorItem[] = (Array.isArray(data) ? data : []).map((r: any) => ({
-      id: r.operator_id,
-      label: safeText(r.operator_name) || safeText(r.operator_code) || "—",
-      code: safeText(r.operator_code) || "",
-      roles: Array.isArray(r.operator_roles) ? r.operator_roles : [],
-    }));
-
-    list.sort((a, b) => a.label.localeCompare(b.label));
-    setOperators(list);
-  };
-
-  const loadShips = async () => {
-    // Prefer RPC if you have it. If not, fallback to join ship_managers -> ships.
-    try {
-      const { data, error } = await supabase.rpc("manager_my_ships_v1");
-      if (error) throw error;
-
-      const list: ShipItem[] = (Array.isArray(data) ? data : []).map((r: any) => ({
-        id: r.ship_id,
-        label:
-          safeText(r.ship_code) ||
-          safeText(r.ship_name) ||
-          safeText(r.code) ||
-          safeText(r.name) ||
-          "—",
-        costr: safeText(r.costr),
-        commessa: safeText(r.commessa),
-      }));
-
-      list.sort((a, b) => a.label.localeCompare(b.label));
-      setShips(list);
-      return;
-    } catch {
-      // fallback below
-    }
-
-    const res = await supabase
-      .from("ship_managers")
-      .select("ship_id, ships:ships(id, code, name, costr, commessa)")
-      .eq("manager_id", uid);
-
-    if (res.error) throw res.error;
-
-    const rows = Array.isArray(res.data) ? res.data : [];
-    const list: ShipItem[] = rows
-      .map((r: any) => {
-        const s = r.ships;
-        return {
-          id: r.ship_id,
-          label: safeText(s?.code) || safeText(s?.name) || "—",
-          costr: safeText(s?.costr),
-          commessa: safeText(s?.commessa),
-        };
-      })
-      .filter((x: ShipItem) => Boolean(x.id));
-
-    list.sort((a, b) => a.label.localeCompare(b.label));
-    setShips(list);
-  };
+    const labels = ids
+      .map((id) => byId.get(id))
+      .filter(Boolean)
+      .map((s) => safeText(s?.code) || safeText(s?.name) || safeText(s?.id).slice(0, 8));
+    if (labels.length === 0) return "—";
+    return labels.join(", ");
+  }, [ship1, ship2, ships]);
 
   const loadPerimeter = async () => {
-    if (!session || !uid) return;
-    setLoadingPerimeter(true);
+    if (!uid || !session) {
+      setCapi([]);
+      setShips([]);
+      return;
+    }
+
+    setLoading(true);
     setErr("");
+    setToast("");
+
     try {
-      await Promise.all([loadCapi(), loadOperators(), loadShips()]);
+      // 1) Capi assigned to Manager (canonical)
+      const { data: capiData, error: capiErr } = await supabase.rpc("manager_my_capi_v1");
+      if (capiErr) throw capiErr;
+      const capiList: CapoRow[] = (Array.isArray(capiData) ? capiData : []).map((r: any) => ({
+        capo_id: r.capo_id,
+        display_name: r.display_name || null,
+        email: r.email || null,
+      }));
+      setCapi(capiList);
+
+      // 2) Ships in Manager perimeter (canonical)
+      const { data: shipData, error: shipErr } = await supabase.rpc("manager_my_ships_v1");
+      if (shipErr) throw shipErr;
+
+      const shipList: ShipOption[] = (Array.isArray(shipData) ? shipData : [])
+        .map((r: any) => ({
+          id: r.ship_id,
+          code: r.ship_code || null,
+          name: r.ship_name || null,
+          costr: r.costr || null,
+          commessa: r.commessa || null,
+        }))
+        .sort((a: ShipOption, b: ShipOption) => safeText(a.code || a.name).localeCompare(safeText(b.code || b.name)));
+      setShips(shipList);
+
+      // Default capo selection
+      if (!capoId && capiList.length > 0) {
+        setCapoId(capiList[0].capo_id);
+      }
     } catch (e) {
       console.error("[ManagerCapoShipPlanning] loadPerimeter error:", e);
-      setErr(
-        "Perimetro Manager non disponibile. Se ship_managers è bloccata da RLS, crea RPC manager_my_ships_v1()."
-      );
+      setErr("Impossibile caricare perimetro (RPC/RLS). Verifica manager_my_capi_v1 / manager_my_ships_v1.");
+      setCapi([]);
+      setShips([]);
     } finally {
-      setLoadingPerimeter(false);
+      setLoading(false);
+    }
+  };
+
+  const loadCurrentShipAssignments = async (nextCapoId: string) => {
+    if (!nextCapoId) {
+      setShip1("");
+      setShip2("");
+      return;
+    }
+
+    setErr("");
+    setToast("");
+
+    try {
+      // Read perenne assignments from ship_capos.
+      // Ordering is deterministic via created_at. "position" (for UI) can be derived by row_number() in DB views.
+      const { data, error } = await supabase
+        .from("ship_capos")
+        .select(
+          `
+          ship_id,
+          capo_id,
+          created_at,
+          ships:ship_id ( id, code, name, costr, commessa )
+        `
+        )
+        .eq("capo_id", nextCapoId)
+        .order("created_at", { ascending: true });
+
+      if (error) throw error;
+
+      const rows = Array.isArray(data) ? data : [];
+      const ids = rows.map((r: any) => r.ship_id).filter(Boolean);
+      setShip1(ids[0] || "");
+      setShip2(ids[1] || "");
+    } catch (e) {
+      console.error("[ManagerCapoShipPlanning] loadCurrentShipAssignments error:", e);
+      setErr("Impossibile caricare assegnazioni attive (ship_capos). Verifica RLS/perimetro.");
+      setShip1("");
+      setShip2("");
     }
   };
 
   useEffect(() => {
     loadPerimeter();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, uid]);
-
-  // ---------- Load existing plan for selected capo/date ----------
-  const loadExisting = async () => {
-    if (!capoId || !dayDate) return;
-    setLoading(true);
-    setErr("");
-    try {
-      const a = await supabase
-        .from("capo_ship_assignments")
-        .select("*")
-        .eq("plan_date", dayDate)
-        .eq("capo_id", capoId)
-        .order("position", { ascending: true });
-
-      if (a.error) throw a.error;
-
-      const rows = Array.isArray(a.data) ? a.data : [];
-      const pos1 = rows.find((r: any) => r.position === 1);
-      const pos2 = rows.find((r: any) => r.position === 2);
-
-      setShip1(pos1?.ship_id || "");
-      setShip2(pos2?.ship_id || "");
-
-      const e = await supabase
-        .from("capo_ship_expected_operators")
-        .select("*")
-        .eq("plan_date", dayDate)
-        .eq("capo_id", capoId);
-
-      if (e.error) throw e.error;
-
-      const expected = Array.isArray(e.data) ? e.data : [];
-      const s1 = pos1?.ship_id || "";
-      const s2 = pos2?.ship_id || "";
-
-      const ship1Set = new Set<string>(
-        expected.filter((x: any) => x.ship_id === s1).map((x: any) => x.operator_id)
-      );
-      const ship2Set = new Set<string>(
-        expected.filter((x: any) => x.ship_id === s2).map((x: any) => x.operator_id)
-      );
-
-      setExpectedByShip({ ship1: ship1Set, ship2: ship2Set });
-    } catch (e) {
-      console.error("[ManagerCapoShipPlanning] loadExisting error:", e);
-      setErr("Impossibile caricare assegnazioni esistenti (RLS o DB).");
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, []);
 
   useEffect(() => {
-    loadExisting();
+    if (!capoId) return;
+    loadCurrentShipAssignments(capoId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [capoId, dayDate]);
+  }, [capoId]);
 
-  // ---------- Save assignments ----------
   const saveAssignments = async () => {
-    if (!capoId) return setErr("Seleziona un CAPO.");
-    if (!dayDate) return setErr("Data non valida.");
-    if (ship1 && ship2 && ship1 === ship2) return setErr("Ship #1 e Ship #2 non possono essere uguali.");
-
-    setErr("");
-    setLoading(true);
-    try {
-      // replace: delete then insert
-      const del = await supabase
-        .from("capo_ship_assignments")
-        .delete()
-        .eq("plan_date", dayDate)
-        .eq("capo_id", capoId);
-
-      if (del.error) throw del.error;
-
-      const payload: any[] = [];
-      if (ship1) payload.push({ plan_date: dayDate, capo_id: capoId, manager_id: uid, ship_id: ship1, position: 1 });
-      if (ship2) payload.push({ plan_date: dayDate, capo_id: capoId, manager_id: uid, ship_id: ship2, position: 2 });
-
-      if (payload.length > 0) {
-        const ins = await supabase.from("capo_ship_assignments").insert(payload);
-        if (ins.error) throw ins.error;
-      }
-
-      setToastSoft("Assegnazioni salvate.");
-      await loadExisting();
-    } catch (e) {
-      console.error("[ManagerCapoShipPlanning] saveAssignments error:", e);
-      setErr("Salvataggio assegnazioni fallito (RLS o DB).");
-    } finally {
-      setLoading(false);
+    if (!uid) {
+      setErr("Non autenticato.");
+      return;
     }
-  };
+    if (!capoId) {
+      setErr("Seleziona un CAPO.");
+      return;
+    }
 
-  const toggleExpected = (shipKey: "ship1" | "ship2", operatorId: string) => {
-    setExpectedByShip((prev) => {
-      const next: ExpectedState = {
-        ship1: new Set(prev.ship1),
-        ship2: new Set(prev.ship2),
-      };
-      const set = next[shipKey];
-      if (set.has(operatorId)) set.delete(operatorId);
-      else set.add(operatorId);
-      return next;
-    });
-  };
-
-  const saveExpectedForShip = async (shipKey: "ship1" | "ship2") => {
-    if (!capoId) return setErr("Seleziona un CAPO.");
-    if (!dayDate) return setErr("Data non valida.");
-
-    const shipId = shipKey === "ship1" ? ship1 : ship2;
-    if (!shipId) return setErr("Seleziona prima il cantiere (ship).");
-
+    setBusy(true);
     setErr("");
-    setLoading(true);
+    setToast("");
+
     try {
-      const del = await supabase
-        .from("capo_ship_expected_operators")
-        .delete()
-        .eq("plan_date", dayDate)
-        .eq("capo_id", capoId)
-        .eq("ship_id", shipId);
+      // Normalize: ship2 cannot equal ship1
+      let s1 = safeText(ship1);
+      let s2 = safeText(ship2);
+      if (s1 && s2 && s1 === s2) s2 = "";
 
-      if (del.error) throw del.error;
+      // Replace strategy: delete all current assignments for this capo, then insert the new set.
+      // This guarantees we do not keep stale rows and avoids unique conflicts.
+      const { error: delErr } = await supabase.from("ship_capos").delete().eq("capo_id", capoId);
+      if (delErr) throw delErr;
 
-      const ids = Array.from(expectedByShip[shipKey] || []);
-      const insPayload = ids.map((opId, idx) => ({
-        plan_date: dayDate,
-        capo_id: capoId,
-        manager_id: uid,
+      const toInsert = [s1, s2].filter(Boolean).map((shipId) => ({
         ship_id: shipId,
-        operator_id: opId,
-        position: idx + 1,
+        capo_id: capoId,
+        created_by: uid,
       }));
 
-      if (insPayload.length > 0) {
-        const ins = await supabase.from("capo_ship_expected_operators").insert(insPayload);
-        if (ins.error) throw ins.error;
+      if (toInsert.length > 0) {
+        const { error: insErr } = await supabase.from("ship_capos").insert(toInsert);
+        if (insErr) throw insErr;
       }
 
-      setToastSoft("Operatori salvati.");
+      await loadCurrentShipAssignments(capoId);
+      setToast("Salvato.");
     } catch (e) {
-      console.error("[ManagerCapoShipPlanning] saveExpectedForShip error:", e);
-      setErr("Salvataggio operatori fallito (RLS o DB).");
+      console.error("[ManagerCapoShipPlanning] saveAssignments error:", e);
+      setErr("Salvataggio assegnazioni fallito (RLS o DB). Verifica ship_capos / ship_managers / manager_capo_assignments.");
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   };
 
-  if (!session || !uid) {
-    return <div className="p-4 text-slate-300">{t?.("APP_LOADING_PROFILE") ?? "Loading…"}</div>;
+  const capoLabel = useMemo(() => {
+    const c = capi.find((x) => x.capo_id === capoId);
+    return safeText(c?.display_name) || safeText(c?.email) || "—";
+  }, [capi, capoId]);
+
+  const shipOptions = useMemo(() => {
+    const list = Array.isArray(ships) ? ships : [];
+    const fmt = (s: ShipOption) => {
+      const left = safeText(s.code) || "—";
+      const right = safeText(s.name) || "Ship";
+      const meta = [safeText(s.costr), safeText(s.commessa)].filter(Boolean).join(" · ");
+      return meta ? `${left} · ${right} (${meta})` : `${left} · ${right}`;
+    };
+
+    return list.map((s) => ({ id: s.id, label: fmt(s) }));
+  }, [ships]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#050910] text-slate-50">
+        <div className="mx-auto max-w-6xl px-4 py-6">
+          <div className={cardClass() + " p-4"}>
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/60 px-3 py-3 text-[13px] text-slate-300">
+              Caricamento…
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">MANAGER · PLANNING</div>
-          <div className="mt-1 text-[14px] font-semibold text-slate-50 truncate">
-            Capi · Cantieri · Operai (CAPO Simple)
-          </div>
-          <div className="mt-2 text-[12px] text-slate-400">
-            Assegna fino a 2 ships al CAPO per giorno e definisci gli operatori attesi per la presenza.
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {toast ? <span className={pillMuted()}>{toast}</span> : null}
-          <button className={btnGhost(loadingPerimeter)} onClick={loadPerimeter} disabled={loadingPerimeter}>
-            Ricarica perimetro
-          </button>
-        </div>
-      </div>
-
-      {err ? (
-        <div className="mt-3 rounded-2xl border border-rose-500/40 bg-rose-950/20 p-3 text-[12px] text-rose-100">
-          {err}
-        </div>
-      ) : null}
-
-      <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-3">
-        {/* Left */}
-        <div className={cn(card(), "p-4")}>
-          <div className="text-[11px] font-semibold text-slate-200">Selettori</div>
-
-          <div className="mt-3">
-            <label className="block text-[11px] text-slate-400 mb-1">Data</label>
-            <input className={inputClass()} type="date" value={dayDate} onChange={(e) => setDayDate(e.target.value)} />
-          </div>
-
-          <div className="mt-3">
-            <label className="block text-[11px] text-slate-400 mb-1">CAPO</label>
-            <select className={selectClass()} value={capoId} onChange={(e) => setCapoId(e.target.value)}>
-              <option value="">— Seleziona CAPO —</option>
-              {capi.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-            <div className="mt-2 text-[11px] text-slate-500">
-              Fonte: RPC <span className="text-slate-300">manager_my_capi_v1()</span>
-            </div>
-          </div>
-
-          <div className="mt-4 flex items-center gap-2">
-            <button className={btnPrimary(loading || !capoId)} disabled={loading || !capoId} onClick={saveAssignments}>
-              Salva assegnazioni
+    <div className="min-h-screen bg-[#050910] text-slate-50">
+      <div className="mx-auto max-w-6xl px-4 py-6">
+        <div className={cardClass() + " p-4"}>
+          {sectionTitle(
+            "MANAGER · CAPO · SHIP",
+            "Assegnazione perenne Ship → CAPO",
+            <button type="button" className={btnGhost()} disabled={busy} onClick={loadPerimeter}>
+              Ricarica perimetro
             </button>
-            <button className={btnGhost(loading || !capoId)} disabled={loading || !capoId} onClick={loadExisting}>
-              Ricarica
-            </button>
-          </div>
+          )}
 
-          <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950/60 p-3">
-            <div className="text-[11px] font-semibold text-slate-200">Regole</div>
-            <ul className="mt-2 text-[12px] text-slate-400 space-y-1">
-              <li>• Max 2 ships per giorno (position 1/2)</li>
-              <li>• Ship #1 ≠ Ship #2</li>
-              <li>• Operatori attesi alimentano la pagina Presenza CAPO</li>
-            </ul>
-          </div>
-        </div>
-
-        {/* Middle */}
-        <div className={cn(card(), "p-4")}>
-          <div className="text-[11px] font-semibold text-slate-200">Ships del giorno</div>
-
-          <div className="mt-3">
-            <label className="block text-[11px] text-slate-400 mb-1">Ship #1 (position 1)</label>
-            <select className={selectClass()} value={ship1} onChange={(e) => setShip1(e.target.value)}>
-              <option value="">— Nessuno —</option>
-              {ships.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.label} {s.costr ? `· ${s.costr}` : ""} {s.commessa ? `· ${s.commessa}` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="mt-3">
-            <label className="block text-[11px] text-slate-400 mb-1">Ship #2 (position 2)</label>
-            <select className={selectClass()} value={ship2} onChange={(e) => setShip2(e.target.value)}>
-              <option value="">— Nessuno —</option>
-              {ships.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.label} {s.costr ? `· ${s.costr}` : ""} {s.commessa ? `· ${s.commessa}` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="mt-4 text-[12px] text-slate-400">
-            Attivi oggi:{" "}
-            {activeShips.length === 0 ? (
-              <span className="text-slate-300">—</span>
-            ) : (
-              <span className="text-slate-200 font-semibold">
-                {ship1Name}
-                {ship2Name ? ` · ${ship2Name}` : ""}
-              </span>
-            )}
-          </div>
-
-          <div className="mt-3 text-[11px] text-slate-500">
-            Fonte ships: RPC <span className="text-slate-300">manager_my_ships_v1()</span> (se esiste) oppure join{" "}
-            <span className="text-slate-300">ship_managers → ships</span>.
-          </div>
-        </div>
-
-        {/* Right */}
-        <div className={cn(card(), "p-4")}>
-          <div className="text-[11px] font-semibold text-slate-200">Operatori attesi</div>
           <div className="mt-2 text-[12px] text-slate-400">
-            Seleziona gli operatori attesi per ship. Questo alimenta la Presenza CAPO.
+            L’assignation n’est pas journalière: le ship reste sur le CAPO jusqu’à suppression par le Manager.
+          </div>
+          <div className="mt-1 text-[12px] text-slate-400">
+            Les équipes hebdo se gèrent dans <span className="text-slate-200 font-semibold">/manager/assegnazioni</span>.
           </div>
 
-          {/* Ship1 ops */}
-          <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950/60 p-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-[12px] font-semibold text-slate-200">
-                Ship #1: <span className="text-slate-300">{ship1Name || "—"}</span>
+          {err ? (
+            <div className="mt-4 rounded-2xl border border-rose-400/25 bg-rose-500/10 px-4 py-3 text-[13px] text-rose-100">
+              {err}
+            </div>
+          ) : null}
+
+          {toast ? (
+            <div className="mt-4 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-[13px] text-emerald-100">
+              {toast}
+            </div>
+          ) : null}
+
+          <div className="mt-4 grid grid-cols-1 lg:grid-cols-12 gap-3">
+            {/* Selectors */}
+            <div className="lg:col-span-7 rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
+              <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">Selettori</div>
+
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-12 gap-3">
+                <div className="md:col-span-6">
+                  <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">CAPO</div>
+                  <select
+                    value={capoId}
+                    onChange={(e) => setCapoId(e.target.value)}
+                    className={cn(
+                      "mt-1 w-full rounded-2xl border px-3 py-2.5 text-[13px]",
+                      "border-slate-800 bg-slate-950/70 text-slate-50",
+                      "outline-none focus:ring-2 focus:ring-sky-500/35"
+                    )}
+                  >
+                    {capi.length === 0 ? <option value="">— Nessun capo —</option> : null}
+                    {capi.map((c) => {
+                      const label = safeText(c.display_name) || safeText(c.email) || "—";
+                      return (
+                        <option key={c.capo_id} value={c.capo_id}>
+                          {label}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <div className="mt-2 text-[12px] text-slate-500">
+                    Fonte: RPC <span className="text-slate-200 font-semibold">manager_my_capi_v1()</span>
+                  </div>
+                </div>
+
+                <div className="md:col-span-6">
+                  <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Ships assegnati al CAPO</div>
+
+                  <div className="mt-2 grid grid-cols-1 gap-2">
+                    <div>
+                      <div className="text-[12px] text-slate-400">Ship #1</div>
+                      <select
+                        value={ship1}
+                        onChange={(e) => setShip1(e.target.value)}
+                        className={cn(
+                          "mt-1 w-full rounded-2xl border px-3 py-2.5 text-[13px]",
+                          "border-slate-800 bg-slate-950/70 text-slate-50",
+                          "outline-none focus:ring-2 focus:ring-sky-500/35"
+                        )}
+                      >
+                        <option value="">— Nessuno —</option>
+                        {shipOptions.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <div className="text-[12px] text-slate-400">Ship #2</div>
+                      <select
+                        value={ship2}
+                        onChange={(e) => setShip2(e.target.value)}
+                        className={cn(
+                          "mt-1 w-full rounded-2xl border px-3 py-2.5 text-[13px]",
+                          "border-slate-800 bg-slate-950/70 text-slate-50",
+                          "outline-none focus:ring-2 focus:ring-sky-500/35"
+                        )}
+                      >
+                        <option value="">— Nessuno —</option>
+                        {shipOptions.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="mt-2 text-[12px] text-slate-500">
+                    Fonte ships: RPC <span className="text-slate-200 font-semibold">manager_my_ships_v1()</span>
+                  </div>
+                </div>
               </div>
-              <button
-                className={btnPrimary(loading || !ship1)}
-                disabled={loading || !ship1}
-                onClick={() => saveExpectedForShip("ship1")}
-              >
-                Salva
-              </button>
+
+              <div className="mt-4 flex items-center gap-2">
+                <button
+                  type="button"
+                  className={btnPrimary()}
+                  disabled={!capoId || busy}
+                  onClick={saveAssignments}
+                >
+                  Salva assegnazioni
+                </button>
+                <button
+                  type="button"
+                  className={btnGhost()}
+                  disabled={!capoId || busy}
+                  onClick={() => loadCurrentShipAssignments(capoId)}
+                >
+                  Ricarica
+                </button>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950/60 px-3 py-2">
+                <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Attivi (perenne)</div>
+                <div className="mt-1 text-[12px] text-slate-300">
+                  CAPO: <span className="text-slate-50 font-semibold">{capoLabel}</span>
+                </div>
+                <div className="mt-1 text-[12px] text-slate-300">
+                  Ships: <span className="text-slate-50 font-semibold">{assignedLabel}</span>
+                </div>
+              </div>
             </div>
 
-            {!ship1 ? (
-              <div className="mt-2 text-[12px] text-slate-500">Seleziona Ship #1 per gestire gli operatori.</div>
-            ) : (
-              <div className="mt-3 max-h-[240px] overflow-auto pr-1">
-                {operators.map((o) => {
-                  const checked = expectedByShip.ship1.has(o.id);
-                  return (
-                    <label key={o.id} className="flex items-center gap-2 py-1 text-[12px] text-slate-200">
-                      <input type="checkbox" checked={checked} onChange={() => toggleExpected("ship1", o.id)} />
-                      <span className="min-w-0 truncate">
-                        {o.label} {o.code ? <span className="text-slate-500">· {o.code}</span> : null}
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+            {/* Notes */}
+            <div className="lg:col-span-5 rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
+              <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">Notes</div>
 
-          {/* Ship2 ops */}
-          <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/60 p-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-[12px] font-semibold text-slate-200">
-                Ship #2: <span className="text-slate-300">{ship2Name || "—"}</span>
+              <div className="mt-3 space-y-3 text-[12px] text-slate-300 leading-relaxed">
+                <div>
+                  Cette page ne pilote plus les équipes “au jour”. Les équipes se font en hebdo dans{" "}
+                  <span className="text-slate-50 font-semibold">Assegnazioni</span>.
+                </div>
+                <div>
+                  Côté CAPO, la liste ships “aujourd’hui” reste compatible via une view dédiée (ex: capo_today_ship_assignments_v1),
+                  avec plan_date forcée à CURRENT_DATE.
+                </div>
+                <div>
+                  Et surtout: la présence (capo/operator attendance) ne dépend plus de capo_ship_assignments.
+                </div>
+
+                <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-3">
+                  <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">Règles</div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <span className={pillClass(true)}>Perenne</span>
+                    <span className={pillClass(true)}>Edge-safe</span>
+                    <span className={pillClass(true)}>RLS first</span>
+                  </div>
+                  <div className="mt-2 text-[12px] text-slate-400">
+                    Si le save échoue: vérifier <span className="text-slate-200 font-semibold">ship_managers</span> (perimetro),
+                    <span className="text-slate-200 font-semibold"> manager_capo_assignments</span> (active=true),
+                    et app_role du profil.
+                  </div>
+                </div>
               </div>
-              <button
-                className={btnPrimary(loading || !ship2)}
-                disabled={loading || !ship2}
-                onClick={() => saveExpectedForShip("ship2")}
-              >
-                Salva
-              </button>
             </div>
-
-            {!ship2 ? (
-              <div className="mt-2 text-[12px] text-slate-500">Seleziona Ship #2 per gestire gli operatori.</div>
-            ) : (
-              <div className="mt-3 max-h-[240px] overflow-auto pr-1">
-                {operators.map((o) => {
-                  const checked = expectedByShip.ship2.has(o.id);
-                  return (
-                    <label key={o.id} className="flex items-center gap-2 py-1 text-[12px] text-slate-200">
-                      <input type="checkbox" checked={checked} onChange={() => toggleExpected("ship2", o.id)} />
-                      <span className="min-w-0 truncate">
-                        {o.label} {o.code ? <span className="text-slate-500">· {o.code}</span> : null}
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <div className="mt-3 text-[11px] text-slate-500">
-            Fonte operatori: RPC <span className="text-slate-300">manager_my_operators_v1()</span>
           </div>
         </div>
       </div>

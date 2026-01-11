@@ -470,9 +470,11 @@ export default function ManagerAssignments({ isDark = true }) {
     });
 
     if (toInsert.length > 0) {
+      // NOTE: use upsert to avoid 23505 duplicates when users click twice / parallel refresh.
+      // Unique key: (plan_id, capo_id)
       const { data: inserted, error: e2 } = await supabase
         .from("plan_capo_slots")
-        .insert(toInsert)
+        .upsert(toInsert, { onConflict: "plan_id,capo_id" })
         .select("id,plan_id,capo_id,position,note,created_at");
       if (e2) throw e2;
 
@@ -613,19 +615,26 @@ export default function ManagerAssignments({ isDark = true }) {
     });
   };
 
-  const insertMemberDB = async ({ slot_id, operator_id, position }) => {
+  const upsertMemberDB = async ({ slot_id, operator_id, position }) => {
     if (!plan?.id) return null;
+
+    // NOTE: unique constraint is (plan_id, operator_id). A manager cannot assign the same operator twice
+    // in the same plan. If the operator already exists in another slot, this upsert will MOVE it.
     const { data, error } = await supabase
       .from("plan_slot_members")
-      .insert({
-        slot_id,
-        operator_id,
-        position,
-        role_tag: null,
-        note: null,
-        plan_id: plan.id,
-        created_by: me?.id || null,
-      })
+      .upsert(
+        {
+          slot_id,
+          operator_id,
+          position,
+          role_tag: null,
+          note: null,
+          plan_id: plan.id,
+          created_by: me?.id || null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "plan_id,operator_id" }
+      )
       .select(
         `
         id,
@@ -639,13 +648,15 @@ export default function ManagerAssignments({ isDark = true }) {
       )
       .single();
     if (error) throw error;
+
     await audit({
       plan_id: plan.id,
-      action: "MEMBER_ADD",
+      action: "MEMBER_UPSERT",
       target_type: "plan_slot_members",
       target_id: data?.id,
       payload: { slot_id, operator_id, position },
     });
+
     return {
       id: data.id,
       slot_id: data.slot_id,
@@ -655,6 +666,22 @@ export default function ManagerAssignments({ isDark = true }) {
       role_tag: data.role_tag || null,
       note: data.note || "",
     };
+  };
+
+  const updateMemberSlotDB = async ({ member_id, slot_id }) => {
+    if (!plan?.id) return;
+    const { error } = await supabase
+      .from("plan_slot_members")
+      .update({ slot_id, updated_at: new Date().toISOString() })
+      .eq("id", member_id);
+    if (error) throw error;
+    await audit({
+      plan_id: plan.id,
+      action: "MEMBER_MOVE",
+      target_type: "plan_slot_members",
+      target_id: member_id,
+      payload: { slot_id },
+    });
   };
 
   const deleteMemberDB = async (memberId) => {
@@ -701,7 +728,22 @@ export default function ManagerAssignments({ isDark = true }) {
     const nextPos = atIndex == null ? existing.length + 1 : Math.max(1, Math.min(existing.length + 1, atIndex + 1));
 
     try {
-      const inserted = await insertMemberDB({ slot_id: slotId, operator_id: operatorId, position: nextPos });
+      // Detect if the operator is already assigned in another slot (stale UI / parallel edits)
+      let alreadyInSlotId = null;
+      membersBySlotId.forEach((arr, sId) => {
+        if (alreadyInSlotId) return;
+        const found = (arr || []).find((m) => m.operator_id === operatorId);
+        if (found) alreadyInSlotId = sId;
+      });
+
+      const inserted = await upsertMemberDB({ slot_id: slotId, operator_id: operatorId, position: nextPos });
+
+      // If it was moved from another slot, safest UX is a reload (keeps positions consistent everywhere).
+      if (alreadyInSlotId && alreadyInSlotId !== slotId) {
+        await loadSlotsAndMembers(plan);
+        setToastSoft("Spostato.");
+        return;
+      }
 
       const next = [...existing];
       if (atIndex == null || atIndex >= next.length) next.push(inserted);
@@ -813,11 +855,56 @@ export default function ManagerAssignments({ isDark = true }) {
     }
 
     if (payload.type === "MEMBER") {
-      if (payload.slotId !== slotId) {
-        setErr("Spostamento tra capi non attivo in v1 (sicurezza).");
+      const fromSlotId = payload.slotId;
+      const fromIndex = payload.index;
+
+      const fromArr = membersBySlotId.get(fromSlotId) || [];
+      const moving = fromArr[fromIndex];
+      if (!moving?.id) return;
+
+      // Same slot -> reorder
+      if (fromSlotId === slotId) {
+        await reorderWithinSlot({ slotId, fromIndex, toIndex: atIndex ?? fromIndex });
         return;
       }
-      await reorderWithinSlot({ slotId, fromIndex: payload.index, toIndex: atIndex ?? payload.index });
+
+      // Cross-slot move (Manager only)
+      if (!plan?.id) return;
+
+      setBusy(true);
+      setErr("");
+
+      try {
+        // 1) Update DB (move)
+        await updateMemberSlotDB({ member_id: moving.id, slot_id: slotId });
+
+        // 2) Update UI state
+        const targetArr = membersBySlotId.get(slotId) || [];
+        const nextFrom = fromArr.filter((m) => m.id !== moving.id).map((m, idx) => ({ ...m, position: idx + 1 }));
+        const insertAt = atIndex == null ? targetArr.length : Math.max(0, Math.min(targetArr.length, atIndex));
+        const nextTarget = [...targetArr];
+        nextTarget.splice(insertAt, 0, { ...moving, slot_id: slotId });
+        const nextTargetNorm = nextTarget.map((m, idx) => ({ ...m, position: idx + 1 }));
+
+        setMembersBySlotId((prev) => {
+          const m = new Map(prev);
+          m.set(fromSlotId, nextFrom);
+          m.set(slotId, nextTargetNorm);
+          return m;
+        });
+
+        // 3) Persist positions
+        await updateMemberPositionsDB(fromSlotId, nextFrom);
+        await updateMemberPositionsDB(slotId, nextTargetNorm);
+
+        setToastSoft("Spostato.");
+      } catch (errMove) {
+        console.error("[ManagerAssignments] move member error:", errMove);
+        setErr("Impossibile spostare tra capi (RLS/duplicati).");
+        await loadSlotsAndMembers(plan);
+      } finally {
+        setBusy(false);
+      }
     }
   };
 

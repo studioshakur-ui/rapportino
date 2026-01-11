@@ -42,6 +42,7 @@ export default function Login() {
   }, [profile]);
 
   useEffect(() => {
+    // If already authenticated and profile loaded, redirect
     if (!authReady) return;
     if (!session) return;
     if (!profile) return;
@@ -70,7 +71,7 @@ export default function Login() {
         return;
       }
 
-      // Hydration profile via AuthProvider
+      // Hydration profile via AuthProvider (onAuthStateChange)
     } catch (err) {
       setError(`Errore inatteso: ${normalizeError(err) || "Errore."}`);
     } finally {
@@ -80,11 +81,13 @@ export default function Login() {
 
   const bannerError = useMemo(() => normalizeError(error) || normalizeError(authError), [error, authError]);
 
-  // Inputs “console” (moins blanc, plus “système”)
+  // Inputs “console”
   const inputClass =
     "w-full rounded-md border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none " +
     "bg-slate-950/40 border-slate-700 text-slate-100 placeholder:text-slate-600 " +
     "focus:ring-sky-500";
+
+  const disableForm = !!submitting || !!loading;
 
   return (
     <div className={["min-h-screen flex items-center justify-center px-4", pageBg(isDark)].join(" ")}>
@@ -92,9 +95,7 @@ export default function Login() {
         <div className="text-left mb-4">
           <div className={`${headerPill(isDark)} mb-2`}>SISTEMA CENTRALE DI CANTIERE</div>
           <h1 className="text-3xl font-semibold mb-1">Entra in CORE</h1>
-          <p className="text-[13px] text-slate-500 leading-relaxed">
-            Accesso interno. Ogni operazione è tracciata.
-          </p>
+          <p className="text-[13px] text-slate-500 leading-relaxed">Accesso interno. Ogni operazione è tracciata.</p>
         </div>
 
         <div className={cardSurface(isDark, "p-6")}>
@@ -126,7 +127,7 @@ export default function Login() {
                 className={inputClass}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                disabled={submitting || loading}
+                disabled={disableForm}
                 placeholder="nome@azienda.it"
               />
             </div>
@@ -140,14 +141,14 @@ export default function Login() {
                 className={inputClass}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                disabled={submitting || loading}
+                disabled={disableForm}
                 placeholder="••••••••"
               />
             </div>
 
             <button
               type="submit"
-              disabled={!authReady || submitting || loading}
+              disabled={disableForm}
               className={buttonPrimary(isDark, "w-full gap-2 mt-2 disabled:opacity-60 disabled:cursor-not-allowed")}
             >
               {submitting || loading ? "Verifica credenziali…" : "Accedi"}
@@ -166,7 +167,7 @@ export default function Login() {
             <button
               type="button"
               onClick={() => {
-                resetSupabaseAuthStorage();
+                resetSupabaseAuthStorage({ force: true });
                 setError("Sessione ripulita. Riprova ad accedere.");
               }}
               className="underline underline-offset-2 hover:text-sky-400"
