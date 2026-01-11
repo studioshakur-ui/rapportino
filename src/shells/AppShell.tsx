@@ -1,4 +1,4 @@
-// src/shells/AppShell.jsx
+// src/shells/AppShell.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
@@ -18,7 +18,11 @@ import { formatDisplayName } from "../utils/formatHuman";
 // CAPO
 import CapoTodayOperatorsPanel from "../capo/CapoTodayOperatorsPanel";
 
-export default function AppShell() {
+type OutletCtx = {
+  opDropToken: number;
+};
+
+export default function AppShell(): JSX.Element {
   const { profile, signOut, refresh } = useAuth();
   const { resetShipContext } = useShip();
   const navigate = useNavigate();
@@ -28,60 +32,48 @@ export default function AppShell() {
   // CORE 1.0 – CAPO dark-only
   const isDark = true;
 
-  /* ───────────────────────── Route label ───────────────────────── */
-
   const pathname = location.pathname || "";
-  const isCoreDrive =
-    pathname.startsWith("/app/core-drive") ||
-    pathname.startsWith("/app/archive");
+  const isCoreDrive = pathname.startsWith("/app/core-drive") || pathname.startsWith("/app/archive");
   const isKpi = pathname.startsWith("/app/kpi-operatori");
 
-  const pageLabel = isCoreDrive
-    ? t("APP_CORE_DRIVE")
-    : isKpi
-    ? t("APP_KPI_OPERATORI")
-    : t("APP_RAPPORTINO");
+  const pageLabel = isCoreDrive ? t("APP_CORE_DRIVE") : isKpi ? t("APP_KPI_OPERATORI") : t("APP_RAPPORTINO");
 
-  /* ───────────────────────── Sidebar state ───────────────────────── */
-
-  const [sidebarPeek, setSidebarPeek] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+  const [sidebarPeek, setSidebarPeek] = useState<boolean>(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     try {
       const v = window.localStorage.getItem("core-sidebar-collapsed");
       if (v === "1" || v === "0") return v === "1";
-    } catch {}
+    } catch {
+      // ignore
+    }
     return true;
   });
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(
-        "core-sidebar-collapsed",
-        sidebarCollapsed ? "1" : "0"
-      );
-    } catch {}
+      window.localStorage.setItem("core-sidebar-collapsed", sidebarCollapsed ? "1" : "0");
+    } catch {
+      // ignore
+    }
   }, [sidebarCollapsed]);
 
-  /* ───────────────────────── Drag token (CAPO) ───────────────────────── */
+  const [opDropToken, setOpDropToken] = useState<number>(0);
 
-  const [opDropToken, setOpDropToken] = useState(0);
-
-  /* ───────────────────────── Logout ───────────────────────── */
-
-  const handleLogout = async () => {
+  const handleLogout = async (): Promise<void> => {
     try {
       await signOut({ reason: "user_logout" });
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error("Errore logout:", err);
     } finally {
       try {
         resetShipContext();
-      } catch {}
+      } catch {
+        // ignore
+      }
       navigate("/login");
     }
   };
-
-  /* ───────────────────────── Display name (human-normalized) ───────────────────────── */
 
   const displayName = useMemo(() => {
     return formatDisplayName(profile, "Capo");
@@ -95,13 +87,10 @@ export default function AppShell() {
     );
   }
 
-  /* ───────────────────────── Layout constants ───────────────────────── */
-
   const contentWrapClass = "w-full max-w-[1480px] mx-auto space-y-4";
 
   return (
     <>
-      {/* ───────────── Idle / Session security ───────────── */}
       <IdleSessionManager
         enabled
         warnAfterMs={25 * 60 * 1000}
@@ -110,33 +99,33 @@ export default function AppShell() {
           try {
             await supabase.auth.getSession();
             await refresh();
-          } catch {}
+          } catch {
+            // ignore
+          }
         }}
-        onBeforeLogout={async (reason) => {
+        onBeforeLogout={async (reason: string) => {
           try {
-            window.dispatchEvent(
-              new CustomEvent("core:idle-before-logout", {
-                detail: { reason },
-              })
-            );
-          } catch {}
+            window.dispatchEvent(new CustomEvent("core:idle-before-logout", { detail: { reason } }));
+          } catch {
+            // ignore
+          }
         }}
-        onLogout={async (reason) => {
+        onLogout={async (reason: string) => {
           try {
             await signOut({ reason: reason || "idle_timeout" });
           } finally {
             try {
               resetShipContext();
-            } catch {}
+            } catch {
+              // ignore
+            }
             navigate("/login");
           }
         }}
       />
 
-      {/* ───────────── App shell ───────────── */}
       <div className="min-h-screen bg-[#050910] text-slate-100">
         <div className="flex min-h-screen">
-          {/* SIDEBAR */}
           <CNCSSidebar
             isDark={isDark}
             title="CNCS"
@@ -165,24 +154,18 @@ export default function AppShell() {
             bottomSlot={
               <CapoTodayOperatorsPanel
                 mode="expanded"
-                onOperatorDragStart={() =>
-                  setOpDropToken((v) => v + 1)
-                }
+                onOperatorDragStart={() => setOpDropToken((v: number) => v + 1)}
               />
             }
             bottomSlotCollapsed={
               <CapoTodayOperatorsPanel
                 mode="collapsed"
-                onOperatorDragStart={() =>
-                  setOpDropToken((v) => v + 1)
-                }
+                onOperatorDragStart={() => setOpDropToken((v: number) => v + 1)}
               />
             }
           />
 
-          {/* MAIN */}
           <main className="flex-1 min-w-0 flex flex-col">
-            {/* TOPBAR */}
             <div className="sticky top-0 z-[200] px-3 sm:px-4 pt-3">
               <CNCSTopbar
                 isDark={isDark}
@@ -194,7 +177,6 @@ export default function AppShell() {
                       <LangSwitcher compact />
                     </div>
 
-                    {/* User name — human case */}
                     <span
                       className={[
                         "inline-flex items-center gap-2 rounded-xl border px-3 py-2",
@@ -207,7 +189,6 @@ export default function AppShell() {
                       {displayName}
                     </span>
 
-                    {/* Logout */}
                     <button
                       type="button"
                       onClick={handleLogout}
@@ -228,10 +209,9 @@ export default function AppShell() {
               />
             </div>
 
-            {/* CONTENT */}
             <div className="flex-1 min-h-0 overflow-auto">
               <div className={`${contentWrapClass} px-3 sm:px-4 pb-6`}>
-                <Outlet context={{ opDropToken }} />
+                <Outlet context={{ opDropToken } as OutletCtx} />
               </div>
             </div>
           </main>

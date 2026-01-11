@@ -23,7 +23,8 @@ SELECT
   s."commessa",
   s."code" AS "ship_code",
   s."name" AS "ship_name",
-  ROW_NUMBER() OVER (PARTITION BY sc."capo_id" ORDER BY s."code" ASC, s."name" ASC) AS "position"
+(ROW_NUMBER() OVER (PARTITION BY sc."capo_id" ORDER BY s."code" ASC, s."name" ASC))::smallint AS "position"
+
 FROM "public"."ship_capos" sc
 JOIN "public"."ships" s ON s."id" = sc."ship_id"
 WHERE sc."capo_id" = auth.uid();

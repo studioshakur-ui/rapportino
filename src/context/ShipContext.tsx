@@ -1,30 +1,74 @@
-// src/context/ShipContext.jsx
-import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
+// src/context/ShipContext.tsx
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
-const ShipContext = createContext(null);
+export type Ship = {
+  id: string;
+  code: string;
+  name?: string | null;
+  yard?: string | null;
+  is_active?: boolean | null;
+
+  // optional fields used elsewhere
+  costr?: string | null;
+  commessa?: string | null;
+};
+
+type ShipContextValue = {
+  currentShip: Ship | null;
+  ships: Ship[];
+  loadingShips: boolean;
+  shipsError: string | null;
+
+  setCurrentShip: React.Dispatch<React.SetStateAction<Ship | null>>;
+  clearShip: () => void;
+  resetShipContext: () => void;
+  refreshShips: () => Promise<void>;
+
+  isShipAllowed: (ship: Ship | null) => boolean;
+};
+
+const ShipContext = createContext<ShipContextValue | null>(null);
 
 const STORAGE_KEY = "core-current-ship";
 
-/* -----------------------------
-   Storage
------------------------------ */
-function getInitialShip() {
+function safeStr(x: unknown): string {
+  if (x === null || x === undefined) return "";
+  return String(x);
+}
+
+function sameId(a: unknown, b: unknown): boolean {
+  return safeStr(a) !== "" && safeStr(b) !== "" && safeStr(a) === safeStr(b);
+}
+
+function normalizeShip(row: any): Ship | null {
+  if (!row) return null;
+  if (!row.id || !row.code) return null;
+
+  return {
+    id: String(row.id),
+    code: String(row.code),
+    name: row.name ?? null,
+    yard: row.yard ?? "",
+    is_active: row.is_active ?? true,
+    costr: row.costr ?? null,
+    commessa: row.commessa ?? null,
+  };
+}
+
+function getInitialShip(): Ship | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-
-    if (!parsed.id || !parsed.code) return null;
-
-    return parsed;
+    return normalizeShip(parsed);
   } catch {
     return null;
   }
 }
 
-function persistShip(ship) {
+function persistShip(ship: Ship | null): void {
   try {
     if (ship) {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(ship));
@@ -36,39 +80,15 @@ function persistShip(ship) {
   }
 }
 
-function normalizeShip(row) {
-  if (!row) return null;
-  return {
-    id: row.id,
-    code: row.code,
-    name: row.name,
-    yard: row.yard ?? "",
-    is_active: row.is_active ?? true,
-  };
-}
+export function ShipProvider({ children }: { children: React.ReactNode }): JSX.Element {
+  const [currentShip, setCurrentShip] = useState<Ship | null>(() => getInitialShip());
 
-function safeStr(x) {
-  if (x === null || x === undefined) return "";
-  return String(x);
-}
-
-function sameId(a, b) {
-  return safeStr(a) && safeStr(b) && safeStr(a) === safeStr(b);
-}
-
-/* -----------------------------
-   Provider
------------------------------ */
-export function ShipProvider({ children }) {
-  const [currentShip, setCurrentShip] = useState(getInitialShip);
-
-  // Canonical list of ships allowed for the current CAPO
-  const [ships, setShips] = useState([]);
-  const [loadingShips, setLoadingShips] = useState(true);
-  const [shipsError, setShipsError] = useState(null);
+  const [ships, setShips] = useState<Ship[]>([]);
+  const [loadingShips, setLoadingShips] = useState<boolean>(true);
+  const [shipsError, setShipsError] = useState<string | null>(null);
 
   const shipsById = useMemo(() => {
-    const m = new Map();
+    const m = new Map<string, Ship>();
     for (const s of ships) {
       if (s?.id) m.set(String(s.id), s);
     }
@@ -76,7 +96,7 @@ export function ShipProvider({ children }) {
   }, [ships]);
 
   const isShipAllowed = useCallback(
-    (ship) => {
+    (ship: Ship | null) => {
       if (!ship?.id) return false;
       return shipsById.has(String(ship.id));
     },
@@ -85,36 +105,31 @@ export function ShipProvider({ children }) {
 
   const clearShip = useCallback(() => setCurrentShip(null), []);
 
-  // Hard reset (used on logout / session invalidation)
   const resetShipContext = useCallback(() => {
     try {
       window.localStorage.removeItem(STORAGE_KEY);
-    } catch {}
+    } catch {
+      // ignore
+    }
     setCurrentShip(null);
     setShips([]);
     setShipsError(null);
     setLoadingShips(false);
   }, []);
 
-  // Persist any change (but do not “trust” storage for authorization)
   useEffect(() => {
     persistShip(currentShip);
   }, [currentShip]);
 
-  /* -----------------------------
-     Load allowed ships for CAPO (strict scope)
-     Source of truth: RPC public.capo_my_ships_v1
-  ----------------------------- */
   const refreshShips = useCallback(async () => {
     setLoadingShips(true);
     setShipsError(null);
-
     try {
       const { data, error } = await supabase.rpc("capo_my_ships_v1");
       if (error) throw error;
 
       const list = Array.isArray(data) ? data.map(normalizeShip).filter(Boolean) : [];
-      setShips(list);
+      setShips(list as Ship[]);
     } catch (e) {
       console.error("[ShipContext] refreshShips error:", e);
       setShips([]);
@@ -124,14 +139,12 @@ export function ShipProvider({ children }) {
     }
   }, []);
 
-  // Initial load
   useEffect(() => {
     let alive = true;
 
     (async () => {
       setLoadingShips(true);
       setShipsError(null);
-
       try {
         const { data, error } = await supabase.rpc("capo_my_ships_v1");
         if (error) throw error;
@@ -139,10 +152,9 @@ export function ShipProvider({ children }) {
         if (!alive) return;
 
         const list = Array.isArray(data) ? data.map(normalizeShip).filter(Boolean) : [];
-        setShips(list);
+        setShips(list as Ship[]);
       } catch (e) {
         if (!alive) return;
-
         console.error("[ShipContext] initial load ships error:", e);
         setShips([]);
         setShipsError("Impossibile recuperare le navi assegnate.");
@@ -157,20 +169,16 @@ export function ShipProvider({ children }) {
     };
   }, []);
 
-  // When ship list changes, ensure currentShip is still allowed and canonicalize label
   useEffect(() => {
     if (loadingShips) return;
     if (!currentShip) return;
 
     const allowed = shipsById.get(String(currentShip.id));
-
     if (!allowed) {
-      // Ship persisted but no longer allowed (or was never allowed)
       setCurrentShip(null);
       return;
     }
 
-    // Canonicalize stored ship to avoid stale label inconsistencies
     const canonical = normalizeShip(allowed);
     if (!canonical) return;
 
@@ -179,37 +187,30 @@ export function ShipProvider({ children }) {
       safeStr(currentShip.code) === safeStr(canonical.code) &&
       safeStr(currentShip.name) === safeStr(canonical.name);
 
-    if (!same) {
-      setCurrentShip(canonical);
-    }
+    if (!same) setCurrentShip(canonical);
   }, [shipsById, currentShip, loadingShips]);
 
-  const value = useMemo(() => {
+  const value = useMemo<ShipContextValue>(() => {
     return {
-      // State
       currentShip,
       ships,
       loadingShips,
       shipsError,
 
-      // Mutations
       setCurrentShip,
       clearShip,
       resetShipContext,
       refreshShips,
 
-      // Helpers (useful for UI conditions)
       isShipAllowed,
     };
-  }, [currentShip, clearShip, resetShipContext, ships, loadingShips, shipsError, refreshShips, isShipAllowed]);
+  }, [currentShip, ships, loadingShips, shipsError, clearShip, resetShipContext, refreshShips, isShipAllowed]);
 
   return <ShipContext.Provider value={value}>{children}</ShipContext.Provider>;
 }
 
-export function useShip() {
+export function useShip(): ShipContextValue {
   const ctx = useContext(ShipContext);
-  if (!ctx) {
-    throw new Error("useShip must be used within a ShipProvider (wrap your app).");
-  }
+  if (!ctx) throw new Error("useShip must be used within a ShipProvider (wrap your app).");
   return ctx;
 }
