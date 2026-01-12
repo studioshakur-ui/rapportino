@@ -23,6 +23,7 @@ type OutletCtx = {
 };
 
 export default function AppShell(): JSX.Element {
+  // IMPORTANT: on garde signOut (stable) + désormais supporté par AuthProvider
   const { profile, signOut, refresh } = useAuth();
   const { resetShipContext } = useShip();
   const navigate = useNavigate();
@@ -33,10 +34,11 @@ export default function AppShell(): JSX.Element {
   const isDark = true;
 
   const pathname = location.pathname || "";
+  const isInca = pathname.startsWith("/app/inca");
   const isCoreDrive = pathname.startsWith("/app/core-drive") || pathname.startsWith("/app/archive");
   const isKpi = pathname.startsWith("/app/kpi-operatori");
 
-  const pageLabel = isCoreDrive ? t("APP_CORE_DRIVE") : isKpi ? t("APP_KPI_OPERATORI") : t("APP_RAPPORTINO");
+  const pageLabel = isInca ? t("APP_INCA") : isCoreDrive ? t("APP_CORE_DRIVE") : isKpi ? t("APP_KPI_OPERATORI") : t("APP_RAPPORTINO");
 
   const [sidebarPeek, setSidebarPeek] = useState<boolean>(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
@@ -145,6 +147,13 @@ export default function AppShell(): JSX.Element {
                 end: true,
               },
               {
+                to: "/app/inca",
+                label: t("APP_INCA"),
+                // IMPORTANT: on réutilise un icon existant pour éviter une régression
+                icon: "archive",
+                colorClass: "text-amber-300",
+              },
+              {
                 to: "/app/core-drive",
                 label: t("APP_CORE_DRIVE"),
                 icon: "archive",
@@ -152,16 +161,10 @@ export default function AppShell(): JSX.Element {
               },
             ]}
             bottomSlot={
-              <CapoTodayOperatorsPanel
-                mode="expanded"
-                onOperatorDragStart={() => setOpDropToken((v: number) => v + 1)}
-              />
+              <CapoTodayOperatorsPanel mode="expanded" onOperatorDragStart={() => setOpDropToken((v: number) => v + 1)} />
             }
             bottomSlotCollapsed={
-              <CapoTodayOperatorsPanel
-                mode="collapsed"
-                onOperatorDragStart={() => setOpDropToken((v: number) => v + 1)}
-              />
+              <CapoTodayOperatorsPanel mode="collapsed" onOperatorDragStart={() => setOpDropToken((v: number) => v + 1)} />
             }
           />
 

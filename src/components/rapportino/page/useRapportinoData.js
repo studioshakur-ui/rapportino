@@ -52,6 +52,18 @@ function normalizeStatus(s) {
   return v;
 }
 
+function isAbortError(err) {
+  if (!err) return false;
+  const name = String(err?.name || "").toLowerCase();
+  const msg = String(err?.message || err?.error_description || err?.error || "").toLowerCase();
+  // Supabase/PostgREST may throw AbortError when a request is intentionally cancelled
+  // (route change, role/date change, hydration re-run, etc.)
+  if (name === "aborterror") return true;
+  if (msg.includes("signal is aborted")) return true;
+  if (msg.includes("aborted")) return true;
+  return false;
+}
+
 export function useRapportinoData({ profileId, crewRole, reportDate }) {
   const [rapportinoId, setRapportinoId] = useState(null);
   const [rapportinoCrewRole, setRapportinoCrewRole] = useState(null);
@@ -121,123 +133,89 @@ export function useRapportinoData({ profileId, crewRole, reportDate }) {
 
         if (rErr) throw rErr;
 
-        if (!aliveRef.current) return;
-
+        // If no rapportino exists, initialize empty
         if (!rData?.id) {
-          // No rapportino yet: keep local editable empty doc
           setRapportinoId(null);
           setRapportinoCrewRole(crewRole);
           setCostr("");
           setCommessa("");
           setStatus("DRAFT");
-          setRows([
-            { id: null, row_index: 0, categoria: "STESURA", descrizione: "", operatori: "", tempo: "", previsto: "", prodotto: "", note: "", activity_id: null, operator_items: [] },
-            { id: null, row_index: 1, categoria: "STESURA", descrizione: "", operatori: "", tempo: "", previsto: "", prodotto: "", note: "", activity_id: null, operator_items: [] },
-            { id: null, row_index: 2, categoria: "STESURA", descrizione: "", operatori: "", tempo: "", previsto: "", prodotto: "", note: "", activity_id: null, operator_items: [] },
-          ]);
+          setRows([]);
           setInitialLoading(false);
           return;
         }
 
-        // 2) Load rows
-        const rid = rData.id;
+        const rid = String(rData.id);
 
+        // 2) Load rows
         const { data: rowsData, error: rowsErr } = await supabase
           .from("rapportino_rows")
-          .select("id, rapportino_id, row_index, categoria, descrizione, operatori, tempo, previsto, prodotto, note, activity_id")
+          .select("*")
           .eq("rapportino_id", rid)
-          .order("row_index", { ascending: true })
+          .order("position", { ascending: true })
           .abortSignal(ac.signal);
 
         if (rowsErr) throw rowsErr;
 
-        if (!aliveRef.current) return;
+        const rowsArr = Array.isArray(rowsData) ? rowsData : [];
 
-        const baseRows = (Array.isArray(rowsData) ? rowsData : []).map((r) => ({
-          id: r.id ?? null,
-          rapportino_id: r.rapportino_id ?? rid,
-          row_index: typeof r.row_index === "number" ? r.row_index : 0,
-          categoria: r.categoria ?? "",
-          descrizione: r.descrizione ?? "",
-          operatori: r.operatori ?? "",
-          tempo: r.tempo ?? "",
-          previsto: r.previsto ?? "",
-          prodotto: r.prodotto ?? "",
-          note: r.note ?? "",
-          activity_id: r.activity_id ?? null,
-          operator_items: [], // hydrated below if canonical exists
-        }));
+        // 3) Load canonical operators mapping (if any)
+        const { data: roData, error: roErr } = await supabase
+          .from("rapportino_row_operators")
+          .select("row_id, operator_id, tempo_raw, tempo_hours, line_index")
+          .eq("rapportino_id", rid)
+          .order("row_id", { ascending: true })
+          .order("line_index", { ascending: true })
+          .abortSignal(ac.signal);
 
-        // 3) Hydrate canonical operator_items from rapportino_row_operators (if any)
-        const rowIds = baseRows.map((x) => x.id).filter(Boolean);
+        if (roErr) {
+          console.warn("[useRapportinoData] rapportino_row_operators read warning:", roErr);
+        }
 
-        let opById = new Map();
-        let roByRowId = new Map(); // row_id -> [{operator_id,line_index,tempo_raw,tempo_hours}...]
+        const canonItems = Array.isArray(roData) ? roData : [];
 
-        if (rowIds.length > 0) {
-          const { data: roData, error: roErr } = await supabase
-            .from("rapportino_row_operators")
-            .select("rapportino_row_id, operator_id, line_index, tempo_raw, tempo_hours")
-            .in("rapportino_row_id", rowIds)
-            .order("rapportino_row_id", { ascending: true })
-            .order("line_index", { ascending: true })
+        // 4) Load operators referenced (to resolve labels) — best effort
+        const operatorIds = Array.from(
+          new Set(
+            canonItems
+              .map((x) => x?.operator_id)
+              .filter(Boolean)
+              .map((x) => String(x))
+          )
+        );
+
+        let operatorsById = new Map();
+        if (operatorIds.length > 0) {
+          const { data: opData, error: opErr } = await supabase
+            .from("operators")
+            .select("id, name, nome, cognome")
+            .in("id", operatorIds)
             .abortSignal(ac.signal);
 
-          if (roErr) {
-            // IMPORTANT: do NOT fail the whole page if canonical table not available yet
-            console.warn("[useRapportinoData] rapportino_row_operators read warning:", roErr);
+          if (opErr) {
+            console.warn("[useRapportinoData] operators read warning:", opErr);
           } else {
-            const raw = Array.isArray(roData) ? roData : [];
-            const tmp = new Map();
-            for (const it of raw) {
-              const rowId = it.rapportino_row_id;
-              const opId = it.operator_id;
-              if (!rowId || !opId) continue;
-              const arr = tmp.get(String(rowId)) || [];
-              arr.push({
-                operator_id: opId,
-                line_index: typeof it.line_index === "number" ? it.line_index : 0,
-                tempo_raw: safeStr(it.tempo_raw),
-                tempo_hours: isFiniteNumber(it.tempo_hours) ? it.tempo_hours : null,
-              });
-              tmp.set(String(rowId), arr);
-            }
-            roByRowId = tmp;
-
-            const operatorIds = Array.from(
-              new Set(raw.map((x) => x.operator_id).filter(Boolean).map((x) => String(x)))
-            );
-
-            if (operatorIds.length > 0) {
-              // Operators table is your safest canonical source.
-              const { data: opData, error: opErr } = await supabase
-                .from("operators")
-                .select("id, name, cognome, nome")
-                .in("id", operatorIds)
-                .abortSignal(ac.signal);
-
-              if (opErr) {
-                console.warn("[useRapportinoData] operators read warning:", opErr);
-              } else {
-                const m = new Map();
-                for (const op of opData || []) {
-                  if (!op?.id) continue;
-                  m.set(String(op.id), op);
-                }
-                opById = m;
-              }
-            }
+            const ops = Array.isArray(opData) ? opData : [];
+            operatorsById = new Map(ops.map((o) => [String(o.id), o]));
           }
         }
 
-        if (!aliveRef.current) return;
+        const canonByRowId = new Map();
+        for (const it of canonItems) {
+          const rowId = String(it?.row_id || "");
+          if (!rowId) continue;
+          const arr = canonByRowId.get(rowId) || [];
+          arr.push(it);
+          canonByRowId.set(rowId, arr);
+        }
 
-        const hydrated = baseRows.map((r) => {
-          const rowId = r.id ? String(r.id) : null;
-          const canonical = rowId ? (roByRowId.get(rowId) || []) : [];
+        // 5) Hydrate rows: canonical if operator_items exist, else legacy fallback
+        const hydrated = rowsArr.map((r) => {
+          const rowId = String(r?.id || "");
+          const canonical = canonByRowId.get(rowId) || [];
 
-          if (canonical.length === 0) {
-            // Legacy safe: normalize tempo alignment against operator lines
+          // Legacy behavior: keep operatori/tempo but fix alignment
+          if (!canonical.length) {
             const operatoriText = safeStr(r.operatori);
             const tempoText = safeStr(r.tempo);
             return {
@@ -253,7 +231,7 @@ export function useRapportinoData({ profileId, crewRole, reportDate }) {
             .slice()
             .sort((a, b) => (a.line_index ?? 0) - (b.line_index ?? 0))
             .map((it, idx) => {
-              const op = opById.get(String(it.operator_id));
+              const op = operatorsById.get(String(it.operator_id));
               const label = buildOperatorLabelFromOperatorRow(op) || normalizeOperatorLabel(String(it.operator_id));
               const tempoRaw = safeStr(it.tempo_raw);
               const tempoHours = isFiniteNumber(it.tempo_hours)
@@ -286,6 +264,9 @@ export function useRapportinoData({ profileId, crewRole, reportDate }) {
 
         setInitialLoading(false);
       } catch (e) {
+        // AbortError is expected when requests are cancelled (e.g. params change). It must not surface as a UI error.
+        if (isAbortError(e)) return;
+
         console.error("[useRapportinoData] load error:", e);
         if (!aliveRef.current) return;
 

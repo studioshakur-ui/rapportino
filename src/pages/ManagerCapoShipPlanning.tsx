@@ -2,18 +2,13 @@ import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
 
+type CapoUiMode = "simple" | "rich";
+
 type CapoRow = {
   capo_id: string;
   display_name: string | null;
   email: string | null;
-};
-
-type ShipRow = {
-  ship_id: string;
-  ship_code: string | null;
-  ship_name: string | null;
-  costr: string | null;
-  commessa: string | null;
+  capo_ui_mode: CapoUiMode;
 };
 
 type ShipOption = {
@@ -82,11 +77,23 @@ function pillClass(active: boolean): string {
   );
 }
 
+function modePillClass(active: boolean): string {
+  const base = "inline-flex items-center gap-2 rounded-full border px-3 py-2 text-[12px] font-semibold leading-none";
+  return cn(
+    base,
+    active
+      ? "border-emerald-400/55 bg-emerald-500/10 text-emerald-100"
+      : "border-slate-700 bg-slate-950/60 text-slate-200 hover:bg-slate-900/45",
+    "focus:outline-none focus:ring-2 focus:ring-emerald-500/35"
+  );
+}
+
 export default function ManagerCapoShipPlanning(): JSX.Element {
   const { uid, session } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [busyMode, setBusyMode] = useState(false);
   const [err, setErr] = useState<string>("");
   const [toast, setToast] = useState<string>("");
 
@@ -94,6 +101,9 @@ export default function ManagerCapoShipPlanning(): JSX.Element {
   const [ships, setShips] = useState<ShipOption[]>([]);
 
   const [capoId, setCapoId] = useState<string>("");
+
+  // Manager decides if CAPO is simple or rich (stored on profiles.capo_ui_mode)
+  const [capoUiMode, setCapoUiMode] = useState<CapoUiMode>("simple");
 
   // Ship assignment is PERENNE: we store it in ship_capos, not capo_ship_assignments.
   const [ship1, setShip1] = useState<string>("");
@@ -122,14 +132,21 @@ export default function ManagerCapoShipPlanning(): JSX.Element {
     setToast("");
 
     try {
-      // 1) Capi assigned to Manager (canonical)
-      const { data: capiData, error: capiErr } = await supabase.rpc("manager_my_capi_v1");
+      // 1) Capi + UI modes (canonical, manager perimeter enforced in DB)
+      const { data: capiData, error: capiErr } = await supabase.rpc("manager_my_capi_ui_modes_v1");
       if (capiErr) throw capiErr;
-      const capiList: CapoRow[] = (Array.isArray(capiData) ? capiData : []).map((r: any) => ({
-        capo_id: r.capo_id,
-        display_name: r.display_name || null,
-        email: r.email || null,
-      }));
+
+      const capiList: CapoRow[] = (Array.isArray(capiData) ? capiData : []).map((r: any) => {
+        const rawMode = String(r.capo_ui_mode || "simple").toLowerCase();
+        const mode: CapoUiMode = rawMode === "rich" ? "rich" : "simple";
+        return {
+          capo_id: r.capo_id,
+          display_name: r.display_name || null,
+          email: r.email || null,
+          capo_ui_mode: mode,
+        };
+      });
+
       setCapi(capiList);
 
       // 2) Ships in Manager perimeter (canonical)
@@ -145,15 +162,21 @@ export default function ManagerCapoShipPlanning(): JSX.Element {
           commessa: r.commessa || null,
         }))
         .sort((a: ShipOption, b: ShipOption) => safeText(a.code || a.name).localeCompare(safeText(b.code || b.name)));
+
       setShips(shipList);
 
       // Default capo selection
       if (!capoId && capiList.length > 0) {
-        setCapoId(capiList[0].capo_id);
+        const first = capiList[0];
+        setCapoId(first.capo_id);
+        setCapoUiMode(first.capo_ui_mode);
+      } else if (capoId) {
+        const cur = capiList.find((x) => x.capo_id === capoId);
+        if (cur) setCapoUiMode(cur.capo_ui_mode);
       }
     } catch (e) {
       console.error("[ManagerCapoShipPlanning] loadPerimeter error:", e);
-      setErr("Impossibile caricare perimetro (RPC/RLS). Verifica manager_my_capi_v1 / manager_my_ships_v1.");
+      setErr("Impossibile caricare perimetro (RPC/RLS). Verifica manager_my_capi_ui_modes_v1 / manager_my_ships_v1.");
       setCapi([]);
       setShips([]);
     } finally {
@@ -209,6 +232,10 @@ export default function ManagerCapoShipPlanning(): JSX.Element {
   useEffect(() => {
     if (!capoId) return;
     loadCurrentShipAssignments(capoId);
+
+    const cur = capi.find((x) => x.capo_id === capoId);
+    if (cur) setCapoUiMode(cur.capo_ui_mode);
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [capoId]);
 
@@ -237,11 +264,13 @@ export default function ManagerCapoShipPlanning(): JSX.Element {
       const { error: delErr } = await supabase.from("ship_capos").delete().eq("capo_id", capoId);
       if (delErr) throw delErr;
 
-      const toInsert = [s1, s2].filter(Boolean).map((shipId) => ({
-        ship_id: shipId,
-        capo_id: capoId,
-        created_by: uid,
-      }));
+      const toInsert = [s1, s2]
+        .filter(Boolean)
+        .map((shipId) => ({
+          ship_id: shipId,
+          capo_id: capoId,
+          created_by: uid,
+        }));
 
       if (toInsert.length > 0) {
         const { error: insErr } = await supabase.from("ship_capos").insert(toInsert);
@@ -255,6 +284,36 @@ export default function ManagerCapoShipPlanning(): JSX.Element {
       setErr("Salvataggio assegnazioni fallito (RLS o DB). Verifica ship_capos / ship_managers / manager_capo_assignments.");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const saveCapoUiMode = async (nextMode: CapoUiMode) => {
+    if (!capoId) return;
+
+    setBusyMode(true);
+    setErr("");
+    setToast("");
+
+    try {
+      const { error } = await supabase.rpc("manager_set_capo_ui_mode_v1", {
+        p_capo_id: capoId,
+        p_mode: nextMode,
+      });
+      if (error) throw error;
+
+      setCapoUiMode(nextMode);
+
+      // Update local list to keep UI consistent (no full reload required)
+      setCapi((prev) =>
+        prev.map((c) => (c.capo_id === capoId ? { ...c, capo_ui_mode: nextMode } : c))
+      );
+
+      setToast(nextMode === "rich" ? "CAPO impostato su UI RICH." : "CAPO impostato su UI SIMPLE.");
+    } catch (e) {
+      console.error("[ManagerCapoShipPlanning] saveCapoUiMode error:", e);
+      setErr("Impossibile aggiornare UI mode (RPC/RLS). Verifica manager_set_capo_ui_mode_v1 + perimetro.");
+    } finally {
+      setBusyMode(false);
     }
   };
 
@@ -295,8 +354,8 @@ export default function ManagerCapoShipPlanning(): JSX.Element {
         <div className={cardClass() + " p-4"}>
           {sectionTitle(
             "MANAGER · CAPO · SHIP",
-            "Assegnazione perenne Ship → CAPO",
-            <button type="button" className={btnGhost()} disabled={busy} onClick={loadPerimeter}>
+            "Assegnazione perenne Ship → CAPO + UI mode",
+            <button type="button" className={btnGhost()} disabled={busy || busyMode} onClick={loadPerimeter}>
               Ricarica perimetro
             </button>
           )}
@@ -330,7 +389,12 @@ export default function ManagerCapoShipPlanning(): JSX.Element {
                   <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">CAPO</div>
                   <select
                     value={capoId}
-                    onChange={(e) => setCapoId(e.target.value)}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setCapoId(next);
+                      const cur = capi.find((x) => x.capo_id === next);
+                      if (cur) setCapoUiMode(cur.capo_ui_mode);
+                    }}
                     className={cn(
                       "mt-1 w-full rounded-2xl border px-3 py-2.5 text-[13px]",
                       "border-slate-800 bg-slate-950/70 text-slate-50",
@@ -340,15 +404,54 @@ export default function ManagerCapoShipPlanning(): JSX.Element {
                     {capi.length === 0 ? <option value="">— Nessun capo —</option> : null}
                     {capi.map((c) => {
                       const label = safeText(c.display_name) || safeText(c.email) || "—";
+                      const modeBadge = c.capo_ui_mode === "rich" ? "RICH" : "SIMPLE";
                       return (
                         <option key={c.capo_id} value={c.capo_id}>
-                          {label}
+                          {label} · {modeBadge}
                         </option>
                       );
                     })}
                   </select>
+
                   <div className="mt-2 text-[12px] text-slate-500">
-                    Fonte: RPC <span className="text-slate-200 font-semibold">manager_my_capi_v1()</span>
+                    Fonte: RPC <span className="text-slate-200 font-semibold">manager_my_capi_ui_modes_v1()</span>
+                  </div>
+
+                  {/* CAPO UI MODE */}
+                  <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950/60 px-3 py-3">
+                    <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">Modalità UI CAPO</div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className={modePillClass(capoUiMode === "simple")}
+                        disabled={!capoId || busyMode}
+                        onClick={() => saveCapoUiMode("simple")}
+                        title="Capo Simple: flusso essenziale"
+                      >
+                        SIMPLE
+                      </button>
+                      <button
+                        type="button"
+                        className={modePillClass(capoUiMode === "rich")}
+                        disabled={!capoId || busyMode}
+                        onClick={() => saveCapoUiMode("rich")}
+                        title="Capo Rich: UI completa"
+                      >
+                        RICH
+                      </button>
+
+                      {busyMode ? (
+                        <span className="text-[12px] text-slate-400">Salvataggio…</span>
+                      ) : (
+                        <span className="text-[12px] text-slate-500">
+                          Attivo: <span className="text-slate-200 font-semibold">{capoUiMode.toUpperCase()}</span>
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="mt-2 text-[12px] text-slate-500">
+                      Write path: RPC <span className="text-slate-200 font-semibold">manager_set_capo_ui_mode_v1()</span> + trigger guard su profiles.
+                    </div>
                   </div>
                 </div>
 
@@ -404,20 +507,10 @@ export default function ManagerCapoShipPlanning(): JSX.Element {
               </div>
 
               <div className="mt-4 flex items-center gap-2">
-                <button
-                  type="button"
-                  className={btnPrimary()}
-                  disabled={!capoId || busy}
-                  onClick={saveAssignments}
-                >
+                <button type="button" className={btnPrimary()} disabled={!capoId || busy || busyMode} onClick={saveAssignments}>
                   Salva assegnazioni
                 </button>
-                <button
-                  type="button"
-                  className={btnGhost()}
-                  disabled={!capoId || busy}
-                  onClick={() => loadCurrentShipAssignments(capoId)}
-                >
+                <button type="button" className={btnGhost()} disabled={!capoId || busy || busyMode} onClick={() => loadCurrentShipAssignments(capoId)}>
                   Ricarica
                 </button>
               </div>
@@ -426,6 +519,9 @@ export default function ManagerCapoShipPlanning(): JSX.Element {
                 <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Attivi (perenne)</div>
                 <div className="mt-1 text-[12px] text-slate-300">
                   CAPO: <span className="text-slate-50 font-semibold">{capoLabel}</span>
+                </div>
+                <div className="mt-1 text-[12px] text-slate-300">
+                  UI Mode: <span className="text-slate-50 font-semibold">{capoUiMode.toUpperCase()}</span>
                 </div>
                 <div className="mt-1 text-[12px] text-slate-300">
                   Ships: <span className="text-slate-50 font-semibold">{assignedLabel}</span>
@@ -439,23 +535,33 @@ export default function ManagerCapoShipPlanning(): JSX.Element {
 
               <div className="mt-3 space-y-3 text-[12px] text-slate-300 leading-relaxed">
                 <div>
-                  Cette page ne pilote plus les équipes “au jour”. Les équipes se font en hebdo dans{" "}
-                  <span className="text-slate-50 font-semibold">Assegnazioni</span>.
+                  Cette page pilote:
+                  <ul className="list-disc pl-5 mt-2 space-y-1">
+                    <li>Assignation perenne <span className="text-slate-50 font-semibold">Ship → CAPO</span> via <span className="text-slate-50 font-semibold">ship_capos</span></li>
+                    <li>Mode UI CAPO <span className="text-slate-50 font-semibold">simple/rich</span> via <span className="text-slate-50 font-semibold">profiles.capo_ui_mode</span></li>
+                  </ul>
                 </div>
+
                 <div>
-                  Côté CAPO, la liste ships “aujourd’hui” reste compatible via une view dédiée (ex: capo_today_ship_assignments_v1),
-                  avec plan_date forcée à CURRENT_DATE.
+                  Cette page ne pilote pas la présence. La présence (capo/operator) doit rester indépendante des assignations journalières.
                 </div>
-                <div>
-                  Et surtout: la présence (capo/operator attendance) ne dépend plus de capo_ship_assignments.
+
+                <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-3">
+                  <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">Sécurité</div>
+                  <div className="mt-2 text-[12px] text-slate-400">
+                    <div>Le CAPO ne peut pas changer lui-même son UI mode.</div>
+                    <div>
+                      En DB: RPC manager_set_capo_ui_mode_v1 + trigger guard.
+                    </div>
+                  </div>
                 </div>
 
                 <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-3">
                   <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">Règles</div>
                   <div className="mt-2 flex flex-wrap gap-2">
                     <span className={pillClass(true)}>Perenne</span>
-                    <span className={pillClass(true)}>Edge-safe</span>
                     <span className={pillClass(true)}>RLS first</span>
+                    <span className={pillClass(true)}>Manager decides UI</span>
                   </div>
                   <div className="mt-2 text-[12px] text-slate-400">
                     Si le save échoue: vérifier <span className="text-slate-200 font-semibold">ship_managers</span> (perimetro),
