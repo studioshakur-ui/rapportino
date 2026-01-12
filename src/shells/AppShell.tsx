@@ -25,7 +25,7 @@ type OutletCtx = {
 export default function AppShell(): JSX.Element {
   // IMPORTANT: on garde signOut (stable) + désormais supporté par AuthProvider
   const { profile, signOut, refresh } = useAuth();
-  const { resetShipContext } = useShip();
+  const { currentShip, resetShipContext } = useShip();
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useI18n();
@@ -37,8 +37,9 @@ export default function AppShell(): JSX.Element {
   const isInca = pathname.startsWith("/app/inca");
   const isCoreDrive = pathname.startsWith("/app/core-drive") || pathname.startsWith("/app/archive");
   const isKpi = pathname.startsWith("/app/kpi-operatori");
+  const isInca = pathname.includes("/inca");
 
-  const pageLabel = isInca ? t("APP_INCA") : isCoreDrive ? t("APP_CORE_DRIVE") : isKpi ? t("APP_KPI_OPERATORI") : t("APP_RAPPORTINO");
+  const pageLabel = isCoreDrive ? t("APP_CORE_DRIVE") : isKpi ? t("APP_KPI_OPERATORI") : t("APP_RAPPORTINO");
 
   const [sidebarPeek, setSidebarPeek] = useState<boolean>(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
@@ -147,13 +148,6 @@ export default function AppShell(): JSX.Element {
                 end: true,
               },
               {
-                to: "/app/inca",
-                label: t("APP_INCA"),
-                // IMPORTANT: on réutilise un icon existant pour éviter une régression
-                icon: "archive",
-                colorClass: "text-amber-300",
-              },
-              {
                 to: "/app/core-drive",
                 label: t("APP_CORE_DRIVE"),
                 icon: "archive",
@@ -168,7 +162,10 @@ export default function AppShell(): JSX.Element {
             }
           />
 
+          {/* ...le reste inchangé... */}
           <main className="flex-1 min-w-0 flex flex-col">
+            {/* TOPBAR + CONTENT */}
+            {/* (inchangé) */}
             <div className="sticky top-0 z-[200] px-3 sm:px-4 pt-3">
               <CNCSTopbar
                 isDark={isDark}
