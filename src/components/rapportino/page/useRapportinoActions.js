@@ -1,384 +1,221 @@
-// /src/components/rapportino/page/useRapportinoActions.js
-import { supabase } from "../../../lib/supabaseClient";
-import { parseNumeric } from "../../../rapportinoUtils";
-import {
-  buildTempoOptions,
-  normalizeOperatorLabel,
-  normalizeLegacyTempoAlignment,
-} from "./rapportinoHelpers";
+// src/components/rapportino/page/useRapportinoActions.js
+/* eslint-disable no-console */
+import { normalizeOperatorLabel } from "../utils/normalizeOperatorLabel";
 
 /**
- * This module is intentionally deterministic and "no regress".
- * It contains only pure row transforms + the hardened save logic.
- *
- * Added (CORE signature A+B):
- * - removeOperatorFromRow(...)
- * - toggleOperatorInRow(...)
+ * Canonical:
+ * - In DB we store operator mapping in rapportino_row_operators (per row).
+ * - In UI, we keep row.operator_items as canonical items:
+ *   [{ operator_id, label, tempo_raw, tempo_hours, line_index }]
  */
 
+function splitLines(v) {
+  return String(v || "")
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 function joinLines(lines) {
-  return (Array.isArray(lines) ? lines : []).map((x) => String(x ?? "")).join("\n");
+  return (lines || []).join("\n");
 }
 
-function parseTempoToHours(raw) {
-  if (raw === null || raw === undefined) return null;
-  const s = String(raw).trim();
-  if (!s) return null;
-  const normalized = s.replace(",", ".");
-  const n = Number(normalized);
-  if (!Number.isFinite(n)) return null;
-  if (n < 0) return null;
-  return n;
+function safeNum(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
 }
 
-function buildCanonicalItemsFromRow(row) {
-  const items = Array.isArray(row?.operator_items) ? row.operator_items : [];
-  if (items.length > 0) {
-    return items
-      .slice()
-      .sort((a, b) => (a.line_index ?? 0) - (b.line_index ?? 0))
-      .map((it, idx) => ({
-        operator_id: it.operator_id,
-        label: normalizeOperatorLabel(it.label || ""),
-        tempo_raw: String(it.tempo_raw ?? "").trim(),
-        tempo_hours: parseTempoToHours(it.tempo_raw ?? it.tempo_hours),
-        line_index: idx,
-      }))
-      .filter((x) => !!x.operator_id);
-  }
-  return [];
-}
-
-export function addRowFromCatalog({ setRows }, activity) {
-  if (!activity?.id) return;
-
-  const previstoVal =
-    activity.previsto_value === null || activity.previsto_value === undefined ? "" : String(activity.previsto_value);
-
+export function addRow({ setRows }) {
   setRows((prev) => {
-    const nextIndex = prev.length;
+    const next = Array.isArray(prev) ? [...prev] : [];
+    next.push({
+      id: `tmp_${crypto.randomUUID()}`,
+      categoria: "",
+      descrizione_attivita: "",
+      operatori: "",
+      tempo: "",
+      previsto: "",
+      prodotto: "",
+      note: "",
+      // IMPORTANT: ensure canonical mode is always available even when empty
+      operator_items: [],
+    });
+    return next;
+  });
+}
 
-    return [
-      ...prev,
-      {
-        id: null,
-        row_index: nextIndex,
-        activity_id: activity.id,
+export function removeRow({ setRows }, rowIndex) {
+  setRows((prev) => {
+    const next = Array.isArray(prev) ? [...prev] : [];
+    if (rowIndex < 0 || rowIndex >= next.length) return prev;
+    next.splice(rowIndex, 1);
+    return next;
+  });
+}
 
-        categoria: activity.categoria || "",
-        descrizione: activity.descrizione || "",
-
-        operatori: "",
-        tempo: "",
-        previsto: previstoVal,
-        prodotto: "",
-        note: "",
-
-        operator_items: [],
-
-        __catalog_unit: activity.unit || null,
-        __catalog_type: activity.activity_type || null,
-      },
-    ];
+export function updateCell({ setRows }, rowIndex, key, value) {
+  setRows((prev) => {
+    const next = Array.isArray(prev) ? [...prev] : [];
+    if (rowIndex < 0 || rowIndex >= next.length) return prev;
+    next[rowIndex] = { ...next[rowIndex], [key]: value };
+    return next;
   });
 }
 
 export function addOperatorToRow({ setRows }, rowIndex, operator) {
-  const operator_id = operator?.id || null;
-  const label = normalizeOperatorLabel(operator?.name || "");
-  if (rowIndex == null || !operator_id || !label) return;
+  // Accept both UI shape { id, name } and canonical shape { operator_id, label }
+  const operator_id = operator?.operator_id || operator?.id || null;
+  const label = normalizeOperatorLabel(operator?.label || operator?.name || "");
+  if (!operator_id || !label) return;
 
   setRows((prev) => {
-    const next = [...prev];
-    const row = { ...next[rowIndex] };
+    const next = Array.isArray(prev) ? [...prev] : [];
+    const row = next[rowIndex];
+    if (!row) return prev;
 
-    const items = Array.isArray(row.operator_items) ? row.operator_items.slice() : [];
-    const exists = items.some((x) => String(x.operator_id) === String(operator_id));
+    const items = Array.isArray(row.operator_items) ? [...row.operator_items] : [];
 
-    if (!exists) {
-      const nextIndex = items.length;
-      items.push({
-        operator_id,
-        label,
-        tempo_raw: "",
-        tempo_hours: null,
-        line_index: nextIndex,
-      });
-    }
+    // prevent duplicates
+    if (items.some((it) => it?.operator_id === operator_id)) return prev;
 
-    const patched = items.map((it, idx) => ({ ...it, line_index: idx }));
+    const line_index = items.length;
 
-    row.operator_items = patched;
-    row.operatori = joinLines(patched.map((x) => x.label || ""));
-    row.tempo = joinLines(patched.map((x) => String(x.tempo_raw ?? "")));
+    items.push({
+      operator_id,
+      label,
+      tempo_raw: "",
+      tempo_hours: null,
+      line_index,
+    });
 
-    next[rowIndex] = row;
+    // Keep legacy fields in sync for display / exports
+    const operatori = joinLines(items.map((it) => it.label));
+    const tempo = joinLines(items.map((it) => String(it.tempo_raw ?? "")));
+
+    next[rowIndex] = {
+      ...row,
+      operator_items: items,
+      operatori,
+      tempo,
+    };
+
     return next;
   });
 }
 
-export function removeOperatorFromRow({ setRows }, rowIndex, operatorId) {
-  if (rowIndex == null || !operatorId) return;
+export function removeOperatorFromRow({ setRows }, rowIndex, operator_id) {
+  if (!operator_id) return;
 
   setRows((prev) => {
-    const next = [...prev];
-    const row = { ...next[rowIndex] };
-    const items = Array.isArray(row.operator_items) ? row.operator_items.slice() : [];
+    const next = Array.isArray(prev) ? [...prev] : [];
+    const row = next[rowIndex];
+    if (!row) return prev;
 
-    if (items.length === 0) return prev;
+    const items = Array.isArray(row.operator_items) ? [...row.operator_items] : [];
 
-    const filtered = items.filter((it) => String(it.operator_id) !== String(operatorId));
-    const patched = filtered.map((it, idx) => ({ ...it, line_index: idx }));
+    const filtered = items.filter((it) => it?.operator_id !== operator_id);
+    // reindex line_index
+    const reindexed = filtered.map((it, idx) => ({
+      ...it,
+      line_index: idx,
+    }));
 
-    row.operator_items = patched;
-    row.operatori = joinLines(patched.map((x) => x.label || ""));
-    row.tempo = joinLines(patched.map((x) => String(x.tempo_raw ?? "")));
+    const operatori = joinLines(reindexed.map((it) => it.label));
+    const tempo = joinLines(reindexed.map((it) => String(it.tempo_raw ?? "")));
 
-    next[rowIndex] = row;
+    next[rowIndex] = {
+      ...row,
+      operator_items: reindexed,
+      operatori,
+      tempo,
+    };
+
     return next;
   });
 }
 
-export function toggleOperatorInRow({ setRows }, rowIndex, operator, action) {
-  const operator_id = operator?.id || null;
-  const label = normalizeOperatorLabel(operator?.name || "");
-  if (rowIndex == null || !operator_id || !label) return;
+export function handleTempoChangeCanonical({ setRows }, rowIndex, operator_id, tempo_raw) {
+  if (!operator_id) return;
+
+  setRows((prev) => {
+    const next = Array.isArray(prev) ? [...prev] : [];
+    const row = next[rowIndex];
+    if (!row) return prev;
+
+    const items = Array.isArray(row.operator_items) ? [...row.operator_items] : [];
+
+    const idx = items.findIndex((it) => it?.operator_id === operator_id);
+    if (idx < 0) return prev;
+
+    const tRaw = String(tempo_raw ?? "").trim();
+    const hours = tRaw ? safeNum(tRaw.replace(",", ".")) : null;
+
+    items[idx] = {
+      ...items[idx],
+      tempo_raw: tRaw,
+      tempo_hours: hours,
+    };
+
+    const operatori = joinLines(items.map((it) => it.label));
+    const tempo = joinLines(items.map((it) => String(it.tempo_raw ?? "")));
+
+    next[rowIndex] = {
+      ...row,
+      operator_items: items,
+      operatori,
+      tempo,
+    };
+
+    return next;
+  });
+}
+
+export function handleTempoChangeLegacy({ setRows }, rowIndex, value) {
+  // Legacy tempo is allowed only when there is no canonical operator_items
+  setRows((prev) => {
+    const next = Array.isArray(prev) ? [...prev] : [];
+    const row = next[rowIndex];
+    if (!row) return prev;
+
+    const items = Array.isArray(row.operator_items) ? row.operator_items : [];
+    if (items.length > 0) return prev; // locked when canonical exists
+
+    next[rowIndex] = { ...row, tempo: value };
+    return next;
+  });
+}
+
+export function toggleOperatorInRow({ setRows }, rowIndex, action, operator) {
+  // operator: { id, name }
+  if (!operator?.id) return;
+
+  const operator_id = operator.id;
+  const label = operator.name || "";
 
   if (action === "remove") {
     removeOperatorFromRow({ setRows }, rowIndex, operator_id);
     return;
   }
 
-  addOperatorToRow({ setRows }, rowIndex, { id: operator_id, name: label });
-}
-
-export function setCanonicalTempoForLine({ setRows }, rowIndex, lineIndex, tempoRaw) {
-  const raw = String(tempoRaw ?? "").trim();
-
-  setRows((prev) => {
-    const next = [...prev];
-    const row = { ...next[rowIndex] };
-    const items = Array.isArray(row.operator_items) ? row.operator_items.slice() : [];
-
-    if (items.length === 0) return prev;
-    if (lineIndex < 0 || lineIndex >= items.length) return prev;
-
-    const patched = items.map((it, idx) => {
-      if (idx !== lineIndex) return { ...it, line_index: idx };
-      const hours = parseTempoToHours(raw);
-      return { ...it, tempo_raw: raw, tempo_hours: hours, line_index: idx };
+  // toggle: if already present -> remove else add
+  const currentItems = (() => {
+    // We read current row snapshot from setRows closure by doing a minimal pass
+    // (cheap enough, avoids needing external state).
+    let items = [];
+    setRows((prev) => {
+      const row = Array.isArray(prev) ? prev[rowIndex] : null;
+      items = Array.isArray(row?.operator_items) ? row.operator_items : [];
+      return prev;
     });
+    return items;
+  })();
 
-    row.operator_items = patched;
-    row.operatori = joinLines(patched.map((x) => x.label || ""));
-    row.tempo = joinLines(patched.map((x) => String(x.tempo_raw ?? "")));
+  const exists = Array.isArray(currentItems) && currentItems.some((it) => it?.operator_id === operator_id);
 
-    next[rowIndex] = row;
-    return next;
-  });
-}
-
-export function handleTempoChangeLegacy({ setRows }, rowIndex, value) {
-  setRows((prev) => {
-    const next = [...prev];
-    const row = { ...next[rowIndex] };
-
-    const items = Array.isArray(row.operator_items) ? row.operator_items.slice() : [];
-    if (items.length > 0) return prev; // canonical => no free edit
-
-    row.tempo = normalizeLegacyTempoAlignment(row.operatori || "", value);
-    next[rowIndex] = row;
-    return next;
-  });
-}
-
-export async function removeRow({ rows, setRows }, index, { canEdit }) {
-  if (!canEdit) return { ok: false, reason: "readonly" };
-
-  setRows((prev) => {
-    const copy = [...prev];
-    copy.splice(index, 1);
-    return copy.map((r, idx) => ({ ...r, row_index: idx }));
-  });
-
-  return { ok: true };
-}
-
-/**
- * Hardened save (unchanged semantics):
- * - overwrites categoria/descrizione/previsto for activity_id rows from catalogo_attivita
- * - rebuild canonical row operators into rapportino_row_operators
- */
-export async function saveRapportino({
-  profileId,
-  crewRole,
-  reportDate,
-  status,
-  forcedStatus,
-  costr,
-  commessa,
-  prodottoTotale,
-  rows,
-  rapportinoId,
-  setRapportinoId,
-  setRapportinoCrewRole,
-  setStatus,
-  loadReturnedInbox,
-  setSuccessMessage,
-}) {
-  if (!profileId) throw new Error("Missing profileId");
-
-  const newStatus = forcedStatus || status || "DRAFT";
-
-  const activityIds = rows.map((r) => r.activity_id).filter(Boolean);
-  const ids = Array.from(new Set(activityIds.map((x) => String(x))));
-
-  let catalogMap = new Map();
-  if (ids.length > 0) {
-    const { data, error } = await supabase
-      .from("catalogo_attivita")
-      .select("id, categoria, descrizione, previsto_value, unit, activity_type, is_active")
-      .in("id", ids);
-
-    if (error) throw error;
-
-    const m = new Map();
-    for (const r of data || []) m.set(String(r.id), r);
-    catalogMap = m;
+  if (exists) {
+    removeOperatorFromRow({ setRows }, rowIndex, operator_id);
+    return;
   }
 
-  const cleanRows = rows.map((r, idx) => {
-    const canonical = buildCanonicalItemsFromRow(r);
-
-    const activityId = r.activity_id || null;
-    const cat = activityId ? catalogMap.get(String(activityId)) : null;
-
-    const categoriaCanon = cat?.categoria ?? String(r.categoria || "").trim();
-    const descrizioneCanon = cat?.descrizione ?? String(r.descrizione || "").trim();
-
-    const previstoCanon =
-      cat?.previsto_value === null || cat?.previsto_value === undefined
-        ? parseNumeric(r.previsto)
-        : Number(cat.previsto_value);
-
-    const operatoriText =
-      canonical.length > 0 ? joinLines(canonical.map((x) => x.label)) : String(r.operatori || "").trim();
-
-    const tempoText =
-      canonical.length > 0
-        ? joinLines(canonical.map((x) => String(x.tempo_raw || "").trim()))
-        : normalizeLegacyTempoAlignment(operatoriText, String(r.tempo || "").trim());
-
-    return {
-      activity_id: activityId,
-      categoria: categoriaCanon,
-      descrizione: descrizioneCanon,
-      operatori: operatoriText,
-      tempo: tempoText,
-      previsto: Number.isFinite(previstoCanon) ? previstoCanon : null,
-      prodotto: parseNumeric(r.prodotto),
-      note: String(r.note || "").trim(),
-      row_index: idx,
-      __canonical_items: canonical,
-    };
-  });
-
-  let newId = rapportinoId;
-
-  if (!newId) {
-    const { data: inserted, error: insertError } = await supabase
-      .from("rapportini")
-      .insert({
-        capo_id: profileId,
-        crew_role: crewRole,
-        report_date: reportDate,
-        data: reportDate,
-        costr,
-        commessa,
-        status: newStatus,
-        prodotto_totale: prodottoTotale,
-      })
-      .select("*")
-      .single();
-
-    if (insertError) throw insertError;
-
-    newId = inserted.id;
-    setRapportinoId?.(inserted.id);
-    setRapportinoCrewRole?.(inserted.crew_role || crewRole);
-  } else {
-    const { error: updateError } = await supabase
-      .from("rapportini")
-      .update({
-        costr,
-        commessa,
-        status: newStatus,
-        prodotto_totale: prodottoTotale,
-        report_date: reportDate,
-        data: reportDate,
-      })
-      .eq("id", newId);
-
-    if (updateError) throw updateError;
-
-    const { error: deleteError } = await supabase.from("rapportino_rows").delete().eq("rapportino_id", newId);
-    if (deleteError) throw deleteError;
-  }
-
-  let insertedRows = [];
-  if (cleanRows.length > 0) {
-    const rowsToInsert = cleanRows.map((r) => ({
-      rapportino_id: newId,
-      row_index: r.row_index,
-      activity_id: r.activity_id,
-      categoria: r.categoria,
-      descrizione: r.descrizione,
-      operatori: r.operatori,
-      tempo: r.tempo,
-      previsto: r.previsto,
-      prodotto: r.prodotto,
-      note: r.note,
-    }));
-
-    const { data: rrInserted, error: insertRowsError } = await supabase
-      .from("rapportino_rows")
-      .insert(rowsToInsert)
-      .select("id, row_index")
-      .order("row_index", { ascending: true });
-
-    if (insertRowsError) throw insertRowsError;
-    insertedRows = Array.isArray(rrInserted) ? rrInserted : [];
-  }
-
-  if (insertedRows.length > 0) {
-    const byIndex = new Map(insertedRows.map((x) => [x.row_index, x.id]));
-    const canonicalInserts = [];
-
-    for (const r of cleanRows) {
-      const rowId = byIndex.get(r.row_index);
-      if (!rowId) continue;
-
-      const canon = r.__canonical_items || [];
-      if (!Array.isArray(canon) || canon.length === 0) continue;
-
-      for (const it of canon) {
-        canonicalInserts.push({
-          rapportino_row_id: rowId,
-          operator_id: it.operator_id,
-          line_index: it.line_index ?? 0,
-          tempo_raw: it.tempo_raw ?? "",
-          tempo_hours: it.tempo_hours ?? null,
-        });
-      }
-    }
-
-    if (canonicalInserts.length > 0) {
-      const { error: canonErr } = await supabase.from("rapportino_row_operators").insert(canonicalInserts);
-      if (canonErr) throw canonErr;
-    }
-  }
-
-  setStatus?.(newStatus);
-  setSuccessMessage?.("Salvataggio riuscito.");
-  await loadReturnedInbox?.();
+  addOperatorToRow({ setRows }, rowIndex, { id: operator_id, name: label });
 }
