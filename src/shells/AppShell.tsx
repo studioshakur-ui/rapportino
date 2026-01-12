@@ -1,6 +1,6 @@
 // src/shells/AppShell.tsx
 import React, { useEffect, useMemo, useState } from "react";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthProvider";
 import { useShip } from "../context/ShipContext";
@@ -18,14 +18,47 @@ import { formatDisplayName } from "../utils/formatHuman";
 // CAPO
 import CapoTodayOperatorsPanel from "../capo/CapoTodayOperatorsPanel";
 
-type OutletCtx = {
-  opDropToken: number;
+type OutletCtx = { opDropToken: number };
+
+// Typage minimal “safe”
+type ProfileLike = unknown;
+
+type AuthLike = {
+  profile: ProfileLike | null;
+  signOut: (args: { reason: string }) => Promise<void>;
+  refresh: () => Promise<void>;
 };
 
+type ShipCtxLike = {
+  resetShipContext: () => void;
+};
+
+function useIsMobile(breakpointPx = 768): boolean {
+  const [isMobile, setIsMobile] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia(`(max-width: ${breakpointPx - 1}px)`).matches;
+  });
+
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${breakpointPx - 1}px)`);
+    const onChange = () => setIsMobile(mq.matches);
+    onChange();
+
+    // Safari compat
+    if (typeof mq.addEventListener === "function") {
+      mq.addEventListener("change", onChange);
+      return () => mq.removeEventListener("change", onChange);
+    }
+    mq.addListener(onChange);
+    return () => mq.removeListener(onChange);
+  }, [breakpointPx]);
+
+  return isMobile;
+}
+
 export default function AppShell(): JSX.Element {
-  // IMPORTANT: on garde signOut (stable) + désormais supporté par AuthProvider
-  const { profile, signOut, refresh } = useAuth();
-  const { currentShip, resetShipContext } = useShip();
+  const { profile, signOut, refresh } = useAuth() as unknown as AuthLike;
+  const { resetShipContext } = useShip() as unknown as ShipCtxLike;
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useI18n();
@@ -33,13 +66,21 @@ export default function AppShell(): JSX.Element {
   // CORE 1.0 – CAPO dark-only
   const isDark = true;
 
+  const isMobile = useIsMobile(768);
+
+  /* ───────────────────────── Route label ───────────────────────── */
+
   const pathname = location.pathname || "";
-  const isInca = pathname.startsWith("/app/inca");
   const isCoreDrive = pathname.startsWith("/app/core-drive") || pathname.startsWith("/app/archive");
   const isKpi = pathname.startsWith("/app/kpi-operatori");
-  const isInca = pathname.includes("/inca");
 
-  const pageLabel = isCoreDrive ? t("APP_CORE_DRIVE") : isKpi ? t("APP_KPI_OPERATORI") : t("APP_RAPPORTINO");
+  const pageLabel = isCoreDrive
+    ? t("APP_CORE_DRIVE")
+    : isKpi
+    ? t("APP_KPI_OPERATORI")
+    : t("APP_RAPPORTINO");
+
+  /* ───────────────────────── Sidebar state ───────────────────────── */
 
   const [sidebarPeek, setSidebarPeek] = useState<boolean>(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
@@ -60,7 +101,19 @@ export default function AppShell(): JSX.Element {
     }
   }, [sidebarCollapsed]);
 
+  /* ───────────────────────── Drag token (CAPO) ───────────────────────── */
+
   const [opDropToken, setOpDropToken] = useState<number>(0);
+
+  /* ───────────────────────── Mobile drawer ───────────────────────── */
+
+  const [mobileNavOpen, setMobileNavOpen] = useState<boolean>(false);
+  useEffect(() => {
+    // ferme le drawer quand on change de route
+    setMobileNavOpen(false);
+  }, [pathname]);
+
+  /* ───────────────────────── Logout ───────────────────────── */
 
   const handleLogout = async (): Promise<void> => {
     try {
@@ -78,6 +131,8 @@ export default function AppShell(): JSX.Element {
     }
   };
 
+  /* ───────────────────────── Display name (human-normalized) ───────────────────────── */
+
   const displayName = useMemo(() => {
     return formatDisplayName(profile, "Capo");
   }, [profile]);
@@ -90,10 +145,30 @@ export default function AppShell(): JSX.Element {
     );
   }
 
-  const contentWrapClass = "w-full max-w-[1480px] mx-auto space-y-4";
+  /* ───────────────────────── Layout constants ───────────────────────── */
+
+  // Mobile-first: pleine largeur. Desktop: max-width.
+  const contentWrapClass = "w-full md:max-w-[1480px] md:mx-auto space-y-4";
+
+  const navItems = [
+    {
+      to: "/app",
+      label: t("APP_RAPPORTINO"),
+      icon: "rapportino" as const,
+      colorClass: "text-sky-400",
+      end: true,
+    },
+    {
+      to: "/app/core-drive",
+      label: t("APP_CORE_DRIVE"),
+      icon: "archive" as const,
+      colorClass: "text-violet-400",
+    },
+  ];
 
   return (
     <>
+      {/* ───────────── Idle / Session security ───────────── */}
       <IdleSessionManager
         enabled
         warnAfterMs={25 * 60 * 1000}
@@ -127,49 +202,64 @@ export default function AppShell(): JSX.Element {
         }}
       />
 
-      <div className="min-h-screen bg-[#050910] text-slate-100">
+      {/* ───────────── App shell ───────────── */}
+      <div className="min-h-screen bg-[#050910] text-slate-100 overflow-x-hidden">
         <div className="flex min-h-screen">
-          <CNCSSidebar
-            isDark={isDark}
-            title="CNCS"
-            subtitle="Capo"
-            roleLabel="CAPO"
-            collapsed={sidebarCollapsed}
-            setCollapsed={setSidebarCollapsed}
-            sidebarPeek={sidebarPeek}
-            setSidebarPeek={setSidebarPeek}
-            storageKey="core-sidebar-collapsed"
-            navItems={[
-              {
-                to: "/app",
-                label: t("APP_RAPPORTINO"),
-                icon: "rapportino",
-                colorClass: "text-sky-400",
-                end: true,
-              },
-              {
-                to: "/app/core-drive",
-                label: t("APP_CORE_DRIVE"),
-                icon: "archive",
-                colorClass: "text-violet-400",
-              },
-            ]}
-            bottomSlot={
-              <CapoTodayOperatorsPanel mode="expanded" onOperatorDragStart={() => setOpDropToken((v: number) => v + 1)} />
-            }
-            bottomSlotCollapsed={
-              <CapoTodayOperatorsPanel mode="collapsed" onOperatorDragStart={() => setOpDropToken((v: number) => v + 1)} />
-            }
-          />
+          {/* SIDEBAR (DESKTOP ONLY) */}
+          {!isMobile && (
+            <CNCSSidebar
+              isDark={isDark}
+              title="CNCS"
+              subtitle="Capo"
+              roleLabel="CAPO"
+              collapsed={sidebarCollapsed}
+              setCollapsed={setSidebarCollapsed}
+              sidebarPeek={sidebarPeek}
+              setSidebarPeek={setSidebarPeek}
+              storageKey="core-sidebar-collapsed"
+              navItems={navItems}
+              bottomSlot={
+                <CapoTodayOperatorsPanel
+                  mode="expanded"
+                  onOperatorDragStart={() => setOpDropToken((v: number) => v + 1)}
+                />
+              }
+              bottomSlotCollapsed={
+                <CapoTodayOperatorsPanel
+                  mode="collapsed"
+                  onOperatorDragStart={() => setOpDropToken((v: number) => v + 1)}
+                />
+              }
+            />
+          )}
 
-          {/* ...le reste inchangé... */}
+          {/* MAIN */}
           <main className="flex-1 min-w-0 flex flex-col">
-            {/* TOPBAR + CONTENT */}
-            {/* (inchangé) */}
+            {/* TOPBAR */}
             <div className="sticky top-0 z-[200] px-3 sm:px-4 pt-3">
               <CNCSTopbar
                 isDark={isDark}
-                kickerLeft={<ConnectionIndicator />}
+                kickerLeft={
+                  <div className="flex items-center gap-2">
+                    {isMobile ? (
+                      <button
+                        type="button"
+                        onClick={() => setMobileNavOpen(true)}
+                        className={[
+                          "inline-flex items-center justify-center rounded-xl border px-3 py-2",
+                          "border-slate-800 bg-[#050910]/60 text-slate-200",
+                          "hover:bg-slate-900/40 transition",
+                          "text-xs font-semibold tracking-[0.18em] uppercase",
+                        ].join(" ")}
+                        aria-label="Menu"
+                        title="Menu"
+                      >
+                        ☰
+                      </button>
+                    ) : null}
+                    <ConnectionIndicator />
+                  </div>
+                }
                 title={pageLabel}
                 right={
                   <div className="flex items-center gap-2">
@@ -177,6 +267,7 @@ export default function AppShell(): JSX.Element {
                       <LangSwitcher compact />
                     </div>
 
+                    {/* User name — human case */}
                     <span
                       className={[
                         "inline-flex items-center gap-2 rounded-xl border px-3 py-2",
@@ -189,6 +280,7 @@ export default function AppShell(): JSX.Element {
                       {displayName}
                     </span>
 
+                    {/* Logout */}
                     <button
                       type="button"
                       onClick={handleLogout}
@@ -209,6 +301,7 @@ export default function AppShell(): JSX.Element {
               />
             </div>
 
+            {/* CONTENT */}
             <div className="flex-1 min-h-0 overflow-auto">
               <div className={`${contentWrapClass} px-3 sm:px-4 pb-6`}>
                 <Outlet context={{ opDropToken } as OutletCtx} />
@@ -216,6 +309,86 @@ export default function AppShell(): JSX.Element {
             </div>
           </main>
         </div>
+
+        {/* MOBILE DRAWER */}
+        {isMobile && mobileNavOpen ? (
+          <div className="fixed inset-0 z-[500]">
+            <button
+              type="button"
+              className="absolute inset-0 bg-black/60"
+              onClick={() => setMobileNavOpen(false)}
+              aria-label="Close menu"
+            />
+            <div
+              className={[
+                "absolute left-0 top-0 h-full w-[86%] max-w-[360px]",
+                "bg-[#050910] border-r border-slate-800",
+                "p-4 flex flex-col gap-4",
+              ].join(" ")}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Navigation"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs tracking-[0.24em] uppercase text-slate-500">CNCS</div>
+                  <div className="text-lg font-semibold text-slate-100">Capo</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMobileNavOpen(false)}
+                  className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-slate-200"
+                  aria-label="Close"
+                  title="Close"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                {navItems.map((it) => (
+                  <Link
+                    key={it.to}
+                    to={it.to}
+                    className={[
+                      "block rounded-2xl border px-4 py-3",
+                      "border-slate-800 bg-slate-950/40 hover:bg-slate-900/40 transition",
+                      "text-slate-100",
+                    ].join(" ")}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold">{it.label}</span>
+                      <span className={["text-xs", it.colorClass].join(" ")}>●</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+
+              <div className="mt-2 rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
+                <CapoTodayOperatorsPanel
+                  mode="expanded"
+                  onOperatorDragStart={() => setOpDropToken((v: number) => v + 1)}
+                />
+              </div>
+
+              <div className="mt-auto">
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className={[
+                    "w-full inline-flex items-center justify-center gap-2 rounded-xl border px-3 py-3",
+                    "border-rose-900/50 bg-[#050910]/60 text-rose-200",
+                    "hover:bg-rose-900/25 transition",
+                    "text-xs font-semibold tracking-[0.18em] uppercase",
+                  ].join(" ")}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-rose-400" />
+                  {t("LOGOUT")}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </>
   );
