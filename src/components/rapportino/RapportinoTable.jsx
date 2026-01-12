@@ -1,353 +1,238 @@
-// /src/components/rapportino/RapportinoTable.jsx
+// src/components/rapportino/RapportinoTable.jsx
 import React, { useMemo } from "react";
-import { formatPrevisto } from "../../rapportinoUtils";
-import { splitLinesKeepEmpties } from "../rapportino/page/rapportinoHelpers";
 
-function PrintText({ value }) {
-  return <div className="rapportino-print-text">{value || ""}</div>;
-}
-
-function cn(...parts) {
-  return parts.filter(Boolean).join(" ");
+function splitLines(v) {
+  return String(v || "")
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
-function prettyMultiline(v) {
-  if (!v) return "";
-  const s = String(v ?? "").replace(/\r/g, "");
-  return s;
-}
-
-function hasNonZeroNumber(v) {
-  if (v === null || v === undefined) return false;
-  const n = Number(v);
-  return Number.isFinite(n) && n !== 0;
-}
-function hasAnyTempoValue(v) {
-  const s = String(v ?? "").trim();
-  if (!s) return false;
-  return s.split("\n").some((x) => String(x || "").trim().length > 0);
-}
-function hasAnyOperatorValueLegacy(v) {
-  const s = String(v ?? "").trim();
-  if (!s) return false;
-  return s.split("\n").some((x) => String(x || "").trim().length > 0);
-}
-
-function readDroppedOperator(e) {
-  try {
-    const name = e.dataTransfer.getData("text/core-operator-name");
-    const id = e.dataTransfer.getData("text/core-operator-id");
-    const nm = String(name || "").trim();
-    const opId = String(id || "").trim();
-    if (!nm) return null;
-    return { id: opId || null, name: nm };
-  } catch {
-    return null;
-  }
+function hasAnyText(v) {
+  return String(v || "").trim().length > 0;
 }
 
 export default function RapportinoTable({
   rows,
-  onRowChange,
+  onChangeCell,
+  onAddRow,
   onRemoveRow,
-  onRemoveOperatorFromRow,
-  readOnly = false,
   onOpenOperatorPicker,
+  onRemoveOperatorFromRow,
   onOpenTempoPicker,
-  onDropOperatorToRow, // (rowIndex, {id,name}) => void
+  onChangeTempoLegacy,
 }) {
-  const ro = readOnly || !onRowChange;
-
   const canonicalByIdx = useMemo(() => {
     return rows.map((r) => {
-      const items = Array.isArray(r?.operator_items) ? r.operator_items : [];
-      return items.length > 0;
+      // Canonical mode must be enabled even when the list is empty,
+      // otherwise the user cannot pick the FIRST operator.
+      return Array.isArray(r?.operator_items);
     });
   }, [rows]);
 
   return (
-    <div className="mt-3">
-      <table className="rapportino-table text-[11px] w-full">
-        <thead>
-          <tr className="bg-slate-50">
-            <th className="px-2 py-2 text-left w-[140px]">CATEGORIA</th>
-            <th className="px-2 py-2 text-left w-[360px]">DESCRIZIONE ATTIVITÀ</th>
-
-            <th className="px-2 py-2 text-left w-[260px]">
-              OPERATORE
-              <div className="text-[10px] text-slate-500 font-normal">(tap per scegliere / drag&drop)</div>
+    <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/40">
+      <table className="w-full min-w-[1120px]">
+        <thead className="sticky top-0 z-10 bg-slate-950/70 backdrop-blur border-b border-slate-800">
+          <tr className="text-left text-[11px] tracking-wide uppercase text-slate-500">
+            <th className="px-3 py-3 w-[140px]">Categoria</th>
+            <th className="px-3 py-3 w-[340px]">Descrizione attivitá</th>
+            <th className="px-3 py-3 w-[300px]">
+              Operatore
+              <div className="text-[10px] normal-case tracking-normal text-slate-600">
+                (tap per scegliere / drag&drop)
+              </div>
             </th>
-
-            <th className="px-2 py-2 text-center w-[140px]">
-              TEMPO
-              <br />
-              <span className="text-[10px] text-slate-500">(ORE)</span>
-            </th>
-
-            <th className="px-2 py-2 text-right w-[120px]">PREVISTO</th>
-            <th className="px-2 py-2 text-right w-[120px]">
-              PRODOTTO
-              <br />
-              <span className="text-[10px] text-slate-500">(MT)</span>
-            </th>
-            <th className="px-2 py-2 text-left">NOTE</th>
-            {!ro && <th className="px-2 py-2 text-center w-[60px] no-print">×</th>}
+            <th className="px-3 py-3 w-[120px]">Tempo (ore)</th>
+            <th className="px-3 py-3 w-[120px]">Previsto</th>
+            <th className="px-3 py-3 w-[120px]">Prodotto (mt)</th>
+            <th className="px-3 py-3 w-[220px]">Note</th>
+            <th className="px-3 py-3 w-[60px] text-right"> </th>
           </tr>
         </thead>
 
         <tbody>
           {rows.map((r, idx) => {
-            const isCanonical = canonicalByIdx[idx];
+            const isCanonical = !!canonicalByIdx[idx];
 
-            // ENFORCEMENT: colonnes Catalog = non éditables (même si pas activity_id)
-            const catalogColsLocked = true;
+            const canonItems = isCanonical
+              ? Array.isArray(r?.operator_items)
+                ? r.operator_items
+                : []
+              : [];
 
-            const opLines = splitLinesKeepEmpties(r.operatori);
-            const canonItems = Array.isArray(r.operator_items) ? r.operator_items : [];
-            const legacyHasOps = hasAnyOperatorValueLegacy(r.operatori);
+            const hasOperators = isCanonical
+              ? canonItems.length > 0
+              : hasAnyText(r.operatori);
 
-            const hasOperators = isCanonical ? canonItems.length > 0 : legacyHasOps;
-            const hasValues = hasNonZeroNumber(r.previsto) || hasNonZeroNumber(r.prodotto) || hasAnyTempoValue(r.tempo);
-            const isIncomplete = hasOperators !== hasValues;
+            const tempoDisabled = isCanonical ? canonItems.length === 0 : false;
 
-            const tempoPillEnabled = !ro && hasOperators;
+            const legacyOperatorLines = !isCanonical ? splitLines(r.operatori) : [];
+            const legacyTempoLines = !isCanonical ? splitLines(r.tempo) : [];
 
             return (
-              <tr key={r.id || idx} className="align-top" data-ot-wrap>
-                {/* CATEGORIA (LOCKED) */}
-                <td className="px-2 py-2">
-                  <div className="flex items-start gap-2">
-                    <input
-                      className={cn("w-full bg-transparent outline-none", "opacity-90 cursor-not-allowed")}
-                      value={r.categoria || ""}
-                      onChange={undefined}
-                      disabled={true}
-                      readOnly={true}
-                      title="Colonna gestita dal Catalogo"
-                    />
-                    <span
-                      className="no-print inline-flex items-center rounded-full border border-slate-300 bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-700"
-                      title="Catalogo"
-                    >
-                      C
-                    </span>
-                    {!ro && isIncomplete ? (
-                      <span
-                        className="no-print inline-flex items-center rounded-full border border-amber-300 bg-amber-100 px-2 py-1 text-[10px] font-semibold text-amber-900"
-                        title="Riga incompleta: aggiungi operatori oppure compila prodotto/tempo"
-                      >
-                        !
-                      </span>
-                    ) : null}
-                  </div>
-                </td>
-
-                {/* DESCRIZIONE (LOCKED) */}
-                <td className="px-2 py-2">
+              <tr key={r.id || idx} className="border-b border-slate-900/70">
+                {/* Categoria */}
+                <td className="px-3 py-3 align-top">
                   <input
-                    className={cn("w-full bg-transparent outline-none", "opacity-90 cursor-not-allowed")}
-                    value={r.descrizione || ""}
-                    onChange={undefined}
-                    disabled={true}
-                    readOnly={true}
-                    title="Colonna gestita dal Catalogo"
+                    value={r.categoria || ""}
+                    onChange={(e) => onChangeCell(idx, "categoria", e.target.value)}
+                    className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[13px] text-slate-100"
                   />
                 </td>
 
-                {/* OPERATORE (CLICK + DROP) */}
-                <td className="px-2 py-2">
-                  {isCanonical ? (
-                    <>
-                      <button
-                        type="button"
-                        className={cn(
-                          "no-print w-full rounded-md border border-slate-200 bg-white/70 px-2 py-2 text-left",
-                          ro ? "opacity-80 cursor-not-allowed" : "cursor-pointer hover:bg-slate-50",
-                          !ro ? "focus:outline-none focus:ring-2 focus:ring-sky-500/35" : ""
-                        )}
-                        disabled={ro}
-                        title={ro ? undefined : "Tocca per scegliere… o trascina un operatore qui"}
-                        onClick={() => {
-                          if (ro) return;
-                          onOpenOperatorPicker?.(idx);
-                        }}
-                        onDragOver={(e) => {
-                          if (ro) return;
-                          e.preventDefault();
-                          try {
-                            e.dataTransfer.dropEffect = "copy";
-                          } catch {}
-                        }}
-                        onDrop={(e) => {
-                          if (ro) return;
-                          e.preventDefault();
-                          const dropped = readDroppedOperator(e);
-                          if (!dropped) return;
-                          onDropOperatorToRow?.(idx, dropped);
-                        }}
-                      >
-                        <div className="flex flex-wrap gap-2">
-                          {canonItems.length === 0 ? (
-                            <span className="text-slate-400 text-[12px]">Tocca per scegliere…</span>
-                          ) : (
-                            canonItems.map((it) => {
-                              const operatorId = it?.operator_id;
-                              const label = String(it?.label || "").trim() || "Operatore";
-                              return (
-                                <span
-                                  key={String(operatorId)}
-                                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[12px] font-semibold text-slate-900"
-                                  title={label}
-                                >
-                                  <span className="max-w-[180px] truncate">{label}</span>
-                                  {!ro ? (
-                                    <button
-                                      type="button"
-                                      className="rounded-full border border-slate-200 w-6 h-6 inline-flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-50"
-                                      title="Rimuovi operatore"
-                                      aria-label={`Rimuovi ${label}`}
-                                      onClick={(ev) => {
-                                        ev.stopPropagation();
-                                        if (!operatorId) return;
-                                        onRemoveOperatorFromRow?.(idx, operatorId);
-                                      }}
-                                    >
-                                      ×
-                                    </button>
-                                  ) : null}
-                                </span>
-                              );
-                            })
-                          )}
-                        </div>
-                      </button>
+                {/* Descrizione */}
+                <td className="px-3 py-3 align-top">
+                  <textarea
+                    value={r.descrizione_attivita || ""}
+                    onChange={(e) => onChangeCell(idx, "descrizione_attivita", e.target.value)}
+                    rows={2}
+                    className="w-full resize-none rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[13px] text-slate-100"
+                  />
+                </td>
 
-                      <div className="print-only">
-                        <PrintText value={r.operatori} />
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      {/* Legacy (si te reste encore): affichage simple */}
-                      <div className="no-print w-full rounded-md border border-slate-200 bg-white/60 px-2 py-2 text-[12px] text-slate-900 whitespace-pre-wrap">
-                        {prettyMultiline(r.operatori) ? (
-                          prettyMultiline(r.operatori)
+                {/* Operatore */}
+                <td className="px-3 py-3 align-top">
+                  <div className="space-y-2">
+                    {isCanonical ? (
+                      <>
+                        {canonItems.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {canonItems.map((it) => (
+                              <span
+                                key={it.operator_id}
+                                className="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/60 px-3 py-1 text-[12px] text-slate-200"
+                              >
+                                <span className="font-semibold">{it.label}</span>
+                                <button
+                                  type="button"
+                                  className="text-slate-400 hover:text-rose-300"
+                                  title="Rimuovi"
+                                  onClick={() => onRemoveOperatorFromRow(idx, it.operator_id)}
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                          </div>
                         ) : (
-                          <span className="text-slate-400">Nomi operatori (uno per riga)</span>
+                          <div className="text-[12px] text-slate-500">
+                            Tocca per scegliere…
+                          </div>
                         )}
-                      </div>
-                      <div className="print-only">
-                        <PrintText value={r.operatori} />
-                      </div>
-                    </>
+
+                        <button
+                          type="button"
+                          onClick={() => onOpenOperatorPicker(idx)}
+                          className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[12px] text-slate-200 hover:bg-slate-900/40"
+                        >
+                          Seleziona operatori
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        {/* Legacy input */}
+                        <textarea
+                          value={r.operatori || ""}
+                          onChange={(e) => onChangeCell(idx, "operatori", e.target.value)}
+                          rows={2}
+                          placeholder="Nomi operatori (uno per riga)"
+                          className="w-full resize-none rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[13px] text-slate-100"
+                        />
+
+                        {legacyOperatorLines.length > 0 && (
+                          <div className="text-[11px] text-slate-500">
+                            Righe: {legacyOperatorLines.length} — Tempo: {legacyTempoLines.length}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </td>
+
+                {/* Tempo */}
+                <td className="px-3 py-3 align-top">
+                  {isCanonical ? (
+                    <button
+                      type="button"
+                      onClick={() => onOpenTempoPicker(idx)}
+                      disabled={tempoDisabled}
+                      className={[
+                        "w-full rounded-xl border px-3 py-2 text-[12px] text-left",
+                        tempoDisabled
+                          ? "border-slate-900 bg-slate-950/40 text-slate-600 cursor-not-allowed"
+                          : "border-slate-800 bg-slate-950/60 text-slate-200 hover:bg-slate-900/40",
+                      ].join(" ")}
+                      title={tempoDisabled ? "Seleziona prima almeno un operatore" : "Imposta tempi per operatore"}
+                    >
+                      {hasOperators ? "Imposta…" : "—"}
+                    </button>
+                  ) : (
+                    <input
+                      value={r.tempo || ""}
+                      onChange={(e) => onChangeTempoLegacy(idx, e.target.value)}
+                      className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[13px] text-slate-100"
+                      placeholder="Tempo (uno per riga)"
+                    />
                   )}
                 </td>
 
-                {/* TEMPO */}
-                <td className="px-2 py-2 text-center">
-                  <div
-                    className={cn(
-                      "no-print w-full rounded-xl border border-slate-200 bg-white/80 px-2.5 py-2",
-                      tempoPillEnabled
-                        ? "cursor-pointer hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-sky-500/35"
-                        : "opacity-70 cursor-not-allowed"
-                    )}
-                    role={tempoPillEnabled ? "button" : undefined}
-                    tabIndex={tempoPillEnabled ? 0 : -1}
-                    title={!hasOperators ? "Prima inserisci almeno un operatore" : ro ? undefined : "Tocca per impostare le ore…"}
-                    onClick={() => {
-                      if (!tempoPillEnabled) return;
-                      onOpenTempoPicker?.(idx);
-                    }}
-                    onKeyDown={(e) => {
-                      if (!tempoPillEnabled) return;
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        onOpenTempoPicker?.(idx);
-                      }
-                    }}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Tempo</div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] text-slate-500">
-                          {hasOperators ? `${opLines.filter((x) => String(x || "").trim()).length || opLines.length} op` : "0 op"}
-                        </span>
-                        {tempoPillEnabled ? <span className="text-[12px] text-slate-400">›</span> : null}
-                      </div>
-                    </div>
-
-                    <div className="mt-1 text-[12px] font-semibold text-slate-900 text-center whitespace-pre-wrap leading-5">
-                      {prettyMultiline(r.tempo) ? prettyMultiline(r.tempo) : "Tocca per impostare…"}
-                    </div>
-                  </div>
-
-                  <div className="print-only text-center">
-                    <PrintText value={r.tempo} />
-                  </div>
-                </td>
-
-                {/* PREVISTO (LOCKED) */}
-                <td className="px-2 py-2 text-right">
+                {/* Previsto */}
+                <td className="px-3 py-3 align-top">
                   <input
-                    className={cn("w-full bg-transparent outline-none text-right", "opacity-90 cursor-not-allowed")}
-                    value={formatPrevisto(r.previsto)}
-                    onChange={undefined}
-                    disabled={true}
-                    readOnly={true}
-                    title="Colonna gestita dal Catalogo"
+                    value={r.previsto || ""}
+                    onChange={(e) => onChangeCell(idx, "previsto", e.target.value)}
+                    className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[13px] text-slate-100"
                   />
                 </td>
 
-                {/* PRODOTTO (editable) */}
-                <td className="px-2 py-2 text-right">
+                {/* Prodotto */}
+                <td className="px-3 py-3 align-top">
                   <input
-                    className={cn("w-full bg-transparent outline-none text-right", ro ? "opacity-80 cursor-not-allowed" : "")}
                     value={r.prodotto || ""}
-                    onChange={ro ? undefined : (e) => onRowChange(idx, "prodotto", e.target.value)}
-                    disabled={ro}
-                    readOnly={ro}
-                    placeholder="0"
+                    onChange={(e) => onChangeCell(idx, "prodotto", e.target.value)}
+                    className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[13px] text-slate-100"
                   />
                 </td>
 
-                {/* NOTE (editable) */}
-                <td className="px-2 py-2">
-                  <input
-                    className={cn("w-full bg-transparent outline-none", ro ? "opacity-80 cursor-not-allowed" : "")}
+                {/* Note */}
+                <td className="px-3 py-3 align-top">
+                  <textarea
                     value={r.note || ""}
-                    onChange={ro ? undefined : (e) => onRowChange(idx, "note", e.target.value)}
-                    disabled={ro}
-                    readOnly={ro}
-                    placeholder="Note…"
+                    onChange={(e) => onChangeCell(idx, "note", e.target.value)}
+                    rows={2}
+                    className="w-full resize-none rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[13px] text-slate-100"
                   />
                 </td>
 
-                {/* REMOVE ROW */}
-                {!ro ? (
-                  <td className="px-2 py-2 text-center no-print">
-                    <button
-                      type="button"
-                      className="rounded-full border border-slate-300 bg-white hover:bg-slate-50 px-2 py-1 text-[12px] font-semibold text-slate-900"
-                      title="Rimuovi riga"
-                      onClick={() => onRemoveRow?.(idx)}
-                    >
-                      ×
-                    </button>
-                  </td>
-                ) : null}
+                {/* Actions */}
+                <td className="px-3 py-3 align-top text-right">
+                  <button
+                    type="button"
+                    onClick={() => onRemoveRow(idx)}
+                    className="rounded-xl border border-rose-900/50 bg-[#050910]/60 px-3 py-2 text-[12px] text-rose-200 hover:bg-rose-900/25"
+                    title="Rimuovi riga"
+                  >
+                    ×
+                  </button>
+                </td>
               </tr>
             );
           })}
+
+          <tr>
+            <td colSpan={8} className="px-3 py-3">
+              <button
+                type="button"
+                onClick={onAddRow}
+                className="rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-2 text-[12px] text-slate-200 hover:bg-slate-900/40"
+              >
+                + Aggiungi riga
+              </button>
+            </td>
+          </tr>
         </tbody>
       </table>
-
-      {/* Guardrail visuel (catalog-only) */}
-      {!ro && rows.length === 0 ? (
-        <div className="no-print mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-[12px] text-slate-700">
-          Nessuna riga: usa <span className="font-semibold">Catalogo</span> per aggiungere attività.
-        </div>
-      ) : null}
     </div>
   );
 }
