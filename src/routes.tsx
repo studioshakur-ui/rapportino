@@ -34,8 +34,7 @@ import IncaCapoCockpit from "./capo/IncaCapoCockpit";
 
 // CAPO SIMPLE (new)
 import CapoEntryRouter from "./capo/simple/CapoEntryRouter";
-import CapoPresencePage from "./capo/simple/CapoPresencePage";
-import CapoPresenceGate from "./capo/simple/CapoPresenceGate";
+import PresenceRedirect from "./capo/simple/PresenceRedirect";
 
 // UFFICIO
 import UfficioRapportiniList from "./ufficio/UfficioRapportiniList";
@@ -50,7 +49,6 @@ import ManagerCoreDrive from "./pages/ManagerCoreDrive";
 import ManagerAnalytics from "./pages/ManagerAnalytics";
 import ManagerOperatorKpi from "./features/kpi/pages/ManagerOperatorKpi";
 import ManagerCapoShipPlanning from "./pages/ManagerCapoShipPlanning";
-
 
 // CORE DRIVE
 import ArchivePage from "./pages/Archive";
@@ -71,7 +69,7 @@ export default function AppRoutes(): JSX.Element {
       <Route
         path="/app/rapportino/sheet"
         element={
-          <RequireRole allowed={[ "CAPO"]}>
+          <RequireRole allowed={["CAPO"]}>
             <RapportinoSheet />
           </RequireRole>
         }
@@ -81,7 +79,7 @@ export default function AppRoutes(): JSX.Element {
       <Route
         path="/admin/*"
         element={
-          <RequireRole allowed={[ "ADMIN"]}>
+          <RequireRole allowed={["ADMIN"]}>
             <AdminShell />
           </RequireRole>
         }
@@ -101,7 +99,7 @@ export default function AppRoutes(): JSX.Element {
       <Route
         path="/app/*"
         element={
-          <RequireRole allowed={[ "CAPO"]}>
+          <RequireRole allowed={["CAPO"]}>
             <AppShell />
           </RequireRole>
         }
@@ -109,31 +107,18 @@ export default function AppRoutes(): JSX.Element {
         {/* ENTRY ROUTER (ADMIN decides simple vs rich) */}
         <Route index element={<CapoEntryRouter />} />
 
-        {/* CAPO SIMPLE */}
-        <Route path="ship/:shipId/presence" element={<CapoPresencePage />} />
+        {/* ✅ PRESENCE REMOVED AS A STEP:
+            Any attempt to open /presence will hard redirect to /rapportino */}
+        <Route path="ship/:shipId/presence" element={<PresenceRedirect />} />
 
         {/* CAPO RICH (legacy) */}
         <Route path="ship-selector" element={<ShipSelector />} />
         <Route path="kpi-operatori" element={<CapoOperatorKpi isDark={true} />} />
         <Route path="ship/:shipId" element={<CapoModuleSelector />} />
 
-        {/* Rapportino routes gated by presence (for CAPO Simple) */}
-        <Route
-          path="ship/:shipId/rapportino/role"
-          element={
-            <CapoPresenceGate>
-              <CapoRoleSelector />
-            </CapoPresenceGate>
-          }
-        />
-        <Route
-          path="ship/:shipId/rapportino"
-          element={
-            <CapoPresenceGate>
-              <RapportinoPage />
-            </CapoPresenceGate>
-          }
-        />
+        {/* ✅ Rapportino routes: NO GATE, NO PRESENCE BLOCK */}
+        <Route path="ship/:shipId/rapportino/role" element={<CapoRoleSelector />} />
+        <Route path="ship/:shipId/rapportino" element={<RapportinoPage />} />
 
         <Route path="ship/:shipId/inca" element={<IncaCapoCockpit />} />
         <Route path="core-drive" element={<ArchivePage />} />
@@ -144,7 +129,7 @@ export default function AppRoutes(): JSX.Element {
       <Route
         path="/ufficio/*"
         element={
-          <RequireRole allowed={[ "UFFICIO", "DIREZIONE", "MANAGER", "ADMIN"]}>
+          <RequireRole allowed={["UFFICIO", "DIREZIONE", "MANAGER", "ADMIN"]}>
             <UfficioShell />
           </RequireRole>
         }
@@ -162,7 +147,7 @@ export default function AppRoutes(): JSX.Element {
       <Route
         path="/manager/*"
         element={
-          <RequireRole allowed={[ "MANAGER", "ADMIN"]}>
+          <RequireRole allowed={["MANAGER", "ADMIN"]}>
             <ManagerShell />
           </RequireRole>
         }
@@ -175,14 +160,13 @@ export default function AppRoutes(): JSX.Element {
         <Route path="analytics" element={<ManagerAnalytics isDark={true} />} />
         <Route path="kpi-operatori" element={<ManagerOperatorKpi isDark={true} />} />
         <Route path="capi-cantieri" element={<ManagerCapoShipPlanning isDark={true} />} />
-
       </Route>
 
       {/* ===== DIREZIONE ===== */}
       <Route
         path="/direction/*"
         element={
-          <RequireRole allowed={[ "DIREZIONE", "MANAGER"]}>
+          <RequireRole allowed={["DIREZIONE", "MANAGER"]}>
             <DirectionShell />
           </RequireRole>
         }
