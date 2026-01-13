@@ -36,6 +36,14 @@ function localIsoDate(): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function safeJson(v: any): string {
+  try {
+    return JSON.stringify(v, null, 2);
+  } catch {
+    return String(v);
+  }
+}
+
 const ABSENCE_REASONS = [
   { key: "concordato", label: "Concordato" },
   { key: "ferie", label: "Ferie" },
@@ -51,13 +59,23 @@ export default function CapoPresencePage(): JSX.Element {
   const nav = useNavigate();
   const { shipId } = useParams();
 
-  /**
-   * IMPORTANT:
-   * - RLS on presence tables is based on auth.uid().
-   * - Therefore we MUST use session.user.id as capo_id, not profile.id, not any derived uid.
-   */
-  const { session } = useAuth();
-  const authUid = session?.user?.id || null;
+  // useAuth in your repo usually exposes profile + session
+  const { session, profile } = useAuth() as any;
+
+  // auth uid (RLS auth.uid())
+  const authUid = session?.user?.id ? String(session.user.id) : null;
+
+  // profile id (business id)
+  const profileId = profile?.id ? String(profile.id) : null;
+
+  // debug flag: add ?debug=1 in URL
+  const debugEnabled = useMemo(() => {
+    try {
+      return new URLSearchParams(window.location.search).has("debug");
+    } catch {
+      return false;
+    }
+  }, []);
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string>("");
@@ -66,9 +84,12 @@ export default function CapoPresencePage(): JSX.Element {
   const [expected, setExpected] = useState<ExpectedOperator[]>([]);
   const [attendance, setAttendance] = useState<Record<string, AttendanceState>>({});
 
-  // NEW: assignment is informational (soft), not blocking.
+  // assignment is informational (soft), not blocking.
   const [assignedToday, setAssignedToday] = useState<boolean | null>(null);
   const [allowUnassignedProceed, setAllowUnassignedProceed] = useState(false);
+
+  // Debug panel state
+  const [debugInfo, setDebugInfo] = useState<string>("");
 
   const today = useMemo(() => localIsoDate(), []);
 
@@ -84,10 +105,10 @@ export default function CapoPresencePage(): JSX.Element {
       setAttendance({});
       setAssignedToday(null);
       setAllowUnassignedProceed(false);
+      setDebugInfo("");
 
       try {
-        // If auth is not available, force user back to login.
-        if (!authUid || !session) {
+        if (!session || !authUid) {
           nav("/login", { replace: true });
           return;
         }
@@ -97,7 +118,37 @@ export default function CapoPresencePage(): JSX.Element {
           return;
         }
 
-        // 1) Assignment check (SOFT): do not block page if missing.
+        // DEBUG: quick ship_capos perimeter check (best-effort)
+        if (debugEnabled) {
+          const dbg: any = {
+            now: new Date().toISOString(),
+            today,
+            shipId,
+            authUid,
+            profileId,
+          };
+
+          try {
+            // This may fail due to RLS (which is itself a useful signal)
+            const { data: sc, error: scErr } = await supabase
+              .from("ship_capos")
+              .select("ship_id, capo_id")
+              .eq("ship_id", shipId)
+              .limit(5);
+
+            dbg.ship_capos_select = {
+              ok: !scErr,
+              error: scErr ? safeJson(scErr) : null,
+              rows: Array.isArray(sc) ? sc : null,
+            };
+          } catch (e) {
+            dbg.ship_capos_select = { ok: false, error: safeJson(e) };
+          }
+
+          if (mounted) setDebugInfo(safeJson(dbg));
+        }
+
+        // 1) Assignment check (SOFT)
         try {
           const { data: assigned, error: aErr } = await supabase
             .from("capo_today_ship_assignments_v1")
@@ -107,7 +158,6 @@ export default function CapoPresencePage(): JSX.Element {
             .maybeSingle();
 
           if (aErr) {
-            // eslint-disable-next-line no-console
             console.error("[CapoPresencePage] assignment check error:", aErr);
             if (mounted) {
               setAssignedToday(null);
@@ -126,17 +176,14 @@ export default function CapoPresencePage(): JSX.Element {
             if (mounted) setAssignedToday(true);
           }
         } catch (e) {
-          // eslint-disable-next-line no-console
           console.error("[CapoPresencePage] assignment check unexpected error:", e);
           if (mounted) {
             setAssignedToday(null);
-            setShipWarn(
-              "Impossibile verificare assegnazione di oggi. Puoi continuare, ma la conferma potrebbe fallire."
-            );
+            setShipWarn("Impossibile verificare assegnazione di oggi. Puoi continuare, ma la conferma potrebbe fallire.");
           }
         }
 
-        // 2) Ship info: DO NOT BLOCK the page if ship row is not visible (RLS) or missing
+        // 2) Ship info (best effort)
         const { data: s, error: sErr } = await supabase
           .from("ships")
           .select("id, code, name, costr, commessa")
@@ -144,21 +191,15 @@ export default function CapoPresencePage(): JSX.Element {
           .maybeSingle();
 
         if (sErr) {
-          // Keep page functional even if ship lookup fails
-          // eslint-disable-next-line no-console
           console.error("[CapoPresencePage] ships load error:", sErr);
           if (mounted) {
             setShip(null);
-            setShipWarn((prev) =>
-              prev ? prev : "Ship non visibile (RLS) o non presente. La presenza resta utilizzabile."
-            );
+            setShipWarn((prev) => (prev ? prev : "Ship non visibile (RLS) o non presente. La presenza resta utilizzabile."));
           }
         } else {
           if (mounted) setShip((s || null) as ShipRow | null);
           if (!s && mounted) {
-            setShipWarn((prev) =>
-              prev ? prev : "Ship non trovato o non visibile (RLS). La presenza resta utilizzabile."
-            );
+            setShipWarn((prev) => (prev ? prev : "Ship non trovato o non visibile (RLS). La presenza resta utilizzabile."));
           }
         }
 
@@ -183,7 +224,6 @@ export default function CapoPresencePage(): JSX.Element {
         }
         setAttendance(next);
       } catch (e) {
-        // eslint-disable-next-line no-console
         console.error("[CapoPresencePage] load error:", e);
         if (!mounted) return;
         setErr("Impossibile caricare presenza / operatori attesi (verifica view/RLS).");
@@ -196,7 +236,7 @@ export default function CapoPresencePage(): JSX.Element {
     return () => {
       mounted = false;
     };
-  }, [shipId, today, nav, authUid, session]);
+  }, [shipId, today, nav, session, authUid, profileId, debugEnabled]);
 
   const setOperator = (operatorId: string, patch: Partial<AttendanceState>) => {
     setAttendance((prev) => {
@@ -232,10 +272,7 @@ export default function CapoPresencePage(): JSX.Element {
     setErr("");
     if (!shipId) return;
 
-    // MUST use auth uid (RLS is auth.uid based)
-    const capoAuthUid = session?.user?.id || null;
-
-    if (!capoAuthUid || !session) {
+    if (!session || !authUid) {
       setErr("Sessione non valida. Esegui di nuovo il login.");
       nav("/login", { replace: true });
       return;
@@ -251,19 +288,41 @@ export default function CapoPresencePage(): JSX.Element {
       return;
     }
 
+    /**
+     * CRITICAL DIAG:
+     * - If your DB column capo_id stores profiles.id, use profileId.
+     * - If your DB column capo_id stores auth.users.id, use authUid.
+     *
+     * We try profileId first IF present (CNCS usually uses profiles),
+     * but we always show both values in debug error.
+     */
+    const capoIdForDb = profileId || authUid;
+
     try {
       const { error: capoErr } = await supabase.from("capo_ship_attendance").upsert(
         {
           plan_date: today,
           ship_id: shipId,
-          capo_id: capoAuthUid, // ✅ RLS expects auth.uid()
+          capo_id: capoIdForDb,
           status: "PRESENT",
           confirmed_at: new Date().toISOString(),
         },
         { onConflict: "plan_date,ship_id,capo_id" }
       );
 
-      if (capoErr) throw capoErr;
+      if (capoErr) {
+        const detail = safeJson({
+          stage: "capo_ship_attendance.upsert",
+          capoIdForDb,
+          authUid,
+          profileId,
+          shipId,
+          today,
+          error: capoErr,
+        });
+        console.error(detail);
+        throw new Error(detail);
+      }
 
       const payload = expected.map((op) => {
         const a = attendance[op.operator_id] || { status: "PRESENT", reason: null, note: "" };
@@ -283,41 +342,60 @@ export default function CapoPresencePage(): JSX.Element {
           .from("operator_ship_attendance")
           .upsert(payload, { onConflict: "plan_date,ship_id,operator_id" });
 
-        if (opErr) throw opErr;
+        if (opErr) {
+          const detail = safeJson({
+            stage: "operator_ship_attendance.upsert",
+            authUid,
+            profileId,
+            shipId,
+            today,
+            error: opErr,
+          });
+          console.error(detail);
+          throw new Error(detail);
+        }
       }
 
       nav(`/app/ship/${shipId}/rapportino`, { replace: true });
     } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error("[CapoPresencePage] confirmPresence error:", e);
-      const msg = String((e as any)?.message || "").toLowerCase();
+      const msg = String((e as any)?.message || e || "").toLowerCase();
 
-      if (msg.includes("row-level security") || msg.includes("rls")) {
+      if (msg.includes("row-level security") || msg.includes("rls") || msg.includes("permission denied")) {
         setErr(
-          "Errore RLS: accesso negato. Verifica che ship_capos contenga questo auth.uid() come capo_id per questo ship."
+          "Errore RLS: l'UPSERT presenza è stato rifiutato.\n" +
+            "Apri la pagina con ?debug=1 e incollami il blocco DEBUG.\n" +
+            "Quasi certamente c’è mismatch tra authUid e profileId rispetto alle colonne/policies."
         );
         return;
       }
-      if (msg.includes("refresh token")) {
-        setErr("Sessione scaduta o corrotta. Esegui logout/login e riprova.");
-        return;
-      }
-      setErr("Errore durante conferma presenza (verifica RLS/constraint).");
+
+      setErr(
+        "Errore durante conferma presenza.\n" +
+          "Apri la pagina con ?debug=1 e incollami il blocco DEBUG.\n" +
+          "Dettaglio tecnico:\n" +
+          String((e as any)?.message || e)
+      );
     }
   };
 
   if (loading) {
     return (
       <div className="p-4">
-        <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-slate-200">
-          Caricamento presenza…
-        </div>
+        <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-slate-200">Caricamento presenza…</div>
       </div>
     );
   }
 
   return (
     <div className="p-4 space-y-3">
+      {/* DEBUG PANEL */}
+      {debugEnabled ? (
+        <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-3 text-slate-200">
+          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">DEBUG</div>
+          <pre className="mt-2 text-[10px] whitespace-pre-wrap break-words">{debugInfo || "…"}</pre>
+        </div>
+      ) : null}
+
       <div className="rounded-2xl border border-slate-800 bg-slate-950 p-5 text-slate-100 space-y-1">
         <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">PRESENZA · {today}</div>
         <div className="text-[16px] font-semibold">
@@ -356,7 +434,9 @@ export default function CapoPresencePage(): JSX.Element {
       ) : null}
 
       {err ? (
-        <div className="rounded-2xl border border-rose-400/40 bg-rose-500/10 p-4 text-rose-100">{err}</div>
+        <div className="rounded-2xl border border-rose-400/40 bg-rose-500/10 p-4 text-rose-100 whitespace-pre-wrap">
+          {err}
+        </div>
       ) : null}
 
       <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
@@ -379,9 +459,7 @@ export default function CapoPresencePage(): JSX.Element {
                     <div className="text-[13px] font-semibold text-slate-50 truncate">
                       {op.operator_name || op.operator_code || "Operatore"}
                     </div>
-                    <div className="text-[12px] text-slate-400">
-                      {op.operator_code ? `Code: ${op.operator_code}` : "—"}
-                    </div>
+                    <div className="text-[12px] text-slate-400">{op.operator_code ? `Code: ${op.operator_code}` : "—"}</div>
                   </div>
 
                   <div className="shrink-0 flex items-center gap-2">
