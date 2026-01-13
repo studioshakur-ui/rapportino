@@ -3,8 +3,9 @@ import { useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 /**
- * Hard redirect: any attempt to open /presence must go to /rapportino.
- * This avoids any RLS/presence dependency and works even if old links exist.
+ * Hard redirect:
+ * Any attempt to open /app/ship/:shipId/presence must go to /rapportino.
+ * This removes presence as a blocking step.
  */
 export default function PresenceRedirect(): JSX.Element {
   const nav = useNavigate();
