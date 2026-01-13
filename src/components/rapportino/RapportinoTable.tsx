@@ -72,6 +72,12 @@ function hasAnyOperatorValueLegacy(v: unknown) {
   return s.split("\n").some((x) => String(x || "").trim().length > 0);
 }
 
+function countLegacyOperators(op: unknown) {
+  const lines = splitLinesKeepEmpties(op);
+  const nonEmpty = lines.filter((x: unknown) => String(x || "").trim().length > 0);
+  return nonEmpty.length > 0 ? nonEmpty.length : (String(op ?? "").trim() ? lines.length : 0);
+}
+
 function readDroppedOperator(e: React.DragEvent) {
   try {
     const name = e.dataTransfer.getData("text/core-operator-name");
@@ -97,25 +103,23 @@ export default function RapportinoTable({
 }: Props): JSX.Element {
   const ro = readOnly || !onRowChange;
 
-  // IMPORTANT: on garde ton comportement actuel : canonical = items.length > 0
+  /**
+   * FIX CRITIQUE
+   * Avant: canonical = operator_items.length > 0  -> bloque au démarrage (ligne vide)
+   * Maintenant: canonical = operator_items est "présent" (même vide / null)
+   * Legacy uniquement si le champ n'existe pas du tout (undefined).
+   */
   const canonicalByIdx = useMemo(() => {
-    return rows.map((r) => {
-      const items = Array.isArray(r?.operator_items) ? r.operator_items : [];
-      return items.length > 0;
-    });
+    return rows.map((r) => r?.operator_items !== undefined);
   }, [rows]);
 
   return (
     <div className="mt-3">
-      {/* ───────────────────────── MOBILE (md-) : cards, no table, no horizontal pan ───────────────────────── */}
+      {/* ───────────────────────── MOBILE (md-) : cards ───────────────────────── */}
       <div className="md:hidden space-y-3">
         {rows.map((r, idx) => {
           const isCanonical = canonicalByIdx[idx];
 
-          const catalogColsLocked = true; // identique
-          void catalogColsLocked; // (évite warning TS si unused)
-
-          const opLines = splitLinesKeepEmpties(r.operatori);
           const canonItems = Array.isArray(r.operator_items) ? r.operator_items : [];
           const legacyHasOps = hasAnyOperatorValueLegacy(r.operatori);
 
@@ -125,6 +129,7 @@ export default function RapportinoTable({
           const isIncomplete = hasOperators !== hasValues;
 
           const tempoPillEnabled = !ro && hasOperators;
+          const opCount = isCanonical ? canonItems.length : countLegacyOperators(r.operatori);
 
           return (
             <div key={String(r.id ?? idx)} className="rounded-2xl border border-slate-200 bg-white/70 p-3">
@@ -188,7 +193,7 @@ export default function RapportinoTable({
                   />
                 </div>
 
-                {/* OPERATORE (CLICK + DROP) */}
+                {/* OPERATORE */}
                 <div>
                   <div className="text-[11px] tracking-wide uppercase text-slate-500 mb-1">Operatore</div>
 
@@ -266,13 +271,23 @@ export default function RapportinoTable({
                     </>
                   ) : (
                     <>
-                      <div className="w-full rounded-md border border-slate-200 bg-white/60 px-3 py-3 text-[12px] text-slate-900 whitespace-pre-wrap">
-                        {prettyMultiline(r.operatori) ? (
-                          prettyMultiline(r.operatori)
-                        ) : (
-                          <span className="text-slate-400">Nomi operatori (uno per riga)</span>
-                        )}
-                      </div>
+                      {/* Legacy : avant c'était un div statique => impossible d'ajouter des noms */}
+                      {ro ? (
+                        <div className="w-full rounded-md border border-slate-200 bg-white/60 px-3 py-3 text-[12px] text-slate-900 whitespace-pre-wrap">
+                          {prettyMultiline(r.operatori) ? (
+                            prettyMultiline(r.operatori)
+                          ) : (
+                            <span className="text-slate-400">Nomi operatori (uno per riga)</span>
+                          )}
+                        </div>
+                      ) : (
+                        <textarea
+                          className="w-full min-h-[84px] rounded-md border border-slate-200 bg-white/70 px-3 py-3 text-[12px] text-slate-900 outline-none focus:ring-2 focus:ring-sky-500/35"
+                          value={String(r.operatori ?? "")}
+                          placeholder="Nomi operatori (uno per riga)"
+                          onChange={(e) => onRowChange?.(idx, "operatori", e.target.value)}
+                        />
+                      )}
                       <div className="print-only">
                         <PrintText value={r.operatori} />
                       </div>
@@ -292,9 +307,7 @@ export default function RapportinoTable({
                     )}
                     role={tempoPillEnabled ? "button" : undefined}
                     tabIndex={tempoPillEnabled ? 0 : -1}
-                    title={
-                      !hasOperators ? "Prima inserisci almeno un operatore" : ro ? undefined : "Tocca per impostare le ore…"
-                    }
+                    title={!hasOperators ? "Prima inserisci almeno un operatore" : ro ? undefined : "Tocca per impostare le ore…"}
                     onClick={() => {
                       if (!tempoPillEnabled) return;
                       onOpenTempoPicker?.(idx);
@@ -310,11 +323,7 @@ export default function RapportinoTable({
                     <div className="flex items-center justify-between gap-2">
                       <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Tempo</div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[11px] text-slate-500">
-                          {hasOperators
-                            ? `${opLines.filter((x: unknown) => String(x || "").trim()).length || opLines.length} op`
-                            : "0 op"}
-                        </span>
+                        <span className="text-[11px] text-slate-500">{hasOperators ? `${opCount} op` : "0 op"}</span>
                         {tempoPillEnabled ? <span className="text-[12px] text-slate-400">›</span> : null}
                       </div>
                     </div>
@@ -342,14 +351,11 @@ export default function RapportinoTable({
                   />
                 </div>
 
-                {/* PRODOTTO (editable) */}
+                {/* PRODOTTO */}
                 <div>
                   <div className="text-[11px] tracking-wide uppercase text-slate-500 mb-1">Prodotto (mt)</div>
                   <input
-                    className={cn(
-                      "w-full bg-transparent outline-none text-right",
-                      ro ? "opacity-80 cursor-not-allowed" : ""
-                    )}
+                    className={cn("w-full bg-transparent outline-none text-right", ro ? "opacity-80 cursor-not-allowed" : "")}
                     value={String(r.prodotto ?? "")}
                     onChange={ro ? undefined : (e) => onRowChange?.(idx, "prodotto", e.target.value)}
                     disabled={ro}
@@ -359,7 +365,7 @@ export default function RapportinoTable({
                   />
                 </div>
 
-                {/* NOTE (editable) */}
+                {/* NOTE */}
                 <div>
                   <div className="text-[11px] tracking-wide uppercase text-slate-500 mb-1">Note</div>
                   <input
@@ -376,7 +382,6 @@ export default function RapportinoTable({
           );
         })}
 
-        {/* Guardrail visuel (catalog-only) */}
         {!ro && rows.length === 0 ? (
           <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-[12px] text-slate-700">
             Nessuna riga: usa <span className="font-semibold">Catalogo</span> per aggiungere attività.
@@ -384,7 +389,7 @@ export default function RapportinoTable({
         ) : null}
       </div>
 
-      {/* ───────────────────────── DESKTOP (md+) : ton tableau inchangé ───────────────────────── */}
+      {/* ───────────────────────── DESKTOP (md+) : tableau ───────────────────────── */}
       <div className="hidden md:block">
         <table className="rapportino-table text-[11px] w-full">
           <thead>
@@ -417,12 +422,6 @@ export default function RapportinoTable({
           <tbody>
             {rows.map((r, idx) => {
               const isCanonical = canonicalByIdx[idx];
-
-              // ENFORCEMENT: colonnes Catalog = non éditables (même si pas activity_id)
-              const catalogColsLocked = true;
-              void catalogColsLocked;
-
-              const opLines = splitLinesKeepEmpties(r.operatori);
               const canonItems = Array.isArray(r.operator_items) ? r.operator_items : [];
               const legacyHasOps = hasAnyOperatorValueLegacy(r.operatori);
 
@@ -432,10 +431,11 @@ export default function RapportinoTable({
               const isIncomplete = hasOperators !== hasValues;
 
               const tempoPillEnabled = !ro && hasOperators;
+              const opCount = isCanonical ? canonItems.length : countLegacyOperators(r.operatori);
 
               return (
                 <tr key={String(r.id ?? idx)} className="align-top" data-ot-wrap>
-                  {/* CATEGORIA (LOCKED) */}
+                  {/* CATEGORIA */}
                   <td className="px-2 py-2">
                     <div className="flex items-start gap-2">
                       <input
@@ -463,7 +463,7 @@ export default function RapportinoTable({
                     </div>
                   </td>
 
-                  {/* DESCRIZIONE (LOCKED) */}
+                  {/* DESCRIZIONE */}
                   <td className="px-2 py-2">
                     <input
                       className={cn("w-full bg-transparent outline-none", "opacity-90 cursor-not-allowed")}
@@ -475,7 +475,7 @@ export default function RapportinoTable({
                     />
                   </td>
 
-                  {/* OPERATORE (CLICK + DROP) */}
+                  {/* OPERATORE */}
                   <td className="px-2 py-2">
                     {isCanonical ? (
                       <>
@@ -551,13 +551,22 @@ export default function RapportinoTable({
                       </>
                     ) : (
                       <>
-                        <div className="no-print w-full rounded-md border border-slate-200 bg-white/60 px-2 py-2 text-[12px] text-slate-900 whitespace-pre-wrap">
-                          {prettyMultiline(r.operatori) ? (
-                            prettyMultiline(r.operatori)
-                          ) : (
-                            <span className="text-slate-400">Nomi operatori (uno per riga)</span>
-                          )}
-                        </div>
+                        {ro ? (
+                          <div className="no-print w-full rounded-md border border-slate-200 bg-white/60 px-2 py-2 text-[12px] text-slate-900 whitespace-pre-wrap">
+                            {prettyMultiline(r.operatori) ? (
+                              prettyMultiline(r.operatori)
+                            ) : (
+                              <span className="text-slate-400">Nomi operatori (uno per riga)</span>
+                            )}
+                          </div>
+                        ) : (
+                          <textarea
+                            className="no-print w-full min-h-[72px] rounded-md border border-slate-200 bg-white/70 px-2 py-2 text-[12px] text-slate-900 outline-none focus:ring-2 focus:ring-sky-500/35"
+                            value={String(r.operatori ?? "")}
+                            placeholder="Nomi operatori (uno per riga)"
+                            onChange={(e) => onRowChange?.(idx, "operatori", e.target.value)}
+                          />
+                        )}
                         <div className="print-only">
                           <PrintText value={r.operatori} />
                         </div>
@@ -592,11 +601,7 @@ export default function RapportinoTable({
                       <div className="flex items-center justify-between gap-2">
                         <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Tempo</div>
                         <div className="flex items-center gap-2">
-                          <span className="text-[11px] text-slate-500">
-                            {hasOperators
-                              ? `${opLines.filter((x: unknown) => String(x || "").trim()).length || opLines.length} op`
-                              : "0 op"}
-                          </span>
+                          <span className="text-[11px] text-slate-500">{hasOperators ? `${opCount} op` : "0 op"}</span>
                           {tempoPillEnabled ? <span className="text-[12px] text-slate-400">›</span> : null}
                         </div>
                       </div>
@@ -611,7 +616,7 @@ export default function RapportinoTable({
                     </div>
                   </td>
 
-                  {/* PREVISTO (LOCKED) */}
+                  {/* PREVISTO */}
                   <td className="px-2 py-2 text-right">
                     <input
                       className={cn("w-full bg-transparent outline-none text-right", "opacity-90 cursor-not-allowed")}
@@ -623,7 +628,7 @@ export default function RapportinoTable({
                     />
                   </td>
 
-                  {/* PRODOTTO (editable) */}
+                  {/* PRODOTTO */}
                   <td className="px-2 py-2 text-right">
                     <input
                       className={cn("w-full bg-transparent outline-none text-right", ro ? "opacity-80 cursor-not-allowed" : "")}
@@ -636,7 +641,7 @@ export default function RapportinoTable({
                     />
                   </td>
 
-                  {/* NOTE (editable) */}
+                  {/* NOTE */}
                   <td className="px-2 py-2">
                     <input
                       className={cn("w-full bg-transparent outline-none", ro ? "opacity-80 cursor-not-allowed" : "")}
@@ -667,7 +672,6 @@ export default function RapportinoTable({
           </tbody>
         </table>
 
-        {/* Guardrail visuel (catalog-only) */}
         {!ro && rows.length === 0 ? (
           <div className="no-print mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-[12px] text-slate-700">
             Nessuna riga: usa <span className="font-semibold">Catalogo</span> per aggiungere attività.
