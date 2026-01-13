@@ -65,3 +65,10 @@ export const supabase: SupabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON
     detectSessionInUrl: true,
   },
 });
+
+/**
+ * Schema-scoped helpers (non-breaking, optional usage).
+ * Use dbPublic for canonical writes/reads; dbArchive for archive-only reads.
+ */
+export const dbPublic = supabase.schema("public");
+export const dbArchive = supabase.schema("archive");

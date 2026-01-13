@@ -44,7 +44,7 @@ const ABSENCE_REASONS = [
   { key: "imprevisto", label: "Imprevisto" },
   { key: "paternita", label: "Paternità" },
   { key: "congedo_parentale", label: "Congedo parentale" },
-  { key: "altro", label: "Altro" }
+  { key: "altro", label: "Altro" },
 ] as const;
 
 export default function CapoPresencePage(): JSX.Element {
@@ -52,12 +52,18 @@ export default function CapoPresencePage(): JSX.Element {
   const { shipId } = useParams();
   const { uid, session } = useAuth();
 
+  // IMPORTANT: auth uid is the only source of truth for RLS checks.
+  // If your useAuth().uid is profile.id (and differs from auth uid), presence upsert will fail.
+  const authUid = session?.user?.id ? String(session.user.id) : null;
+
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string>("");
   const [shipWarn, setShipWarn] = useState<string>("");
   const [ship, setShip] = useState<ShipRow | null>(null);
   const [expected, setExpected] = useState<ExpectedOperator[]>([]);
   const [attendance, setAttendance] = useState<Record<string, AttendanceState>>({});
+
+  const [hasPersistentAccess, setHasPersistentAccess] = useState<boolean | null>(null);
 
   const today = useMemo(() => localIsoDate(), []);
 
@@ -71,10 +77,12 @@ export default function CapoPresencePage(): JSX.Element {
       setShip(null);
       setExpected([]);
       setAttendance({});
+      setHasPersistentAccess(null);
 
       try {
         // If auth is not available, force user back to login.
-        if (!uid || !session) {
+        // Use session.user.id for RLS, not profile.id.
+        if (!session || !authUid) {
           nav("/login", { replace: true });
           return;
         }
@@ -84,21 +92,57 @@ export default function CapoPresencePage(): JSX.Element {
           return;
         }
 
-        // 1) Security: must be assigned today; otherwise back to entry
-        const { data: assigned, error: aErr } = await supabase
-          .from("capo_today_ship_assignments_v1")
-          .select("ship_id")
-          .eq("plan_date", today)
-          .eq("ship_id", shipId)
-          .maybeSingle();
-
-        if (aErr) throw aErr;
-        if (!assigned?.ship_id) {
-          nav("/app", { replace: true });
-          return;
+        // Diagnostic: detect mismatch (uid from provider vs auth uid)
+        if (uid && String(uid) !== String(authUid)) {
+          // eslint-disable-next-line no-console
+          console.warn("[CapoPresencePage] uid mismatch:", { uid, authUid });
+          if (mounted) {
+            setShipWarn(
+              "ATTENZIONE: mismatch tra profileId e auth.uid(). La conferma presenza può fallire finché non si usa auth.uid() come capo_id."
+            );
+          }
         }
 
-        // 2) Ship info: DO NOT BLOCK the page if ship row is not visible (RLS) or missing
+        // 1) Canonical access check: ship_capos must contain (ship_id, capo_id=authUid).
+        try {
+          const { data: sc, error: scErr } = await supabase
+            .from("ship_capos")
+            .select("ship_id, capo_id")
+            .eq("ship_id", shipId)
+            .eq("capo_id", authUid)
+            .maybeSingle();
+
+          if (scErr) {
+            // eslint-disable-next-line no-console
+            console.error("[CapoPresencePage] ship_capos check error:", scErr);
+            if (mounted) {
+              setHasPersistentAccess(null);
+              setShipWarn(
+                "Impossibile verificare accesso persistente (ship_capos). Puoi continuare, ma la conferma potrebbe fallire (RLS)."
+              );
+            }
+          } else if (!sc?.ship_id) {
+            if (mounted) {
+              setHasPersistentAccess(false);
+              setShipWarn(
+                "Attenzione: non risulti assegnato a questo ship (ship_capos). La conferma presenza potrebbe fallire (RLS). Contatta il Manager."
+              );
+            }
+          } else {
+            if (mounted) setHasPersistentAccess(true);
+          }
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.error("[CapoPresencePage] ship_capos check unexpected error:", e);
+          if (mounted) {
+            setHasPersistentAccess(null);
+            setShipWarn(
+              "Impossibile verificare accesso persistente. Puoi continuare, ma la conferma potrebbe fallire (RLS)."
+            );
+          }
+        }
+
+        // 2) Ship info (best effort; do not block)
         const { data: s, error: sErr } = await supabase
           .from("ships")
           .select("id, code, name, costr, commessa")
@@ -106,21 +150,24 @@ export default function CapoPresencePage(): JSX.Element {
           .maybeSingle();
 
         if (sErr) {
-          // Keep page functional even if ship lookup fails
           // eslint-disable-next-line no-console
           console.error("[CapoPresencePage] ships load error:", sErr);
           if (mounted) {
             setShip(null);
-            setShipWarn("Ship non visibile (RLS) o non presente. La presenza resta utilizzabile.");
+            setShipWarn((prev) =>
+              prev ? prev : "Ship non visibile (RLS) o non presente. La presenza resta utilizzabile."
+            );
           }
         } else {
           if (mounted) setShip((s || null) as ShipRow | null);
           if (!s && mounted) {
-            setShipWarn("Ship non trovato o non visibile (RLS). La presenza resta utilizzabile.");
+            setShipWarn((prev) =>
+              prev ? prev : "Ship non trovato o non visibile (RLS). La presenza resta utilizzabile."
+            );
           }
         }
 
-        // 3) Expected operators
+        // 3) Expected operators (daily plan driven; can be empty)
         const { data: rows, error: eErr } = await supabase
           .from("capo_expected_operators_today_v1")
           .select("operator_id, operator_name, operator_code")
@@ -154,7 +201,7 @@ export default function CapoPresencePage(): JSX.Element {
     return () => {
       mounted = false;
     };
-  }, [shipId, today, nav, uid, session]);
+  }, [shipId, today, nav, uid, session, authUid]);
 
   const setOperator = (operatorId: string, patch: Partial<AttendanceState>) => {
     setAttendance((prev) => {
@@ -188,7 +235,7 @@ export default function CapoPresencePage(): JSX.Element {
     setErr("");
     if (!shipId) return;
 
-    if (!uid || !session) {
+    if (!session || !authUid) {
       setErr("Sessione non valida. Esegui di nuovo il login.");
       nav("/login", { replace: true });
       return;
@@ -200,13 +247,16 @@ export default function CapoPresencePage(): JSX.Element {
     }
 
     try {
+      // eslint-disable-next-line no-console
+      console.log("[CapoPresencePage] confirmPresence", { today, shipId, authUid, hasPersistentAccess });
+
       const { error: capoErr } = await supabase.from("capo_ship_attendance").upsert(
         {
           plan_date: today,
           ship_id: shipId,
-          capo_id: uid,
+          capo_id: authUid, // ✅ MUST match auth.uid()
           status: "PRESENT",
-          confirmed_at: new Date().toISOString()
+          confirmed_at: new Date().toISOString(),
         },
         { onConflict: "plan_date,ship_id,capo_id" }
       );
@@ -221,7 +271,7 @@ export default function CapoPresencePage(): JSX.Element {
           status: a.status,
           reason: a.status === "ABSENT" ? a.reason : null,
           note: a.status === "ABSENT" ? (String(a.note || "").trim() || null) : null,
-          reported_at: new Date().toISOString()
+          reported_at: new Date().toISOString(),
         };
       });
 
@@ -237,14 +287,24 @@ export default function CapoPresencePage(): JSX.Element {
       // eslint-disable-next-line no-console
       console.error("[CapoPresencePage] confirmPresence error:", e);
       const msg = String((e as any)?.message || "").toLowerCase();
-      if (msg.includes("row-level security") || msg.includes("rls")) {
-        setErr("Errore RLS: accesso negato. Verifica che la sessione sia valida e che il ship sia assegnato al Capo.");
+
+      if (msg.includes("22p02") || msg.includes("invalid input syntax for type uuid")) {
+        setErr("Errore: ship_id non è un UUID valido. Verifica che la route usi ships.id (uuid), non ships.code.");
         return;
       }
+
+      if (msg.includes("row-level security") || msg.includes("rls")) {
+        setErr(
+          "Errore RLS: accesso negato. Verifica che ship_capos contenga (ship_id, capo_id=auth.uid())."
+        );
+        return;
+      }
+
       if (msg.includes("refresh token")) {
         setErr("Sessione scaduta o corrotta. Esegui logout/login e riprova.");
         return;
       }
+
       setErr("Errore durante conferma presenza (verifica RLS/constraint).");
     }
   };
@@ -252,7 +312,9 @@ export default function CapoPresencePage(): JSX.Element {
   if (loading) {
     return (
       <div className="p-4">
-        <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-slate-200">Caricamento presenza…</div>
+        <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-slate-200">
+          Caricamento presenza…
+        </div>
       </div>
     );
   }
@@ -265,12 +327,25 @@ export default function CapoPresencePage(): JSX.Element {
           {ship ? `${ship.code || "—"} · ${ship.name || "Ship"}` : "Ship"}
         </div>
         {ship ? (
-          <div className="text-[12px] text-slate-400">COSTR {ship.costr || "—"} · COMMESSA {ship.commessa || "—"}</div>
+          <div className="text-[12px] text-slate-400">
+            COSTR {ship.costr || "—"} · COMMESSA {ship.commessa || "—"}
+          </div>
         ) : null}
       </div>
 
       {shipWarn ? (
-        <div className="rounded-2xl border border-amber-400/40 bg-amber-500/10 p-4 text-amber-100">{shipWarn}</div>
+        <div className="rounded-2xl border border-amber-400/40 bg-amber-500/10 p-4 text-amber-100 space-y-2">
+          <div className="text-[13px]">{shipWarn}</div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => nav("/app/ship-selector")}
+              className="rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-[12px] font-semibold text-slate-100"
+            >
+              Selettore cantieri
+            </button>
+          </div>
+        </div>
       ) : null}
 
       {err ? (
@@ -297,7 +372,9 @@ export default function CapoPresencePage(): JSX.Element {
                     <div className="text-[13px] font-semibold text-slate-50 truncate">
                       {op.operator_name || op.operator_code || "Operatore"}
                     </div>
-                    <div className="text-[12px] text-slate-400">{op.operator_code ? `Code: ${op.operator_code}` : "—"}</div>
+                    <div className="text-[12px] text-slate-400">
+                      {op.operator_code ? `Code: ${op.operator_code}` : "—"}
+                    </div>
                   </div>
 
                   <div className="shrink-0 flex items-center gap-2">
@@ -351,7 +428,9 @@ export default function CapoPresencePage(): JSX.Element {
 
                     {a.reason === "altro" ? (
                       <div className="mt-2">
-                        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Nota (obbligatoria min 5)</div>
+                        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                          Nota (obbligatoria min 5)
+                        </div>
                         <input
                           value={a.note || ""}
                           onChange={(e) => setOperator(op.operator_id, { note: e.target.value })}

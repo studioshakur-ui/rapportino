@@ -1,6 +1,6 @@
 // /src/components/RapportinoPage.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams, useOutletContext } from "react-router-dom";
+import { useNavigate, useParams, useOutletContext, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { formatDisplayName } from "../utils/formatHuman";
 
@@ -124,17 +124,10 @@ function incaBtnClass(disabled) {
   ];
 
   if (disabled) {
-    return cn(
-      ...base,
-      "border-slate-300 bg-slate-100 text-slate-400 cursor-not-allowed"
-    );
+    return cn(...base, "border-slate-300 bg-slate-100 text-slate-400 cursor-not-allowed");
   }
 
-  return cn(
-    ...base,
-    "border-slate-300/60 text-slate-50",
-    "focus:outline-none focus:ring-2 focus:ring-sky-500/25"
-  );
+  return cn(...base, "border-slate-300/60 text-slate-50", "focus:outline-none focus:ring-2 focus:ring-sky-500/25");
 }
 
 function incaBtnStyle(disabled) {
@@ -148,17 +141,85 @@ function incaBtnStyle(disabled) {
   };
 }
 
+// ────────────────────────────────────────────────────────────────
+// URL Date helpers: ?date=YYYY-MM-DD (canonical "working date")
+// ────────────────────────────────────────────────────────────────
+function isValidIsoDateParam(v) {
+  const s = String(v || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+
+  const [yy, mm, dd] = s.split("-").map((x) => Number(x));
+  if (!Number.isFinite(yy) || !Number.isFinite(mm) || !Number.isFinite(dd)) return false;
+  if (mm < 1 || mm > 12) return false;
+  if (dd < 1 || dd > 31) return false;
+
+  // stricter: reject impossible dates like 2026-02-31
+  const dt = new Date(Date.UTC(yy, mm - 1, dd));
+  return dt.getUTCFullYear() === yy && dt.getUTCMonth() === mm - 1 && dt.getUTCDate() === dd;
+}
+
+function getDateFromSearch(search) {
+  try {
+    const sp = new URLSearchParams(String(search || ""));
+    const d = sp.get("date");
+    if (isValidIsoDateParam(d)) return String(d);
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function setDateInSearch(search, nextDate) {
+  const sp = new URLSearchParams(String(search || ""));
+  if (nextDate && isValidIsoDateParam(nextDate)) {
+    sp.set("date", String(nextDate));
+  } else {
+    sp.delete("date");
+  }
+  const qs = sp.toString();
+  return qs ? `?${qs}` : "";
+}
+
 export default function RapportinoPage() {
   const { shipId } = useParams();
   const { profile } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   useOutletContext() || {};
 
   const [crewRole, setCrewRole] = useState(() => readRoleFromLocalStorage());
   const normalizedCrewRole = normalizeCrewRole(crewRole);
   const crewLabel = CREW_LABELS[normalizedCrewRole] || normalizedCrewRole;
 
-  const [reportDate, setReportDate] = useState(getTodayISO());
+  // Canonical report date = URL (?date=YYYY-MM-DD) or today
+  const initialReportDate = useMemo(() => {
+    const fromUrl = getDateFromSearch(location.search);
+    return fromUrl || getTodayISO();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // read once for init
+
+  const [reportDate, setReportDate] = useState(initialReportDate);
+
+  // Sync state if URL changes (back/forward, deep link, etc.)
+  useEffect(() => {
+    const fromUrl = getDateFromSearch(location.search);
+    const next = fromUrl || getTodayISO();
+    setReportDate((prev) => (String(prev) === String(next) ? prev : next));
+  }, [location.search]);
+
+  const setReportDateAndUrl = (nextDate) => {
+    const next = isValidIsoDateParam(nextDate) ? String(nextDate) : getTodayISO();
+    setReportDate(next);
+
+    const nextSearch = setDateInSearch(location.search, next);
+    navigate(
+      {
+        pathname: location.pathname,
+        search: nextSearch,
+      },
+      { replace: true }
+    );
+  };
 
   const capoName = useMemo(() => formatDisplayName(profile, "Capo Squadra"), [profile]);
 
@@ -207,7 +268,10 @@ export default function RapportinoPage() {
   // Enlever lignes sans description (rendu + save + print)
   const visibleRows = useMemo(() => {
     const arr = Array.isArray(rows) ? rows : [];
-    return arr.filter((r) => String(r?.descrizione || "").trim().length > 0);
+    return arr.filter((r) => {
+      const descr = String(r?.descrizione_attivita ?? r?.descrizione ?? "").trim();
+      return descr.length > 0;
+    });
   }, [rows]);
 
   const prodottoTotale = useMemo(() => computeProdottoTotale(visibleRows, parseNumeric), [visibleRows]);
@@ -231,7 +295,7 @@ export default function RapportinoPage() {
     toastTimerRef.current = setTimeout(() => {
       setToast(null);
       toastTimerRef.current = null;
-    }, t?.type === "error" ? 4000 : 2400);
+    }, (t?.type === "error" ? 4000 : 2400));
   };
 
   useEffect(() => {
@@ -330,12 +394,12 @@ export default function RapportinoPage() {
           const copy = [...arr];
           const row = { ...(copy[idx] || {}) };
           copy[idx] = row;
-          // reuse helper on a virtual rows list
+
           const tmpSetRows = (fn) => {
             const next = fn(copy);
             return next;
           };
-          // simpler: call removeOperatorFromRow on a copied state-like wrapper
+
           removeOperatorFromRow({ setRows: (fn) => tmpSetRows(fn) }, idx, operatorId);
           return copy;
         });
@@ -365,7 +429,7 @@ export default function RapportinoPage() {
       const invalid = (Array.isArray(visibleRows) ? visibleRows : [])
         .map((r, i) => ({
           i,
-          descr: String(r?.descrizione || "").trim(),
+          descr: String(r?.descrizione || r?.descrizione_attivita || "").trim(),
           prod: parseNumeric(r?.prodotto),
           note: String(r?.note || "").trim(),
         }))
@@ -549,7 +613,7 @@ export default function RapportinoPage() {
                       setUiError(null);
                       setUiErrorDetails(null);
                       setShowUiErrorDetails(false);
-                      if (latestReturned?.report_date) setReportDate(latestReturned.report_date);
+                      if (latestReturned?.report_date) setReportDateAndUrl(latestReturned.report_date);
                     }}
                     className={
                       "px-3 py-1.5 rounded-full border text-[11px] font-semibold tracking-[0.06em] transition-colors " +
@@ -585,7 +649,7 @@ export default function RapportinoPage() {
               capoName={capoName}
               onChangeCostr={setCostr}
               onChangeCommessa={setCommessa}
-              onChangeDate={setReportDate}
+              onChangeDate={(d) => setReportDateAndUrl(d)}
             />
 
             {/* META (sans bouton INCA ici) */}

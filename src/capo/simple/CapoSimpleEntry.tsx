@@ -84,13 +84,22 @@ export default function CapoSimpleEntry(): JSX.Element {
     return (
       <div className="p-4 space-y-3">
         <div className="rounded-2xl border border-rose-400/40 bg-rose-500/10 p-4 text-rose-100">{err}</div>
-        <button
-          type="button"
-          onClick={() => window.location.reload()}
-          className="rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-[12px] font-semibold text-slate-100"
-        >
-          Riprova
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-[12px] font-semibold text-slate-100"
+          >
+            Riprova
+          </button>
+          <button
+            type="button"
+            onClick={() => nav("/app/ship-selector")}
+            className="rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-[12px] font-semibold text-slate-100"
+          >
+            Apri selettore cantieri
+          </button>
+        </div>
       </div>
     );
   }
@@ -103,6 +112,15 @@ export default function CapoSimpleEntry(): JSX.Element {
           <div className="text-[16px] font-semibold">Nessuna assegnazione oggi</div>
           <div className="text-[13px] text-slate-300">
             Contatta il tuo Manager per assegnare il cantiere (max 2 ships).
+          </div>
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={() => nav("/app/ship-selector")}
+              className="rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-[12px] font-semibold text-slate-100"
+            >
+              Apri selettore cantieri
+            </button>
           </div>
         </div>
       </div>
@@ -144,6 +162,16 @@ export default function CapoSimpleEntry(): JSX.Element {
             </div>
           </button>
         ))}
+      </div>
+
+      <div className="pt-1">
+        <button
+          type="button"
+          onClick={() => nav("/app/ship-selector")}
+          className="rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-[12px] font-semibold text-slate-100"
+        >
+          Apri selettore cantieri
+        </button>
       </div>
     </div>
   );

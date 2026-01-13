@@ -67,13 +67,22 @@ export default function CapoEntryRouter(): JSX.Element {
     return (
       <div className="p-4 space-y-3">
         <div className="rounded-2xl border border-rose-400/40 bg-rose-500/10 p-4 text-rose-100">{error}</div>
-        <button
-          type="button"
-          onClick={() => window.location.reload()}
-          className="rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-[12px] font-semibold text-slate-100"
-        >
-          Riprova
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-[12px] font-semibold text-slate-100"
+          >
+            Riprova
+          </button>
+          <button
+            type="button"
+            onClick={() => nav("/app/ship-selector")}
+            className="rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-[12px] font-semibold text-slate-100"
+          >
+            Apri selettore cantieri
+          </button>
+        </div>
       </div>
     );
   }
