@@ -6,7 +6,7 @@ import { useAuth } from "./AuthProvider";
 
 export default function RequireAuth({ children }: { children: React.ReactNode }): JSX.Element {
   const nav = useNavigate();
-  const { status, signOut, authReady } = useAuth();
+  const { status, signOut, authReady, rehydrating } = useAuth();
 
   const handleHardReset = useCallback(async () => {
     try {
@@ -20,6 +20,15 @@ export default function RequireAuth({ children }: { children: React.ReactNode })
     return (
       <div className="w-full h-screen flex items-center justify-center text-slate-400">
         Inizializzazione CORE…
+      </div>
+    );
+  }
+
+  // ✅ Grace UX: don't hard redirect while rehydrating
+  if (rehydrating) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center text-slate-300">
+        Riconnessione…
       </div>
     );
   }
