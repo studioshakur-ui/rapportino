@@ -40,11 +40,16 @@ type AuthContextValue = {
   // legacy alias used in RequireRole.tsx
   isReady: boolean;
 
+  // NEW: for fluid UX on tab-switch / mobile wake
+  rehydrating: boolean;
+
   signOut: (opts?: SignOutOptions) => Promise<void>;
   refresh: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+const GRACE_MS = 5 * 60 * 1000; // ✅ 5 minutes
 
 function isRefreshTokenError(err: unknown): boolean {
   const e = err as any;
@@ -85,6 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState<unknown>(null);
+  const [rehydrating, setRehydrating] = useState<boolean>(false);
 
   const uid = session?.user?.id ?? null;
 
@@ -96,11 +102,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
     };
   }, []);
 
+  // ✅ Used to keep UI stable for a few minutes on tab switch
+  const lastGoodAuthAtRef = useRef<number>(0);
+  const markGoodAuthNow = useCallback(() => {
+    lastGoodAuthAtRef.current = Date.now();
+  }, []);
+  const withinGraceWindow = useCallback(() => {
+    const t = lastGoodAuthAtRef.current || 0;
+    return t > 0 && Date.now() - t < GRACE_MS;
+  }, []);
+
   const setUnauthed = useCallback(() => {
     setStatus("UNAUTHENTICATED");
     setSession(null);
     setProfile(null);
     setError(null);
+    setRehydrating(false);
   }, []);
 
   const hardResetToUnauthed = useCallback(() => {
@@ -111,13 +128,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
   const hydrateProfile = useCallback(
     async (s: Session) => {
       try {
+        setRehydrating(true);
+
         // IMPORTANT: prevent infinite pending
-        const p = await withTimeout(loadProfile(s), 4000, "loadProfile");
+        const p = await withTimeout(loadProfile(s), 5000, "loadProfile");
         if (!aliveRef.current) return;
 
         setProfile(p);
         setError(null);
         // Keep AUTHENTICATED (we already are)
+        markGoodAuthNow();
       } catch (e) {
         if (!aliveRef.current) return;
 
@@ -126,21 +146,134 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
           return;
         }
 
-        // Profile missing / RLS / network: we mark AUTH_ERROR but keep session in state for diagnostics
+        // Profile missing / RLS / network: mark AUTH_ERROR
         setProfile(null);
         setError(e);
         setStatus("AUTH_ERROR");
+      } finally {
+        if (aliveRef.current) setRehydrating(false);
       }
     },
-    [hardResetToUnauthed]
+    [hardResetToUnauthed, markGoodAuthNow]
   );
+
+  const setAuthedFast = useCallback(
+    (s: Session) => {
+      setSession(s);
+      setStatus("AUTHENTICATED");
+      setProfile(null); // hydrate async
+      setError(null);
+      markGoodAuthNow();
+    },
+    [markGoodAuthNow]
+  );
+
+  /**
+   * ✅ Soft rehydrate used on tab focus / visibility
+   * - Attempts getSession
+   * - If missing, tries refreshSession within grace window
+   * - Does NOT immediately nuke the app UX
+   */
+  const softRehydrate = useCallback(async () => {
+    if (!aliveRef.current) return;
+
+    setRehydrating(true);
+
+    try {
+      const { data, error: sessionError } = await withTimeout(
+        supabase.auth.getSession(),
+        4000,
+        "getSession"
+      );
+
+      if (sessionError) {
+        if (isRefreshTokenError(sessionError)) {
+          hardResetToUnauthed();
+          return;
+        }
+        // If within grace, don't hard-fail the user experience
+        if (withinGraceWindow()) {
+          return;
+        }
+        setStatus("AUTH_ERROR");
+        setError(sessionError);
+        return;
+      }
+
+      const s = data?.session ?? null;
+
+      if (s) {
+        setAuthedFast(s);
+        void hydrateProfile(s);
+        return;
+      }
+
+      // No session returned.
+      // If we were recently authed, try refreshSession before declaring unauth.
+      if (withinGraceWindow()) {
+        try {
+          const { data: rData, error: rErr } = await withTimeout(
+            supabase.auth.refreshSession(),
+            5000,
+            "refreshSession"
+          );
+
+          if (rErr) {
+            if (isRefreshTokenError(rErr)) {
+              hardResetToUnauthed();
+              return;
+            }
+            return; // keep UX stable within grace
+          }
+
+          const rs = rData?.session ?? null;
+          if (rs) {
+            setAuthedFast(rs);
+            void hydrateProfile(rs);
+            return;
+          }
+
+          // still no session -> let it stay stable in grace window
+          return;
+        } catch (e) {
+          if (isRefreshTokenError(e)) {
+            hardResetToUnauthed();
+            return;
+          }
+          return;
+        }
+      }
+
+      // Not within grace => unauth
+      setUnauthed();
+    } catch (e) {
+      if (isRefreshTokenError(e)) {
+        hardResetToUnauthed();
+        return;
+      }
+      if (withinGraceWindow()) {
+        return; // keep UX stable
+      }
+      setStatus("AUTH_ERROR");
+      setSession(null);
+      setProfile(null);
+      setError(e);
+    } finally {
+      if (aliveRef.current) setRehydrating(false);
+    }
+  }, [hardResetToUnauthed, hydrateProfile, setAuthedFast, setUnauthed, withinGraceWindow]);
 
   const bootstrapAuth = useCallback(async () => {
     try {
       setStatus("BOOTSTRAP");
       setError(null);
+      setRehydrating(true);
 
-      const { data, error: sessionError } = await supabase.auth.getSession();
+      const { data, error: sessionError } = await withTimeout(
+        supabase.auth.getSession(),
+        4000,
+        "getSession"
+      );
 
       if (sessionError) {
         if (isRefreshTokenError(sessionError)) {
@@ -161,10 +294,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
       }
 
       // ✅ READY IMMEDIATELY: we do NOT wait for profile
-      setSession(s);
-      setStatus("AUTHENTICATED");
-      setProfile(null);
-      setError(null);
+      setAuthedFast(s);
 
       // hydrate profile async (with timeout)
       void hydrateProfile(s);
@@ -177,8 +307,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
       setSession(null);
       setProfile(null);
       setError(e);
+    } finally {
+      if (aliveRef.current) setRehydrating(false);
     }
-  }, [setUnauthed, hardResetToUnauthed, hydrateProfile]);
+  }, [setUnauthed, hardResetToUnauthed, hydrateProfile, setAuthedFast]);
 
   useEffect(() => {
     void bootstrapAuth();
@@ -186,16 +318,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
     const { data: listener } = supabase.auth.onAuthStateChange(async (_event, s) => {
       try {
         if (!s) {
+          // If user just came back from background, allow grace rehydrate
+          if (withinGraceWindow()) {
+            void softRehydrate();
+            return;
+          }
           setUnauthed();
           return;
         }
 
         // ✅ READY IMMEDIATELY on any auth change
-        setSession(s);
-        setStatus("AUTHENTICATED");
-        setProfile(null);
-        setError(null);
-
+        setAuthedFast(s);
         void hydrateProfile(s);
       } catch (e) {
         if (isRefreshTokenError(e)) {
@@ -212,7 +345,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
     return () => {
       listener?.subscription?.unsubscribe?.();
     };
-  }, [bootstrapAuth, hydrateProfile, hardResetToUnauthed, setUnauthed]);
+  }, [
+    bootstrapAuth,
+    hydrateProfile,
+    hardResetToUnauthed,
+    setUnauthed,
+    setAuthedFast,
+    softRehydrate,
+    withinGraceWindow,
+  ]);
+
+  // ✅ Tab switch / wake: attempt silent rehydrate
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void softRehydrate();
+      }
+    };
+    const onFocus = () => {
+      void softRehydrate();
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [softRehydrate]);
 
   const signOut = useCallback(
     async (opts: SignOutOptions = {}) => {
@@ -246,10 +407,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
       authReady,
       isReady: authReady,
 
+      rehydrating,
+
       signOut,
       refresh,
     };
-  }, [status, session, uid, profile, error, loading, authReady, signOut, refresh]);
+  }, [status, session, uid, profile, error, loading, authReady, rehydrating, signOut, refresh]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
