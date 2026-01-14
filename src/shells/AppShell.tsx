@@ -169,8 +169,11 @@ export default function AppShell(): JSX.Element {
   return (
     <>
       {/* ───────────── Idle / Session security ───────────── */}
+          {/* ───────────── Idle / Session security ───────────── */}
       <IdleSessionManager
+        key={(profile as any)?.id ?? "anon"}                 // ✅ remount on user change
         enabled
+        storageScopeKey={(profile as any)?.id ?? "anon"}     // ✅ isolate per-user (auth.uid)
         warnAfterMs={25 * 60 * 1000}
         logoutAfterMs={30 * 60 * 1000}
         onExtend={async () => {
