@@ -32,7 +32,6 @@ import { useReturnedInbox } from "./rapportino/page/useReturnedInbox";
 import { useRapportinoData } from "./rapportino/page/useRapportinoData";
 import {
   addRowFromCatalog,
-  handleTempoChangeLegacy,
   removeOperatorFromRow,
   removeRow,
   saveRapportino,
@@ -90,12 +89,12 @@ function ToastOverlay({ toast, onClose }) {
 
 /**
  * Build tempo picker items for a row:
- * - Canonical: use operator_items
+ * - Canonical: use operator_items (even if empty)
  * - Legacy: derive from operatori/tempo lines
  */
 function buildTempoPickerItemsFromRow(row) {
-  const canon = Array.isArray(row?.operator_items) ? row.operator_items : [];
-  if (canon.length > 0) return canon;
+  const canon = Array.isArray(row?.operator_items) ? row.operator_items : null;
+  if (canon) return canon; // ✅ can be []
 
   const opLines = splitLinesKeepEmpties(row?.operatori);
   const tmLines = splitLinesKeepEmpties(row?.tempo);
@@ -132,7 +131,6 @@ function incaBtnClass(disabled) {
 
 function incaBtnStyle(disabled) {
   if (disabled) return undefined;
-  // sombre et discret: pas de glow, pas de gradient agressif
   return {
     backgroundImage: [
       "linear-gradient(180deg, rgba(2,6,23,0.92) 0%, rgba(15,23,42,0.92) 100%)",
@@ -153,7 +151,6 @@ function isValidIsoDateParam(v) {
   if (mm < 1 || mm > 12) return false;
   if (dd < 1 || dd > 31) return false;
 
-  // stricter: reject impossible dates like 2026-02-31
   const dt = new Date(Date.UTC(yy, mm - 1, dd));
   return dt.getUTCFullYear() === yy && dt.getUTCMonth() === mm - 1 && dt.getUTCDate() === dd;
 }
@@ -191,16 +188,14 @@ export default function RapportinoPage() {
   const normalizedCrewRole = normalizeCrewRole(crewRole);
   const crewLabel = CREW_LABELS[normalizedCrewRole] || normalizedCrewRole;
 
-  // Canonical report date = URL (?date=YYYY-MM-DD) or today
   const initialReportDate = useMemo(() => {
     const fromUrl = getDateFromSearch(location.search);
     return fromUrl || getTodayISO();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // read once for init
+  }, []);
 
   const [reportDate, setReportDate] = useState(initialReportDate);
 
-  // Sync state if URL changes (back/forward, deep link, etc.)
   useEffect(() => {
     const fromUrl = getDateFromSearch(location.search);
     const next = fromUrl || getTodayISO();
@@ -253,7 +248,6 @@ export default function RapportinoPage() {
   const showIncaBlock = effectiveCrewRoleForInca === "ELETTRICISTA";
   const [incaOpen, setIncaOpen] = useState(false);
 
-  // AUTO-OPEN INCA when RETURNED + saved rapportino + role OK
   useEffect(() => {
     if (!showIncaBlock) return;
     if (!rapportinoId) return;
@@ -282,7 +276,6 @@ export default function RapportinoPage() {
     crewRole: normalizedCrewRole,
   });
 
-  // Toast
   const [toast, setToast] = useState(null);
   const toastTimerRef = useRef(null);
 
@@ -295,7 +288,7 @@ export default function RapportinoPage() {
     toastTimerRef.current = setTimeout(() => {
       setToast(null);
       toastTimerRef.current = null;
-    }, (t?.type === "error" ? 4000 : 2400));
+    }, t?.type === "error" ? 4000 : 2400);
   };
 
   useEffect(() => {
@@ -340,8 +333,6 @@ export default function RapportinoPage() {
   };
 
   const handleRowChange = (index, field, value, targetForHeight) => {
-    // IMPORTANT: visibleRows est filtré, mais rows est la source de vérité.
-    // Ici on modifie par index de visibleRows: on mappe via l'id si possible, sinon via index brut.
     setRows((prev) => {
       const prevArr = Array.isArray(prev) ? prev : [];
       const vr = visibleRows[index];
@@ -364,7 +355,6 @@ export default function RapportinoPage() {
   };
 
   const handleRemoveRow = (rowIndex) => {
-    // rowIndex on visibleRows => map to source rows via id
     const vr = visibleRows[rowIndex];
     const key = vr?.id ? String(vr.id) : null;
 
@@ -380,7 +370,6 @@ export default function RapportinoPage() {
 
   const handleRemoveOperatorFromRow = async (rowIndex, operatorId) => {
     try {
-      // rowIndex on visibleRows => map to source by id
       const vr = visibleRows[rowIndex];
       const key = vr?.id ? String(vr.id) : null;
 
@@ -421,10 +410,6 @@ export default function RapportinoPage() {
   const handleSave = async (forcedStatus) => {
     if (!profile?.id) return false;
 
-    // ─────────────────────────────────────────────────────────
-    // HARD RULE (CAPO step): if PRODOTTO is NULL/empty => NOTE is mandatory.
-    // Prevent validating the rapportino with silent data corruption.
-    // ─────────────────────────────────────────────────────────
     if (forcedStatus === "VALIDATED_CAPO") {
       const invalid = (Array.isArray(visibleRows) ? visibleRows : [])
         .map((r, i) => ({
@@ -469,7 +454,7 @@ export default function RapportinoPage() {
         costr,
         commessa,
         prodottoTotale,
-        rows: visibleRows, // ✅ save uniquement lignes avec description
+        rows: visibleRows,
         rapportinoId,
         setRapportinoId,
         setRapportinoCrewRole,
@@ -497,7 +482,6 @@ export default function RapportinoPage() {
     await handleSave("VALIDATED_CAPO");
   };
 
-  // Export: UNIQUEMENT la feuille rapport (rapportino-document)
   const handlePrint = async () => {
     const ok = await handleSave(status);
     if (!ok) return;
@@ -569,9 +553,9 @@ export default function RapportinoPage() {
     });
   };
 
+  // ✅ FIX: canonical = operator_items exists as array (even empty)
   const isRowCanonical = (row) => {
-    const items = Array.isArray(row?.operator_items) ? row.operator_items : [];
-    return items.length > 0;
+    return Array.isArray(row?.operator_items);
   };
 
   return (
@@ -579,7 +563,6 @@ export default function RapportinoPage() {
       <ToastOverlay toast={toast} onClose={() => setToast(null)} />
 
       <main className="flex-1 px-2 md:px-4 py-4 md:py-6">
-        {/* Banner RETURNED */}
         {latestReturned && returnedCount > 0 && (
           <div className="no-print w-full px-0 mb-4">
             <div className="rounded-2xl border border-amber-400/40 bg-gradient-to-r from-amber-500/15 via-slate-900/60 to-slate-900/60 p-3 md:p-3.5">
@@ -652,7 +635,6 @@ export default function RapportinoPage() {
               onChangeDate={(d) => setReportDateAndUrl(d)}
             />
 
-            {/* META (sans bouton INCA ici) */}
             <div className="no-print mt-3 flex flex-wrap items-center justify-between gap-2">
               <div className="text-[11px] text-slate-500">
                 <span className="font-semibold text-slate-700">Ruolo:</span> {crewLabel}
@@ -668,15 +650,10 @@ export default function RapportinoPage() {
               </div>
             </div>
 
-            {/* TABLE (uniquement lignes avec descrizione) */}
             <RapportinoTable
               rows={visibleRows}
               onRowChange={(idx, field, value, target) => {
-                if (field === "tempo") {
-                  handleTempoChangeLegacy({ setRows }, idx, value);
-                  if (target) adjustOperatorTempoHeights(target);
-                  return;
-                }
+                // ✅ tempo should be set via TempoPickerModal, not via direct editing here.
                 handleRowChange(idx, field, value, target);
               }}
               onRemoveRow={handleRemoveRow}
@@ -695,7 +672,6 @@ export default function RapportinoPage() {
               }}
             />
 
-            {/* INCA BLOCK */}
             {showIncaBlock && incaOpen ? (
               <div className="mt-4">
                 <RapportinoIncaCaviSection
@@ -707,10 +683,8 @@ export default function RapportinoPage() {
               </div>
             ) : null}
 
-            {/* ACTION BAR */}
             <div className="no-print mt-4 border-t border-slate-200 px-3 py-3">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                {/* Primary actions (left) */}
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
@@ -740,9 +714,7 @@ export default function RapportinoPage() {
                   </button>
                 </div>
 
-                {/* Secondary actions (RIGHT ALWAYS) */}
                 <div className="flex flex-wrap items-center gap-2 md:justify-end">
-                  {/* ✅ Un seul bouton INCA: ici */}
                   {showIncaBlock ? (
                     <button
                       type="button"
@@ -775,7 +747,7 @@ export default function RapportinoPage() {
               </div>
             </div>
 
-            {(uiError || error) ? (
+            {uiError || error ? (
               <div className="mt-3 no-print rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-800">
                 {uiError || error}
               </div>
@@ -790,7 +762,6 @@ export default function RapportinoPage() {
         </div>
       </main>
 
-      {/* MODALS */}
       <CatalogModal
         open={catOpen}
         onClose={() => setCatOpen(false)}

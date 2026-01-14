@@ -68,6 +68,7 @@ export default function UfficioShell() {
 
   const pathname = location.pathname || "";
   const isNavemaster = pathname.startsWith("/ufficio/navemaster");
+  const isInca = pathname.startsWith("/ufficio/inca");
   const isEvoluzione = pathname.startsWith("/ufficio/evoluzione");
   const isCoreDrive =
     pathname.startsWith("/ufficio/core-drive") || pathname.startsWith("/ufficio/archive");
@@ -78,6 +79,8 @@ export default function UfficioShell() {
     ? "CORE Drive"
     : isNavemaster
     ? "NAVEMASTER"
+    : isInca
+    ? "INCA"
     : "Rapportini";
 
   if (!profile) {
@@ -112,7 +115,9 @@ export default function UfficioShell() {
             { to: "/ufficio", label: "Rapportini", icon: "rapportino", colorClass: "text-sky-400", end: true },
 
             // CANONIQUE
-            { to: "/ufficio/navemaster", label: "NAVEMASTER", icon: "inca", colorClass: "text-emerald-400" },
+            { to: "/ufficio/navemaster", label: "NAVEMASTER", icon: "ship", colorClass: "text-emerald-400" },
+
+            { to: "/ufficio/inca-hub", label: "INCA", icon: "inca", colorClass: "text-sky-400" },
 
             // NEW
             { to: "/ufficio/evoluzione", label: "Evoluzione", icon: "history", colorClass: "text-amber-400" },

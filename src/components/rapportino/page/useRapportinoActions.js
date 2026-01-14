@@ -8,7 +8,7 @@ import { normalizeLegacyTempoAlignment, splitLinesKeepEmpties, joinLines } from 
 
 /**
  * Canonical:
- * - In DB we store operator mapping in rapportino_row_operators (per row).
+ * - In DB we store operator mapping in rapportino_row_operators (per row) using rapportino_row_id.
  * - In UI, we keep row.operator_items as canonical items:
  *   [{ operator_id, label, tempo_raw, tempo_hours, line_index }]
  */
@@ -35,7 +35,7 @@ export function addRow({ setRows }) {
     next.push({
       id: `tmp_${crypto.randomUUID()}`,
       categoria: "",
-      descrizione_attivita: "",
+      descrizione: "",
       operatori: "",
       tempo: "",
       previsto: "",
@@ -48,13 +48,11 @@ export function addRow({ setRows }) {
 }
 
 /**
- * Add row from Catalog (RapportinoPage expects this name)
+ * Add row from Catalog
  */
 export function addRowFromCatalog({ setRows }, activity) {
   const categoria = safeStr(activity?.categoria ?? activity?.category ?? "");
-  const descrizione_attivita = safeStr(
-    activity?.descrizione_attivita ?? activity?.descrizione ?? activity?.label ?? activity?.name ?? ""
-  );
+  const descrizione = safeStr(activity?.descrizione ?? activity?.label ?? activity?.name ?? "");
   const previsto = activity?.previsto ?? activity?.planned ?? "";
   const note = safeStr(activity?.note ?? "");
 
@@ -63,7 +61,7 @@ export function addRowFromCatalog({ setRows }, activity) {
     next.push({
       id: `tmp_${crypto.randomUUID()}`,
       categoria,
-      descrizione_attivita,
+      descrizione,
       operatori: "",
       tempo: "",
       previsto,
@@ -248,7 +246,7 @@ export function handleTempoChangeLegacy({ setRows }, rowIndex, value) {
 /**
  * Robust toggle: supports BOTH call signatures:
  * - toggleOperatorInRow({setRows}, rowIndex, action, operator)
- * - toggleOperatorInRow({setRows}, rowIndex, operator, action)   <-- your RapportinoPage uses this sometimes
+ * - toggleOperatorInRow({setRows}, rowIndex, operator, action)
  */
 export function toggleOperatorInRow({ setRows }, rowIndex, a, b) {
   let action;
@@ -262,7 +260,6 @@ export function toggleOperatorInRow({ setRows }, rowIndex, a, b) {
     action = b;
   }
 
-  // normalize action
   const act = String(action || "toggle").toLowerCase();
 
   const operator_id = operator?.operator_id || operator?.id || null;
@@ -274,7 +271,6 @@ export function toggleOperatorInRow({ setRows }, rowIndex, a, b) {
     return;
   }
 
-  // detect exists
   let currentItems = [];
   setRows((prev) => {
     const row = Array.isArray(prev) ? prev[rowIndex] : null;
@@ -282,7 +278,8 @@ export function toggleOperatorInRow({ setRows }, rowIndex, a, b) {
     return prev;
   });
 
-  const exists = Array.isArray(currentItems) && currentItems.some((it) => String(it?.operator_id) === String(operator_id));
+  const exists =
+    Array.isArray(currentItems) && currentItems.some((it) => String(it?.operator_id) === String(operator_id));
 
   if (exists && act !== "add") {
     removeOperatorFromRow({ setRows }, rowIndex, operator_id);
@@ -295,14 +292,10 @@ export function toggleOperatorInRow({ setRows }, rowIndex, a, b) {
 }
 
 /**
- * saveRapportino — minimal but consistent with your schema usage in useRapportinoData:
- * - rapportini
- * - rapportino_rows
- * - rapportino_row_operators
- *
- * NOTE:
- * This uses delete+insert strategy for rows/operators (deterministic).
- * If your RLS forbids delete, we'll switch to upsert-by-id, but this is the cleanest baseline.
+ * saveRapportino — aligned to your current DB schema:
+ * - rapportini has required column "data" (date) (NOT NULL)
+ * - rapportino_rows has "descrizione" (NOT descrizione_attivita)
+ * - rapportino_row_operators uses "rapportino_row_id" (NOT row_id / rapportino_id)
  */
 export async function saveRapportino({
   profileId,
@@ -337,7 +330,7 @@ export async function saveRapportino({
         {
           capo_id: profileId,
           crew_role: crewRole,
-          report_date: reportDate,
+          data: reportDate, // ✅ FIX: table requires "data" NOT NULL
           costr: safeStr(costr),
           commessa: safeStr(commessa),
           status: nextStatus,
@@ -386,10 +379,8 @@ export async function saveRapportino({
 
   // insert new rows with deterministic position
   const insertRowsPayload = safeRows.map((r, idx) => {
-    // support both keys: descrizione_attivita (DB) and descrizione (UI)
-    const descrizione_attivita = safeStr(r?.descrizione_attivita ?? r?.descrizione ?? "");
+    const descrizione = safeStr(r?.descrizione ?? r?.descrizione_attivita ?? "");
 
-    // legacy tempo must be aligned if not canonical
     const operatoriText = safeStr(r?.operatori);
     const tempoText = safeStr(r?.tempo);
     const alignedTempo = normalizeLegacyTempoAlignment(operatoriText, tempoText);
@@ -398,43 +389,41 @@ export async function saveRapportino({
       rapportino_id: rid,
       position: idx,
       categoria: safeStr(r?.categoria),
-      descrizione_attivita,
+      descrizione, // ✅ FIX: column name is "descrizione"
       operatori: operatoriText,
       tempo: alignedTempo,
       previsto: r?.previsto ?? "",
       prodotto: r?.prodotto ?? "",
       note: safeStr(r?.note),
+      activity_id: r?.activity_id ?? null,
+      row_index: r?.row_index ?? null,
     };
   });
 
   let insertedRows = [];
   if (insertRowsPayload.length > 0) {
-    const { data, error } = await supabase
-      .from("rapportino_rows")
-      .insert(insertRowsPayload)
-      .select("id, position");
-
+    const { data, error } = await supabase.from("rapportino_rows").insert(insertRowsPayload).select("id, position");
     if (error) throw error;
     insertedRows = Array.isArray(data) ? data : [];
   }
 
-  // map position -> row_id
+  // position -> row_id
   const rowIdByPos = new Map(insertedRows.map((x) => [Number(x.position), String(x.id)]));
 
   // 3) replace canonical operator mappings
-  {
-    const { error } = await supabase.from("rapportino_row_operators").delete().eq("rapportino_id", rid);
-    if (error) {
-      // If table/policy missing, do not hard-fail silently: this is KPI-critical.
-      throw error;
-    }
+  // schema: rapportino_row_operators(rapportino_row_id, operator_id, line_index, tempo_raw, tempo_hours)
+  const rowIds = insertedRows.map((x) => String(x.id)).filter(Boolean);
+
+  if (rowIds.length > 0) {
+    const { error } = await supabase.from("rapportino_row_operators").delete().in("rapportino_row_id", rowIds);
+    if (error) throw error;
   }
 
   const opInsert = [];
   for (let i = 0; i < safeRows.length; i++) {
     const row = safeRows[i];
-    const row_id = rowIdByPos.get(i);
-    if (!row_id) continue;
+    const rapportino_row_id = rowIdByPos.get(i);
+    if (!rapportino_row_id) continue;
 
     const items = Array.isArray(row?.operator_items) ? row.operator_items : [];
     if (!items.length) continue;
@@ -447,11 +436,12 @@ export async function saveRapportino({
       const tempo_raw = safeStr(it?.tempo_raw);
       const tempo_hours = isFiniteNumber(it?.tempo_hours)
         ? it.tempo_hours
-        : (tempo_raw ? parseNumeric(tempo_raw) : null);
+        : tempo_raw
+          ? parseNumeric(tempo_raw)
+          : null;
 
       opInsert.push({
-        rapportino_id: rid,
-        row_id,
+        rapportino_row_id,
         operator_id,
         line_index: li,
         tempo_raw,

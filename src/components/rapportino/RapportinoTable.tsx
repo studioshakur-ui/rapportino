@@ -97,23 +97,17 @@ export default function RapportinoTable({
 }: Props): JSX.Element {
   const ro = readOnly || !onRowChange;
 
-  // IMPORTANT: on garde ton comportement actuel : canonical = items.length > 0
+  // ✅ FIX: canonical = operator_items exists as array (even empty)
   const canonicalByIdx = useMemo(() => {
-    return rows.map((r) => {
-      const items = Array.isArray(r?.operator_items) ? r.operator_items : [];
-      return items.length > 0;
-    });
+    return rows.map((r) => Array.isArray(r?.operator_items));
   }, [rows]);
 
   return (
     <div className="mt-3">
-      {/* ───────────────────────── MOBILE (md-) : cards, no table, no horizontal pan ───────────────────────── */}
+      {/* ───────────────────────── MOBILE (md-) : cards ───────────────────────── */}
       <div className="md:hidden space-y-3">
         {rows.map((r, idx) => {
           const isCanonical = canonicalByIdx[idx];
-
-          const catalogColsLocked = true; // identique
-          void catalogColsLocked; // (évite warning TS si unused)
 
           const opLines = splitLinesKeepEmpties(r.operatori);
           const canonItems = Array.isArray(r.operator_items) ? r.operator_items : [];
@@ -238,9 +232,11 @@ export default function RapportinoTable({
                                   title={label}
                                 >
                                   <span className="max-w-[180px] truncate">{label}</span>
+
                                   {!ro ? (
-                                    <button
-                                      type="button"
+                                    <span
+                                      role="button"
+                                      tabIndex={0}
                                       className="rounded-full border border-slate-200 w-6 h-6 inline-flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-50"
                                       title="Rimuovi operatore"
                                       aria-label={`Rimuovi ${label}`}
@@ -249,9 +245,17 @@ export default function RapportinoTable({
                                         if (!operatorId) return;
                                         onRemoveOperatorFromRow?.(idx, operatorId);
                                       }}
+                                      onKeyDown={(ev) => {
+                                        if (ev.key === "Enter" || ev.key === " ") {
+                                          ev.preventDefault();
+                                          ev.stopPropagation();
+                                          if (!operatorId) return;
+                                          onRemoveOperatorFromRow?.(idx, operatorId);
+                                        }
+                                      }}
                                     >
                                       ×
-                                    </button>
+                                    </span>
                                   ) : null}
                                 </span>
                               );
@@ -346,10 +350,7 @@ export default function RapportinoTable({
                 <div>
                   <div className="text-[11px] tracking-wide uppercase text-slate-500 mb-1">Prodotto (mt)</div>
                   <input
-                    className={cn(
-                      "w-full bg-transparent outline-none text-right",
-                      ro ? "opacity-80 cursor-not-allowed" : ""
-                    )}
+                    className={cn("w-full bg-transparent outline-none text-right", ro ? "opacity-80 cursor-not-allowed" : "")}
                     value={String(r.prodotto ?? "")}
                     onChange={ro ? undefined : (e) => onRowChange?.(idx, "prodotto", e.target.value)}
                     disabled={ro}
@@ -376,7 +377,6 @@ export default function RapportinoTable({
           );
         })}
 
-        {/* Guardrail visuel (catalog-only) */}
         {!ro && rows.length === 0 ? (
           <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-[12px] text-slate-700">
             Nessuna riga: usa <span className="font-semibold">Catalogo</span> per aggiungere attività.
@@ -384,25 +384,22 @@ export default function RapportinoTable({
         ) : null}
       </div>
 
-      {/* ───────────────────────── DESKTOP (md+) : ton tableau inchangé ───────────────────────── */}
+      {/* ───────────────────────── DESKTOP (md+) ───────────────────────── */}
       <div className="hidden md:block">
         <table className="rapportino-table text-[11px] w-full">
           <thead>
             <tr className="bg-slate-50">
               <th className="px-2 py-2 text-left w-[140px]">CATEGORIA</th>
               <th className="px-2 py-2 text-left w-[360px]">DESCRIZIONE ATTIVITÀ</th>
-
               <th className="px-2 py-2 text-left w-[260px]">
                 OPERATORE
                 <div className="text-[10px] text-slate-500 font-normal">(tap per scegliere / drag&drop)</div>
               </th>
-
               <th className="px-2 py-2 text-center w-[140px]">
                 TEMPO
                 <br />
                 <span className="text-[10px] text-slate-500">(ORE)</span>
               </th>
-
               <th className="px-2 py-2 text-right w-[120px]">PREVISTO</th>
               <th className="px-2 py-2 text-right w-[120px]">
                 PRODOTTO
@@ -418,10 +415,6 @@ export default function RapportinoTable({
             {rows.map((r, idx) => {
               const isCanonical = canonicalByIdx[idx];
 
-              // ENFORCEMENT: colonnes Catalog = non éditables (même si pas activity_id)
-              const catalogColsLocked = true;
-              void catalogColsLocked;
-
               const opLines = splitLinesKeepEmpties(r.operatori);
               const canonItems = Array.isArray(r.operator_items) ? r.operator_items : [];
               const legacyHasOps = hasAnyOperatorValueLegacy(r.operatori);
@@ -435,7 +428,6 @@ export default function RapportinoTable({
 
               return (
                 <tr key={String(r.id ?? idx)} className="align-top" data-ot-wrap>
-                  {/* CATEGORIA (LOCKED) */}
                   <td className="px-2 py-2">
                     <div className="flex items-start gap-2">
                       <input
@@ -463,7 +455,6 @@ export default function RapportinoTable({
                     </div>
                   </td>
 
-                  {/* DESCRIZIONE (LOCKED) */}
                   <td className="px-2 py-2">
                     <input
                       className={cn("w-full bg-transparent outline-none", "opacity-90 cursor-not-allowed")}
@@ -475,7 +466,6 @@ export default function RapportinoTable({
                     />
                   </td>
 
-                  {/* OPERATORE (CLICK + DROP) */}
                   <td className="px-2 py-2">
                     {isCanonical ? (
                       <>
@@ -524,8 +514,9 @@ export default function RapportinoTable({
                                   >
                                     <span className="max-w-[180px] truncate">{label}</span>
                                     {!ro ? (
-                                      <button
-                                        type="button"
+                                      <span
+                                        role="button"
+                                        tabIndex={0}
                                         className="rounded-full border border-slate-200 w-6 h-6 inline-flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-50"
                                         title="Rimuovi operatore"
                                         aria-label={`Rimuovi ${label}`}
@@ -534,9 +525,17 @@ export default function RapportinoTable({
                                           if (!operatorId) return;
                                           onRemoveOperatorFromRow?.(idx, operatorId);
                                         }}
+                                        onKeyDown={(ev) => {
+                                          if (ev.key === "Enter" || ev.key === " ") {
+                                            ev.preventDefault();
+                                            ev.stopPropagation();
+                                            if (!operatorId) return;
+                                            onRemoveOperatorFromRow?.(idx, operatorId);
+                                          }
+                                        }}
                                       >
                                         ×
-                                      </button>
+                                      </span>
                                     ) : null}
                                   </span>
                                 );
@@ -565,7 +564,6 @@ export default function RapportinoTable({
                     )}
                   </td>
 
-                  {/* TEMPO */}
                   <td className="px-2 py-2 text-center">
                     <div
                       className={cn(
@@ -576,7 +574,9 @@ export default function RapportinoTable({
                       )}
                       role={tempoPillEnabled ? "button" : undefined}
                       tabIndex={tempoPillEnabled ? 0 : -1}
-                      title={!hasOperators ? "Prima inserisci almeno un operatore" : ro ? undefined : "Tocca per impostare le ore…"}
+                      title={
+                        !hasOperators ? "Prima inserisci almeno un operatore" : ro ? undefined : "Tocca per impostare le ore…"
+                      }
                       onClick={() => {
                         if (!tempoPillEnabled) return;
                         onOpenTempoPicker?.(idx);
@@ -611,7 +611,6 @@ export default function RapportinoTable({
                     </div>
                   </td>
 
-                  {/* PREVISTO (LOCKED) */}
                   <td className="px-2 py-2 text-right">
                     <input
                       className={cn("w-full bg-transparent outline-none text-right", "opacity-90 cursor-not-allowed")}
@@ -623,7 +622,6 @@ export default function RapportinoTable({
                     />
                   </td>
 
-                  {/* PRODOTTO (editable) */}
                   <td className="px-2 py-2 text-right">
                     <input
                       className={cn("w-full bg-transparent outline-none text-right", ro ? "opacity-80 cursor-not-allowed" : "")}
@@ -636,7 +634,6 @@ export default function RapportinoTable({
                     />
                   </td>
 
-                  {/* NOTE (editable) */}
                   <td className="px-2 py-2">
                     <input
                       className={cn("w-full bg-transparent outline-none", ro ? "opacity-80 cursor-not-allowed" : "")}
@@ -648,7 +645,6 @@ export default function RapportinoTable({
                     />
                   </td>
 
-                  {/* REMOVE ROW */}
                   {!ro ? (
                     <td className="px-2 py-2 text-center no-print">
                       <button
@@ -667,7 +663,6 @@ export default function RapportinoTable({
           </tbody>
         </table>
 
-        {/* Guardrail visuel (catalog-only) */}
         {!ro && rows.length === 0 ? (
           <div className="no-print mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-[12px] text-slate-700">
             Nessuna riga: usa <span className="font-semibold">Catalogo</span> per aggiungere attività.
