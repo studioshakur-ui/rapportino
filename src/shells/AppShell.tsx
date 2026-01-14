@@ -25,6 +25,7 @@ type ProfileLike = unknown;
 
 type AuthLike = {
   profile: ProfileLike | null;
+  session: any | null;
   signOut: (args: { reason: string }) => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -57,7 +58,7 @@ function useIsMobile(breakpointPx = 768): boolean {
 }
 
 export default function AppShell(): JSX.Element {
-  const { profile, signOut, refresh } = useAuth() as unknown as AuthLike;
+  const { profile, session, signOut, refresh } = useAuth() as unknown as AuthLike;
   const { resetShipContext } = useShip() as unknown as ShipCtxLike;
   const navigate = useNavigate();
   const location = useLocation();
@@ -169,11 +170,10 @@ export default function AppShell(): JSX.Element {
   return (
     <>
       {/* ───────────── Idle / Session security ───────────── */}
-          {/* ───────────── Idle / Session security ───────────── */}
       <IdleSessionManager
-        key={(profile as any)?.id ?? "anon"}                 // ✅ remount on user change
         enabled
-        storageScopeKey={(profile as any)?.id ?? "anon"}     // ✅ isolate per-user (auth.uid)
+        // ✅ Scope storage per user to avoid cross-account contamination on shared machines
+        storageScopeKey={session?.user?.id ?? "anon"}
         warnAfterMs={25 * 60 * 1000}
         logoutAfterMs={30 * 60 * 1000}
         onExtend={async () => {

@@ -931,9 +931,16 @@ export default function ManagerAssignments({ isDark = true }) {
 
   const updatePlanStatus = async (nextStatus) => {
     if (!plan?.id) return;
-    if (isFrozen) return;
 
     const ns = normalizePlanStatus(nextStatus);
+
+    // ✅ If the plan is frozen, allow ONLY "unfreeze" transitions.
+    // Frozen is a hard read-only mode for normal edits, but operations may
+    // require unlocking during the shift.
+    if (isFrozen && ns !== "PUBLISHED" && ns !== "DRAFT") {
+      setToastSoft("Piano congelato: usa \"Sblocca\" per modificare.");
+      return;
+    }
 
     setBusy(true);
     setErr("");
@@ -944,21 +951,42 @@ export default function ManagerAssignments({ isDark = true }) {
         updated_at: new Date().toISOString(),
       };
 
+      // Lock
       if (ns === "FROZEN") patch.frozen_at = new Date().toISOString();
+
+      // Unlock (clear frozen_at)
+      if (status === "FROZEN" && ns !== "FROZEN") patch.frozen_at = null;
 
       const { data, error } = await supabase.from("manager_plans").update(patch).eq("id", plan.id).select("*").single();
       if (error) throw error;
 
       setPlan(data);
+      const action =
+        status === "FROZEN" && (ns === "PUBLISHED" || ns === "DRAFT")
+          ? "PLAN_UNFREEZE"
+          : ns === "PUBLISHED"
+            ? "PLAN_PUBLISH"
+            : ns === "FROZEN"
+              ? "PLAN_FREEZE"
+              : "PLAN_DRAFT";
+
       await audit({
         plan_id: plan.id,
-        action: ns === "PUBLISHED" ? "PLAN_PUBLISH" : ns === "FROZEN" ? "PLAN_FREEZE" : "PLAN_DRAFT",
+        action,
         target_type: "manager_plans",
         target_id: plan.id,
         payload: { from: status, to: ns },
       });
 
-      setToastSoft(ns === "FROZEN" ? "Piano congelato." : ns === "PUBLISHED" ? "Piano pubblicato." : "Bozza.");
+      setToastSoft(
+        ns === "FROZEN"
+          ? "Piano congelato."
+          : status === "FROZEN" && (ns === "PUBLISHED" || ns === "DRAFT")
+            ? "Piano sbloccato."
+            : ns === "PUBLISHED"
+              ? "Piano pubblicato."
+              : "Bozza."
+      );
     } catch (e) {
       console.error("[ManagerAssignments] updatePlanStatus error:", e);
       setErr("Impossibile aggiornare stato (RLS).");
@@ -1010,6 +1038,17 @@ export default function ManagerAssignments({ isDark = true }) {
               >
                 Congela
               </button>
+              {isFrozen ? (
+                <button
+                  type="button"
+                  className={btnPrimary()}
+                  disabled={!plan?.id || busy}
+                  onClick={() => updatePlanStatus("PUBLISHED")}
+                  title="Sblocca il piano per consentire modifiche durante la giornata"
+                >
+                  Sblocca
+                </button>
+              ) : null}
             </div>
           )}
 

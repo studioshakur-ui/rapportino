@@ -11,8 +11,10 @@ import { supabase } from "../lib/supabaseClient";
  * - INCA global (inca_cavi.progress_*) reste la vérité cockpit et popover "apparati" global.
  *
  * UI rules (inchangées):
- * - "Attuale" affiche uniquement la valeur persistée (jamais une pré-sélection).
- * - Ne jamais afficher "lato DA" si progress_percent est NULL.
+ * - "Attuale" affiche la valeur persistée.
+ * - Si progress_percent est NULL (legacy / non compilé), on applique un DEFAULT UX: 100%.
+ *   => plus de tiret "—" en écran: NULL est traité comme 100%.
+ * - Le lato est toujours affiché; si NULL, DEFAULT "DA".
  *
  * UI simplification (CORE style):
  * - Header minimal + toggle "Analisi" (Snapshot caché par défaut)
@@ -37,6 +39,20 @@ const SITUAZIONI_LABEL = {
 
 const PROGRESS_OPTIONS = [50, 70, 100];
 const PAGE_SIZE = 200;
+
+/**
+ * UX rule:
+ * - NULL/undefined progress_percent must behave as 100% (default).
+ * - Side defaults to "DA".
+ */
+function progressPercentEffective(raw) {
+  const n = normalizeProgressPercent(raw);
+  return n == null ? 100 : n;
+}
+
+function progressSideEffective(raw) {
+  return normalizeProgressSideNullable(raw) || "DA";
+}
 
 /** ===== Utils ===== */
 function safeNum(v) {
@@ -205,7 +221,7 @@ export default function RapportinoIncaCaviSection({
   // Progress drawer (single row edit)
   const [progressOpen, setProgressOpen] = useState(false);
   const [progressRow, setProgressRow] = useState(null);
-  const [progressDraftPercent, setProgressDraftPercent] = useState(null);
+  const [progressDraftPercent, setProgressDraftPercent] = useState(100);
   const [progressDraftSide, setProgressDraftSide] = useState("DA");
 
   // Row menu
@@ -279,15 +295,17 @@ export default function RapportinoIncaCaviSection({
     const persistedSide = canWriteInca ? row.incaProgressSide : row.rapProgressSide;
 
     setProgressRow(row);
-    setProgressDraftPercent(persistedPercent);
-    setProgressDraftSide(persistedSide || "DA");
+    // UX default: NULL => 100% + DA
+    setProgressDraftPercent(progressPercentEffective(persistedPercent));
+    setProgressDraftSide(progressSideEffective(persistedSide));
     setProgressOpen(true);
   };
 
   const closeProgressDrawer = () => {
     setProgressOpen(false);
     setProgressRow(null);
-    setProgressDraftPercent(null);
+    // Keep a safe default for next open.
+    setProgressDraftPercent(100);
     setProgressDraftSide("DA");
   };
 
@@ -701,27 +719,9 @@ export default function RapportinoIncaCaviSection({
   const handleSaveProgress = async () => {
     if (!progressRow) return;
 
-    const percent = normalizeProgressPercent(progressDraftPercent);
+    // UX default: never save NULL. If the draft is invalid, fallback to 100.
+    const percent = normalizeProgressPercent(progressDraftPercent) ?? 100;
     const side = normalizeProgressSideNullable(progressDraftSide) || "DA";
-
-    // If user keeps percent null, we DO NOT persist side (but DB requires side if we store it).
-    // Our model stores side only with a valid percent.
-    if (percent == null) {
-      if (canWriteInca) {
-        // reset global
-        await updateIncaProgress({ incaCavoId: progressRow.inca_cavo_id, percent: null, side: "DA" });
-      } else {
-        // reset journalier
-        await updateRapportinoProgress({
-          rowId: progressRow.id,
-          incaCavoId: progressRow.inca_cavo_id,
-          percent: null,
-          side: "DA",
-        });
-      }
-      closeProgressDrawer();
-      return;
-    }
 
     if (canWriteInca) {
       await updateIncaProgress({ incaCavoId: progressRow.inca_cavo_id, percent, side });
@@ -757,9 +757,9 @@ export default function RapportinoIncaCaviSection({
         metri_posati: 0,
         note: null,
         step_type: "POSA",
-        // initialize daily progress as NULL (no fake truth)
-        progress_percent: null,
-        progress_side: null,
+        // UX default: progress starts at 100% with lato DA
+        progress_percent: 100,
+        progress_side: "DA",
       };
 
       const { error } = await supabase.from("rapportino_inca_cavi").insert(payload);
@@ -994,9 +994,12 @@ export default function RapportinoIncaCaviSection({
               </tr>
             ) : (
               filteredRows.map((r) => {
-                const attualePercent = canWriteInca ? r.incaProgressPercent : r.rapProgressPercent;
-                const attualeSide = canWriteInca ? r.incaProgressSide : r.rapProgressSide;
-                const showSide = attualePercent != null && attualeSide != null;
+                const attualePercentRaw = canWriteInca ? r.incaProgressPercent : r.rapProgressPercent;
+                const attualeSideRaw = canWriteInca ? r.incaProgressSide : r.rapProgressSide;
+
+                // UX default: NULL => 100% + DA (no "—")
+                const attualePercent = progressPercentEffective(attualePercentRaw);
+                const attualeSide = progressSideEffective(attualeSideRaw);
 
                 // Stato INCA: CAPO voit (passif), UFFICIO/ADMIN peut éditer
                 const statoButtonLike = canWriteInca;
@@ -1020,12 +1023,8 @@ export default function RapportinoIncaCaviSection({
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <div className="text-[13px] text-slate-100 font-semibold tabular-nums">
-                            {attualePercent != null ? `${attualePercent}%` : "—"}
-                            {showSide ? (
-                              <span className="ml-2 text-[11px] font-semibold text-slate-400">
-                                {attualeSide}
-                              </span>
-                            ) : null}
+                            {`${attualePercent}%`}
+                            <span className="ml-2 text-[11px] font-semibold text-slate-400">{attualeSide}</span>
                           </div>
                           <div className="mt-0.5 text-[11px] text-slate-500">
                             {canWriteInca ? "Globale (INCA)" : "Giornaliero (RAP)"}
@@ -1144,7 +1143,7 @@ export default function RapportinoIncaCaviSection({
                   {progressRow?.codice || "Cavo"}
                 </div>
                 <div className="mt-1 text-[12px] text-slate-400">
-                  Se percentuale è vuota, non viene mostrato alcun lato (DA/A).
+                  Default: se il progress non era compilato, viene trattato come <span className="font-semibold text-slate-200">100% · DA</span>.
                 </div>
               </div>
 
@@ -1158,11 +1157,11 @@ export default function RapportinoIncaCaviSection({
                 <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">Attuale</div>
                 <div className="mt-2 text-[24px] font-extrabold text-slate-50 tabular-nums">
                   {(() => {
-                    const p = canWriteInca ? progressRow?.incaProgressPercent : progressRow?.rapProgressPercent;
-                    const s = canWriteInca ? progressRow?.incaProgressSide : progressRow?.rapProgressSide;
-                    if (p == null) return "—";
-                    if (s) return `${p}% · ${s}`;
-                    return `${p}%`;
+                    const pRaw = canWriteInca ? progressRow?.incaProgressPercent : progressRow?.rapProgressPercent;
+                    const sRaw = canWriteInca ? progressRow?.incaProgressSide : progressRow?.rapProgressSide;
+                    const p = progressPercentEffective(pRaw);
+                    const s = progressSideEffective(sRaw);
+                    return `${p}% · ${s}`;
                   })()}
                 </div>
                 <div className="mt-1 text-[12px] text-slate-500">
@@ -1174,22 +1173,6 @@ export default function RapportinoIncaCaviSection({
                 <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">Impostazione</div>
 
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    className={[
-                      "rounded-full border px-3 py-2 text-[12px] font-semibold",
-                      "focus:outline-none focus:ring-2 focus:ring-sky-500/35",
-                      progressDraftPercent == null
-                        ? "border-sky-400/65 bg-slate-50/10 text-slate-50"
-                        : "border-slate-700 bg-slate-950/60 text-slate-200 hover:bg-slate-900/45",
-                    ].join(" ")}
-                    onClick={() => setProgressDraftPercent(null)}
-                    disabled={saving}
-                    title="Nessun progress salvato"
-                  >
-                    —
-                  </button>
-
                   {PROGRESS_OPTIONS.map((p) => (
                     <button
                       key={p}
@@ -1246,7 +1229,7 @@ export default function RapportinoIncaCaviSection({
                     </button>
 
                     <span className="ml-2 text-[12px] text-slate-500">
-                      (mostrato solo se la percentuale è salvata)
+                      (default: 100% · DA)
                     </span>
                   </div>
                 </div>
