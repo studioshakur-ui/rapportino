@@ -1,6 +1,7 @@
 // src/routes.tsx
 import { Routes, Route, Navigate } from "react-router-dom";
 
+import RequireAuth from "./auth/RequireAuth";
 import RequireRole from "./auth/RequireRole";
 
 import Landing from "./pages/Landing";
@@ -35,9 +36,6 @@ import IncaCapoCockpit from "./capo/IncaCapoCockpit";
 // CAPO SIMPLE (new)
 import CapoEntryRouter from "./capo/simple/CapoEntryRouter";
 import CapoPresencePage from "./capo/simple/CapoPresencePage";
-// NOTE: PresenceGate gardé dans le repo si tu l’utilises ailleurs,
-// mais on NE l’utilise plus pour bloquer Rapportino.
-// import CapoPresenceGate from "./capo/simple/CapoPresenceGate";
 
 // UFFICIO
 import UfficioRapportiniList from "./ufficio/UfficioRapportiniList";
@@ -72,9 +70,11 @@ export default function AppRoutes(): JSX.Element {
       <Route
         path="/app/rapportino/sheet"
         element={
-          <RequireRole allowed={["CAPO"]}>
-            <RapportinoSheet />
-          </RequireRole>
+          <RequireAuth>
+            <RequireRole allowed={["CAPO"]}>
+              <RapportinoSheet />
+            </RequireRole>
+          </RequireAuth>
         }
       />
 
@@ -82,9 +82,11 @@ export default function AppRoutes(): JSX.Element {
       <Route
         path="/admin/*"
         element={
-          <RequireRole allowed={["ADMIN"]}>
-            <AdminShell />
-          </RequireRole>
+          <RequireAuth>
+            <RequireRole allowed={["ADMIN"]}>
+              <AdminShell />
+            </RequireRole>
+          </RequireAuth>
         }
       >
         <Route index element={<Navigate to="users" replace />} />
@@ -102,23 +104,20 @@ export default function AppRoutes(): JSX.Element {
       <Route
         path="/app/*"
         element={
-          <RequireRole allowed={["CAPO"]}>
-            <AppShell />
-          </RequireRole>
+          <RequireAuth>
+            <RequireRole allowed={["CAPO"]}>
+              <AppShell />
+            </RequireRole>
+          </RequireAuth>
         }
       >
-        {/* ENTRY ROUTER (ADMIN decides simple vs rich) */}
         <Route index element={<CapoEntryRouter />} />
-
-        {/* PRESENCE = module séparé (pas gate du Rapportino) */}
         <Route path="ship/:shipId/presence" element={<CapoPresencePage />} />
 
-        {/* CAPO RICH (legacy) */}
         <Route path="ship-selector" element={<ShipSelector />} />
         <Route path="kpi-operatori" element={<CapoOperatorKpi isDark={true} />} />
         <Route path="ship/:shipId" element={<CapoModuleSelector />} />
 
-        {/* Rapportino : accès direct, SANS PresenceGate */}
         <Route path="ship/:shipId/rapportino/role" element={<CapoRoleSelector />} />
         <Route path="ship/:shipId/rapportino" element={<RapportinoPage />} />
 
@@ -131,9 +130,11 @@ export default function AppRoutes(): JSX.Element {
       <Route
         path="/ufficio/*"
         element={
-          <RequireRole allowed={["UFFICIO", "DIREZIONE", "MANAGER", "ADMIN"]}>
-            <UfficioShell />
-          </RequireRole>
+          <RequireAuth>
+            <RequireRole allowed={["UFFICIO", "DIREZIONE", "MANAGER", "ADMIN"]}>
+              <UfficioShell />
+            </RequireRole>
+          </RequireAuth>
         }
       >
         <Route index element={<UfficioRapportiniList />} />
@@ -149,9 +150,11 @@ export default function AppRoutes(): JSX.Element {
       <Route
         path="/manager/*"
         element={
-          <RequireRole allowed={["MANAGER", "ADMIN"]}>
-            <ManagerShell />
-          </RequireRole>
+          <RequireAuth>
+            <RequireRole allowed={["MANAGER", "ADMIN"]}>
+              <ManagerShell />
+            </RequireRole>
+          </RequireAuth>
         }
       >
         <Route index element={<ManagerDashboard isDark={true} />} />
@@ -168,9 +171,11 @@ export default function AppRoutes(): JSX.Element {
       <Route
         path="/direction/*"
         element={
-          <RequireRole allowed={["DIREZIONE", "MANAGER"]}>
-            <DirectionShell />
-          </RequireRole>
+          <RequireAuth>
+            <RequireRole allowed={["DIREZIONE", "MANAGER"]}>
+              <DirectionShell />
+            </RequireRole>
+          </RequireAuth>
         }
       />
 
