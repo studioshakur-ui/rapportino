@@ -8,8 +8,10 @@ import { normalizeLegacyTempoAlignment, joinLines } from "./rapportinoHelpers";
 
 /**
  * Canonical:
- * - In DB operator mapping is in rapportino_row_operators linked by rapportino_row_id.
- * - In UI canonical is row.operator_items:
+ * - In DB we store operator mapping in rapportino_row_operators (per rapportino_row).
+ *   Table columns (confirmed):
+ *     id, rapportino_row_id, operator_id, line_index, tempo_raw, tempo_hours, created_at, updated_at
+ * - In UI, we keep row.operator_items as canonical items:
  *   [{ operator_id, label, tempo_raw, tempo_hours, line_index }]
  */
 
@@ -17,101 +19,46 @@ function safeStr(v) {
   return String(v ?? "").trim();
 }
 
+function safeNumOrNull(v) {
+  if (v === null || v === undefined) return null;
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  const s = String(v).trim();
+  if (!s) return null;
+  const n = Number(s.replace(",", "."));
+  return Number.isFinite(n) ? n : null;
+}
+
 function isFiniteNumber(n) {
   return typeof n === "number" && Number.isFinite(n);
 }
 
 /**
- * HARD: numeric columns must NEVER receive "".
- * Convert to number or null.
- */
-function toNumericOrNull(v) {
-  if (v === null || v === undefined) return null;
-
-  // already a number
-  if (typeof v === "number") return Number.isFinite(v) ? v : null;
-
-  const s = String(v).trim();
-  if (!s) return null;
-
-  const n = parseNumeric(s);
-  return Number.isFinite(n) ? n : null;
-}
-
-/**
- * Extra hard sanitizer for row payload (final barrier).
- * If a key is numeric and value is "" => null.
- */
-function sanitizeRowNumericPayload(payload) {
-  const numericKeys = new Set(["previsto", "prodotto", "tempo_hours"]);
-  const out = { ...payload };
-
-  for (const k of Object.keys(out)) {
-    if (!numericKeys.has(k)) continue;
-    if (out[k] === "") out[k] = null;
-    if (typeof out[k] === "string") {
-      const s = out[k].trim();
-      if (!s) out[k] = null;
-    }
-  }
-
-  // ensure numeric are actually numbers/null
-  out.previsto = toNumericOrNull(out.previsto);
-  out.prodotto = toNumericOrNull(out.prodotto);
-  if ("tempo_hours" in out) out.tempo_hours = toNumericOrNull(out.tempo_hours);
-
-  return out;
-}
-
-/**
- * Add empty row (manual)
- */
-export function addRow({ setRows }) {
-  setRows((prev) => {
-    const next = Array.isArray(prev) ? [...prev] : [];
-    next.push({
-      id: `tmp_${crypto.randomUUID()}`,
-      categoria: "",
-      descrizione: "",
-      operatori: "",
-      tempo: "",
-      previsto: "", // UI input-friendly
-      prodotto: "", // UI input-friendly
-      note: "",
-      operator_items: [],
-    });
-    return next;
-  });
-}
-
-/**
- * Add row from Catalog
+ * Add row from Catalog (RapportinoPage expects this name)
  */
 export function addRowFromCatalog({ setRows }, activity) {
   const categoria = safeStr(activity?.categoria ?? activity?.category ?? "");
-  const descrizione = safeStr(
-    activity?.descrizione ?? activity?.descrizione_attivita ?? activity?.label ?? activity?.name ?? ""
+  const descrizione_attivita = safeStr(
+    activity?.descrizione_attivita ?? activity?.descrizione ?? activity?.label ?? activity?.name ?? ""
   );
 
-  // Catalog can return previsto numeric or string: keep in UI as string for inputs,
-  // but save will sanitize anyway.
-  const previstoRaw = activity?.previsto ?? activity?.planned ?? "";
-  const previsto = previstoRaw === null || previstoRaw === undefined ? "" : String(previstoRaw);
-
+  // previsto may arrive numeric or string; keep raw but DO NOT force "" into numeric later
+  const previsto = activity?.previsto ?? activity?.planned ?? null;
   const note = safeStr(activity?.note ?? "");
+  const activity_id = activity?.id ?? activity?.activity_id ?? null;
 
   setRows((prev) => {
     const next = Array.isArray(prev) ? [...prev] : [];
     next.push({
       id: `tmp_${crypto.randomUUID()}`,
       categoria,
-      descrizione,
+      descrizione_attivita,
       operatori: "",
       tempo: "",
       previsto,
-      prodotto: "",
+      prodotto: null,
       note,
-      operator_items: [],
+      activity_id: activity_id ? String(activity_id) : null,
+      operator_items: [], // canonical enabled
     });
     return next;
   });
@@ -146,6 +93,8 @@ export function addOperatorToRow({ setRows }, rowIndex, operator) {
     if (!row) return prev;
 
     const items = Array.isArray(row.operator_items) ? [...row.operator_items] : [];
+
+    // prevent duplicates
     if (items.some((it) => String(it?.operator_id) === String(operator_id))) return prev;
 
     const line_index = items.length;
@@ -158,6 +107,7 @@ export function addOperatorToRow({ setRows }, rowIndex, operator) {
       line_index,
     });
 
+    // Keep legacy fields in sync for display / exports
     const operatori = joinLines(items.map((it) => it.label));
     const tempo = joinLines(items.map((it) => String(it.tempo_raw ?? "")));
 
@@ -181,8 +131,12 @@ export function removeOperatorFromRow({ setRows }, rowIndex, operator_id) {
     if (!row) return prev;
 
     const items = Array.isArray(row.operator_items) ? [...row.operator_items] : [];
+
     const filtered = items.filter((it) => String(it?.operator_id) !== String(operator_id));
-    const reindexed = filtered.map((it, idx) => ({ ...it, line_index: idx }));
+    const reindexed = filtered.map((it, idx) => ({
+      ...it,
+      line_index: idx,
+    }));
 
     const operatori = joinLines(reindexed.map((it) => it.label));
     const tempo = joinLines(reindexed.map((it) => String(it.tempo_raw ?? "")));
@@ -198,6 +152,10 @@ export function removeOperatorFromRow({ setRows }, rowIndex, operator_id) {
   });
 }
 
+/**
+ * RapportinoPage uses this name from TempoPickerModal flow:
+ * setCanonicalTempoForLine({ setRows }, rowIndex, lineIndex, tempoRaw)
+ */
 export function setCanonicalTempoForLine({ setRows }, rowIndex, lineIndex, tempoRaw) {
   setRows((prev) => {
     const next = Array.isArray(prev) ? [...prev] : [];
@@ -208,7 +166,7 @@ export function setCanonicalTempoForLine({ setRows }, rowIndex, lineIndex, tempo
     if (lineIndex < 0 || lineIndex >= items.length) return prev;
 
     const tRaw = String(tempoRaw ?? "").trim();
-    const hours = tRaw ? parseNumeric(tRaw) : null;
+    const hours = tRaw ? safeNumOrNull(tRaw) : null;
 
     items[lineIndex] = {
       ...items[lineIndex],
@@ -217,6 +175,7 @@ export function setCanonicalTempoForLine({ setRows }, rowIndex, lineIndex, tempo
       line_index: lineIndex,
     };
 
+    // keep legacy sync for print/export
     const operatori = joinLines(items.map((it) => it.label));
     const tempo = joinLines(items.map((it) => String(it.tempo_raw ?? "")));
 
@@ -232,13 +191,18 @@ export function handleTempoChangeLegacy({ setRows }, rowIndex, value) {
     if (!row) return prev;
 
     const items = Array.isArray(row.operator_items) ? row.operator_items : [];
-    if (items.length > 0) return prev;
+    if (items.length > 0) return prev; // locked when canonical exists
 
     next[rowIndex] = { ...row, tempo: value };
     return next;
   });
 }
 
+/**
+ * Robust toggle: supports BOTH call signatures:
+ * - toggleOperatorInRow({setRows}, rowIndex, action, operator)
+ * - toggleOperatorInRow({setRows}, rowIndex, operator, action)
+ */
 export function toggleOperatorInRow({ setRows }, rowIndex, a, b) {
   let action;
   let operator;
@@ -262,6 +226,7 @@ export function toggleOperatorInRow({ setRows }, rowIndex, a, b) {
     return;
   }
 
+  // detect exists
   let currentItems = [];
   setRows((prev) => {
     const row = Array.isArray(prev) ? prev[rowIndex] : null;
@@ -283,10 +248,12 @@ export function toggleOperatorInRow({ setRows }, rowIndex, a, b) {
 }
 
 /**
- * saveRapportino — schema aligned
- * - rapportini.data NOT NULL (canonical date)
- * - rapportino_rows.descrizione
- * - rapportino_row_operators.rapportino_row_id
+ * saveRapportino — hardened + aligned to real DB schema
+ *
+ * Tables:
+ * - rapportini: requires data NOT NULL (date)
+ * - rapportino_rows: has descrizione (text), previsto numeric, prodotto numeric, activity_id uuid, position integer
+ * - rapportino_row_operators: has rapportino_row_id (uuid) + operator_id (uuid)
  */
 export async function saveRapportino({
   profileId,
@@ -310,24 +277,26 @@ export async function saveRapportino({
   if (!reportDate) throw new Error("Missing reportDate");
 
   const nextStatus = forcedStatus || status || "DRAFT";
+
+  // 1) upsert rapportino header (create or update)
   let rid = rapportinoId ? String(rapportinoId) : null;
 
-  // 1) upsert header
+  const headerPayload = {
+    capo_id: profileId,
+    crew_role: crewRole,
+    // IMPORTANT: DB has BOTH `data` and `report_date` -> `data` is NOT NULL
+    data: reportDate,
+    report_date: reportDate,
+    costr: safeStr(costr),
+    commessa: safeStr(commessa),
+    status: nextStatus,
+    prodotto_totale: safeNumOrNull(prodottoTotale) ?? 0,
+  };
+
   if (!rid) {
     const { data, error } = await supabase
       .from("rapportini")
-      .insert([
-        {
-          capo_id: profileId,
-          crew_role: crewRole,
-          data: reportDate,
-          report_date: reportDate,
-          costr: safeStr(costr),
-          commessa: safeStr(commessa),
-          status: nextStatus,
-          prodotto_totale: Number(prodottoTotale || 0),
-        },
-      ])
+      .insert([headerPayload])
       .select("id, crew_role, status")
       .single();
 
@@ -343,12 +312,13 @@ export async function saveRapportino({
     const { data, error } = await supabase
       .from("rapportini")
       .update({
+        // keep data aligned too
         data: reportDate,
         report_date: reportDate,
         costr: safeStr(costr),
         commessa: safeStr(commessa),
         status: nextStatus,
-        prodotto_totale: Number(prodottoTotale || 0),
+        prodotto_totale: safeNumOrNull(prodottoTotale) ?? 0,
       })
       .eq("id", rid)
       .select("id, crew_role, status")
@@ -361,62 +331,70 @@ export async function saveRapportino({
     setStatus?.(data?.status || nextStatus);
   }
 
-  // 2) replace rows/operators
+  // 2) replace rows (delete+insert)
   const safeRows = Array.isArray(rows) ? rows : [];
 
-  // read existing row ids (for operator delete)
-  const { data: existingRows, error: exErr } = await supabase
+  // 2a) prefetch existing row ids to delete operator mappings safely (schema has rapportino_row_id)
+  const { data: existingRowsData, error: existingRowsErr } = await supabase
     .from("rapportino_rows")
     .select("id")
     .eq("rapportino_id", rid);
 
-  if (exErr) throw exErr;
+  if (existingRowsErr) throw existingRowsErr;
 
-  const existingRowIds = (Array.isArray(existingRows) ? existingRows : [])
+  const existingRowIds = (Array.isArray(existingRowsData) ? existingRowsData : [])
     .map((x) => x?.id)
     .filter(Boolean)
     .map((x) => String(x));
 
   if (existingRowIds.length > 0) {
-    const { error } = await supabase.from("rapportino_row_operators").delete().in("rapportino_row_id", existingRowIds);
-    if (error) throw error;
+    const { error: delOpsErr } = await supabase
+      .from("rapportino_row_operators")
+      .delete()
+      .in("rapportino_row_id", existingRowIds);
+
+    // if table/policy missing, fail loudly (KPI critical)
+    if (delOpsErr) throw delOpsErr;
   }
 
-  // delete rows
+  // 2b) delete existing rows
   {
     const { error } = await supabase.from("rapportino_rows").delete().eq("rapportino_id", rid);
     if (error) throw error;
   }
 
-  // insert rows (sanitize numeric hard)
+  // 2c) insert new rows with deterministic position
   const insertRowsPayload = safeRows.map((r, idx) => {
     const descrizione = safeStr(r?.descrizione ?? r?.descrizione_attivita ?? "");
 
+    // legacy tempo must be aligned if not canonical
     const operatoriText = safeStr(r?.operatori);
     const tempoText = safeStr(r?.tempo);
     const alignedTempo = normalizeLegacyTempoAlignment(operatoriText, tempoText);
 
-    const payload = {
+    return {
       rapportino_id: rid,
-      position: Number(idx),
+      position: idx,
       categoria: safeStr(r?.categoria),
       descrizione,
       operatori: operatoriText,
       tempo: alignedTempo,
-      previsto: r?.previsto,
-      prodotto: r?.prodotto,
+      // IMPORTANT: numeric columns must be number or null (never "")
+      previsto: safeNumOrNull(r?.previsto),
+      prodotto: safeNumOrNull(r?.prodotto),
       note: safeStr(r?.note),
+      activity_id: r?.activity_id ? String(r.activity_id) : null,
+      row_index: typeof r?.row_index === "number" ? r.row_index : null,
     };
-
-    return sanitizeRowNumericPayload(payload);
   });
 
   let insertedRows = [];
   if (insertRowsPayload.length > 0) {
-    // DEBUG (optional): uncomment if you still get numeric errors
-    // console.log("[saveRapportino] insertRowsPayload", insertRowsPayload);
+    const { data, error } = await supabase
+      .from("rapportino_rows")
+      .insert(insertRowsPayload)
+      .select("id, position");
 
-    const { data, error } = await supabase.from("rapportino_rows").insert(insertRowsPayload).select("id, position");
     if (error) throw error;
     insertedRows = Array.isArray(data) ? data : [];
   }
@@ -424,9 +402,8 @@ export async function saveRapportino({
   // map position -> rapportino_row_id
   const rowIdByPos = new Map(insertedRows.map((x) => [Number(x.position), String(x.id)]));
 
-  // 3) insert operator mappings (rapportino_row_id)
+  // 3) insert canonical operator mappings (rapportino_row_operators.rapportino_row_id)
   const opInsert = [];
-
   for (let i = 0; i < safeRows.length; i++) {
     const row = safeRows[i];
     const rapportino_row_id = rowIdByPos.get(i);
@@ -441,24 +418,21 @@ export async function saveRapportino({
       if (!operator_id) continue;
 
       const tempo_raw = safeStr(it?.tempo_raw);
-      const tempo_hours = isFiniteNumber(it?.tempo_hours) ? it.tempo_hours : tempo_raw ? parseNumeric(tempo_raw) : null;
+      const tempo_hours = isFiniteNumber(it?.tempo_hours)
+        ? it.tempo_hours
+        : (tempo_raw ? parseNumeric(tempo_raw) : null);
 
-      const payload = sanitizeRowNumericPayload({
+      opInsert.push({
         rapportino_row_id,
         operator_id,
-        line_index: Number(li),
+        line_index: li,
         tempo_raw,
-        tempo_hours,
+        tempo_hours: isFiniteNumber(tempo_hours) ? tempo_hours : null,
       });
-
-      opInsert.push(payload);
     }
   }
 
   if (opInsert.length > 0) {
-    // DEBUG (optional): uncomment if needed
-    // console.log("[saveRapportino] opInsert", opInsert);
-
     const { error } = await supabase.from("rapportino_row_operators").insert(opInsert);
     if (error) throw error;
   }
