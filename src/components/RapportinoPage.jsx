@@ -32,6 +32,7 @@ import { useReturnedInbox } from "./rapportino/page/useReturnedInbox";
 import { useRapportinoData } from "./rapportino/page/useRapportinoData";
 import {
   addRowFromCatalog,
+  handleTempoChangeLegacy,
   removeOperatorFromRow,
   removeRow,
   saveRapportino,
@@ -89,12 +90,12 @@ function ToastOverlay({ toast, onClose }) {
 
 /**
  * Build tempo picker items for a row:
- * - Canonical: use operator_items (even if empty)
+ * - Canonical: use operator_items
  * - Legacy: derive from operatori/tempo lines
  */
 function buildTempoPickerItemsFromRow(row) {
-  const canon = Array.isArray(row?.operator_items) ? row.operator_items : null;
-  if (canon) return canon; // ✅ can be []
+  const canon = Array.isArray(row?.operator_items) ? row.operator_items : [];
+  if (canon.length > 0) return canon;
 
   const opLines = splitLinesKeepEmpties(row?.operatori);
   const tmLines = splitLinesKeepEmpties(row?.tempo);
@@ -131,6 +132,7 @@ function incaBtnClass(disabled) {
 
 function incaBtnStyle(disabled) {
   if (disabled) return undefined;
+  // sombre et discret: pas de glow, pas de gradient agressif
   return {
     backgroundImage: [
       "linear-gradient(180deg, rgba(2,6,23,0.92) 0%, rgba(15,23,42,0.92) 100%)",
@@ -151,6 +153,7 @@ function isValidIsoDateParam(v) {
   if (mm < 1 || mm > 12) return false;
   if (dd < 1 || dd > 31) return false;
 
+  // stricter: reject impossible dates like 2026-02-31
   const dt = new Date(Date.UTC(yy, mm - 1, dd));
   return dt.getUTCFullYear() === yy && dt.getUTCMonth() === mm - 1 && dt.getUTCDate() === dd;
 }
@@ -177,6 +180,74 @@ function setDateInSearch(search, nextDate) {
   return qs ? `?${qs}` : "";
 }
 
+function safeStr(v) {
+  return String(v ?? "").trim();
+}
+
+function hasAnyMeaningfulContent({ costr, commessa, rows }) {
+  if (safeStr(costr) || safeStr(commessa)) return true;
+
+  const arr = Array.isArray(rows) ? rows : [];
+  return arr.some((r) => {
+    const descr = safeStr(r?.descrizione_attivita ?? r?.descrizione);
+    const cat = safeStr(r?.categoria);
+    const note = safeStr(r?.note);
+    const opLegacy = safeStr(r?.operatori);
+    const tempoLegacy = safeStr(r?.tempo);
+    const previsto = r?.previsto;
+    const prodotto = r?.prodotto;
+
+    const canon = Array.isArray(r?.operator_items) ? r.operator_items : [];
+    const hasCanonOps = canon.some((it) => safeStr(it?.label) || safeStr(it?.tempo_raw));
+
+    return (
+      descr ||
+      cat ||
+      note ||
+      opLegacy ||
+      tempoLegacy ||
+      hasCanonOps ||
+      (previsto !== null && previsto !== undefined && safeStr(previsto) !== "") ||
+      (prodotto !== null && prodotto !== undefined && safeStr(prodotto) !== "")
+    );
+  });
+}
+
+function buildAutoSaveSignature({ profileId, crewRole, reportDate, costr, commessa, rows, status }) {
+  // Keep signature stable + cheap: do not include huge transient fields.
+  // We include enough to detect meaningful changes.
+  const arr = Array.isArray(rows) ? rows : [];
+  const compactRows = arr.map((r) => ({
+    categoria: safeStr(r?.categoria),
+    descrizione: safeStr(r?.descrizione_attivita ?? r?.descrizione),
+    operatori: safeStr(r?.operatori),
+    tempo: safeStr(r?.tempo),
+    previsto: r?.previsto ?? null,
+    prodotto: r?.prodotto ?? null,
+    note: safeStr(r?.note),
+    activity_id: r?.activity_id ? String(r.activity_id) : null,
+    operator_items: Array.isArray(r?.operator_items)
+      ? r.operator_items.map((it) => ({
+          operator_id: it?.operator_id ? String(it.operator_id) : "",
+          label: safeStr(it?.label),
+          tempo_raw: safeStr(it?.tempo_raw),
+          tempo_hours: it?.tempo_hours ?? null,
+          line_index: typeof it?.line_index === "number" ? it.line_index : null,
+        }))
+      : [],
+  }));
+
+  return JSON.stringify({
+    profileId: profileId ? String(profileId) : "",
+    crewRole: crewRole ? String(crewRole) : "",
+    reportDate: reportDate ? String(reportDate) : "",
+    status: status ? String(status) : "",
+    costr: safeStr(costr),
+    commessa: safeStr(commessa),
+    rows: compactRows,
+  });
+}
+
 export default function RapportinoPage() {
   const { shipId } = useParams();
   const { profile } = useAuth();
@@ -188,14 +259,16 @@ export default function RapportinoPage() {
   const normalizedCrewRole = normalizeCrewRole(crewRole);
   const crewLabel = CREW_LABELS[normalizedCrewRole] || normalizedCrewRole;
 
+  // Canonical report date = URL (?date=YYYY-MM-DD) or today
   const initialReportDate = useMemo(() => {
     const fromUrl = getDateFromSearch(location.search);
     return fromUrl || getTodayISO();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // read once for init
 
   const [reportDate, setReportDate] = useState(initialReportDate);
 
+  // Sync state if URL changes (back/forward, deep link, etc.)
   useEffect(() => {
     const fromUrl = getDateFromSearch(location.search);
     const next = fromUrl || getTodayISO();
@@ -248,6 +321,7 @@ export default function RapportinoPage() {
   const showIncaBlock = effectiveCrewRoleForInca === "ELETTRICISTA";
   const [incaOpen, setIncaOpen] = useState(false);
 
+  // AUTO-OPEN INCA when RETURNED + saved rapportino + role OK
   useEffect(() => {
     if (!showIncaBlock) return;
     if (!rapportinoId) return;
@@ -276,6 +350,7 @@ export default function RapportinoPage() {
     crewRole: normalizedCrewRole,
   });
 
+  // Toast
   const [toast, setToast] = useState(null);
   const toastTimerRef = useRef(null);
 
@@ -333,6 +408,8 @@ export default function RapportinoPage() {
   };
 
   const handleRowChange = (index, field, value, targetForHeight) => {
+    // IMPORTANT: visibleRows est filtré, mais rows est la source de vérité.
+    // Ici on modifie par index de visibleRows: on mappe via l'id si possible, sinon via index brut.
     setRows((prev) => {
       const prevArr = Array.isArray(prev) ? prev : [];
       const vr = visibleRows[index];
@@ -355,6 +432,7 @@ export default function RapportinoPage() {
   };
 
   const handleRemoveRow = (rowIndex) => {
+    // rowIndex on visibleRows => map to source rows via id
     const vr = visibleRows[rowIndex];
     const key = vr?.id ? String(vr.id) : null;
 
@@ -370,6 +448,7 @@ export default function RapportinoPage() {
 
   const handleRemoveOperatorFromRow = async (rowIndex, operatorId) => {
     try {
+      // rowIndex on visibleRows => map to source by id
       const vr = visibleRows[rowIndex];
       const key = vr?.id ? String(vr.id) : null;
 
@@ -410,6 +489,7 @@ export default function RapportinoPage() {
   const handleSave = async (forcedStatus) => {
     if (!profile?.id) return false;
 
+    // HARD RULE: if validating and PRODOTTO is NULL/empty => NOTE is mandatory.
     if (forcedStatus === "VALIDATED_CAPO") {
       const invalid = (Array.isArray(visibleRows) ? visibleRows : [])
         .map((r, i) => ({
@@ -454,7 +534,7 @@ export default function RapportinoPage() {
         costr,
         commessa,
         prodottoTotale,
-        rows: visibleRows,
+        rows: visibleRows, // save uniquement lignes avec description
         rapportinoId,
         setRapportinoId,
         setRapportinoCrewRole,
@@ -482,6 +562,7 @@ export default function RapportinoPage() {
     await handleSave("VALIDATED_CAPO");
   };
 
+  // Export: UNIQUEMENT la feuille rapport (rapportino-document)
   const handlePrint = async () => {
     const ok = await handleSave(status);
     if (!ok) return;
@@ -494,6 +575,102 @@ export default function RapportinoPage() {
       }
     }, 120);
   };
+
+  // ────────────────────────────────────────────────────────────────
+  // AUTO-SAVE (debounced)
+  // ────────────────────────────────────────────────────────────────
+  const autoSaveTimerRef = useRef(null);
+  const autoSaveInFlightRef = useRef(false);
+  const lastSavedSigRef = useRef("");
+
+  const autoSaveEnabled = true;
+
+  const autoSaveSig = useMemo(() => {
+    // We autosave what the user is effectively working on (visibleRows)
+    return buildAutoSaveSignature({
+      profileId: profile?.id,
+      crewRole: normalizedCrewRole,
+      reportDate,
+      costr,
+      commessa,
+      rows: visibleRows,
+      status,
+    });
+  }, [profile?.id, normalizedCrewRole, reportDate, costr, commessa, visibleRows, status]);
+
+  useEffect(() => {
+    if (!autoSaveEnabled) return;
+    if (!canEdit) return;
+    if (!profile?.id) return;
+    if (initialLoading || loading) return;
+    if (saving) return;
+    if (autoSaveInFlightRef.current) return;
+
+    // Do not autosave if the rapport is completely empty
+    if (!hasAnyMeaningfulContent({ costr, commessa, rows: visibleRows })) return;
+
+    // If nothing changed since last autosave/manual save, skip
+    if (autoSaveSig === lastSavedSigRef.current) return;
+
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
+
+    autoSaveTimerRef.current = setTimeout(async () => {
+      try {
+        autoSaveInFlightRef.current = true;
+
+        // NOTE: autosave keeps current status (DRAFT/RETURNED) and does NOT validate.
+        const ok = await handleSave(undefined);
+        if (ok) {
+          lastSavedSigRef.current = autoSaveSig;
+          pushToast({ type: "info", message: "Auto-salvato." });
+        }
+      } catch (e) {
+        // Keep autosave errors non-blocking but visible
+        console.warn("[AutoSave] failed:", e);
+        pushToast({ type: "error", message: "Auto-save fallito.", detail: e?.message || String(e) });
+      } finally {
+        autoSaveInFlightRef.current = false;
+      }
+    }, 1200);
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+      }
+    };
+  }, [
+    autoSaveEnabled,
+    canEdit,
+    profile?.id,
+    initialLoading,
+    loading,
+    saving,
+    autoSaveSig,
+    costr,
+    commessa,
+    visibleRows,
+  ]);
+
+  // When manual save succeeds, mark current signature as saved (avoid immediate autosave loop)
+  useEffect(() => {
+    // If rapportinoId exists, we consider last loaded state as saved baseline.
+    // But we still want autosave if user changes afterwards.
+    if (!rapportinoId) return;
+    // Don't overwrite if user is actively editing; keep only if signature is empty
+    if (!lastSavedSigRef.current) lastSavedSigRef.current = autoSaveSig;
+  }, [rapportinoId, autoSaveSig]);
+
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, []);
+
+  // ────────────────────────────────────────────────────────────────
 
   if (initialLoading || loading) {
     return <LoadingScreen message="Caricamento del rapportino in corso." />;
@@ -553,9 +730,9 @@ export default function RapportinoPage() {
     });
   };
 
-  // ✅ FIX: canonical = operator_items exists as array (even empty)
   const isRowCanonical = (row) => {
-    return Array.isArray(row?.operator_items);
+    const items = Array.isArray(row?.operator_items) ? row.operator_items : [];
+    return items.length > 0;
   };
 
   return (
@@ -563,6 +740,7 @@ export default function RapportinoPage() {
       <ToastOverlay toast={toast} onClose={() => setToast(null)} />
 
       <main className="flex-1 px-2 md:px-4 py-4 md:py-6">
+        {/* Banner RETURNED */}
         {latestReturned && returnedCount > 0 && (
           <div className="no-print w-full px-0 mb-4">
             <div className="rounded-2xl border border-amber-400/40 bg-gradient-to-r from-amber-500/15 via-slate-900/60 to-slate-900/60 p-3 md:p-3.5">
@@ -635,6 +813,7 @@ export default function RapportinoPage() {
               onChangeDate={(d) => setReportDateAndUrl(d)}
             />
 
+            {/* META */}
             <div className="no-print mt-3 flex flex-wrap items-center justify-between gap-2">
               <div className="text-[11px] text-slate-500">
                 <span className="font-semibold text-slate-700">Ruolo:</span> {crewLabel}
@@ -650,10 +829,15 @@ export default function RapportinoPage() {
               </div>
             </div>
 
+            {/* TABLE */}
             <RapportinoTable
               rows={visibleRows}
               onRowChange={(idx, field, value, target) => {
-                // ✅ tempo should be set via TempoPickerModal, not via direct editing here.
+                if (field === "tempo") {
+                  handleTempoChangeLegacy({ setRows }, idx, value);
+                  if (target) adjustOperatorTempoHeights(target);
+                  return;
+                }
                 handleRowChange(idx, field, value, target);
               }}
               onRemoveRow={handleRemoveRow}
@@ -672,17 +856,14 @@ export default function RapportinoPage() {
               }}
             />
 
+            {/* INCA BLOCK */}
             {showIncaBlock && incaOpen ? (
               <div className="mt-4">
-                <RapportinoIncaCaviSection
-                  rapportinoId={rapportinoId}
-                  reportDate={reportDate}
-                  costr={costr}
-                  commessa={commessa}
-                />
+                <RapportinoIncaCaviSection rapportinoId={rapportinoId} reportDate={reportDate} costr={costr} commessa={commessa} />
               </div>
             ) : null}
 
+            {/* ACTION BAR */}
             <div className="no-print mt-4 border-t border-slate-200 px-3 py-3">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-2">
@@ -762,6 +943,7 @@ export default function RapportinoPage() {
         </div>
       </main>
 
+      {/* MODALS */}
       <CatalogModal
         open={catOpen}
         onClose={() => setCatOpen(false)}
