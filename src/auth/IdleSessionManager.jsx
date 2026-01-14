@@ -10,15 +10,22 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
  * - Multi-tab sync (BroadcastChannel preferred, localStorage fallback)
  *
  * Notes:
- * - This component is intentionally UI-light but strict on security behavior.
- * - It does NOT assume any rapportino context/store exists.
- *   Instead it emits a DOM event before logout so any page can persist drafts if it wants:
- *   window.dispatchEvent(new CustomEvent("core:idle-before-logout", { detail: { reason } }))
+ * - Keys MUST be scoped per-user to avoid cross-account contamination
+ *   when multiple users are tested on the same machine/browser.
  */
 export default function IdleSessionManager({
   enabled = true,
   warnAfterMs = 25 * 60 * 1000,
   logoutAfterMs = 30 * 60 * 1000,
+
+  /**
+   * IMPORTANT:
+   * Provide a stable scope key (recommended: auth.uid()).
+   * Example usage:
+   * <IdleSessionManager storageScopeKey={session?.user?.id ?? "anon"} ... />
+   */
+  storageScopeKey = "anon",
+
   onBeforeLogout, // async (reason) => void
   onExtend, // async () => void
   onLogout, // async (reason) => void
@@ -32,13 +39,20 @@ export default function IdleSessionManager({
     }
   }, []);
 
+  const scope = useMemo(() => {
+    // Normalize scope key for storage safety
+    const raw = String(storageScopeKey || "anon");
+    return raw.replace(/[^a-zA-Z0-9:_-]/g, "_");
+  }, [storageScopeKey]);
+
   const KEYS = useMemo(
     () => ({
-      lastActivityAt: "core:lastActivityAt",
-      warningOwner: "core:idleWarningOwner",
-      broadcast: "core:idleBroadcast",
+      lastActivityAt: `core:${scope}:lastActivityAt`,
+      warningOwner: `core:${scope}:idleWarningOwner`,
+      broadcast: `core:${scope}:idleBroadcast`,
+      channel: `core-auth:${scope}`,
     }),
-    []
+    [scope]
   );
 
   const bcRef = useRef(null);
@@ -76,7 +90,7 @@ export default function IdleSessionManager({
 
   const broadcast = useCallback(
     (payload) => {
-      const msg = { ...payload, tabId: TAB_ID, at: payload?.at ?? nowMs() };
+      const msg = { ...payload, tabId: TAB_ID, at: payload?.at ?? nowMs(), scope };
 
       // BroadcastChannel (best)
       try {
@@ -94,17 +108,14 @@ export default function IdleSessionManager({
         // ignore
       }
     },
-    [KEYS.broadcast, TAB_ID]
+    [KEYS.broadcast, TAB_ID, scope]
   );
 
-  const isWarningOwnerValid = useCallback(
-    (owner) => {
-      if (!owner?.tabId || !owner?.expiresAt) return false;
-      const exp = Number(owner.expiresAt);
-      return Number.isFinite(exp) && exp > nowMs();
-    },
-    []
-  );
+  const isWarningOwnerValid = useCallback((owner) => {
+    if (!owner?.tabId || !owner?.expiresAt) return false;
+    const exp = Number(owner.expiresAt);
+    return Number.isFinite(exp) && exp > nowMs();
+  }, []);
 
   const getWarningOwner = useCallback(() => {
     try {
@@ -163,14 +174,7 @@ export default function IdleSessionManager({
     const newOwner = { tabId: TAB_ID, expiresAt };
     setWarningOwner(newOwner);
     return true;
-  }, [
-    TAB_ID,
-    getWarningOwner,
-    isWarningOwnerValid,
-    logoutAfterMs,
-    readLastActivityAt,
-    setWarningOwner,
-  ]);
+  }, [TAB_ID, getWarningOwner, isWarningOwnerValid, logoutAfterMs, readLastActivityAt, setWarningOwner]);
 
   const updateRemaining = useCallback(() => {
     const last = lastActivityAtRef.current || readLastActivityAt();
@@ -205,7 +209,7 @@ export default function IdleSessionManager({
       closeWarning();
       clearWarningOwner();
 
-      // Notify other tabs
+      // Notify other tabs (same user scope only)
       broadcast({ type: "logout", reason });
 
       // Give the app a chance to persist DRAFT / cleanup
@@ -231,15 +235,20 @@ export default function IdleSessionManager({
     (source = "activity") => {
       const t = nowMs();
 
-      // Throttle writes/broadcasts (avoid spam on mousemove/scroll)
-      const lastB = lastBroadcastAtRef.current;
-      if (t - lastB < 4000 && source !== "extend" && source !== "bootstrap") {
-        return;
-      }
-      lastBroadcastAtRef.current = t;
-
+      // ALWAYS write local activity timestamp (critical for focus/visibility)
       writeLastActivityAt(t);
-      broadcast({ type: "activity", source, at: t });
+
+      // Throttle broadcast only
+      const lastB = lastBroadcastAtRef.current;
+      const shouldThrottle = t - lastB < 4000;
+
+      // For focus/visibility we still want fast sync across tabs
+      const forceBroadcast = source === "extend" || source === "bootstrap" || source === "visibility" || source === "focus";
+
+      if (!shouldThrottle || forceBroadcast) {
+        lastBroadcastAtRef.current = t;
+        broadcast({ type: "activity", source, at: t });
+      }
 
       // If warning was open, close it as soon as there is activity
       if (warningOpenRef.current) {
@@ -251,7 +260,6 @@ export default function IdleSessionManager({
   );
 
   const handleExtend = useCallback(async () => {
-    // “Rester connecté”
     bumpActivity("extend");
 
     try {
@@ -271,16 +279,13 @@ export default function IdleSessionManager({
     await doLogout("user_logout_from_idle_modal");
   }, [doLogout]);
 
-  // Bootstrap lastActivityAt (once)
+  // Bootstrap lastActivityAt (once per mount + scope)
   useEffect(() => {
     if (!enabled) return;
 
     const existing = readLastActivityAt();
     const now = nowMs();
 
-    // ✅ Critical fix:
-    // If stored activity timestamp is stale (older than logoutAfterMs),
-    // reset it on mount to avoid immediate logout after a new login.
     if (existing > 0) {
       const idle = now - existing;
       if (idle >= logoutAfterMs) {
@@ -294,30 +299,28 @@ export default function IdleSessionManager({
       broadcast({ type: "activity", source: "bootstrap", at: now });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, logoutAfterMs]);
+  }, [enabled, logoutAfterMs, scope]);
 
-  // Setup multi-tab channel + storage events
+  // Setup multi-tab channel + storage events (scoped)
   useEffect(() => {
     if (!enabled) return;
 
     try {
-      bcRef.current = new BroadcastChannel("core-auth");
+      bcRef.current = new BroadcastChannel(KEYS.channel);
     } catch {
       bcRef.current = null;
     }
 
     const onMessage = (msg) => {
       if (!msg || msg.tabId === TAB_ID) return;
+      if (msg.scope !== scope) return; // hard guard
 
       if (msg.type === "activity") {
         const at = Number(msg.at) || nowMs();
-        // Accept only if newer
         const cur = lastActivityAtRef.current || readLastActivityAt();
         if (at > cur) {
           writeLastActivityAt(at);
-          if (warningOpenRef.current) {
-            closeWarning();
-          }
+          if (warningOpenRef.current) closeWarning();
         }
       }
 
@@ -335,8 +338,9 @@ export default function IdleSessionManager({
     };
 
     const bc = bcRef.current;
+    const bcHandler = (e) => onMessage(e.data);
     if (bc) {
-      bc.addEventListener("message", (e) => onMessage(e.data));
+      bc.addEventListener("message", bcHandler);
     }
 
     const onStorage = (e) => {
@@ -366,6 +370,7 @@ export default function IdleSessionManager({
     return () => {
       window.removeEventListener("storage", onStorage);
       try {
+        if (bc) bc.removeEventListener("message", bcHandler);
         bcRef.current?.close?.();
       } catch {
         // ignore
@@ -375,12 +380,14 @@ export default function IdleSessionManager({
   }, [
     TAB_ID,
     KEYS.broadcast,
+    KEYS.channel,
     KEYS.lastActivityAt,
     clearWarningOwner,
     closeWarning,
     doLogout,
     enabled,
     readLastActivityAt,
+    scope,
     writeLastActivityAt,
   ]);
 
@@ -388,7 +395,7 @@ export default function IdleSessionManager({
   useEffect(() => {
     if (!enabled) return;
 
-    const onAnyActivity = () => bumpActivity("activity");
+    const onAnyActivity = () => bumpActivity("focus");
     const onKeyDown = () => bumpActivity("keydown");
     const onPointer = () => bumpActivity("pointer");
     const onScroll = () => bumpActivity("scroll");
@@ -429,15 +436,12 @@ export default function IdleSessionManager({
 
       const { idle, remaining } = updateRemaining();
 
-      // Force logout
       if (idle >= logoutAfterMs) {
         await doLogout("idle_timeout_30m");
         return;
       }
 
-      // Warning window
       const shouldWarn = idle >= warnAfterMs && idle < logoutAfterMs;
-
       const visible = document.visibilityState === "visible";
 
       if (shouldWarn && visible && !warningOpenRef.current) {
@@ -496,12 +500,8 @@ export default function IdleSessionManager({
         <div className="p-5">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <div className="text-sm tracking-[0.18em] text-slate-400 uppercase">
-                Sécurité
-              </div>
-              <h2 className="mt-1 text-lg font-semibold text-slate-100">
-                Session bientôt expirée
-              </h2>
+              <div className="text-sm tracking-[0.18em] text-slate-400 uppercase">Sécurité</div>
+              <h2 className="mt-1 text-lg font-semibold text-slate-100">Session bientôt expirée</h2>
             </div>
 
             <div className="shrink-0 rounded-full border border-slate-800 bg-slate-900 px-3 py-1 text-sm font-semibold text-slate-100">
@@ -511,8 +511,7 @@ export default function IdleSessionManager({
 
           <p className="mt-3 text-sm text-slate-300 leading-relaxed">
             Pour des raisons de sécurité, vous serez déconnecté dans{" "}
-            <span className="font-semibold text-slate-100">{mmss}</span> si vous ne
-            confirmez pas.
+            <span className="font-semibold text-slate-100">{mmss}</span> si vous ne confirmez pas.
           </p>
 
           <div className="mt-5 flex flex-col gap-2">
