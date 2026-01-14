@@ -28,6 +28,9 @@ export type RapportinoRow = {
 
   // Notes
   note?: string | null;
+
+  // Optional (exists in DB, may be present in UI rows)
+  activity_id?: string | null;
 };
 
 type DroppedOperator = { id: string | null; name: string };
@@ -61,11 +64,13 @@ function hasNonZeroNumber(v: unknown) {
   const n = Number(v);
   return Number.isFinite(n) && n !== 0;
 }
+
 function hasAnyTempoValue(v: unknown) {
   const s = String(v ?? "").trim();
   if (!s) return false;
   return s.split("\n").some((x) => String(x || "").trim().length > 0);
 }
+
 function hasAnyOperatorValueLegacy(v: unknown) {
   const s = String(v ?? "").trim();
   if (!s) return false;
@@ -91,24 +96,14 @@ function readDroppedOperator(e: React.DragEvent) {
   }
 }
 
-/**
- * iOS hardening: open picker reliably on touch/click
- */
-function openPickerSafely(
-  e: React.SyntheticEvent,
-  ro: boolean,
-  idx: number,
-  onOpenOperatorPicker?: (rowIndex: number) => void
-) {
-  e.preventDefault?.();
-  e.stopPropagation?.();
-  if (ro) return;
-  onOpenOperatorPicker?.(idx);
-}
-
-function stop(ev: React.SyntheticEvent) {
-  ev.preventDefault?.();
-  ev.stopPropagation?.();
+function appendLegacyOperatorLine(existing: unknown, name: string) {
+  const cur = String(existing ?? "").replace(/\r/g, "");
+  const lines = cur.length ? cur.split("\n") : [];
+  const trimmed = name.trim();
+  if (!trimmed) return cur;
+  // avoid duplicates (case-insensitive)
+  if (lines.some((l) => l.trim().toLowerCase() === trimmed.toLowerCase())) return cur;
+  return [...lines, trimmed].filter((x) => x !== undefined).join("\n").trimStart();
 }
 
 export default function RapportinoTable({
@@ -123,13 +118,28 @@ export default function RapportinoTable({
 }: Props): JSX.Element {
   const ro = readOnly || !onRowChange;
 
-  // IMPORTANT: canonical = items.length > 0
+  /**
+   * IMPORTANT FIX:
+   * Avant: canonical = (operator_items.length > 0) -> si vide, on tombait en legacy textarea,
+   * donc pas de click-picker et pas de drop-handler => "je clique et y'a rien".
+   *
+   * Maintenant:
+   * - Si l'app fournit les callbacks du système opérateurs (picker / drop / remove),
+   *   on force l'UI canonical, même si operator_items est vide.
+   * - On garde un fallback legacy si vraiment le parent n'a pas câblé ces callbacks.
+   */
+  const hasCanonicalWiring = Boolean(onOpenOperatorPicker || onDropOperatorToRow || onRemoveOperatorFromRow);
+
   const canonicalByIdx = useMemo(() => {
     return rows.map((r) => {
+      // si le système canonical est câblé: on force canonical
+      if (hasCanonicalWiring) return true;
+
+      // sinon fallback: canonical si operator_items existe déjà
       const items = Array.isArray(r?.operator_items) ? r.operator_items : [];
       return items.length > 0;
     });
-  }, [rows]);
+  }, [rows, hasCanonicalWiring]);
 
   return (
     <div className="mt-3">
@@ -138,8 +148,8 @@ export default function RapportinoTable({
         {rows.map((r, idx) => {
           const isCanonical = canonicalByIdx[idx];
 
-          const catalogColsLocked = true;
-          void catalogColsLocked;
+          const opLines = splitLinesKeepEmpties(r.operatori);
+          void opLines;
 
           const canonItems = Array.isArray(r.operator_items) ? r.operator_items : [];
           const legacyHasOps = hasAnyOperatorValueLegacy(r.operatori);
@@ -227,12 +237,28 @@ export default function RapportinoTable({
                           ro ? "opacity-80 cursor-not-allowed" : "cursor-pointer hover:bg-slate-50",
                           !ro ? "focus:outline-none focus:ring-2 focus:ring-sky-500/35" : ""
                         )}
-                        style={{ touchAction: ro ? "none" : "manipulation" }}
                         disabled={ro}
-                        title={ro ? undefined : "Tocca per scegliere… o trascina un operatore qui"}
-                        onClick={(e) => openPickerSafely(e, ro, idx, onOpenOperatorPicker)}
-                        onTouchStart={(e) => openPickerSafely(e, ro, idx, onOpenOperatorPicker)}
-                        onPointerUp={(e) => openPickerSafely(e, ro, idx, onOpenOperatorPicker)}
+                        title={
+                          ro
+                            ? undefined
+                            : onOpenOperatorPicker
+                              ? "Tocca per scegliere… o trascina un operatore qui"
+                              : "Picker non cablato (manca onOpenOperatorPicker)"
+                        }
+                        onClick={() => {
+                          if (ro) return;
+                          if (!onOpenOperatorPicker) {
+                            console.warn("[RapportinoTable] onOpenOperatorPicker is missing");
+                            return;
+                          }
+                          onOpenOperatorPicker(idx);
+                        }}
+                        onPointerUp={() => {
+                          // iOS/overlay friendly
+                          if (ro) return;
+                          if (!onOpenOperatorPicker) return;
+                          onOpenOperatorPicker(idx);
+                        }}
                         onDragOver={(e) => {
                           if (ro) return;
                           e.preventDefault();
@@ -247,7 +273,16 @@ export default function RapportinoTable({
                           e.preventDefault();
                           const dropped = readDroppedOperator(e);
                           if (!dropped) return;
-                          onDropOperatorToRow?.(idx, dropped);
+
+                          if (onDropOperatorToRow) {
+                            onDropOperatorToRow(idx, dropped);
+                            return;
+                          }
+
+                          // fallback: si le parent n'a pas câblé le drop, on écrit au moins en legacy text
+                          if (!onRowChange) return;
+                          const next = appendLegacyOperatorLine(r.operatori, dropped.name);
+                          onRowChange(idx, "operatori", next);
                         }}
                       >
                         <div className="flex flex-wrap gap-2">
@@ -270,16 +305,10 @@ export default function RapportinoTable({
                                       role="button"
                                       tabIndex={0}
                                       className="rounded-full border border-slate-200 w-6 h-6 inline-flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-50"
-                                      style={{ touchAction: "manipulation" }}
                                       title="Rimuovi operatore"
                                       aria-label={`Rimuovi ${label}`}
                                       onClick={(ev) => {
-                                        stop(ev);
-                                        if (!operatorId) return;
-                                        onRemoveOperatorFromRow?.(idx, operatorId);
-                                      }}
-                                      onTouchStart={(ev) => {
-                                        stop(ev);
+                                        ev.stopPropagation();
                                         if (!operatorId) return;
                                         onRemoveOperatorFromRow?.(idx, operatorId);
                                       }}
@@ -308,7 +337,6 @@ export default function RapportinoTable({
                     </>
                   ) : (
                     <>
-                      {/* Legacy */}
                       {ro ? (
                         <div className="w-full rounded-md border border-slate-200 bg-white/60 px-3 py-3 text-[12px] text-slate-900 whitespace-pre-wrap">
                           {prettyMultiline(r.operatori) ? (
@@ -323,6 +351,21 @@ export default function RapportinoTable({
                           value={String(r.operatori ?? "")}
                           placeholder="Nomi operatori (uno per riga)"
                           onChange={(e) => onRowChange?.(idx, "operatori", e.target.value)}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            try {
+                              e.dataTransfer.dropEffect = "copy";
+                            } catch {
+                              // ignore
+                            }
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            const dropped = readDroppedOperator(e);
+                            if (!dropped) return;
+                            const next = appendLegacyOperatorLine(r.operatori, dropped.name);
+                            onRowChange?.(idx, "operatori", next);
+                          }}
                         />
                       )}
                       <div className="print-only">
@@ -342,7 +385,6 @@ export default function RapportinoTable({
                         ? "cursor-pointer hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-sky-500/35"
                         : "opacity-70 cursor-not-allowed"
                     )}
-                    style={{ touchAction: tempoPillEnabled ? "manipulation" : "none" }}
                     role={tempoPillEnabled ? "button" : undefined}
                     tabIndex={tempoPillEnabled ? 0 : -1}
                     title={!hasOperators ? "Prima inserisci almeno un operatore" : ro ? undefined : "Tocca per impostare le ore…"}
@@ -350,9 +392,8 @@ export default function RapportinoTable({
                       if (!tempoPillEnabled) return;
                       onOpenTempoPicker?.(idx);
                     }}
-                    onTouchStart={(e) => {
+                    onPointerUp={() => {
                       if (!tempoPillEnabled) return;
-                      e.preventDefault();
                       onOpenTempoPicker?.(idx);
                     }}
                     onKeyDown={(e) => {
@@ -432,7 +473,7 @@ export default function RapportinoTable({
         ) : null}
       </div>
 
-      {/* ───────────────────────── DESKTOP (md+) : tableau ───────────────────────── */}
+      {/* ───────────────────────── DESKTOP (md+) : table ───────────────────────── */}
       <div className="hidden md:block">
         <table className="rapportino-table text-[11px] w-full">
           <thead>
@@ -462,9 +503,6 @@ export default function RapportinoTable({
           <tbody>
             {rows.map((r, idx) => {
               const isCanonical = canonicalByIdx[idx];
-
-              const catalogColsLocked = true;
-              void catalogColsLocked;
 
               const canonItems = Array.isArray(r.operator_items) ? r.operator_items : [];
               const legacyHasOps = hasAnyOperatorValueLegacy(r.operatori);
@@ -519,7 +557,7 @@ export default function RapportinoTable({
                     />
                   </td>
 
-                  {/* OPERATORE */}
+                  {/* OPERATORE (CLICK + DROP) */}
                   <td className="px-2 py-2">
                     {isCanonical ? (
                       <>
@@ -530,12 +568,27 @@ export default function RapportinoTable({
                             ro ? "opacity-80 cursor-not-allowed" : "cursor-pointer hover:bg-slate-50",
                             !ro ? "focus:outline-none focus:ring-2 focus:ring-sky-500/35" : ""
                           )}
-                          style={{ touchAction: ro ? "none" : "manipulation" }}
                           disabled={ro}
-                          title={ro ? undefined : "Tocca per scegliere… o trascina un operatore qui"}
-                          onClick={(e) => openPickerSafely(e, ro, idx, onOpenOperatorPicker)}
-                          onTouchStart={(e) => openPickerSafely(e, ro, idx, onOpenOperatorPicker)}
-                          onPointerUp={(e) => openPickerSafely(e, ro, idx, onOpenOperatorPicker)}
+                          title={
+                            ro
+                              ? undefined
+                              : onOpenOperatorPicker
+                                ? "Tocca per scegliere… o trascina un operatore qui"
+                                : "Picker non cablato (manca onOpenOperatorPicker)"
+                          }
+                          onClick={() => {
+                            if (ro) return;
+                            if (!onOpenOperatorPicker) {
+                              console.warn("[RapportinoTable] onOpenOperatorPicker is missing");
+                              return;
+                            }
+                            onOpenOperatorPicker(idx);
+                          }}
+                          onPointerUp={() => {
+                            if (ro) return;
+                            if (!onOpenOperatorPicker) return;
+                            onOpenOperatorPicker(idx);
+                          }}
                           onDragOver={(e) => {
                             if (ro) return;
                             e.preventDefault();
@@ -550,7 +603,16 @@ export default function RapportinoTable({
                             e.preventDefault();
                             const dropped = readDroppedOperator(e);
                             if (!dropped) return;
-                            onDropOperatorToRow?.(idx, dropped);
+
+                            if (onDropOperatorToRow) {
+                              onDropOperatorToRow(idx, dropped);
+                              return;
+                            }
+
+                            // fallback -> legacy text
+                            if (!onRowChange) return;
+                            const next = appendLegacyOperatorLine(r.operatori, dropped.name);
+                            onRowChange(idx, "operatori", next);
                           }}
                         >
                           <div className="flex flex-wrap gap-2">
@@ -572,16 +634,10 @@ export default function RapportinoTable({
                                         role="button"
                                         tabIndex={0}
                                         className="rounded-full border border-slate-200 w-6 h-6 inline-flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-50"
-                                        style={{ touchAction: "manipulation" }}
                                         title="Rimuovi operatore"
                                         aria-label={`Rimuovi ${label}`}
                                         onClick={(ev) => {
-                                          stop(ev);
-                                          if (!operatorId) return;
-                                          onRemoveOperatorFromRow?.(idx, operatorId);
-                                        }}
-                                        onTouchStart={(ev) => {
-                                          stop(ev);
+                                          ev.stopPropagation();
                                           if (!operatorId) return;
                                           onRemoveOperatorFromRow?.(idx, operatorId);
                                         }}
@@ -624,6 +680,21 @@ export default function RapportinoTable({
                             value={String(r.operatori ?? "")}
                             placeholder="Nomi operatori (uno per riga)"
                             onChange={(e) => onRowChange?.(idx, "operatori", e.target.value)}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              try {
+                                e.dataTransfer.dropEffect = "copy";
+                              } catch {
+                                // ignore
+                              }
+                            }}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              const dropped = readDroppedOperator(e);
+                              if (!dropped) return;
+                              const next = appendLegacyOperatorLine(r.operatori, dropped.name);
+                              onRowChange?.(idx, "operatori", next);
+                            }}
                           />
                         )}
                         <div className="print-only">
@@ -642,19 +713,15 @@ export default function RapportinoTable({
                           ? "cursor-pointer hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-sky-500/35"
                           : "opacity-70 cursor-not-allowed"
                       )}
-                      style={{ touchAction: tempoPillEnabled ? "manipulation" : "none" }}
                       role={tempoPillEnabled ? "button" : undefined}
                       tabIndex={tempoPillEnabled ? 0 : -1}
-                      title={
-                        !hasOperators ? "Prima inserisci almeno un operatore" : ro ? undefined : "Tocca per impostare le ore…"
-                      }
+                      title={!hasOperators ? "Prima inserisci almeno un operatore" : ro ? undefined : "Tocca per impostare le ore…"}
                       onClick={() => {
                         if (!tempoPillEnabled) return;
                         onOpenTempoPicker?.(idx);
                       }}
-                      onTouchStart={(e) => {
+                      onPointerUp={() => {
                         if (!tempoPillEnabled) return;
-                        e.preventDefault();
                         onOpenTempoPicker?.(idx);
                       }}
                       onKeyDown={(e) => {
