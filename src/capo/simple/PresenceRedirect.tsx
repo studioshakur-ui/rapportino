@@ -1,13 +1,13 @@
-// src/capo/simple/CapoPresencePage.tsx
+// src/capo/simple/PresenceRedirect.tsx
 import { useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 /**
- * Presence is disabled (temporary or permanent).
- * We redirect CAPO straight to Rapportino for the ship.
- * This completely removes any dependency on RLS/presence tables.
+ * Hard redirect:
+ * Any attempt to open /app/ship/:shipId/presence must go to /rapportino.
+ * This removes presence as a blocking step.
  */
-export default function CapoPresencePage(): JSX.Element {
+export default function PresenceRedirect(): JSX.Element {
   const nav = useNavigate();
   const { shipId } = useParams();
 
@@ -22,7 +22,7 @@ export default function CapoPresencePage(): JSX.Element {
   return (
     <div className="p-4">
       <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-slate-200">
-        Reindirizzamento al rapportino…
+        Reindirizzamento…
       </div>
     </div>
   );
