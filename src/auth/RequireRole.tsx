@@ -20,13 +20,18 @@ type RequireRoleProps = {
  *  - <RequireRole allow={["CAPO"]}>...</RequireRole> (legacy)
  */
 export default function RequireRole({ allow, allowed, children }: RequireRoleProps) {
-  const { session, profile, loading, authReady, isReady } = useAuth();
+  const { session, profile, loading, authReady, isReady, rehydrating } = useAuth();
   const location = useLocation();
 
   const ready = typeof authReady === "boolean" ? authReady : Boolean(isReady);
 
   if (!ready || loading) {
     return <LoadingScreen message="Inizializzazione sicurezza CORE…" />;
+  }
+
+  // ✅ Grace UX: on tab return, avoid unauthorized while rehydrating
+  if (rehydrating) {
+    return <LoadingScreen message="Riconnessione…" />;
   }
 
   if (!session) {
@@ -50,8 +55,14 @@ export default function RequireRole({ allow, allowed, children }: RequireRolePro
     return <>{children}</>;
   }
 
+  // ✅ KEY FIX: if profile isn't loaded yet, do NOT redirect to unauthorized
+  if (!profile) {
+    return <LoadingScreen message="Caricamento profilo…" />;
+  }
+
   const appRole = (profile as any)?.app_role as string | undefined;
 
+  // Now profile exists. If app_role missing => true unauthorized (data issue)
   if (!appRole) {
     return <Navigate to="/unauthorized" replace />;
   }
