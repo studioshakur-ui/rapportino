@@ -15,7 +15,7 @@ import AppShell from "./shells/AppShell";
 import UfficioShell from "./shells/UfficioShell";
 import DirectionShell from "./shells/DirectionShell";
 import ManagerShell from "./shells/ManagerShell";
-import AdminShell from "./shells/AdminShell";
+import AdminShell from "./admin/AdminShell";
 
 // CAPO
 import RapportinoPage from "./components/RapportinoPage";
