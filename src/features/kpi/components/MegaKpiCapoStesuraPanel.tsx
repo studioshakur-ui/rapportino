@@ -1,45 +1,98 @@
-// src/features/kpi/components/MegaKpiCapoStesuraPanel.jsx
+// src/features/kpi/components/MegaKpiCapoStesuraPanel.tsx
 import React, { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "./lib/supabaseClient";
 
-import CoreEChart from "./components/charts/CoreEChart";
-import { CORE_CHART_THEME, coreTooltipStyle, formatCompactNumber } from "./components/charts/coreChartTheme";
+import { supabase } from "../../../lib/supabaseClient";
 
-function cn(...parts) {
+import CoreEChart from "./charts/CoreEChart";
+import { CORE_CHART_THEME, coreTooltipStyle, formatCompactNumber } from "./charts/coreChartTheme";
+
+function cn(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(" ");
 }
 
-function safeNum(v) {
+function safeNum(v: unknown): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 }
 
-function safePct(v) {
+function safePct(v: unknown): number | null {
   const n = Number(v);
   if (!Number.isFinite(n)) return null;
   return Math.max(0, Math.min(100, n));
 }
 
-function buildOption({ data, isDark }) {
+type DailyRow = {
+  date?: string;
+  stesura_m?: number | string | null;
+  ripresa_m?: number | string | null;
+  fascettatura_m?: number | string | null;
+  stesura_giorno_m?: number | string | null;
+  stesura_cum_m?: number | string | null;
+  target_cum_m?: number | string | null;
+  delta_m?: number | string | null;
+};
+
+type EventRow = {
+  date?: string;
+  label?: string;
+};
+
+type ProjectionRow = {
+  date?: string;
+  stesura_cum_proj_m?: number | string | null;
+};
+
+type CapoMegaKpiStesuraV1 = {
+  meta?: {
+    scope?: {
+      offset_m?: number | string | null;
+    };
+  };
+  headline?: {
+    today?: {
+      stesura_giorno_m?: number | string | null;
+      fascettatura_m?: number | string | null;
+    };
+    cumulative?: {
+      stesura_cum_m?: number | string | null;
+      progress_pct?: number | string | null;
+    };
+  };
+  series?: {
+    daily?: DailyRow[];
+    events?: EventRow[];
+    projection_7d?: ProjectionRow[];
+  };
+};
+
+type BuildOptionInput = {
+  data: CapoMegaKpiStesuraV1 | null | undefined;
+  isDark: boolean;
+};
+
+function buildOption({ data, isDark }: BuildOptionInput): Record<string, unknown> {
+  void isDark; // theme currently fixed by CORE_CHART_THEME
   const theme = CORE_CHART_THEME;
 
-  const daily = Array.isArray(data?.series?.daily) ? data.series.daily : [];
-  const events = Array.isArray(data?.series?.events) ? data.series.events : [];
-  const projection = Array.isArray(data?.series?.projection_7d) ? data.series.projection_7d : [];
+  const daily: DailyRow[] = Array.isArray(data?.series?.daily) ? (data?.series?.daily as DailyRow[]) : [];
+  const events: EventRow[] = Array.isArray(data?.series?.events) ? (data?.series?.events as EventRow[]) : [];
+  const projection: ProjectionRow[] = Array.isArray(data?.series?.projection_7d)
+    ? (data?.series?.projection_7d as ProjectionRow[])
+    : [];
 
-  const x = daily.map((r) => r.date);
+  const x = daily.map((r) => String(r.date ?? ""));
   const y = daily.map((r) => safeNum(r.stesura_cum_m));
 
   const yProj = projection.map((r) => safeNum(r.stesura_cum_proj_m));
-  const xProj = projection.map((r) => r.date);
+  const xProj = projection.map((r) => String(r.date ?? ""));
 
   const lastY = y.length ? y[y.length - 1] : null;
 
   const milestoneLines = (events || [])
-    .filter((e) => e?.date)
+    .filter((e) => Boolean(e?.date))
     .map((e) => ({
-      xAxis: e.date,
+      xAxis: String(e.date),
       label: {
         formatter: e.label || "Evento",
         color: theme.text,
@@ -67,12 +120,12 @@ function buildOption({ data, isDark }) {
       "color: #e5e7eb",
       "font-size: 12px",
     ].join(";"),
-    formatter: (params) => {
-      const p0 = Array.isArray(params) ? params[0] : null;
+    formatter: (params: Array<{ dataIndex?: number }> | { dataIndex?: number }) => {
+      const p0 = Array.isArray(params) ? params[0] : params;
       if (!p0) return "";
 
       const idx = p0.dataIndex ?? 0;
-      const row = daily[idx] || {};
+      const row: DailyRow = daily[idx] || {};
 
       const stesura = safeNum(row.stesura_m);
       const ripresa = safeNum(row.ripresa_m);
@@ -83,7 +136,7 @@ function buildOption({ data, isDark }) {
       const target = row.target_cum_m == null ? null : safeNum(row.target_cum_m);
       const delta = row.delta_m == null ? null : safeNum(row.delta_m);
 
-      const s = [];
+      const s: string[] = [];
       s.push(`<div style="font-weight:700;margin-bottom:6px">${row.date || ""}</div>`);
       s.push(`<div><span style="color:#94a3b8">Cumul posa</span>: <b>${formatCompactNumber(cum)}</b> m</div>`);
 
@@ -96,9 +149,15 @@ function buildOption({ data, isDark }) {
         );
       }
 
-      s.push(`<div style="margin-top:8px"><span style="color:#94a3b8">Stesura</span>: <b>${formatCompactNumber(stesura)}</b> m</div>`);
+      s.push(
+        `<div style="margin-top:8px"><span style="color:#94a3b8">Stesura</span>: <b>${formatCompactNumber(
+          stesura
+        )}</b> m</div>`
+      );
       s.push(`<div><span style="color:#94a3b8">Ripresa</span>: <b>${formatCompactNumber(ripresa)}</b> m</div>`);
-      s.push(`<div><span style="color:#94a3b8">Totale posa (oggi)</span>: <b>${formatCompactNumber(day)}</b> m</div>`);
+      s.push(
+        `<div><span style="color:#94a3b8">Totale posa (oggi)</span>: <b>${formatCompactNumber(day)}</b> m</div>`
+      );
 
       if (fasc != null) {
         s.push(
@@ -112,7 +171,7 @@ function buildOption({ data, isDark }) {
     },
   };
 
-  const option = {
+  const option: any = {
     backgroundColor: "transparent",
     animation: true,
     animationDuration: 1100,
@@ -198,11 +257,21 @@ function buildOption({ data, isDark }) {
     };
   }
 
-  return option;
+  return option as Record<string, unknown>;
 }
 
-export default function MegaKpiCapoStesuraPanel({ isDark = true, costr, commessa }) {
-  const { data, isLoading, error } = useQuery({
+export type MegaKpiCapoStesuraPanelProps = {
+  isDark?: boolean;
+  costr?: string | null;
+  commessa?: string | null;
+};
+
+export default function MegaKpiCapoStesuraPanel({
+  isDark = true,
+  costr,
+  commessa,
+}: MegaKpiCapoStesuraPanelProps): JSX.Element {
+  const { data, isLoading, error } = useQuery<CapoMegaKpiStesuraV1 | null>({
     queryKey: ["capo-mega-kpi-stesura-v1", String(costr || ""), String(commessa || "")],
     enabled: Boolean(costr),
     queryFn: async () => {
@@ -214,12 +283,12 @@ export default function MegaKpiCapoStesuraPanel({ isDark = true, costr, commessa
         p_date_to: null,
       });
       if (error) throw error;
-      return data;
+      return (data ?? null) as CapoMegaKpiStesuraV1 | null;
     },
   });
 
   const empty = useMemo(() => {
-    const daily = Array.isArray(data?.series?.daily) ? data.series.daily : [];
+    const daily = Array.isArray(data?.series?.daily) ? (data?.series?.daily as DailyRow[]) : [];
     return daily.length === 0;
   }, [data]);
 
@@ -238,17 +307,28 @@ export default function MegaKpiCapoStesuraPanel({ isDark = true, costr, commessa
   const pct = safePct(cum?.progress_pct);
 
   return (
-    <div className={cn("rounded-2xl border px-4 py-4", isDark ? "border-slate-800 bg-slate-950/60" : "border-slate-200 bg-white")}>
+    <div
+      className={cn(
+        "rounded-2xl border px-4 py-4",
+        isDark ? "border-slate-800 bg-slate-950/60" : "border-slate-200 bg-white"
+      )}
+    >
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3 mb-3">
         <div>
-          <div className={cn("text-[11px] uppercase tracking-[0.20em] mb-1", isDark ? "text-slate-400" : "text-slate-500")}>
+          <div
+            className={cn(
+              "text-[11px] uppercase tracking-[0.20em] mb-1",
+              isDark ? "text-slate-400" : "text-slate-500"
+            )}
+          >
             KPI · Capo · Stesura
           </div>
           <div className={cn("text-lg font-semibold", isDark ? "text-slate-50" : "text-slate-900")}>
             Curva di produzione (cumulata)
           </div>
           <div className={cn("text-sm", isDark ? "text-slate-400" : "text-slate-600")}>
-            Include <span className={cn("font-semibold", isDark ? "text-slate-200" : "text-slate-800")}>stesura + ripresa</span>. Fascettatura esclusa.
+            Include <span className={cn("font-semibold", isDark ? "text-slate-200" : "text-slate-800")}>stesura + ripresa</span>.
+            Fascettatura esclusa.
           </div>
         </div>
 
@@ -293,14 +373,22 @@ export default function MegaKpiCapoStesuraPanel({ isDark = true, costr, commessa
 
       {fascDay != null ? (
         <div className={cn("mb-3 text-xs", isDark ? "text-slate-400" : "text-slate-600")}>
-          Fascettatura oggi: <span className={cn("font-semibold", isDark ? "text-slate-200" : "text-slate-800")}>{formatCompactNumber(fascDay)} m</span>{" "}
+          Fascettatura oggi:{" "}
+          <span className={cn("font-semibold", isDark ? "text-slate-200" : "text-slate-800")}>
+            {formatCompactNumber(fascDay)} m
+          </span>{" "}
           <span className={cn(isDark ? "text-slate-500" : "text-slate-500")}>(non inclusa nella posa)</span>
         </div>
       ) : null}
 
       {error ? (
-        <div className={cn("rounded-xl border px-3 py-3 text-sm", isDark ? "border-rose-500/30 bg-rose-500/10 text-rose-100" : "border-rose-200 bg-rose-50 text-rose-800")}>
-          Errore nel caricamento KPI: {String(error?.message || error)}
+        <div
+          className={cn(
+            "rounded-xl border px-3 py-3 text-sm",
+            isDark ? "border-rose-500/30 bg-rose-500/10 text-rose-100" : "border-rose-200 bg-rose-50 text-rose-800"
+          )}
+        >
+          Errore nel caricamento KPI: {String((error as any)?.message || error)}
         </div>
       ) : (
         <CoreEChart
