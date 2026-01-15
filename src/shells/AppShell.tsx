@@ -57,6 +57,22 @@ function useIsMobile(breakpointPx = 768): boolean {
   return isMobile;
 }
 
+/**
+ * Extract shipId from routes like:
+ *  - /app/ship/:shipId
+ *  - /app/ship/:shipId/inca
+ *  - /app/ship/:shipId/kpi-stesura
+ *  - /app/ship/:shipId/rapportino
+ */
+function getShipIdFromPath(pathname: string): string | null {
+  const m = pathname.match(/\/app\/ship\/([^/]+)(?:\/|$)/);
+  if (!m) return null;
+  const id = (m[1] || "").trim();
+  return id ? id : null;
+}
+
+const LAST_SHIP_KEY = "core:last-ship-id";
+
 export default function AppShell(): JSX.Element {
   const { profile, session, signOut, refresh } = useAuth() as unknown as AuthLike;
   const { resetShipContext } = useShip() as unknown as ShipCtxLike;
@@ -69,15 +85,56 @@ export default function AppShell(): JSX.Element {
 
   const isMobile = useIsMobile(768);
 
-  /* ───────────────────────── Route label ───────────────────────── */
+  /* ───────────────────────── Route helpers ───────────────────────── */
 
   const pathname = location.pathname || "";
+
   const isCoreDrive = pathname.startsWith("/app/core-drive") || pathname.startsWith("/app/archive");
-  const isKpi = pathname.startsWith("/app/kpi-operatori");
+  const isKpiOperatori = pathname.startsWith("/app/kpi-operatori");
+  const isMegaKpi = pathname.includes("/kpi-stesura");
+  const isInca = pathname.includes("/inca");
+
+  // Resolve shipId for sidebar links (ship routes need it)
+  const shipIdFromPath = useMemo(() => getShipIdFromPath(pathname), [pathname]);
+
+  const resolvedShipId = useMemo(() => {
+    // 1) Prefer shipId from current route
+    if (shipIdFromPath) return shipIdFromPath;
+
+    // 2) Fallback to last known shipId
+    try {
+      const v = window.localStorage.getItem(LAST_SHIP_KEY);
+      if (v && v.trim()) return v.trim();
+    } catch {
+      // ignore
+    }
+    return null;
+  }, [shipIdFromPath]);
+
+  // Persist last shipId whenever we are on a ship route
+  useEffect(() => {
+    if (!shipIdFromPath) return;
+    try {
+      window.localStorage.setItem(LAST_SHIP_KEY, shipIdFromPath);
+    } catch {
+      // ignore
+    }
+  }, [shipIdFromPath]);
+
+  const shipScopedFallback = "/app/ship-selector";
+
+  const megaKpiTo = resolvedShipId ? `/app/ship/${resolvedShipId}/kpi-stesura` : shipScopedFallback;
+  const incaTo = resolvedShipId ? `/app/ship/${resolvedShipId}/inca` : shipScopedFallback;
+
+  /* ───────────────────────── Route label ───────────────────────── */
 
   const pageLabel = isCoreDrive
     ? t("APP_CORE_DRIVE")
-    : isKpi
+    : isMegaKpi
+    ? "Mega KPI · Posa"
+    : isInca
+    ? "INCA · Cockpit"
+    : isKpiOperatori
     ? t("APP_KPI_OPERATORI")
     : t("APP_RAPPORTINO");
 
@@ -151,6 +208,12 @@ export default function AppShell(): JSX.Element {
   // Mobile-first: pleine largeur. Desktop: max-width.
   const contentWrapClass = "w-full md:max-w-[1480px] md:mx-auto space-y-4";
 
+  /**
+   * Sidebar NAV (CAPO)
+   * Requested:
+   *  - KPI button in sidebar
+   *  - INCA Capo button in sidebar
+   */
   const navItems = [
     {
       to: "/app",
@@ -158,6 +221,18 @@ export default function AppShell(): JSX.Element {
       icon: "rapportino" as const,
       colorClass: "text-sky-400",
       end: true,
+    },
+    {
+      to: megaKpiTo,
+      label: "Mega KPI · Posa",
+      icon: "chart" as const,
+      colorClass: "text-emerald-400",
+    },
+    {
+      to: incaTo,
+      label: "INCA · Cockpit",
+      icon: "inca" as const,
+      colorClass: "text-amber-400",
     },
     {
       to: "/app/core-drive",

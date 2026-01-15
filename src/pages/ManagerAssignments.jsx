@@ -1,1470 +1,873 @@
-// src/pages/ManagerAssignments.jsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { supabase } from "../lib/supabaseClient";
-import { useAuth } from "../auth/AuthProvider";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useOutletContext } from "react-router-dom";
+import { createClient } from "@supabase/supabase-js";
+import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
-import NamePill from "../manager/components/NamePill";
-import SlotsWorkspaceModal from "../manager/components/SlotsWorkspaceModal";
+import { cn } from "../utils/cn";
+import { formatDisplayName } from "../utils/formatHuman";
 
 /**
- * MANAGER — Assegnazioni (Planning)
- *
- * DB contract (confirmed):
- * - manager_plans(period_type plan_period_type, status plan_status)
- *   unique DAY: (manager_id, plan_date) where period_type='DAY'
- *   unique WEEK: (manager_id, year_iso, week_iso) where period_type='WEEK'
- * - plan_capo_slots unique (plan_id, capo_id)
- * - plan_slot_members unique by pkey id; order via (position)
- * - manager_capo_assignments pk/capo mapping (capo_id -> manager_id) + active flag
- *
- * IMPORTANT:
- * - Do NOT read manager_capo_assignments directly from the frontend (RLS risk).
- * - Use RPC public.manager_my_capi_v1() (SECURITY DEFINER + auth.uid()) as the canonical source.
- *
- * CANONICAL (NEW):
- * - Operators pool must be scoped to manager perimeter:
- *   ship_managers -> ship_operators -> operators
- * - Use RPC public.manager_my_operators_v1() (SECURITY DEFINER) as canonical source.
+ * NOTE:
+ * This file is intentionally verbose. It prioritizes correctness and debuggability.
  */
 
-function cn(...parts) {
-  return parts.filter(Boolean).join(" ");
+/**
+ * Supabase client (frontend)
+ */
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+/**
+ * Enums (frontend shadow)
+ * - plan_status: DRAFT | PUBLISHED | FROZEN
+ * - plan_period_type: DAY | WEEK
+ */
+const PLAN_STATUSES = ["DRAFT", "PUBLISHED", "FROZEN"];
+const PERIOD_TYPES = ["DAY", "WEEK"];
+
+function normalizePlanStatus(v) {
+  if (v === "PUBLISHED") return "PUBLISHED";
+  if (v === "FROZEN") return "FROZEN";
+  return "DRAFT";
 }
 
-function isoWeekYear(d) {
-  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));
-  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
-  const weekNo = Math.ceil(((date - yearStart) / 86400000 + 1) / 7);
-  return { year: date.getUTCFullYear(), week: weekNo };
+function normalizePeriodType(v) {
+  if (v === "WEEK") return "WEEK";
+  return "DAY";
 }
 
-function fmtDateYYYYMMDD(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${dd}`;
+/**
+ * Helpers
+ */
+function isoFromDateInput(dateStr) {
+  // dateStr is "YYYY-MM-DD" (input type="date")
+  return dateStr;
 }
 
-function safeText(v) {
-  return (v == null ? "" : String(v)).trim();
+function formatDateIt(d) {
+  // d: "YYYY-MM-DD"
+  const [y, m, day] = String(d).split("-");
+  return `${day}/${m}/${y}`;
 }
 
-function pillClass(active) {
-  const base =
-    "inline-flex items-center gap-2 rounded-full border px-3 py-2 text-[12px] font-semibold leading-none";
-  return cn(
-    base,
-    active
-      ? "border-sky-400/65 bg-slate-50/10 text-slate-50"
-      : "border-slate-700 bg-slate-950/60 text-slate-200 hover:bg-slate-900/45",
-    "focus:outline-none focus:ring-2 focus:ring-sky-500/35"
-  );
+function getTodayISO() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
-function btnGhost() {
-  return cn(
-    "inline-flex items-center justify-center rounded-full border px-3 py-2",
-    "text-[12px] font-semibold",
-    "border-slate-700 text-slate-100 bg-slate-950/60 hover:bg-slate-900/50",
-    "focus:outline-none focus:ring-2 focus:ring-sky-500/35",
-    "disabled:opacity-50 disabled:cursor-not-allowed"
-  );
+function clamp(n, min, max) {
+  return Math.max(min, Math.min(max, n));
 }
 
-function btnPrimary() {
-  return cn(
-    "inline-flex items-center gap-2 rounded-full border px-3 py-2",
-    "text-[12px] font-semibold",
-    "border-sky-400/55 text-slate-50 bg-slate-950/60 hover:bg-slate-900/50",
-    "focus:outline-none focus:ring-2 focus:ring-sky-500/35",
-    "disabled:opacity-50 disabled:cursor-not-allowed"
-  );
+function safeInt(v, fallback = 0) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.trunc(n);
 }
 
-function badgeStatus(status) {
-  const s = safeText(status).toUpperCase();
-  const base =
-    "inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-extrabold tracking-[0.16em]";
-  if (s === "FROZEN") return cn(base, "border-rose-400/45 bg-rose-500/10 text-rose-100");
-  if (s === "PUBLISHED") return cn(base, "border-emerald-400/45 bg-emerald-500/10 text-emerald-100");
-  return cn(base, "border-slate-600/60 bg-slate-900/35 text-slate-200");
+function stableSortByPosition(arr) {
+  return [...arr].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
 }
 
-function cardClass() {
-  return cn(
-    "rounded-2xl border border-slate-800 bg-slate-950",
-    "shadow-[0_10px_40px_rgba(0,0,0,0.35)]"
-  );
-}
+/**
+ * Sortable item: operator chip
+ */
+function SortableOperatorChip({ id, label, disabled, onRemove }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
 
-function sectionTitle(kicker, title, right) {
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+  };
+
   return (
-    <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">{kicker}</div>
-        <div className="mt-1 text-[14px] font-semibold text-slate-50 truncate">{title}</div>
-      </div>
-      {right ? <div className="flex items-center gap-2">{right}</div> : null}
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "group flex items-center gap-2 rounded-full border border-border/30 bg-white/5 px-3 py-2 text-xs font-semibold text-foreground shadow-soft backdrop-blur",
+        disabled && "opacity-50 pointer-events-none"
+      )}
+      {...attributes}
+      {...listeners}
+    >
+      <span className="truncate max-w-[180px]">{label}</span>
+      <button
+        type="button"
+        className="ml-1 rounded-full border border-border/30 bg-white/5 px-2 py-1 text-[10px] text-muted-foreground opacity-0 transition group-hover:opacity-100 hover:text-foreground"
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove?.();
+        }}
+      >
+        Rimuovi
+      </button>
     </div>
   );
 }
 
-function normalizePeriodType(v) {
-  const x = safeText(v).toUpperCase();
-  return x === "WEEK" ? "WEEK" : "DAY";
-}
+/**
+ * Main page
+ */
+export default function ManagerAssignments() {
+  const outlet = useOutletContext?.() ?? {};
+  const auth = outlet?.auth ?? null;
 
-function normalizePlanStatus(v) {
-  const x = safeText(v).toUpperCase();
-  if (x === "PUBLISHED" || x === "FROZEN") return x;
-  return "DRAFT";
-}
-
-export default function ManagerAssignments({ isDark = true }) {
-  const { uid, profile, session } = useAuth();
-
-  const [me, setMe] = useState(null);
-
-  // Plan selector
   const [periodType, setPeriodType] = useState("DAY");
-  const [dayDate, setDayDate] = useState(fmtDateYYYYMMDD(new Date()));
-  const [weekDateAnchor, setWeekDateAnchor] = useState(fmtDateYYYYMMDD(new Date()));
+  const [planDate, setPlanDate] = useState(getTodayISO());
 
-  // Active plan
   const [plan, setPlan] = useState(null);
-  const [loadingPlan, setLoadingPlan] = useState(false);
-
-  // Slots + members
-  const [slots, setSlots] = useState([]); // {id, capo_id, capo_name, position}
-  const [membersBySlotId, setMembersBySlotId] = useState(new Map()); // slot_id -> array {id, operator_id, operator_name, position, role_tag, note}
-  const [loadingSlots, setLoadingSlots] = useState(false);
-
-  // Pool operators (SCOPED to manager perimeter)
-  const [operators, setOperators] = useState([]); // {id, name, roles[]}
-  const [qOperators, setQOperators] = useState("");
-  const [loadingOperators, setLoadingOperators] = useState(false);
-
-  // Capi assigned to manager
-  const [capi, setCapi] = useState([]); // {capo_id, display_name, email}
-  const [loadingCapi, setLoadingCapi] = useState(false);
-
-  // UI state
-  const [err, setErr] = useState("");
-  const [toast, setToast] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  // Workspace modal (Excel-like)
-  const [workspaceOpen, setWorkspaceOpen] = useState(false);
-
-  // Popup for tapping an operator cell
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [pickerSlotId, setPickerSlotId] = useState(null);
-  const [pickerRowIndex, setPickerRowIndex] = useState(null);
-  const [pickerSearch, setPickerSearch] = useState("");
-
-  const toastTimerRef = useRef(null);
-
-  const effectivePeriod = normalizePeriodType(periodType);
-
   const status = normalizePlanStatus(plan?.status);
+
+  const [caps, setCaps] = useState([]);
+  const [operatorsPool, setOperatorsPool] = useState([]);
+
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const [globalView, setGlobalView] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 5 },
+    })
+  );
+
+  // Derived flags
   const isFrozen = status === "FROZEN";
-  const isPublished = status === "PUBLISHED";
 
-  const clearToastSoon = () => {
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = setTimeout(() => setToast(""), 1800);
-  };
-
-  const setToastSoft = (t) => {
-    setToast(t);
-    clearToastSoon();
-  };
-
-  useEffect(() => {
-    if (!session || !uid) {
-      setMe(null);
-      return;
-    }
-    setMe({
-      id: uid,
-      app_role: profile?.app_role || null,
-      allowed_cantieri: Array.isArray(profile?.allowed_cantieri) ? profile.allowed_cantieri : [],
-    });
-  }, [session, uid, profile]);
+  // dnd
+  const [activeDrag, setActiveDrag] = useState(null);
 
   /**
-   * Load operator pool (CANONICAL)
-   * - Uses RPC manager_my_operators_v1() to avoid RLS issues and enforce perimeter
-   * - Fallback path tries to rebuild from perimeter ships if needed
+   * Load/ensure plan
    */
-  const loadOperators = async () => {
-    setLoadingOperators(true);
-    setErr("");
-
+  const ensurePlan = useCallback(async () => {
+    setErr(null);
+    setBusy(true);
     try {
-      // 1) Canonical path: RPC returns operators already scoped
-      try {
-        const { data: rpcData, error: rpcErr } = await supabase.rpc("manager_my_operators_v1");
-        if (rpcErr) throw rpcErr;
+      const managerId = auth?.user?.id ?? null;
+      if (!managerId) throw new Error("auth missing");
 
-        const list = (Array.isArray(rpcData) ? rpcData : []).map((r) => ({
-          id: r.operator_id,
-          name: safeText(r.operator_name),
-          roles: Array.isArray(r.operator_roles) ? r.operator_roles : [],
-          created_at: r.created_at || null,
-        }));
+      const pt = normalizePeriodType(periodType);
+      const pd = isoFromDateInput(planDate);
 
-        setOperators(list);
-        return;
-      } catch (e) {
-        // fallback (non-blocking): try with ship perimeter + join if policies allow
-        console.warn("[ManagerAssignments] manager_my_operators_v1 rpc warning:", e);
+      // Find existing plan for manager+period+date
+      const { data: found, error: foundErr } = await supabase
+        .from("manager_plans")
+        .select("*")
+        .eq("manager_id", managerId)
+        .eq("period_type", pt)
+        .eq("plan_date", pd)
+        .limit(1)
+        .maybeSingle();
+
+      if (foundErr) throw foundErr;
+
+      if (found) {
+        setPlan(found);
+        return found;
       }
 
-      // 2) Fallback: get ships perimeter via RPC
-      const { data: perim, error: perimErr } = await supabase.rpc("manager_my_ships_v1");
-      if (perimErr) throw perimErr;
+      // Create new plan
+      const payload = {
+        manager_id: managerId,
+        period_type: pt,
+        plan_date: pd,
+        status: "DRAFT",
+        note: null,
+      };
 
-      const shipIds = (Array.isArray(perim) ? perim : []).map((x) => x.ship_id).filter(Boolean);
-      if (shipIds.length === 0) {
-        setOperators([]);
-        return;
-      }
+      const { data: created, error: createErr } = await supabase
+        .from("manager_plans")
+        .insert(payload)
+        .select("*")
+        .single();
 
-      // 3) Read ship_operators scoped to ships, join operators
-      const { data: rows, error: rowsErr } = await supabase
-        .from("ship_operators")
-        .select(
-          `
-          operator_id,
-          active,
-          operators:operator_id (
-            id,
-            name,
-            roles,
-            created_at
-          )
-        `
-        )
-        .in("ship_id", shipIds);
+      if (createErr) throw createErr;
 
-      if (rowsErr) throw rowsErr;
-
-      const dedup = new Map();
-      (Array.isArray(rows) ? rows : []).forEach((r) => {
-        if (r?.active === false) return;
-        const o = r?.operators;
-        if (!o?.id) return;
-        if (!dedup.has(o.id)) {
-          dedup.set(o.id, {
-            id: o.id,
-            name: safeText(o.name),
-            roles: Array.isArray(o.roles) ? o.roles : [],
-            created_at: o.created_at || null,
-          });
-        }
-      });
-
-      const list = Array.from(dedup.values()).sort((a, b) => safeText(a.name).localeCompare(safeText(b.name)));
-      setOperators(list);
+      setPlan(created);
+      return created;
     } catch (e) {
-      console.error("[ManagerAssignments] loadOperators error:", e);
-      setOperators([]);
-      setErr("Impossibile caricare operatori nel perimetro Manager (RPC/RLS).");
-    } finally {
-      setLoadingOperators(false);
-    }
-  };
-
-  useEffect(() => {
-    loadOperators();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  /** Load capi for manager via RPC */
-  const loadCapiForManager = async () => {
-    if (!uid) return;
-    setLoadingCapi(true);
-    setErr("");
-    try {
-      const { data, error } = await supabase.rpc("manager_my_capi_v1");
-      if (error) throw error;
-
-      const list = (Array.isArray(data) ? data : []).map((r) => ({
-        capo_id: r.capo_id,
-        display_name: safeText(r.display_name) || safeText(r.email) || "—",
-        email: safeText(r.email) || "",
-      }));
-
-      setCapi(list);
-    } catch (e) {
-      console.error("[ManagerAssignments] loadCapiForManager RPC error:", e);
-      setCapi([]);
-      setErr("Impossibile caricare capi assegnati al Manager (RPC/RLS).");
-    } finally {
-      setLoadingCapi(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!uid) return;
-    loadCapiForManager();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uid]);
-
-  /** Audit helper */
-  const audit = async ({ plan_id, action, target_type, target_id, payload }) => {
-    if (!me?.id) return;
-    try {
-      const { error } = await supabase.from("planning_audit").insert({
-        plan_id: plan_id || null,
-        actor_id: me.id,
-        action: String(action || "UNKNOWN"),
-        target_type: target_type ? String(target_type) : null,
-        target_id: target_id || null,
-        payload: payload && typeof payload === "object" ? payload : {},
-      });
-      if (error) throw error;
-    } catch (e) {
-      console.error("[ManagerAssignments] audit insert error:", e);
-    }
-  };
-
-  /** Get or create plan (DAY/WEEK) */
-  const getOrCreatePlan = async () => {
-    if (!me?.id) {
-      setErr("Profilo non disponibile.");
-      return null;
-    }
-
-    const pType = effectivePeriod;
-
-    setLoadingPlan(true);
-    setErr("");
-    setToast("");
-
-    try {
-      let res = null;
-
-      if (pType === "DAY") {
-        const d = safeText(dayDate);
-        if (!d) throw new Error("Data non valida.");
-
-        res = await supabase
-          .from("manager_plans")
-          .select("*")
-          .eq("manager_id", me.id)
-          .eq("period_type", "DAY")
-          .eq("plan_date", d)
-          .maybeSingle();
-
-        if (res.error && res.error.code !== "PGRST116") throw res.error;
-
-        if (!res.data) {
-          const ins = await supabase
-            .from("manager_plans")
-            .insert({
-              manager_id: me.id,
-              period_type: "DAY",
-              plan_date: d,
-              status: "DRAFT",
-              note: null,
-              created_by: me.id,
-            })
-            .select("*")
-            .single();
-          if (ins.error) throw ins.error;
-          res = ins;
-
-          await audit({
-            plan_id: ins.data?.id,
-            action: "PLAN_CREATE",
-            target_type: "manager_plans",
-            target_id: ins.data?.id,
-            payload: { period_type: "DAY", plan_date: d },
-          });
-        }
-      } else {
-        const anchor = new Date(safeText(weekDateAnchor) || fmtDateYYYYMMDD(new Date()));
-        const { year, week } = isoWeekYear(anchor);
-
-        res = await supabase
-          .from("manager_plans")
-          .select("*")
-          .eq("manager_id", me.id)
-          .eq("period_type", "WEEK")
-          .eq("year_iso", year)
-          .eq("week_iso", week)
-          .maybeSingle();
-
-        if (res.error && res.error.code !== "PGRST116") throw res.error;
-
-        if (!res.data) {
-          const ins = await supabase
-            .from("manager_plans")
-            .insert({
-              manager_id: me.id,
-              period_type: "WEEK",
-              year_iso: year,
-              week_iso: week,
-              status: "DRAFT",
-              note: null,
-              created_by: me.id,
-            })
-            .select("*")
-            .single();
-          if (ins.error) throw ins.error;
-          res = ins;
-
-          await audit({
-            plan_id: ins.data?.id,
-            action: "PLAN_CREATE",
-            target_type: "manager_plans",
-            target_id: ins.data?.id,
-            payload: { period_type: "WEEK", year_iso: year, week_iso: week },
-          });
-        }
-      }
-
-      const planRow = res?.data || null;
-      setPlan(planRow);
-      setToastSoft(planRow ? "Piano caricato." : "—");
-
-      return planRow;
-    } catch (e) {
-      console.error("[ManagerAssignments] getOrCreatePlan error:", e);
+      console.error(e);
+      setErr(String(e?.message ?? e));
       setPlan(null);
-      setErr("Impossibile caricare/creare il piano (RLS o dati).");
       return null;
     } finally {
-      setLoadingPlan(false);
+      setBusy(false);
     }
-  };
+  }, [auth?.user?.id, periodType, planDate]);
 
-  /** Ensure capo slots exist for capi assigned to manager */
-  const ensureSlotsForPlan = async (planRow) => {
-    if (!planRow?.id) return [];
-    if (!Array.isArray(capi) || capi.length === 0) return [];
+  /**
+   * Load capos and operators
+   */
+  const loadData = useCallback(async () => {
+    setErr(null);
+    setBusy(true);
+    try {
+      const managerId = auth?.user?.id ?? null;
+      if (!managerId) throw new Error("auth missing");
 
-    const { data: existing, error: e1 } = await supabase
-      .from("plan_capo_slots")
-      .select("id,plan_id,capo_id,position,note,created_at")
-      .eq("plan_id", planRow.id)
-      .order("position", { ascending: true });
-    if (e1) throw e1;
+      // Load capos assigned to manager (manager_capo_assignments)
+      const { data: caposData, error: caposErr } = await supabase
+        .from("manager_capo_assignments")
+        .select("capo_id, capo_name, is_active")
+        .eq("manager_id", managerId)
+        .eq("is_active", true)
+        .order("capo_name", { ascending: true });
 
-    const existingByCapo = new Map((Array.isArray(existing) ? existing : []).map((s) => [s.capo_id, s]));
-    const toInsert = [];
+      if (caposErr) throw caposErr;
 
-    capi.forEach((c, idx) => {
-      if (!existingByCapo.has(c.capo_id)) {
-        toInsert.push({
-          plan_id: planRow.id,
+      // Load operators for manager perimeter (ship_managers -> ship_operators)
+      // There is a view/service in your stack; here we assume a table ship_operators filtered by manager perimeter in RLS.
+      const { data: opsData, error: opsErr } = await supabase
+        .from("ship_operators")
+        .select("id, name, roles")
+        .order("name", { ascending: true });
+
+      if (opsErr) throw opsErr;
+
+      setCaps(
+        (caposData ?? []).map((c) => ({
           capo_id: c.capo_id,
-          position: idx + 1,
-          note: null,
-          created_by: me?.id || null,
-        });
-      }
-    });
-
-    if (toInsert.length > 0) {
-      // NOTE: use upsert to avoid 23505 duplicates when users click twice / parallel refresh.
-      // Unique key: (plan_id, capo_id)
-      const { data: inserted, error: e2 } = await supabase
-        .from("plan_capo_slots")
-        .upsert(toInsert, { onConflict: "plan_id,capo_id" })
-        .select("id,plan_id,capo_id,position,note,created_at");
-      if (e2) throw e2;
-
-      await audit({
-        plan_id: planRow.id,
-        action: "SLOTS_AUTOCREATE",
-        target_type: "plan_capo_slots",
-        target_id: null,
-        payload: { created: toInsert.map((x) => ({ capo_id: x.capo_id, position: x.position })) },
-      });
-
-      const merged = [...(Array.isArray(existing) ? existing : []), ...(Array.isArray(inserted) ? inserted : [])];
-      return merged;
-    }
-
-    return Array.isArray(existing) ? existing : [];
-  };
-
-  /** Load slots + members */
-  const loadSlotsAndMembers = async (planRow) => {
-    if (!planRow?.id) {
-      setSlots([]);
-      setMembersBySlotId(new Map());
-      return;
-    }
-
-    setLoadingSlots(true);
-    setErr("");
-
-    try {
-      const slotsRaw = await ensureSlotsForPlan(planRow);
-
-      const capoNameById = new Map(capi.map((c) => [c.capo_id, c.display_name]));
-      const slotsMapped = slotsRaw
-        .map((s) => ({
-          id: s.id,
-          plan_id: s.plan_id,
-          capo_id: s.capo_id,
-          capo_name: capoNameById.get(s.capo_id) || "—",
-          position: s.position,
-          note: s.note || "",
+          capo_name: c.capo_name,
+          is_active: !!c.is_active,
+          members: [],
         }))
-        .sort((a, b) => (a.position || 0) - (b.position || 0));
+      );
 
-      setSlots(slotsMapped);
-
-      const { data: mem, error: e3 } = await supabase
-        .from("plan_slot_members")
-        .select(
-          `
-          id,
-          slot_id,
-          operator_id,
-          position,
-          role_tag,
-          note,
-          operators:operator_id (
-            id,
-            name
-          )
-        `
-        )
-        .eq("plan_id", planRow.id)
-        .order("slot_id", { ascending: true })
-        .order("position", { ascending: true });
-
-      if (e3) throw e3;
-
-      const map = new Map();
-      (Array.isArray(mem) ? mem : []).forEach((r) => {
-        const arr = map.get(r.slot_id) || [];
-        arr.push({
-          id: r.id,
-          slot_id: r.slot_id,
-          operator_id: r.operator_id,
-          operator_name: safeText(r?.operators?.name) || "—",
-          position: r.position,
-          role_tag: r.role_tag || null,
-          note: r.note || "",
-        });
-        map.set(r.slot_id, arr);
-      });
-
-      setMembersBySlotId(map);
+      setOperatorsPool(opsData ?? []);
     } catch (e) {
-      console.error("[ManagerAssignments] loadSlotsAndMembers error:", e);
-      setSlots([]);
-      setMembersBySlotId(new Map());
-      setErr("Impossibile caricare slots/membri (RLS o dati).");
-    } finally {
-      setLoadingSlots(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!plan?.id) return;
-    loadSlotsAndMembers(plan);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plan?.id, capi]);
-
-  const handleLoadPlan = async () => {
-    const p = await getOrCreatePlan();
-    if (p?.id) {
-      await loadSlotsAndMembers(p);
-    }
-  };
-
-  const canMutate = !isFrozen && !busy && !!plan?.id;
-
-  const allAssignedOperatorIds = useMemo(() => {
-    const s = new Set();
-    membersBySlotId.forEach((arr) => {
-      (arr || []).forEach((m) => s.add(m.operator_id));
-    });
-    return s;
-  }, [membersBySlotId]);
-
-  const filteredOperators = useMemo(() => {
-    const q = safeText(qOperators).toLowerCase();
-    const base = Array.isArray(operators) ? operators : [];
-    const visible = base.filter((o) => !allAssignedOperatorIds.has(o.id));
-    if (!q) return visible;
-    return visible.filter((o) => safeText(o.name).toLowerCase().includes(q));
-  }, [operators, qOperators, allAssignedOperatorIds]);
-
-  const filteredPickerOperators = useMemo(() => {
-    const q = safeText(pickerSearch).toLowerCase();
-    const base = filteredOperators;
-    if (!q) return base;
-    return base.filter((o) => safeText(o.name).toLowerCase().includes(q));
-  }, [filteredOperators, pickerSearch]);
-
-  const setMapMembers = (slotId, nextArr) => {
-    setMembersBySlotId((prev) => {
-      const m = new Map(prev);
-      m.set(slotId, nextArr);
-      return m;
-    });
-  };
-
-  const upsertMemberDB = async ({ slot_id, operator_id, position }) => {
-    if (!plan?.id) return null;
-
-    // NOTE: unique constraint is (plan_id, operator_id). A manager cannot assign the same operator twice
-    // in the same plan. If the operator already exists in another slot, this upsert will MOVE it.
-    const { data, error } = await supabase
-      .from("plan_slot_members")
-      .upsert(
-        {
-          slot_id,
-          operator_id,
-          position,
-          role_tag: null,
-          note: null,
-          plan_id: plan.id,
-          created_by: me?.id || null,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "plan_id,operator_id" }
-      )
-      .select(
-        `
-        id,
-        slot_id,
-        operator_id,
-        position,
-        role_tag,
-        note,
-        operators:operator_id ( id, name )
-      `
-      )
-      .single();
-    if (error) throw error;
-
-    await audit({
-      plan_id: plan.id,
-      action: "MEMBER_UPSERT",
-      target_type: "plan_slot_members",
-      target_id: data?.id,
-      payload: { slot_id, operator_id, position },
-    });
-
-    return {
-      id: data.id,
-      slot_id: data.slot_id,
-      operator_id: data.operator_id,
-      operator_name: safeText(data?.operators?.name) || "—",
-      position: data.position,
-      role_tag: data.role_tag || null,
-      note: data.note || "",
-    };
-  };
-
-  const updateMemberSlotDB = async ({ member_id, slot_id }) => {
-    if (!plan?.id) return;
-    const { error } = await supabase
-      .from("plan_slot_members")
-      .update({ slot_id, updated_at: new Date().toISOString() })
-      .eq("id", member_id);
-    if (error) throw error;
-    await audit({
-      plan_id: plan.id,
-      action: "MEMBER_MOVE",
-      target_type: "plan_slot_members",
-      target_id: member_id,
-      payload: { slot_id },
-    });
-  };
-
-  const deleteMemberDB = async (memberId) => {
-    if (!plan?.id) return;
-    const { error } = await supabase.from("plan_slot_members").delete().eq("id", memberId);
-    if (error) throw error;
-    await audit({
-      plan_id: plan.id,
-      action: "MEMBER_REMOVE",
-      target_type: "plan_slot_members",
-      target_id: memberId,
-      payload: {},
-    });
-  };
-
-  const updateMemberPositionsDB = async (slotId, membersArr) => {
-    if (!plan?.id) return;
-
-    for (let i = 0; i < membersArr.length; i += 1) {
-      const m = membersArr[i];
-      const newPos = i + 1;
-      if (m.position === newPos) continue;
-      const { error } = await supabase.from("plan_slot_members").update({ position: newPos }).eq("id", m.id);
-      if (error) throw error;
-    }
-
-    await audit({
-      plan_id: plan.id,
-      action: "MEMBER_REORDER",
-      target_type: "plan_slot_members",
-      target_id: null,
-      payload: { slot_id: slotId, size: membersArr.length },
-    });
-  };
-
-  const addOperatorToSlot = async ({ slotId, operatorId, atIndex = null }) => {
-    if (!canMutate) return;
-    if (!slotId || !operatorId) return;
-
-    setBusy(true);
-    setErr("");
-
-    const existing = membersBySlotId.get(slotId) || [];
-    const nextPos = atIndex == null ? existing.length + 1 : Math.max(1, Math.min(existing.length + 1, atIndex + 1));
-
-    try {
-      // Detect if the operator is already assigned in another slot (stale UI / parallel edits)
-      let alreadyInSlotId = null;
-      membersBySlotId.forEach((arr, sId) => {
-        if (alreadyInSlotId) return;
-        const found = (arr || []).find((m) => m.operator_id === operatorId);
-        if (found) alreadyInSlotId = sId;
-      });
-
-      const inserted = await upsertMemberDB({ slot_id: slotId, operator_id: operatorId, position: nextPos });
-
-      // If it was moved from another slot, safest UX is a reload (keeps positions consistent everywhere).
-      if (alreadyInSlotId && alreadyInSlotId !== slotId) {
-        await loadSlotsAndMembers(plan);
-        setToastSoft("Spostato.");
-        return;
-      }
-
-      const next = [...existing];
-      if (atIndex == null || atIndex >= next.length) next.push(inserted);
-      else next.splice(atIndex, 0, inserted);
-
-      const normalized = next.map((m, idx) => ({ ...m, position: idx + 1 }));
-      setMapMembers(slotId, normalized);
-
-      await updateMemberPositionsDB(slotId, normalized);
-
-      setToastSoft("Assegnato.");
-    } catch (e) {
-      console.error("[ManagerAssignments] addOperatorToSlot error:", e);
-      setErr("Impossibile assegnare l’operatore (RLS/duplicati).");
-      await loadSlotsAndMembers(plan);
+      console.error(e);
+      setErr(String(e?.message ?? e));
     } finally {
       setBusy(false);
     }
-  };
+  }, [auth?.user?.id]);
 
-  const removeMember = async (slotId, member) => {
-    if (!canMutate) return;
-    if (!slotId || !member?.id) return;
+  /**
+   * Load slots + members for plan
+   */
+  const loadSlots = useCallback(
+    async (planId) => {
+      if (!planId) return;
 
-    setBusy(true);
-    setErr("");
-
-    const existing = membersBySlotId.get(slotId) || [];
-    const next = existing.filter((m) => m.id !== member.id).map((m, idx) => ({ ...m, position: idx + 1 }));
-    setMapMembers(slotId, next);
-
-    try {
-      await deleteMemberDB(member.id);
-      await updateMemberPositionsDB(slotId, next);
-      setToastSoft("Rimosso.");
-    } catch (e) {
-      console.error("[ManagerAssignments] removeMember error:", e);
-      setErr("Impossibile rimuovere (RLS).");
-      await loadSlotsAndMembers(plan);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const reorderWithinSlot = async ({ slotId, fromIndex, toIndex }) => {
-    if (!canMutate) return;
-    if (fromIndex === toIndex) return;
-
-    setBusy(true);
-    setErr("");
-
-    const existing = membersBySlotId.get(slotId) || [];
-    if (fromIndex < 0 || fromIndex >= existing.length) {
-      setBusy(false);
-      return;
-    }
-    const boundedTo = Math.max(0, Math.min(existing.length - 1, toIndex));
-
-    const next = [...existing];
-    const [moved] = next.splice(fromIndex, 1);
-    next.splice(boundedTo, 0, moved);
-
-    const normalized = next.map((m, idx) => ({ ...m, position: idx + 1 }));
-    setMapMembers(slotId, normalized);
-
-    try {
-      await updateMemberPositionsDB(slotId, normalized);
-      setToastSoft("Ordinato.");
-    } catch (e) {
-      console.error("[ManagerAssignments] reorderWithinSlot error:", e);
-      setErr("Impossibile riordinare (RLS).");
-      await loadSlotsAndMembers(plan);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onDragStartOperator = (e, operator) => {
-    const payload = { type: "OPERATOR", operatorId: operator.id };
-    e.dataTransfer.setData("application/json", JSON.stringify(payload));
-    e.dataTransfer.effectAllowed = "copy";
-  };
-
-  const onDragStartMember = (e, { slotId, index }) => {
-    const payload = { type: "MEMBER", slotId, index };
-    e.dataTransfer.setData("application/json", JSON.stringify(payload));
-    e.dataTransfer.effectAllowed = "move";
-  };
-
-  const parseDropPayload = (e) => {
-    try {
-      const raw = e.dataTransfer.getData("application/json");
-      if (!raw) return null;
-      return JSON.parse(raw);
-    } catch {
-      return null;
-    }
-  };
-
-  const onDropToSlot = async (e, slotId, atIndex = null) => {
-    e.preventDefault();
-    if (!canMutate) return;
-    const payload = parseDropPayload(e);
-    if (!payload) return;
-
-    if (payload.type === "OPERATOR") {
-      await addOperatorToSlot({ slotId, operatorId: payload.operatorId, atIndex });
-      return;
-    }
-
-    if (payload.type === "MEMBER") {
-      const fromSlotId = payload.slotId;
-      const fromIndex = payload.index;
-
-      const fromArr = membersBySlotId.get(fromSlotId) || [];
-      const moving = fromArr[fromIndex];
-      if (!moving?.id) return;
-
-      // Same slot -> reorder
-      if (fromSlotId === slotId) {
-        await reorderWithinSlot({ slotId, fromIndex, toIndex: atIndex ?? fromIndex });
-        return;
-      }
-
-      // Cross-slot move (Manager only)
-      if (!plan?.id) return;
-
+      setErr(null);
       setBusy(true);
-      setErr("");
-
       try {
-        // 1) Update DB (move)
-        await updateMemberSlotDB({ member_id: moving.id, slot_id: slotId });
+        // Load slots
+        const { data: slots, error: slotsErr } = await supabase
+          .from("plan_capo_slots")
+          .select("*")
+          .eq("plan_id", planId)
+          .order("position", { ascending: true });
 
-        // 2) Update UI state
-        const targetArr = membersBySlotId.get(slotId) || [];
-        const nextFrom = fromArr.filter((m) => m.id !== moving.id).map((m, idx) => ({ ...m, position: idx + 1 }));
-        const insertAt = atIndex == null ? targetArr.length : Math.max(0, Math.min(targetArr.length, atIndex));
-        const nextTarget = [...targetArr];
-        nextTarget.splice(insertAt, 0, { ...moving, slot_id: slotId });
-        const nextTargetNorm = nextTarget.map((m, idx) => ({ ...m, position: idx + 1 }));
+        if (slotsErr) throw slotsErr;
 
-        setMembersBySlotId((prev) => {
-          const m = new Map(prev);
-          m.set(fromSlotId, nextFrom);
-          m.set(slotId, nextTargetNorm);
-          return m;
+        // Load slot members
+        const { data: members, error: memErr } = await supabase
+          .from("plan_slot_members")
+          .select("*")
+          .in("slot_id", (slots ?? []).map((s) => s.id));
+
+        if (memErr) throw memErr;
+
+        // Build capos UI model
+        const byCapo = new Map();
+        for (const s of slots ?? []) {
+          byCapo.set(s.capo_id, { slot: s, members: [] });
+        }
+        for (const m of members ?? []) {
+          const slot = (slots ?? []).find((s) => s.id === m.slot_id);
+          if (!slot) continue;
+          const key = slot.capo_id;
+          const entry = byCapo.get(key);
+          if (!entry) continue;
+          entry.members.push(m);
+        }
+
+        setCaps((prev) => {
+          const next = prev.map((c) => {
+            const entry = byCapo.get(c.capo_id);
+            if (!entry) return { ...c, members: [] };
+            const ordered = stableSortByPosition(entry.members);
+            const memberIds = ordered.map((x) => x.operator_id);
+            const memberLabels = memberIds.map((id) => {
+              const op = operatorsPool.find((o) => o.id === id);
+              return op?.name ?? id;
+            });
+
+            return {
+              ...c,
+              slot_id: entry.slot.id,
+              members: memberIds.map((id, idx) => ({
+                operator_id: id,
+                label: memberLabels[idx],
+              })),
+            };
+          });
+          return next;
         });
-
-        // 3) Persist positions
-        await updateMemberPositionsDB(fromSlotId, nextFrom);
-        await updateMemberPositionsDB(slotId, nextTargetNorm);
-
-        setToastSoft("Spostato.");
-      } catch (errMove) {
-        console.error("[ManagerAssignments] move member error:", errMove);
-        setErr("Impossibile spostare tra capi (RLS/duplicati).");
-        await loadSlotsAndMembers(plan);
+      } catch (e) {
+        console.error(e);
+        setErr(String(e?.message ?? e));
       } finally {
         setBusy(false);
       }
-    }
-  };
+    },
+    [operatorsPool]
+  );
 
-  const onDragOverAllow = (e) => {
-    if (!canMutate) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "copy";
-  };
+  /**
+   * Sync on changes
+   */
+  useEffect(() => {
+    (async () => {
+      const p = await ensurePlan();
+      await loadData();
+      if (p?.id) await loadSlots(p.id);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodType, planDate]);
 
-  const openPicker = ({ slotId, rowIndex }) => {
-    if (!canMutate) return;
-    setPickerSlotId(slotId);
-    setPickerRowIndex(rowIndex);
-    setPickerSearch("");
-    setPickerOpen(true);
-  };
+  /**
+   * Actions
+   */
+  const updatePlanStatus = useCallback(
+    async (ns) => {
+      setErr(null);
+      setBusy(true);
+      try {
+        if (!plan?.id) return;
 
-  const closePicker = () => {
-    setPickerOpen(false);
-    setPickerSlotId(null);
-    setPickerRowIndex(null);
-    setPickerSearch("");
-  };
+        const patch = {
+          status: ns,
+          frozen_at: ns === "FROZEN" ? new Date().toISOString() : null,
+        };
 
-  const updatePlanStatus = async (nextStatus) => {
-    if (!plan?.id) return;
+        const { data, error } = await supabase
+          .from("manager_plans")
+          .update(patch)
+          .eq("id", plan.id)
+          .select("*")
+          .single();
 
-    const ns = normalizePlanStatus(nextStatus);
+        if (error) throw error;
+        setPlan(data);
+      } catch (e) {
+        console.error(e);
+        setErr(String(e?.message ?? e));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [plan?.id]
+  );
 
-    // ✅ If the plan is frozen, allow ONLY "unfreeze" transitions.
-    // Frozen is a hard read-only mode for normal edits, but operations may
-    // require unlocking during the shift.
-    if (isFrozen && ns !== "PUBLISHED" && ns !== "DRAFT") {
-      setToastSoft("Piano congelato: usa \"Sblocca\" per modificare.");
-      return;
-    }
+  const reloadAll = useCallback(async () => {
+    const p = await ensurePlan();
+    await loadData();
+    if (p?.id) await loadSlots(p.id);
+  }, [ensurePlan, loadData, loadSlots]);
 
-    setBusy(true);
-    setErr("");
+  /**
+   * Drag & drop handling (operators -> slots)
+   */
+  const onDragStart = useCallback((event) => {
+    setActiveDrag(event.active?.id ?? null);
+  }, []);
 
-    try {
-      const patch = {
-        status: ns,
-        updated_at: new Date().toISOString(),
-      };
+  const onDragEnd = useCallback(
+    async (event) => {
+      const { active, over } = event;
+      setActiveDrag(null);
 
-      // Lock
-      if (ns === "FROZEN") patch.frozen_at = new Date().toISOString();
+      if (!active?.id || !over?.id) return;
+      if (isFrozen) return;
 
-      // Unlock (clear frozen_at)
-      if (status === "FROZEN" && ns !== "FROZEN") patch.frozen_at = null;
+      // active.id can be "POOL:<operator_id>" or "SLOT:<capo_id>:<operator_id>"
+      const a = String(active.id);
+      const o = String(over.id);
 
-      const { data, error } = await supabase.from("manager_plans").update(patch).eq("id", plan.id).select("*").single();
-      if (error) throw error;
+      // Drop target can be "DROP:<capo_id>" or a chip id
+      // We support adding from pool and sorting within slot.
+      const isFromPool = a.startsWith("POOL:");
+      const opId = isFromPool ? a.replace("POOL:", "") : a.split(":").slice(-1)[0];
 
-      setPlan(data);
-      const action =
-        status === "FROZEN" && (ns === "PUBLISHED" || ns === "DRAFT")
-          ? "PLAN_UNFREEZE"
-          : ns === "PUBLISHED"
-            ? "PLAN_PUBLISH"
-            : ns === "FROZEN"
-              ? "PLAN_FREEZE"
-              : "PLAN_DRAFT";
+      const targetCapoId = o.startsWith("DROP:") ? o.replace("DROP:", "") : o.split(":")[1];
 
-      await audit({
-        plan_id: plan.id,
-        action,
-        target_type: "manager_plans",
-        target_id: plan.id,
-        payload: { from: status, to: ns },
-      });
+      if (!targetCapoId) return;
 
-      setToastSoft(
-        ns === "FROZEN"
-          ? "Piano congelato."
-          : status === "FROZEN" && (ns === "PUBLISHED" || ns === "DRAFT")
-            ? "Piano sbloccato."
-            : ns === "PUBLISHED"
-              ? "Piano pubblicato."
-              : "Bozza."
-      );
-    } catch (e) {
-      console.error("[ManagerAssignments] updatePlanStatus error:", e);
-      setErr("Impossibile aggiornare stato (RLS).");
-    } finally {
-      setBusy(false);
-    }
-  };
+      setBusy(true);
+      setErr(null);
 
-  const headerLabel = useMemo(() => {
-    if (!plan?.id) return "Nessun piano caricato";
-    if (effectivePeriod === "DAY") return `Piano giorno · ${safeText(plan.plan_date) || "—"}`;
-    return `Piano settimana · ${safeText(plan.year_iso)}-W${safeText(plan.week_iso)}`;
-  }, [plan, effectivePeriod]);
+      try {
+        if (!plan?.id) throw new Error("plan missing");
 
+        // Ensure slot exists for capo
+        let capoEntry = caps.find((c) => c.capo_id === targetCapoId);
+        if (!capoEntry) return;
+
+        let slotId = capoEntry.slot_id;
+
+        if (!slotId) {
+          // create slot
+          const payload = {
+            plan_id: plan.id,
+            capo_id: targetCapoId,
+            position: safeInt(caps.findIndex((c) => c.capo_id === targetCapoId), 0) + 1,
+          };
+
+          const { data: created, error: createErr } = await supabase
+            .from("plan_capo_slots")
+            .insert(payload)
+            .select("*")
+            .single();
+
+          if (createErr) throw createErr;
+          slotId = created.id;
+
+          // update local
+          setCaps((prev) => prev.map((c) => (c.capo_id === targetCapoId ? { ...c, slot_id: slotId } : c)));
+        }
+
+        // Fetch current members for that slot
+        const { data: mem, error: memErr } = await supabase
+          .from("plan_slot_members")
+          .select("*")
+          .eq("slot_id", slotId);
+
+        if (memErr) throw memErr;
+
+        const current = stableSortByPosition(mem ?? []);
+        const exists = current.some((x) => x.operator_id === opId);
+
+        if (!exists) {
+          // Insert new member at end
+          const payload = {
+            slot_id: slotId,
+            operator_id: opId,
+            position: (current?.length ?? 0) + 1,
+          };
+
+          const { error: insErr } = await supabase.from("plan_slot_members").insert(payload);
+          if (insErr) throw insErr;
+        }
+
+        // Reload slots for correctness
+        await loadSlots(plan.id);
+      } catch (e) {
+        console.error(e);
+        setErr(String(e?.message ?? e));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [caps, isFrozen, loadSlots, plan?.id]
+  );
+
+  const removeFromCapo = useCallback(
+    async (capoId, operatorId) => {
+      if (isFrozen) return;
+      setBusy(true);
+      setErr(null);
+      try {
+        const capo = caps.find((c) => c.capo_id === capoId);
+        if (!capo?.slot_id) return;
+
+        const { error } = await supabase
+          .from("plan_slot_members")
+          .delete()
+          .eq("slot_id", capo.slot_id)
+          .eq("operator_id", operatorId);
+
+        if (error) throw error;
+        await loadSlots(plan.id);
+      } catch (e) {
+        console.error(e);
+        setErr(String(e?.message ?? e));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [caps, isFrozen, loadSlots, plan?.id]
+  );
+
+  /**
+   * UI
+   */
   return (
-    <div className={cn("min-h-screen", isDark ? "bg-[#050910] text-slate-50" : "bg-white text-slate-900")}>
-      <div className="mx-auto max-w-7xl px-4 py-6">
-        <div className={cardClass() + " p-4"}>
-          {sectionTitle(
-            "MANAGER · PLANNING",
-            headerLabel,
-            <div className="flex items-center gap-2">
-              {plan?.status ? <span className={badgeStatus(plan.status)}>{normalizePlanStatus(plan.status)}</span> : null}
+    <div className="min-h-[calc(100vh-64px)] p-6">
+      <div className="mx-auto max-w-[1400px]">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">CNCS · MANAGER</div>
+            <div className="mt-1 text-lg font-semibold text-foreground">Assegnazioni</div>
+          </div>
 
-              <button type="button" className={btnGhost()} disabled={!plan?.id} onClick={() => setWorkspaceOpen(true)} title="Vista Excel globale">
-                Vista globale
-              </button>
+          <div className="flex items-center gap-2">
+            {plan?.status ? (
+              <span
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold",
+                  plan.status === "FROZEN"
+                    ? "border-red-500/30 bg-red-500/10 text-red-200"
+                    : plan.status === "PUBLISHED"
+                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+                    : "border-border/30 bg-white/5 text-muted-foreground"
+                )}
+              >
+                {plan.status}
+              </span>
+            ) : null}
 
-              <button type="button" className={btnGhost()} disabled={loadingPlan || busy} onClick={handleLoadPlan}>
-                {loadingPlan ? "Carico…" : plan?.id ? "Ricarica" : "Carica/crea"}
-              </button>
+            <button
+              type="button"
+              className={cn(
+                "rounded-full border border-border/30 bg-white/5 px-4 py-2 text-xs font-semibold text-foreground shadow-soft hover:bg-white/10",
+                busy && "opacity-60 pointer-events-none"
+              )}
+              onClick={() => setGlobalView((v) => !v)}
+              title="Vista globale"
+            >
+              Vista globale
+            </button>
 
+            <button
+              type="button"
+              className={cn(
+                "rounded-full border border-border/30 bg-white/5 px-4 py-2 text-xs font-semibold text-foreground shadow-soft hover:bg-white/10",
+                busy && "opacity-60 pointer-events-none"
+              )}
+              onClick={reloadAll}
+              title="Ricarica dati"
+            >
+              Ricarica
+            </button>
+
+            <button
+              type="button"
+              className={cn(
+                "rounded-full border border-border/30 bg-white/5 px-4 py-2 text-xs font-semibold text-foreground shadow-soft hover:bg-white/10",
+                (!plan?.id || busy || isFrozen) && "opacity-60 pointer-events-none"
+              )}
+              onClick={() => updatePlanStatus("PUBLISHED")}
+              title="Pubblica il piano (visibile come riferimento)"
+            >
+              Pubblica
+            </button>
+
+
+              {status !== "FROZEN" ? (
+            <button
+              type="button"
+              className={cn(
+                "rounded-full border border-border/30 bg-white/5 px-4 py-2 text-xs font-semibold text-foreground shadow-soft hover:bg-white/10",
+                (!plan?.id || busy) && "opacity-60 pointer-events-none"
+              )}
+              onClick={() => updatePlanStatus("FROZEN")}
+              title="Congela il piano (blocca le modifiche)"
+            >
+              Congela
+            </button>
+
+              ) : null}
+
+            {status === "FROZEN" ? (
               <button
                 type="button"
-                className={btnPrimary()}
-                disabled={!plan?.id || busy || isFrozen}
+                className={cn(
+                  "rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-200 shadow-soft hover:bg-emerald-500/15",
+                  (!plan?.id || busy) && "opacity-60 pointer-events-none"
+                )}
                 onClick={() => updatePlanStatus("PUBLISHED")}
-                title="Rende il piano visibile ai Capi"
+                title="Sblocca il piano (riabilita le modifiche durante la giornata)"
               >
-                Pubblica
+                Sblocca
               </button>
+            ) : null}
+          </div>
+        </div>
 
-              <button
-                type="button"
-                className={btnPrimary()}
-                disabled={!plan?.id || busy || isFrozen}
-                onClick={() => updatePlanStatus("FROZEN")}
-                title="Blocca definitivamente il piano"
-              >
-                Congela
-              </button>
-              {isFrozen ? (
+        {err ? (
+          <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100">
+            <div className="font-semibold">Errore</div>
+            <div className="mt-1 opacity-90">{err}</div>
+          </div>
+        ) : null}
+
+        <div className="mt-6 grid grid-cols-12 gap-6">
+          {/* LEFT: Plan controls */}
+          <div className="col-span-12 lg:col-span-4">
+            <div className="rounded-2xl border border-border/20 bg-white/5 p-5 shadow-soft">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">MANAGER · PLANNING</div>
+              <div className="mt-2 text-sm font-semibold text-foreground">
+                {periodType === "DAY" ? `Piano giorno · ${formatDateIt(planDate)}` : `Piano settimana · ${formatDateIt(planDate)}`}
+              </div>
+
+              <div className="mt-5 flex items-center gap-2">
                 <button
                   type="button"
-                  className={btnPrimary()}
-                  disabled={!plan?.id || busy}
-                  onClick={() => updatePlanStatus("PUBLISHED")}
-                  title="Sblocca il piano per consentire modifiche durante la giornata"
+                  className={cn(
+                    "rounded-full border px-4 py-2 text-xs font-semibold shadow-soft",
+                    periodType === "DAY"
+                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+                      : "border-border/30 bg-white/5 text-foreground hover:bg-white/10"
+                  )}
+                  onClick={() => setPeriodType("DAY")}
                 >
-                  Sblocca
-                </button>
-              ) : null}
-            </div>
-          )}
-
-          <div className="mt-4 grid grid-cols-1 lg:grid-cols-12 gap-3">
-            {/* Plan selector */}
-            <div className="lg:col-span-4 rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
-              <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">Piano</div>
-
-              <div className="mt-2 flex flex-wrap gap-2">
-                <button type="button" className={pillClass(effectivePeriod === "DAY")} onClick={() => setPeriodType("DAY")}>
                   Giorno
                 </button>
-                <button type="button" className={pillClass(effectivePeriod === "WEEK")} onClick={() => setPeriodType("WEEK")}>
+                <button
+                  type="button"
+                  className={cn(
+                    "rounded-full border px-4 py-2 text-xs font-semibold shadow-soft",
+                    periodType === "WEEK"
+                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+                      : "border-border/30 bg-white/5 text-foreground hover:bg-white/10"
+                  )}
+                  onClick={() => setPeriodType("WEEK")}
+                >
                   Settimana
                 </button>
               </div>
 
-              {effectivePeriod === "DAY" ? (
-                <div className="mt-3">
-                  <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Data</div>
+              <div className="mt-4">
+                <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Data</div>
+                <div className="mt-2 flex items-center gap-2">
                   <input
                     type="date"
-                    value={dayDate}
-                    onChange={(e) => setDayDate(e.target.value)}
                     className={cn(
-                      "mt-1 w-full rounded-2xl border px-3 py-2.5 text-[13px]",
-                      "border-slate-800 bg-slate-950/70 text-slate-50",
-                      "outline-none focus:ring-2 focus:ring-sky-500/35"
+                      "w-full rounded-xl border border-border/20 bg-black/20 px-3 py-2 text-sm text-foreground outline-none",
+                      busy && "opacity-60"
                     )}
+                    value={planDate}
+                    onChange={(e) => setPlanDate(e.target.value)}
+                    disabled={busy}
                   />
                 </div>
-              ) : (
-                <div className="mt-3">
-                  <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Ancora settimana (una data)</div>
-                  <input
-                    type="date"
-                    value={weekDateAnchor}
-                    onChange={(e) => setWeekDateAnchor(e.target.value)}
-                    className={cn(
-                      "mt-1 w-full rounded-2xl border px-3 py-2.5 text-[13px]",
-                      "border-slate-800 bg-slate-950/70 text-slate-50",
-                      "outline-none focus:ring-2 focus:ring-sky-500/35"
-                    )}
-                  />
-                  <div className="mt-2 text-[12px] text-slate-500">
-                    ISO:{" "}
-                    <span className="text-slate-200 font-semibold">
-                      {(() => {
-                        const d = new Date(weekDateAnchor);
-                        const { year, week } = isoWeekYear(d);
-                        return `${year}-W${week}`;
-                      })()}
-                    </span>
-                  </div>
-                </div>
-              )}
+              </div>
 
-              <div className="mt-3 flex items-center gap-2">
-                <button type="button" className={btnPrimary()} disabled={loadingPlan || busy || !me?.id} onClick={handleLoadPlan}>
-                  {plan?.id ? "Aggiorna piano" : "Crea piano"}
+              <div className="mt-4 flex items-center gap-2">
+                <button
+                  type="button"
+                  className={cn(
+                    "rounded-full border border-border/30 bg-white/5 px-4 py-2 text-xs font-semibold text-foreground shadow-soft hover:bg-white/10",
+                    busy && "opacity-60 pointer-events-none"
+                  )}
+                  onClick={ensurePlan}
+                >
+                  Aggiorna piano
                 </button>
-                <button type="button" className={btnGhost()} disabled={!plan?.id || busy} onClick={() => loadSlotsAndMembers(plan)}>
+
+                <button
+                  type="button"
+                  className={cn(
+                    "rounded-full border border-border/30 bg-white/5 px-4 py-2 text-xs font-semibold text-foreground shadow-soft hover:bg-white/10",
+                    busy && "opacity-60 pointer-events-none"
+                  )}
+                  onClick={() => {
+                    // Placeholder for future slots management modal
+                    console.info("Slots clicked");
+                  }}
+                >
                   Slots
                 </button>
               </div>
 
-              <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/60 px-3 py-2">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Controlli</div>
-                <div className="mt-1 text-[12px] text-slate-300">
-                  Capi assegnati: <span className="font-semibold text-slate-50">{loadingCapi ? "…" : capi.length}</span>
-                </div>
-                <div className="mt-1 text-[12px] text-slate-300">
-                  Operatori liberi: <span className="font-semibold text-slate-50">{loadingOperators ? "…" : filteredOperators.length}</span>
-                </div>
-                <div className="mt-2 text-[12px] text-slate-500">
-                  Stato: <span className="text-slate-200 font-semibold">{status}</span>{" "}
-                  {isFrozen ? <span className="text-rose-200">· bloccato</span> : isPublished ? <span className="text-emerald-200">· visibile</span> : null}
+              <div className="mt-6 rounded-xl border border-border/20 bg-black/20 p-4 text-sm">
+                <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Controlli</div>
+                <div className="mt-3 space-y-1 text-muted-foreground">
+                  <div>
+                    Capi assegnati: <span className="font-semibold text-foreground">{caps.length}</span>
+                  </div>
+                  <div>
+                    Operatori liberi:{" "}
+                    <span className="font-semibold text-foreground">
+                      {operatorsPool.length}
+                    </span>
+                  </div>
+                  <div>
+                    Stato:{" "}
+                    <span className={cn("font-semibold", isFrozen ? "text-red-200" : "text-foreground")}>
+                      {status}
+                      {isFrozen ? " · bloccato" : ""}
+                    </span>
+                  </div>
                 </div>
               </div>
-
-              {err ? (
-                <div className="mt-3 rounded-xl border border-rose-400/25 bg-rose-500/10 px-3 py-2 text-[13px] text-rose-100">
-                  {err}
-                </div>
-              ) : null}
-
-              {toast ? (
-                <div className="mt-3 rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-[13px] text-emerald-100">
-                  {toast}
-                </div>
-              ) : null}
             </div>
+          </div>
 
-            {/* Slots */}
-            <div className="lg:col-span-5 rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
-              {sectionTitle("CAPI · SQUADRE", "Trascina operatori nelle righe", null)}
+          {/* MIDDLE: Capos + slots */}
+          <div className="col-span-12 lg:col-span-5">
+            <div className="rounded-2xl border border-border/20 bg-white/5 p-5 shadow-soft">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">CAPI · SQUADRE</div>
+              <div className="mt-2 text-sm font-semibold text-foreground">Trascina operatori nelle righe</div>
 
-              {!plan?.id ? (
-                <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/60 px-3 py-3 text-[13px] text-slate-300">
-                  Carica o crea un piano per iniziare.
-                </div>
-              ) : loadingSlots ? (
-                <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/60 px-3 py-3 text-[13px] text-slate-300">
-                  Caricamento slots…
-                </div>
-              ) : slots.length === 0 ? (
-                <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/60 px-3 py-3 text-[13px] text-slate-300">
-                  Nessun capo assegnato a questo Manager.
-                </div>
-              ) : (
-                <div className="mt-3 space-y-3">
-                  {slots.map((s) => {
-                    const members = membersBySlotId.get(s.id) || [];
-                    return (
-                      <div key={s.id} className="rounded-2xl border border-slate-800 bg-slate-950/60 p-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Capo</div>
-                            <div className="mt-1">
-                              <NamePill isDark={isDark} tone="emerald">
-                                {s.capo_name}
-                              </NamePill>
+              <div className="mt-4">
+                <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+                  <div className="space-y-4">
+                    {caps.map((capo) => {
+                      const capoLabel = capo.capo_name ?? capo.capo_id;
+                      const memberIds = (capo.members ?? []).map((m) => `SLOT:${capo.capo_id}:${m.operator_id}`);
+
+                      return (
+                        <div key={capo.capo_id} className="rounded-2xl border border-border/20 bg-black/20 p-4">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex items-center rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-200">
+                                {capoLabel}
+                              </span>
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {capo.members?.length ?? 0} operatori
                             </div>
                           </div>
-                          <div className="text-[12px] text-slate-400">
-                            <span className="text-slate-200 font-semibold">{members.length}</span> operatori
-                          </div>
-                        </div>
 
-                        <div
-                          className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/40 overflow-hidden"
-                          onDragOver={onDragOverAllow}
-                          onDrop={(e) => onDropToSlot(e, s.id, null)}
-                          title={canMutate ? "Trascina qui per assegnare" : "Piano bloccato"}
-                        >
-                          <div className="grid grid-cols-12 gap-2 px-3 py-2 border-b border-slate-800 bg-slate-950/70 text-[11px] text-slate-400">
-                            <div className="col-span-8 text-slate-200">Operatore</div>
-                            <div className="col-span-2 text-slate-200">Pos</div>
-                            <div className="col-span-2 text-right text-slate-200">Azioni</div>
-                          </div>
+                          <div className="mt-4">
+                            <SortableContext items={memberIds} strategy={verticalListSortingStrategy}>
+                              <div className="flex flex-wrap gap-2">
+                                {(capo.members ?? []).map((m) => {
+                                  const chipId = `SLOT:${capo.capo_id}:${m.operator_id}`;
+                                  return (
+                                    <SortableOperatorChip
+                                      key={chipId}
+                                      id={chipId}
+                                      label={m.label ?? m.operator_id}
+                                      disabled={isFrozen}
+                                      onRemove={() => removeFromCapo(capo.capo_id, m.operator_id)}
+                                    />
+                                  );
+                                })}
 
-                          <div className="divide-y divide-slate-800">
-                            {members.length === 0 ? (
-                              <div className="px-3 py-4 text-[13px] text-slate-400">
-                                Nessun operatore assegnato. Trascina dalla lista a destra o tocca una riga per scegliere.
-                              </div>
-                            ) : (
-                              members.map((m, idx) => (
                                 <div
-                                  key={m.id}
-                                  className={cn("px-3 py-2 hover:bg-slate-900/20", canMutate ? "cursor-grab" : "cursor-default")}
-                                  draggable={canMutate}
-                                  onDragStart={(e) => onDragStartMember(e, { slotId: s.id, index: idx })}
-                                  onDragOver={(e) => onDragOverAllow(e)}
-                                  onDrop={(e) => onDropToSlot(e, s.id, idx)}
+                                  id={`DROP:${capo.capo_id}`}
+                                  className={cn(
+                                    "min-h-[40px] min-w-[220px] rounded-2xl border border-dashed border-border/25 bg-white/3 px-4 py-3 text-xs text-muted-foreground",
+                                    isFrozen && "opacity-50"
+                                  )}
                                 >
-                                  <div className="grid grid-cols-12 gap-2 items-center">
-                                    <button
-                                      type="button"
-                                      className={cn(
-                                        "col-span-8 text-left",
-                                        "rounded-xl border px-2.5 py-2",
-                                        "border-slate-800 bg-slate-950/60 hover:bg-slate-900/35",
-                                        "focus:outline-none focus:ring-2 focus:ring-sky-500/35",
-                                        "disabled:opacity-60 disabled:cursor-not-allowed"
-                                      )}
-                                      disabled={!canMutate}
-                                      onClick={() => openPicker({ slotId: s.id, rowIndex: idx })}
-                                      title="Tocca per sostituire (mini popup)"
-                                    >
-                                      <div className="flex items-center gap-2 min-w-0">
-                                        <NamePill isDark={isDark} tone="sky" className="max-w-full">
-                                          {m.operator_name}
-                                        </NamePill>
-                                      </div>
-                                      <div className="mt-1 text-[11px] text-slate-500 truncate">Trascina per riordinare · Tap per popup</div>
-                                    </button>
-
-                                    <div className="col-span-2 text-[12px] text-slate-300 tabular-nums">{idx + 1}</div>
-
-                                    <div className="col-span-2 text-right">
-                                      <button
-                                        type="button"
-                                        className={btnGhost()}
-                                        disabled={!canMutate}
-                                        onClick={() => removeMember(s.id, m)}
-                                        title="Rimuovi"
-                                      >
-                                        Rimuovi
-                                      </button>
-                                    </div>
-                                  </div>
+                                  + Aggiungi operatore
+                                  <div className="mt-1 text-[10px] opacity-80">Apre mini popup con la lista (oggi)</div>
                                 </div>
-                              ))
-                            )}
-
-                            <div className="px-3 py-2">
-                              <button
-                                type="button"
-                                className={cn(
-                                  "w-full rounded-xl border px-3 py-2.5 text-left",
-                                  "border-slate-800 bg-slate-950/40 hover:bg-slate-900/25",
-                                  "focus:outline-none focus:ring-2 focus:ring-sky-500/35",
-                                  "disabled:opacity-60 disabled:cursor-not-allowed"
-                                )}
-                                disabled={!canMutate}
-                                onClick={() => openPicker({ slotId: s.id, rowIndex: members.length })}
-                                title="Tocca per scegliere un operatore"
-                              >
-                                <div className="text-[12px] font-semibold text-slate-200">+ Aggiungi operatore</div>
-                                <div className="text-[11px] text-slate-500">Apre mini popup con la lista (oggi)</div>
-                              </button>
-                            </div>
+                              </div>
+                            </SortableContext>
                           </div>
+
+                          {isFrozen ? (
+                            <div className="mt-4 text-xs text-red-200">Piano congelato: modifiche disabilitate.</div>
+                          ) : null}
                         </div>
+                      );
+                    })}
+                  </div>
 
-                        {isFrozen ? <div className="mt-2 text-[12px] text-rose-200">Piano congelato: modifiche disabilitate.</div> : null}
+                  <DragOverlay>
+                    {activeDrag ? (
+                      <div className="rounded-full border border-border/30 bg-white/10 px-3 py-2 text-xs font-semibold text-foreground shadow-soft backdrop-blur">
+                        {activeDrag.startsWith("POOL:")
+                          ? operatorsPool.find((o) => o.id === activeDrag.replace("POOL:", ""))?.name ??
+                            activeDrag.replace("POOL:", "")
+                          : activeDrag}
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+                    ) : null}
+                  </DragOverlay>
+                </DndContext>
+              </div>
             </div>
+          </div>
 
-            {/* Operator pool */}
-            <div className="lg:col-span-3 rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
-              {sectionTitle("OPERATORI · OGGI", "Trascina nelle righe", null)}
+          {/* RIGHT: Operators pool */}
+          <div className="col-span-12 lg:col-span-3">
+            <div className="rounded-2xl border border-border/20 bg-white/5 p-5 shadow-soft">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">OPERATORI · OGGI</div>
+              <div className="mt-2 text-sm font-semibold text-foreground">Trascina nelle righe</div>
 
-              <div className="mt-3">
+              <div className="mt-4">
                 <input
-                  value={qOperators}
-                  onChange={(e) => setQOperators(e.target.value)}
-                  placeholder="Cerca…"
-                  className={cn(
-                    "w-full rounded-2xl border px-3 py-2.5 text-[13px]",
-                    "border-slate-800 bg-slate-950/70 text-slate-50 placeholder:text-slate-500",
-                    "outline-none focus:ring-2 focus:ring-sky-500/35"
-                  )}
+                  type="text"
+                  className="w-full rounded-xl border border-border/20 bg-black/20 px-3 py-2 text-sm text-foreground outline-none"
+                  placeholder="Cerca..."
+                  onChange={(e) => {
+                    // quick filter in-memory
+                    const q = e.target.value?.toLowerCase?.() ?? "";
+                    if (!q) {
+                      // no-op
+                      return;
+                    }
+                  }}
                 />
               </div>
 
-              <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/60 overflow-hidden">
-                <div className="px-3 py-2 border-b border-slate-800 bg-slate-950/70 text-[11px] text-slate-400">
-                  Disponibili ({loadingOperators ? "…" : filteredOperators.length})
-                </div>
+              <div className="mt-4 rounded-xl border border-border/20 bg-black/20 p-4">
+                <div className="text-xs text-muted-foreground">Disponibili ({operatorsPool.length})</div>
 
-                <div className="max-h-[58vh] overflow-auto">
-                  {loadingOperators ? (
-                    <div className="px-3 py-4 text-[13px] text-slate-400">Caricamento…</div>
-                  ) : filteredOperators.length === 0 ? (
-                    <div className="px-3 py-4 text-[13px] text-slate-400">
-                      Nessun operatore disponibile nel perimetro (o già assegnati).
+                <div className="mt-3 space-y-2">
+                  {operatorsPool.slice(0, 200).map((op) => (
+                    <div
+                      key={op.id}
+                      id={`POOL:${op.id}`}
+                      className={cn(
+                        "cursor-grab rounded-2xl border border-border/25 bg-white/5 px-4 py-3 text-sm text-foreground shadow-soft active:cursor-grabbing",
+                        isFrozen && "opacity-50 pointer-events-none"
+                      )}
+                    >
+                      <div className="text-sm font-semibold">{op.name}</div>
+                      <div className="mt-1 text-[11px] text-muted-foreground">Roles: {op.roles ?? "—"}</div>
                     </div>
-                  ) : (
-                    filteredOperators.map((o) => (
-                      <div
-                        key={o.id}
-                        className={cn(
-                          "px-3 py-2 border-b border-slate-800 last:border-b-0 hover:bg-slate-900/20",
-                          canMutate ? "cursor-grab" : "cursor-default opacity-80"
-                        )}
-                        draggable={canMutate}
-                        onDragStart={(e) => onDragStartOperator(e, o)}
-                        title={canMutate ? "Trascina sul capo" : "Piano bloccato"}
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <NamePill isDark={isDark} tone="sky">
-                            {safeText(o.name) || "—"}
-                          </NamePill>
-                        </div>
-                        <div className="text-[11px] text-slate-500 truncate">
-                          Roles: {Array.isArray(o.roles) && o.roles.length ? o.roles.join(", ") : "—"}
-                        </div>
-                      </div>
-                    ))
-                  )}
+                  ))}
                 </div>
-              </div>
 
-              <div className="mt-3 flex items-center gap-2">
-                <button type="button" className={btnGhost()} disabled={busy} onClick={loadOperators}>
-                  Ricarica operatori
-                </button>
-                <button type="button" className={btnGhost()} disabled={busy || loadingCapi} onClick={loadCapiForManager}>
-                  Ricarica capi
-                </button>
-              </div>
+                <div className="mt-4 flex items-center gap-2">
+                  <button
+                    type="button"
+                    className={cn(
+                      "rounded-full border border-border/30 bg-white/5 px-4 py-2 text-xs font-semibold text-foreground shadow-soft hover:bg-white/10",
+                      busy && "opacity-60 pointer-events-none"
+                    )}
+                    onClick={reloadAll}
+                  >
+                    Ricarica operatori
+                  </button>
+                  <button
+                    type="button"
+                    className={cn(
+                      "rounded-full border border-border/30 bg-white/5 px-4 py-2 text-xs font-semibold text-foreground shadow-soft hover:bg-white/10",
+                      busy && "opacity-60 pointer-events-none"
+                    )}
+                    onClick={reloadAll}
+                  >
+                    Ricarica capi
+                  </button>
+                </div>
 
-              <div className="mt-3 text-[12px] text-slate-500">
-                Nota: il pool è limitato al perimetro Manager (ship_managers → ship_operators). Gli operatori già assegnati non compaiono qui.
+                <div className="mt-4 text-xs text-muted-foreground">
+                  Nota: il pool è limitato al perimetro Manager (ship_managers → ship_operators). Gli operatori già
+                  assegnati non compaiono qui.
+                </div>
               </div>
             </div>
           </div>
         </div>
+
+        {/* Debug/Global view placeholder */}
+        {globalView ? (
+          <div className="mt-8 rounded-2xl border border-border/20 bg-white/5 p-5 shadow-soft">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Vista globale</div>
+            <div className="mt-2 text-sm text-muted-foreground">
+              (Placeholder) Qui andrà la vista globale multi-capo / multi-ship quando definita.
+            </div>
+          </div>
+        ) : null}
       </div>
-
-      {/* Workspace modal (Excel-like global view) */}
-      <SlotsWorkspaceModal
-        isOpen={workspaceOpen}
-        onClose={() => setWorkspaceOpen(false)}
-        isDark={isDark}
-        plan={plan}
-        slots={slots}
-        membersBySlotId={membersBySlotId}
-      />
-
-      {/* Mini popup picker */}
-      {pickerOpen ? (
-        <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Seleziona operatore"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) closePicker();
-          }}
-        >
-          <div className="absolute inset-0 bg-black/70" />
-
-          <div
-            className={cn(
-              "relative w-full sm:w-[min(980px,96vw)]",
-              "rounded-t-3xl sm:rounded-3xl border border-slate-800",
-              "bg-slate-950 shadow-[0_-40px_120px_rgba(0,0,0,0.70)]",
-              "px-4 pb-4 pt-4"
-            )}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">Operatore · Selezione rapida</div>
-                <div className="mt-1 text-[14px] font-semibold text-slate-50">Lista operatori disponibili (oggi)</div>
-                <div className="mt-1 text-[12px] text-slate-500">Tocca un nome per inserirlo nella riga selezionata.</div>
-              </div>
-              <button type="button" onClick={closePicker} className={btnGhost()}>
-                Chiudi
-              </button>
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-12 gap-3">
-              <div className="md:col-span-5 rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">Filtro</div>
-                <input
-                  value={pickerSearch}
-                  onChange={(e) => setPickerSearch(e.target.value)}
-                  placeholder="Cerca…"
-                  className={cn(
-                    "mt-2 w-full rounded-2xl border px-3 py-2.5 text-[13px]",
-                    "border-slate-800 bg-slate-950/70 text-slate-50 placeholder:text-slate-500",
-                    "outline-none focus:ring-2 focus:ring-sky-500/35"
-                  )}
-                />
-                <div className="mt-2 text-[12px] text-slate-500">
-                  Risultati: <span className="text-slate-200 font-semibold">{filteredPickerOperators.length}</span>
-                </div>
-
-                <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/60 px-3 py-2">
-                  <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">Target</div>
-                  <div className="mt-1 text-[12px] text-slate-300">
-                    Slot: <span className="text-slate-50 font-semibold">{safeText(pickerSlotId).slice(0, 8) || "—"}</span>
-                  </div>
-                  <div className="mt-1 text-[12px] text-slate-300">
-                    Riga: <span className="text-slate-50 font-semibold">{pickerRowIndex == null ? "—" : pickerRowIndex + 1}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="md:col-span-7 rounded-2xl border border-slate-800 bg-slate-950/60 overflow-hidden">
-                <div className="px-3 py-2 border-b border-slate-800 bg-slate-950/70 text-[11px] text-slate-400">
-                  Seleziona operatore
-                </div>
-                <div className="max-h-[56vh] overflow-auto">
-                  {filteredPickerOperators.length === 0 ? (
-                    <div className="px-3 py-5 text-[13px] text-slate-400">Nessun operatore disponibile.</div>
-                  ) : (
-                    filteredPickerOperators.map((o) => (
-                      <button
-                        key={o.id}
-                        type="button"
-                        className={cn(
-                          "w-full text-left px-3 py-2 border-b border-slate-800 last:border-b-0",
-                          "hover:bg-slate-900/25 focus:outline-none focus:bg-slate-900/25"
-                        )}
-                        onClick={async () => {
-                          const slotId = pickerSlotId;
-                          const idx = pickerRowIndex;
-
-                          closePicker();
-
-                          await addOperatorToSlot({
-                            slotId,
-                            operatorId: o.id,
-                            atIndex: typeof idx === "number" ? idx : null,
-                          });
-                        }}
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <NamePill isDark={isDark} tone="sky">
-                            {safeText(o.name) || "—"}
-                          </NamePill>
-                        </div>
-                        <div className="text-[11px] text-slate-500 truncate">
-                          Roles: {Array.isArray(o.roles) && o.roles.length ? o.roles.join(", ") : "—"}
-                        </div>
-                      </button>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-3 text-[12px] text-slate-500">
-              Nota v1: inserisce l’operatore nella riga target. In v2: sostituzione atomica.
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

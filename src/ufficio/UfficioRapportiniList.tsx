@@ -1,17 +1,17 @@
-// src/ufficio/UfficioRapportiniList.jsx
+// src/ufficio/UfficioRapportiniList.tsx
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
 
-const STATUS_LABELS = {
+const STATUS_LABELS: Record<string, string> = {
   DRAFT: "Bozza",
   VALIDATED_CAPO: "In verifica",
   APPROVED_UFFICIO: "Archiviato",
   RETURNED: "Rimandato",
 };
 
-const STATUS_BADGE_CLASS = {
+const STATUS_BADGE_CLASS: Record<string, string> = {
   DRAFT: "bg-slate-700/80 text-slate-200",
   VALIDATED_CAPO: "bg-amber-500/15 text-amber-200 border border-amber-400/60",
   APPROVED_UFFICIO: "bg-emerald-500/15 text-emerald-200 border border-emerald-400/60",
@@ -19,48 +19,66 @@ const STATUS_BADGE_CLASS = {
 };
 
 // Priorità lavoro (front-only)
-const STATUS_RANK = {
+const STATUS_RANK: Record<string, number> = {
   RETURNED: 0,
   VALIDATED_CAPO: 1,
   APPROVED_UFFICIO: 2,
   DRAFT: 3,
 };
 
-function formatDate(value) {
+function formatDate(value: any): string {
   if (!value) return "";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return String(value);
   return d.toLocaleDateString("it-IT");
 }
 
-function toDateValue(row) {
+function toDateValue(row: any): number {
   const v = row?.report_date;
   const d = new Date(v);
   return Number.isNaN(d.getTime()) ? 0 : d.getTime();
 }
 
-function safeNum(v) {
+function safeNum(v: any): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 }
 
-function formatNumberIt(v, maxFrac = 2) {
+function formatNumberIt(v: any, maxFrac = 2): string {
   const n = safeNum(v);
   return new Intl.NumberFormat("it-IT", { maximumFractionDigits: maxFrac }).format(n);
 }
 
-function normalizeKey(s) {
+function normalizeKey(s: any): string {
   return (s ?? "").toString().trim().toUpperCase();
 }
 
-function isSuperseded(row) {
-  // Ancien rapport remplacé par un rectificatif
-  return !!(row?.superseded_by_rapportino_id);
+/**
+ * KPI rule (naval-grade):
+ * - For ELETTRICISTA, KPI production excludes informational lines.
+ * - Only STESURA + RIPRESA are KPI; FASCETTATURA (and others) must not enter KPI totals.
+ * - For non-ELETTRICISTA roles, keep legacy behavior (all lines).
+ */
+function isElectricistaRole(crewRole: any): boolean {
+  return String(crewRole || "").trim().toUpperCase() === "ELETTRICISTA";
 }
 
-function isCorrection(row) {
-  // Nouveau rapport rectificatif qui remplace un ancien
-  return !!(row?.supersedes_rapportino_id);
+function isKpiDescrizione(descrizione: any): boolean {
+  const d = normalizeKey(descrizione);
+  if (!d || d === "—") return false;
+  if (d === "STESURA") return true;
+  if (d === "RIPRESA CAVI") return true;
+  // tolerant legacy
+  if (d.startsWith("RIPRESA")) return true;
+  return false;
+}
+
+function isSuperseded(row: any): boolean {
+  return !!row?.superseded_by_rapportino_id;
+}
+
+function isCorrection(row: any): boolean {
+  return !!row?.supersedes_rapportino_id;
 }
 
 /**
@@ -73,14 +91,15 @@ function isCorrection(row) {
  * - Toggle: afficher aussi l'historique (supersedés)
  * - Badges: SOSTITUITO / RETTIFICA
  */
-export default function UfficioRapportiniList() {
+export default function UfficioRapportiniList(): JSX.Element {
   const { profile, loading: authLoading } = useAuth();
 
-  const [rapportini, setRapportini] = useState([]);
-  const [rowsAggByRap, setRowsAggByRap] = useState({}); // { [rapportino_id]: { descrizioniCount, top: [{descrizione, prodotto_sum}], sommaRighe } }
+  const [rapportini, setRapportini] = useState<any[]>([]);
+  const [rowsAggByRap, setRowsAggByRap] = useState<Record<string, any>>({});
+  // { [rapportino_id]: { descrizioniCount, top: [{descrizione, prodotto_sum}], sommaKpi, sommaAll, isKpiFiltered } }
 
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [capoFilter, setCapoFilter] = useState("");
@@ -108,53 +127,46 @@ export default function UfficioRapportiniList() {
       setLoading(true);
       setError(null);
 
-      // Note:
-      // - On tente de lire des colonnes de versionning si elles existent dans la vue.
-      // - Si elles n'existent pas encore, Supabase renverra une erreur. Pour rester robuste,
-      //   on réduit automatiquement le select au set minimal en fallback.
       const baseSelect = [
         "id",
         "report_date",
         "capo_id",
         "capo_display_name",
         "crew_role",
+        "costr",
         "commessa",
         "status",
         "created_at",
         "updated_at",
-        // Naval-grade (optionnel selon vue)
-        "superseded_by_rapportino_id",
+        // versioning (defensive)
         "supersedes_rapportino_id",
-        "correction_reason",
-        "correction_created_at",
+        "superseded_by_rapportino_id",
       ].join(",");
 
-      const runQuery = async (selectStr) => {
+      async function runQuery(selectStr: string) {
         return await supabase
-          .from("ufficio_rapportini_list_v1")
+          .from("rapportini")
           .select(selectStr)
-          .in("status", ["VALIDATED_CAPO", "APPROVED_UFFICIO", "RETURNED"])
-          .order("report_date", { ascending: false });
-      };
+          .order("report_date", { ascending: false })
+          .limit(500);
+      }
 
-      let data = null;
-      let err = null;
+      let data: any[] | null = null;
+      let err: any = null;
 
-      // 1) Try with versioning columns
       const r1 = await runQuery(baseSelect);
       data = r1.data;
       err = r1.error;
 
-      // 2) Fallback to minimal select if the view doesn't have those columns yet
+      // Fallback si colonnes versioning pas encore présentes
       if (err) {
-        console.warn("[UFFICIO LIST] Select with versioning columns failed; fallback minimal:", err);
-
         const minimalSelect = [
           "id",
           "report_date",
           "capo_id",
           "capo_display_name",
           "crew_role",
+          "costr",
           "commessa",
           "status",
           "created_at",
@@ -178,6 +190,11 @@ export default function UfficioRapportiniList() {
       const list = data || [];
       setRapportini(list);
 
+      const crewRoleByRapId = new Map<string, string>();
+      (list || []).forEach((r) => {
+        if (r?.id) crewRoleByRapId.set(String(r.id), r?.crew_role || "");
+      });
+
       // Aggregazione descrizione/prodotto per tutti gli IDs (1 query)
       const ids = list.map((r) => r.id).filter(Boolean);
 
@@ -199,34 +216,54 @@ export default function UfficioRapportiniList() {
         return;
       }
 
-      // Build aggregate:
-      // per rapportino_id:
-      // - descrizioniCount
-      // - top 2 descrizioni by prodotto_sum
-      // - sommaRighe (secondary)
-      const map = new Map(); // rid -> { descrMap, sommaRighe }
-      (aggRows || []).forEach((r) => {
+      // Build aggregate (KPI-aware for electricians)
+      const map = new Map<string, any>(); // rid -> { descrMapKpi, descrMapAll, sommaKpi, sommaAll, isKpiFiltered }
+      (aggRows || []).forEach((r: any) => {
         const rid = r?.rapportino_id;
         if (!rid) return;
-        const obj = map.get(rid) || { descrMap: new Map(), sommaRighe: 0 };
+
+        const rapCrewRole = crewRoleByRapId.get(String(rid)) || "";
+        const kpiFiltered = isElectricistaRole(rapCrewRole);
+
+        const obj =
+          map.get(String(rid)) ||
+          {
+            descrMapKpi: new Map<string, number>(),
+            descrMapAll: new Map<string, number>(),
+            sommaKpi: 0,
+            sommaAll: 0,
+            isKpiFiltered: kpiFiltered,
+          };
+
         const key = (r?.descrizione ?? "—").toString().trim() || "—";
-        obj.descrMap.set(key, (obj.descrMap.get(key) || 0) + safeNum(r?.prodotto));
-        obj.sommaRighe += safeNum(r?.prodotto);
-        map.set(rid, obj);
+
+        // Secondary: full sum (audit/informative)
+        obj.descrMapAll.set(key, (obj.descrMapAll.get(key) || 0) + safeNum(r?.prodotto));
+        obj.sommaAll += safeNum(r?.prodotto);
+
+        // Primary KPI sum for electricians only
+        const isKpi = !kpiFiltered || isKpiDescrizione(key);
+        if (isKpi) {
+          obj.descrMapKpi.set(key, (obj.descrMapKpi.get(key) || 0) + safeNum(r?.prodotto));
+          obj.sommaKpi += safeNum(r?.prodotto);
+        }
+
+        map.set(String(rid), obj);
       });
 
-      const out = {};
+      const out: Record<string, any> = {};
       map.forEach((v, rid) => {
-        const items = Array.from(v.descrMap.entries()).map(([descrizione, prodotto_sum]) => ({
-          descrizione,
-          prodotto_sum,
-        }));
+        // Prefer KPI map for electricians, otherwise full map.
+        const activeMap: Map<string, number> = v.isKpiFiltered ? v.descrMapKpi : v.descrMapAll;
+        const items = Array.from(activeMap.entries()).map(([descrizione, prodotto_sum]) => ({ descrizione, prodotto_sum }));
         items.sort((a, b) => b.prodotto_sum - a.prodotto_sum);
 
         out[rid] = {
           descrizioniCount: items.length,
           top: items.slice(0, 2),
-          sommaRighe: v.sommaRighe,
+          sommaKpi: v.sommaKpi,
+          sommaAll: v.sommaAll,
+          isKpiFiltered: v.isKpiFiltered,
         };
       });
 
@@ -244,7 +281,6 @@ export default function UfficioRapportiniList() {
       if (statusFilter !== "ALL" && r.status !== statusFilter) return false;
       if (roleFilter !== "ALL" && r.crew_role !== roleFilter) return false;
 
-      // Naval-grade: hide superseded by default
       if (!showHistory && isSuperseded(r)) return false;
 
       if (q) {
@@ -258,7 +294,7 @@ export default function UfficioRapportiniList() {
 
   const sortedRapportini = useMemo(() => {
     const rows = [...(filteredRapportini || [])];
-    rows.sort((a, b) => {
+    rows.sort((a: any, b: any) => {
       const ra = STATUS_RANK[a.status] ?? 99;
       const rb = STATUS_RANK[b.status] ?? 99;
       if (ra !== rb) return ra - rb;
@@ -281,69 +317,52 @@ export default function UfficioRapportiniList() {
   if (error) {
     return (
       <div className="p-4">
-        <p className="text-sm text-rose-400">{error}</p>
+        <p className="text-sm text-red-200">{error}</p>
       </div>
     );
   }
 
   return (
-    <div className="p-3 md:p-4 max-w-6xl mx-auto text-slate-100">
-      <header className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-lg md:text-xl font-semibold text-slate-50">Rapportini · Ufficio</h1>
-          <div className="mt-1 text-[11px] text-slate-500">
-            Naval-grade: i documenti archiviati restano immutabili. Le correzioni avvengono tramite rettifica/versione.
-          </div>
+    <div className="p-4 space-y-4">
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="flex flex-col text-xs min-w-[160px]">
+          <label className="mb-1 font-medium text-slate-300">Stato</label>
+          <select
+            className="border border-slate-700 rounded-md px-2 py-1 text-xs bg-slate-900/70 text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="ALL">Tutti</option>
+            <option value="RETURNED">Rimandati</option>
+            <option value="VALIDATED_CAPO">In verifica</option>
+            <option value="APPROVED_UFFICIO">Archiviati</option>
+            <option value="DRAFT">Bozze</option>
+          </select>
         </div>
-        <div className="flex flex-wrap gap-2 text-xs text-slate-400">
-          <span>
-            Utente:&nbsp;
-            <strong className="text-slate-100">{profile?.full_name || profile?.email || "UFFICIO"}</strong>
-          </span>
-          <span className="px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-200 border border-sky-500/60">
-            Ruolo: {profile?.app_role}
-          </span>
+
+        <div className="flex flex-col text-xs min-w-[180px]">
+          <label className="mb-1 font-medium text-slate-300">Ruolo</label>
+          <select
+            className="border border-slate-700 rounded-md px-2 py-1 text-xs bg-slate-900/70 text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+          >
+            <option value="ALL">Tutti</option>
+            <option value="ELETTRICISTA">ELETTRICISTA</option>
+            <option value="CARPENTIERE">CARPENTIERE</option>
+            <option value="TUBISTA">TUBISTA</option>
+            <option value="SALDATORE">SALDATORE</option>
+          </select>
         </div>
-      </header>
 
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="flex flex-wrap gap-3">
-          <div className="flex flex-col text-xs">
-            <label className="mb-1 font-medium text-slate-300">Stato</label>
-            <select
-              className="border border-slate-700 rounded-md px-2 py-1 text-xs bg-slate-900/70 text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="ALL">Tutti</option>
-              <option value="VALIDATED_CAPO">In verifica</option>
-              <option value="RETURNED">Rimandati</option>
-              <option value="APPROVED_UFFICIO">Archiviati</option>
-            </select>
-          </div>
-
-          <div className="flex flex-col text-xs">
-            <label className="mb-1 font-medium text-slate-300">Tipo squadra</label>
-            <select
-              className="border border-slate-700 rounded-md px-2 py-1 text-xs bg-slate-900/70 text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-            >
-              <option value="ALL">Tutte</option>
-              <option value="ELETTRICISTA">Elettricista</option>
-              <option value="CARPENTERIA">Carpenteria</option>
-              <option value="MONTAGGIO">Montaggio</option>
-            </select>
-          </div>
-
-          {/* NEW: toggle historique */}
-          <div className="flex flex-col text-xs">
-            <label className="mb-1 font-medium text-slate-300">Versioni</label>
+        <div className="flex flex-col text-xs min-w-[180px]">
+          <label className="mb-1 font-medium text-slate-300">Storico</label>
+          <div>
             <button
               type="button"
               onClick={() => setShowHistory((v) => !v)}
               className={[
-                "px-2 py-1 rounded-md border text-xs font-medium",
+                "px-3 py-1.5 rounded-md border text-xs font-medium transition",
                 showHistory
                   ? "border-slate-600 text-slate-100 bg-slate-900/70 hover:bg-slate-900/90"
                   : "border-slate-800 text-slate-300 bg-slate-950/50 hover:bg-slate-900/70",
@@ -390,7 +409,7 @@ export default function UfficioRapportiniList() {
               </tr>
             )}
 
-            {sortedRapportini.map((r) => {
+            {sortedRapportini.map((r: any) => {
               const statusLabel = STATUS_LABELS[r.status] || r.status;
               const badgeClass = STATUS_BADGE_CLASS[r.status] || "bg-slate-700/80 text-slate-200";
 
@@ -403,11 +422,13 @@ export default function UfficioRapportiniList() {
               const agg = rowsAggByRap[r.id] || null;
               const descrCount = agg?.descrizioniCount ?? 0;
               const top = agg?.top ?? [];
-              const sommaRighe = agg?.sommaRighe ?? 0;
+              const sommaKpi = agg?.sommaKpi ?? 0;
+              const sommaAll = agg?.sommaAll ?? 0;
+              const isKpiFiltered = !!agg?.isKpiFiltered;
 
               const topLine = top.length
                 ? top
-                    .map((x) => {
+                    .map((x: any) => {
                       const label = normalizeKey(x.descrizione);
                       const v = formatNumberIt(x.prodotto_sum);
                       return `${label} ${v}`;
@@ -416,8 +437,6 @@ export default function UfficioRapportiniList() {
                 : "—";
 
               const moreCount = Math.max(0, descrCount - top.length);
-
-              // UI tone: superseded should look "historical"
               const rowTone = superseded ? "opacity-50" : isArchived ? "opacity-70" : "hover:bg-slate-900/80";
 
               return (
@@ -447,7 +466,6 @@ export default function UfficioRapportiniList() {
                   </td>
 
                   <td className="px-3 py-2 whitespace-nowrap text-slate-100">{r.crew_role || "—"}</td>
-
                   <td className="px-3 py-2 whitespace-nowrap text-slate-100">{r.commessa || "—"}</td>
 
                   <td className="px-3 py-2 text-slate-100">
@@ -457,15 +475,22 @@ export default function UfficioRapportiniList() {
                           <span className="px-2 py-0.5 rounded-full border border-slate-700 bg-slate-950/70 text-[11px] uppercase tracking-[0.12em] text-slate-300">
                             {descrCount || 0} descr.
                           </span>
-                          <span className="text-[11px] text-slate-500">somma righe: {formatNumberIt(sommaRighe)}</span>
+                          <span className="text-[11px] text-slate-300">
+                            somma KPI: <span className="text-slate-100">{formatNumberIt(sommaKpi)}</span>
+                          </span>
+                          <span className="text-[11px] text-slate-500">somma righe: {formatNumberIt(sommaAll)}</span>
                         </span>
                       </div>
+
                       <div className="mt-1 text-[11px] text-slate-300">
                         {topLine}
                         {moreCount > 0 ? <span className="text-slate-500"> · +{moreCount}</span> : null}
                       </div>
+
                       <div className="mt-1 text-[10px] text-slate-500">
-                        Produzione mostrata per descrizione (no KPI totale unico).
+                        {isKpiFiltered
+                          ? "ELETTRICISTA: KPI = STESURA + RIPRESA (FASCETTATURA esclusa)."
+                          : "Produzione mostrata per descrizione (no KPI totale unico)."}
                       </div>
                     </div>
                   </td>
@@ -485,10 +510,7 @@ export default function UfficioRapportiniList() {
                   </td>
 
                   <td className="px-3 py-2 whitespace-nowrap text-right">
-                    <Link
-                      to={`/ufficio/rapportini/${r.id}`}
-                      className="text-xs text-sky-300 hover:text-sky-200 hover:underline"
-                    >
+                    <Link to={`/ufficio/rapportini/${r.id}`} className="text-xs text-sky-300 hover:text-sky-200 hover:underline">
                       Apri
                     </Link>
                   </td>

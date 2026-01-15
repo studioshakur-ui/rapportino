@@ -14,11 +14,11 @@ type RequireRoleProps = {
   children: ReactNode;
 };
 
-/**
- * Compatible:
- *  - <RequireRole allowed={["CAPO"]}>...</RequireRole>
- *  - <RequireRole allow={["CAPO"]}>...</RequireRole> (legacy)
- */
+type ProfileLike = {
+  app_role?: string | null;
+  must_change_password?: boolean | null;
+};
+
 export default function RequireRole({ allow, allowed, children }: RequireRoleProps) {
   const { session, profile, loading, authReady, isReady, rehydrating } = useAuth();
   const location = useLocation();
@@ -40,15 +40,13 @@ export default function RequireRole({ allow, allowed, children }: RequireRolePro
 
   // Enforce password change globally, but avoid redirect loop
   const isForcePwdRoute = location.pathname.startsWith("/force-password-change");
-  if ((profile as any)?.must_change_password === true && !isForcePwdRoute) {
+  const p = profile as unknown as ProfileLike | null;
+
+  if (p?.must_change_password === true && !isForcePwdRoute) {
     return <Navigate to="/force-password-change" replace state={{ from: location.pathname }} />;
   }
 
-  const roles: string[] = Array.isArray(allowed)
-    ? allowed
-    : Array.isArray(allow)
-      ? allow
-      : [];
+  const roles: string[] = Array.isArray(allowed) ? allowed : Array.isArray(allow) ? allow : [];
 
   // If no role constraint => allow
   if (roles.length === 0) {
@@ -56,11 +54,11 @@ export default function RequireRole({ allow, allowed, children }: RequireRolePro
   }
 
   // ✅ KEY FIX: if profile isn't loaded yet, do NOT redirect to unauthorized
-  if (!profile) {
+  if (!p) {
     return <LoadingScreen message="Caricamento profilo…" />;
   }
 
-  const appRole = (profile as any)?.app_role as string | undefined;
+  const appRole = p.app_role ?? null;
 
   // Now profile exists. If app_role missing => true unauthorized (data issue)
   if (!appRole) {

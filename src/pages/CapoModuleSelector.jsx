@@ -16,53 +16,26 @@ export default function CapoModuleSelector() {
     refreshShips,
   } = useShip();
 
-  // Try to resolve the ship from the canonical allowed ships list
-  const resolvedShip = useMemo(() => {
-    const sid = shipId ? String(shipId) : "";
-    if (!sid) return null;
-
-    const match = (ships || []).find((s) => String(s?.id) === sid) || null;
-
-    // Prefer the canonical match
-    if (match) return match;
-
-    // If currentShip already matches, keep it
-    if (currentShip && String(currentShip.id) === sid) return currentShip;
-
-    // Fallback minimal object (UI only), but note: KPI needs code, so this won’t be enough.
-    return null;
-  }, [shipId, ships, currentShip]);
-
-  // Ensure ShipContext is aligned with the shipId route
   useEffect(() => {
-    const sid = shipId ? String(shipId) : "";
-    if (!sid) return;
-
-    // If ships not loaded yet, ensure refresh is attempted (safe no-op if already loaded)
-    if (!loadingShips && (!ships || ships.length === 0)) {
-      // Not fatal if it fails; user can still navigate back
-      refreshShips?.();
-    }
-
-    // If we can resolve a canonical ship and it’s not current, set it
-    if (resolvedShip && (!currentShip || String(currentShip.id) !== String(resolvedShip.id))) {
-      setCurrentShip(resolvedShip);
-    }
+    refreshShips();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shipId, resolvedShip?.id]);
+  }, []);
+
+  const resolvedShip = useMemo(() => {
+    if (!shipId || !Array.isArray(ships)) return null;
+    return ships.find((s) => String(s.id) === String(shipId)) || null;
+  }, [ships, shipId]);
 
   const uiShip = useMemo(() => {
-    if (resolvedShip) return resolvedShip;
-    if (currentShip) return currentShip;
+    return resolvedShip || currentShip || null;
+  }, [resolvedShip, currentShip]);
 
-    // Last resort: show shipId as technical identifier
-    return {
-      id: shipId,
-      code: "",
-      name: "",
-      yard: "",
-    };
-  }, [resolvedShip, currentShip, shipId]);
+  const shipLabel = useMemo(() => {
+    if (uiShip?.name) return uiShip.name;
+    if (uiShip?.code) return uiShip.code.toString();
+    if (shipId) return shipId.toString();
+    return "Nave";
+  }, [uiShip, shipId]);
 
   const goRapportino = () => {
     navigate(`/app/ship/${shipId}/rapportino/role`);
@@ -80,17 +53,17 @@ export default function CapoModuleSelector() {
       // Yield one microtask to let state propagate before route render
       await Promise.resolve();
     }
-    navigate(`/app/kpi-operatori`, { state: { shipId: shipId || null } });
+    navigate(`/app/kpi-operatori`, { state: { shipId } });
   };
 
-  const shipLabel = useMemo(() => {
-    const code = (uiShip?.code ?? "").toString().trim();
-    const name = (uiShip?.name ?? "").toString().trim();
-
-    if (code) return `${code}${name ? ` · ${name}` : ""}`;
-    if (shipId) return shipId.toString();
-    return "Nave";
-  }, [uiShip, shipId]);
+  const goMegaKpi = async () => {
+    // Mega KPI page depends on ShipContext.currentShip (costr/commessa)
+    if (resolvedShip) {
+      setCurrentShip(resolvedShip);
+      await Promise.resolve();
+    }
+    navigate(`/app/ship/${shipId}/kpi-stesura`, { state: { shipId } });
+  };
 
   return (
     <div className="p-4 sm:p-6 space-y-4">
@@ -107,28 +80,26 @@ export default function CapoModuleSelector() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {/* Rapportino */}
         <button
           type="button"
           onClick={goRapportino}
-          className="group relative overflow-hidden rounded-2xl border border-sky-700/70 bg-slate-950/80 hover:bg-slate-900/90 hover:border-sky-400/80 transition-all px-4 py-4 text-left"
+          className="group relative overflow-hidden rounded-2xl border border-sky-500/30 bg-slate-950/60 hover:bg-slate-950/75 hover:border-sky-400/80 transition-all px-4 py-4 text-left"
         >
-          <div className="pointer-events-none absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-sky-400/80 to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-sky-400/80 to-transparent" />
           <div className="flex items-start justify-between gap-2 mb-2">
             <div>
               <div className="text-[11px] uppercase tracking-[0.16em] text-sky-300 mb-1">
                 Rapportino giornaliero
               </div>
-              <div className="text-lg font-semibold text-slate-50">
-                Compila e invia il rapportino
-              </div>
+              <div className="text-lg font-semibold text-slate-50">Compila / invia</div>
               <div className="text-xs text-slate-400">
-                Ore, squadra, attività e note per l&apos;Ufficio e la Direzione.
+                Inserisci attività, operatori, tempo e prodotto.
               </div>
             </div>
-            <div>
-              <span className={corePills(true, "sky", "text-[10px] px-2 py-0.5")}>Compilazione</span>
+            <div className="flex flex-col items-end gap-1">
+              <span className={corePills(true, "sky", "text-[10px] px-2 py-0.5")}>Capo</span>
             </div>
           </div>
         </button>
@@ -137,24 +108,22 @@ export default function CapoModuleSelector() {
         <button
           type="button"
           onClick={goInca}
-          className="group relative overflow-hidden rounded-2xl border border-emerald-700/70 bg-slate-950/80 hover:bg-slate-900/90 hover:border-emerald-400/80 transition-all px-4 py-4 text-left"
+          className="group relative overflow-hidden rounded-2xl border border-amber-500/30 bg-slate-950/60 hover:bg-slate-950/75 hover:border-amber-400/80 transition-all px-4 py-4 text-left"
         >
-          <div className="pointer-events-none absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-emerald-400/80 to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-amber-400/80 to-transparent" />
           <div className="flex items-start justify-between gap-2 mb-2">
             <div>
-              <div className="text-[11px] uppercase tracking-[0.16em] text-emerald-300 mb-1">
-                INCA · Avanzamento cavi
+              <div className="text-[11px] uppercase tracking-[0.16em] text-amber-300 mb-1">
+                INCA · Cockpit
               </div>
-              <div className="text-lg font-semibold text-slate-50">
-                Vedi stato tratte e produzione
-              </div>
+              <div className="text-lg font-semibold text-slate-50">Avanzamento cavi</div>
               <div className="text-xs text-slate-400">
-                Curve di produzione, metri posati, scostamento dalla deadline e tratte critiche.
+                Stato cantiere (P/T/R/B/E/NP) + distribuzione.
               </div>
             </div>
             <div className="flex flex-col items-end gap-1">
-              <span className={corePills(true, "emerald", "text-[10px] px-2 py-0.5")}>
-                Read-only · dati certificati
+              <span className={corePills(true, "amber", "text-[10px] px-2 py-0.5")}>
+                Scope INCA
               </span>
             </div>
           </div>
@@ -164,9 +133,9 @@ export default function CapoModuleSelector() {
         <button
           type="button"
           onClick={goKpi}
-          className="group relative overflow-hidden rounded-2xl border border-fuchsia-700/60 bg-slate-950/80 hover:bg-slate-900/90 hover:border-fuchsia-400/80 transition-all px-4 py-4 text-left"
+          className="group relative overflow-hidden rounded-2xl border border-fuchsia-500/30 bg-slate-950/60 hover:bg-slate-950/75 hover:border-fuchsia-400/80 transition-all px-4 py-4 text-left"
         >
-          <div className="pointer-events-none absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-fuchsia-400/80 to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-fuchsia-400/80 to-transparent" />
           <div className="flex items-start justify-between gap-2 mb-2">
             <div>
               <div className="text-[11px] uppercase tracking-[0.16em] text-fuchsia-300 mb-1">
@@ -191,7 +160,35 @@ export default function CapoModuleSelector() {
             </div>
           )}
         </button>
+
+        {/* MEGA KPI · STESURA */}
+        <button
+          type="button"
+          onClick={goMegaKpi}
+          className="group relative overflow-hidden rounded-2xl border border-emerald-500/30 bg-slate-950/60 hover:bg-slate-950/75 hover:border-emerald-400/80 transition-all px-4 py-4 text-left"
+        >
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-emerald-400/80 to-transparent" />
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.16em] text-emerald-300 mb-1">
+                Mega KPI · Posa cavi
+              </div>
+              <div className="text-lg font-semibold text-slate-50">Stesura + Ripresa</div>
+              <div className="text-xs text-slate-400">
+                Curva cumulata INCA-based. <span className="font-semibold text-slate-300">Fascettatura esclusa</span>.
+              </div>
+            </div>
+            <div className="flex flex-col items-end gap-1">
+              <span className={corePills(true, "emerald", "text-[10px] px-2 py-0.5")}>ECharts</span>
+              <span className={corePills(true, "slate", "text-[10px] px-2 py-0.5")}>Audit</span>
+            </div>
+          </div>
+        </button>
       </div>
+
+      {loadingShips ? (
+        <div className="text-sm text-slate-500">Caricamento navi…</div>
+      ) : null}
     </div>
   );
 }
