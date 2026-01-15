@@ -4,8 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 
 import { supabase } from "../../../lib/supabaseClient";
 
-import CoreEChart from "./charts/CoreEChart";
-import { CORE_CHART_THEME, coreTooltipStyle, formatCompactNumber } from "./charts/coreChartTheme";
+import CoreEChart from "../../../components/charts/CoreEChart";
+import { CORE_CHART_THEME, coreTooltipStyle, formatCompactNumber } from "../../../components/charts/coreChartTheme";
+
 
 function cn(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(" ");

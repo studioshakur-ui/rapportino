@@ -1,59 +1,98 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+// src/pages/ManagerAssignments.tsx
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { createClient } from "@supabase/supabase-js";
+
+import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core";
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
-import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
+import { supabase } from "../lib/supabaseClient";
 import { cn } from "../utils/cn";
-import { formatDisplayName } from "../utils/formatHuman";
 
 /**
  * NOTE:
  * This file is intentionally verbose. It prioritizes correctness and debuggability.
  */
 
-/**
- * Supabase client (frontend)
- */
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+type PlanStatus = "DRAFT" | "PUBLISHED" | "FROZEN";
+type PeriodType = "DAY" | "WEEK";
 
-/**
- * Enums (frontend shadow)
- * - plan_status: DRAFT | PUBLISHED | FROZEN
- * - plan_period_type: DAY | WEEK
- */
-const PLAN_STATUSES = ["DRAFT", "PUBLISHED", "FROZEN"];
-const PERIOD_TYPES = ["DAY", "WEEK"];
+type OutletAuth = {
+  user?: { id?: string | null } | null;
+} | null;
 
-function normalizePlanStatus(v) {
+type OutletContext = {
+  auth?: OutletAuth;
+};
+
+type ManagerPlanRow = {
+  id: string;
+  manager_id: string;
+  period_type: PeriodType;
+  plan_date: string; // YYYY-MM-DD
+  status: PlanStatus;
+  note: string | null;
+  frozen_at: string | null;
+  updated_at?: string | null;
+};
+
+type CapoAssignmentRow = {
+  capo_id: string;
+  capo_name: string | null;
+  is_active: boolean | null;
+};
+
+type ShipOperatorRow = {
+  id: string;
+  name: string | null;
+  roles: string | null;
+};
+
+type PlanCapoSlotRow = {
+  id: string;
+  plan_id: string;
+  capo_id: string;
+  position: number | null;
+};
+
+type PlanSlotMemberRow = {
+  id?: string;
+  slot_id: string;
+  operator_id: string;
+  position: number | null;
+};
+
+type CapoUiMember = {
+  operator_id: string;
+  label: string;
+};
+
+type CapoUi = {
+  capo_id: string;
+  capo_name: string | null;
+  is_active: boolean;
+  slot_id?: string;
+  members: CapoUiMember[];
+};
+
+function normalizePlanStatus(v: unknown): PlanStatus {
   if (v === "PUBLISHED") return "PUBLISHED";
   if (v === "FROZEN") return "FROZEN";
   return "DRAFT";
 }
 
-function normalizePeriodType(v) {
+function normalizePeriodType(v: unknown): PeriodType {
   if (v === "WEEK") return "WEEK";
   return "DAY";
 }
 
-/**
- * Helpers
- */
-function isoFromDateInput(dateStr) {
-  // dateStr is "YYYY-MM-DD" (input type="date")
-  return dateStr;
-}
-
-function formatDateIt(d) {
-  // d: "YYYY-MM-DD"
+function formatDateIt(d: string): string {
   const [y, m, day] = String(d).split("-");
   return `${day}/${m}/${y}`;
 }
 
-function getTodayISO() {
+function getTodayISO(): string {
   const now = new Date();
   const y = now.getFullYear();
   const m = String(now.getMonth() + 1).padStart(2, "0");
@@ -61,27 +100,30 @@ function getTodayISO() {
   return `${y}-${m}-${d}`;
 }
 
-function clamp(n, min, max) {
-  return Math.max(min, Math.min(max, n));
-}
-
-function safeInt(v, fallback = 0) {
+function safeInt(v: unknown, fallback = 0): number {
   const n = Number(v);
   if (!Number.isFinite(n)) return fallback;
   return Math.trunc(n);
 }
 
-function stableSortByPosition(arr) {
+function stableSortByPosition<T extends { position?: number | null }>(arr: T[]): T[] {
   return [...arr].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
 }
 
 /**
  * Sortable item: operator chip
  */
-function SortableOperatorChip({ id, label, disabled, onRemove }) {
+type SortableOperatorChipProps = {
+  id: string;
+  label: string;
+  disabled?: boolean;
+  onRemove?: () => void;
+};
+
+function SortableOperatorChip({ id, label, disabled, onRemove }: SortableOperatorChipProps): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
 
-  const style = {
+  const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.6 : 1,
@@ -93,7 +135,7 @@ function SortableOperatorChip({ id, label, disabled, onRemove }) {
       style={style}
       className={cn(
         "group flex items-center gap-2 rounded-full border border-border/30 bg-white/5 px-3 py-2 text-xs font-semibold text-foreground shadow-soft backdrop-blur",
-        disabled && "opacity-50 pointer-events-none"
+        disabled ? "opacity-50 pointer-events-none" : ""
       )}
       {...attributes}
       {...listeners}
@@ -116,23 +158,23 @@ function SortableOperatorChip({ id, label, disabled, onRemove }) {
 /**
  * Main page
  */
-export default function ManagerAssignments() {
-  const outlet = useOutletContext?.() ?? {};
+export default function ManagerAssignments(): JSX.Element {
+  const outlet = (useOutletContext?.() as OutletContext) ?? {};
   const auth = outlet?.auth ?? null;
 
-  const [periodType, setPeriodType] = useState("DAY");
-  const [planDate, setPlanDate] = useState(getTodayISO());
+  const [periodType, setPeriodType] = useState<PeriodType>("DAY");
+  const [planDate, setPlanDate] = useState<string>(getTodayISO());
 
-  const [plan, setPlan] = useState(null);
+  const [plan, setPlan] = useState<ManagerPlanRow | null>(null);
   const status = normalizePlanStatus(plan?.status);
+  const isFrozen = status === "FROZEN";
 
-  const [caps, setCaps] = useState([]);
-  const [operatorsPool, setOperatorsPool] = useState([]);
+  const [caps, setCaps] = useState<CapoUi[]>([]);
+  const [operatorsPool, setOperatorsPool] = useState<ShipOperatorRow[]>([]);
 
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState(null);
-
-  const [globalView, setGlobalView] = useState(false);
+  const [busy, setBusy] = useState<boolean>(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [globalView, setGlobalView] = useState<boolean>(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -140,26 +182,22 @@ export default function ManagerAssignments() {
     })
   );
 
-  // Derived flags
-  const isFrozen = status === "FROZEN";
+  const [activeDrag, setActiveDrag] = useState<string | null>(null);
 
-  // dnd
-  const [activeDrag, setActiveDrag] = useState(null);
+  const managerId = auth?.user?.id ?? null;
 
   /**
    * Load/ensure plan
    */
-  const ensurePlan = useCallback(async () => {
+  const ensurePlan = useCallback(async (): Promise<ManagerPlanRow | null> => {
     setErr(null);
     setBusy(true);
     try {
-      const managerId = auth?.user?.id ?? null;
       if (!managerId) throw new Error("auth missing");
 
       const pt = normalizePeriodType(periodType);
-      const pd = isoFromDateInput(planDate);
+      const pd = planDate;
 
-      // Find existing plan for manager+period+date
       const { data: found, error: foundErr } = await supabase
         .from("manager_plans")
         .select("*")
@@ -172,30 +210,26 @@ export default function ManagerAssignments() {
       if (foundErr) throw foundErr;
 
       if (found) {
-        setPlan(found);
-        return found;
+        const f = found as unknown as ManagerPlanRow;
+        setPlan(f);
+        return f;
       }
 
-      // Create new plan
       const payload = {
         manager_id: managerId,
         period_type: pt,
         plan_date: pd,
-        status: "DRAFT",
-        note: null,
+        status: "DRAFT" as const,
+        note: null as string | null,
       };
 
-      const { data: created, error: createErr } = await supabase
-        .from("manager_plans")
-        .insert(payload)
-        .select("*")
-        .single();
-
+      const { data: created, error: createErr } = await supabase.from("manager_plans").insert(payload).select("*").single();
       if (createErr) throw createErr;
 
-      setPlan(created);
-      return created;
-    } catch (e) {
+      const c = created as unknown as ManagerPlanRow;
+      setPlan(c);
+      return c;
+    } catch (e: any) {
       console.error(e);
       setErr(String(e?.message ?? e));
       setPlan(null);
@@ -203,19 +237,17 @@ export default function ManagerAssignments() {
     } finally {
       setBusy(false);
     }
-  }, [auth?.user?.id, periodType, planDate]);
+  }, [managerId, periodType, planDate]);
 
   /**
    * Load capos and operators
    */
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (): Promise<void> => {
     setErr(null);
     setBusy(true);
     try {
-      const managerId = auth?.user?.id ?? null;
       if (!managerId) throw new Error("auth missing");
 
-      // Load capos assigned to manager (manager_capo_assignments)
       const { data: caposData, error: caposErr } = await supabase
         .from("manager_capo_assignments")
         .select("capo_id, capo_name, is_active")
@@ -225,8 +257,6 @@ export default function ManagerAssignments() {
 
       if (caposErr) throw caposErr;
 
-      // Load operators for manager perimeter (ship_managers -> ship_operators)
-      // There is a view/service in your stack; here we assume a table ship_operators filtered by manager perimeter in RLS.
       const { data: opsData, error: opsErr } = await supabase
         .from("ship_operators")
         .select("id, name, roles")
@@ -234,35 +264,37 @@ export default function ManagerAssignments() {
 
       if (opsErr) throw opsErr;
 
+      const caposRows = (caposData ?? []) as unknown as CapoAssignmentRow[];
+      const opsRows = (opsData ?? []) as unknown as ShipOperatorRow[];
+
       setCaps(
-        (caposData ?? []).map((c) => ({
+        caposRows.map((c) => ({
           capo_id: c.capo_id,
-          capo_name: c.capo_name,
-          is_active: !!c.is_active,
+          capo_name: c.capo_name ?? null,
+          is_active: Boolean(c.is_active),
           members: [],
         }))
       );
 
-      setOperatorsPool(opsData ?? []);
-    } catch (e) {
+      setOperatorsPool(opsRows);
+    } catch (e: any) {
       console.error(e);
       setErr(String(e?.message ?? e));
     } finally {
       setBusy(false);
     }
-  }, [auth?.user?.id]);
+  }, [managerId]);
 
   /**
    * Load slots + members for plan
    */
   const loadSlots = useCallback(
-    async (planId) => {
+    async (planId: string): Promise<void> => {
       if (!planId) return;
 
       setErr(null);
       setBusy(true);
       try {
-        // Load slots
         const { data: slots, error: slotsErr } = await supabase
           .from("plan_capo_slots")
           .select("*")
@@ -271,34 +303,36 @@ export default function ManagerAssignments() {
 
         if (slotsErr) throw slotsErr;
 
-        // Load slot members
-        const { data: members, error: memErr } = await supabase
-          .from("plan_slot_members")
-          .select("*")
-          .in("slot_id", (slots ?? []).map((s) => s.id));
+        const slotsRows = (slots ?? []) as unknown as PlanCapoSlotRow[];
+        const slotIds = slotsRows.map((s) => s.id);
+
+        const { data: members, error: memErr } = slotIds.length
+          ? await supabase.from("plan_slot_members").select("*").in("slot_id", slotIds)
+          : { data: [], error: null };
 
         if (memErr) throw memErr;
 
-        // Build capos UI model
-        const byCapo = new Map();
-        for (const s of slots ?? []) {
-          byCapo.set(s.capo_id, { slot: s, members: [] });
-        }
-        for (const m of members ?? []) {
-          const slot = (slots ?? []).find((s) => s.id === m.slot_id);
+        const memRows = (members ?? []) as unknown as PlanSlotMemberRow[];
+
+        const byCapo = new Map<string, { slot: PlanCapoSlotRow; members: PlanSlotMemberRow[] }>();
+        for (const s of slotsRows) byCapo.set(s.capo_id, { slot: s, members: [] });
+
+        for (const m of memRows) {
+          const slot = slotsRows.find((s) => s.id === m.slot_id);
           if (!slot) continue;
-          const key = slot.capo_id;
-          const entry = byCapo.get(key);
+          const entry = byCapo.get(slot.capo_id);
           if (!entry) continue;
           entry.members.push(m);
         }
 
         setCaps((prev) => {
-          const next = prev.map((c) => {
+          return prev.map((c) => {
             const entry = byCapo.get(c.capo_id);
             if (!entry) return { ...c, members: [] };
+
             const ordered = stableSortByPosition(entry.members);
             const memberIds = ordered.map((x) => x.operator_id);
+
             const memberLabels = memberIds.map((id) => {
               const op = operatorsPool.find((o) => o.id === id);
               return op?.name ?? id;
@@ -313,9 +347,8 @@ export default function ManagerAssignments() {
               })),
             };
           });
-          return next;
         });
-      } catch (e) {
+      } catch (e: any) {
         console.error(e);
         setErr(String(e?.message ?? e));
       } finally {
@@ -325,9 +358,6 @@ export default function ManagerAssignments() {
     [operatorsPool]
   );
 
-  /**
-   * Sync on changes
-   */
   useEffect(() => {
     (async () => {
       const p = await ensurePlan();
@@ -337,11 +367,8 @@ export default function ManagerAssignments() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periodType, planDate]);
 
-  /**
-   * Actions
-   */
   const updatePlanStatus = useCallback(
-    async (ns) => {
+    async (ns: PlanStatus): Promise<void> => {
       setErr(null);
       setBusy(true);
       try {
@@ -352,16 +379,11 @@ export default function ManagerAssignments() {
           frozen_at: ns === "FROZEN" ? new Date().toISOString() : null,
         };
 
-        const { data, error } = await supabase
-          .from("manager_plans")
-          .update(patch)
-          .eq("id", plan.id)
-          .select("*")
-          .single();
-
+        const { data, error } = await supabase.from("manager_plans").update(patch).eq("id", plan.id).select("*").single();
         if (error) throw error;
-        setPlan(data);
-      } catch (e) {
+
+        setPlan(data as unknown as ManagerPlanRow);
+      } catch (e: any) {
         console.error(e);
         setErr(String(e?.message ?? e));
       } finally {
@@ -371,38 +393,32 @@ export default function ManagerAssignments() {
     [plan?.id]
   );
 
-  const reloadAll = useCallback(async () => {
+  const reloadAll = useCallback(async (): Promise<void> => {
     const p = await ensurePlan();
     await loadData();
     if (p?.id) await loadSlots(p.id);
   }, [ensurePlan, loadData, loadSlots]);
 
-  /**
-   * Drag & drop handling (operators -> slots)
-   */
-  const onDragStart = useCallback((event) => {
-    setActiveDrag(event.active?.id ?? null);
+  const onDragStart = useCallback((event: DragStartEvent) => {
+    const id = event.active?.id;
+    setActiveDrag(id ? String(id) : null);
   }, []);
 
   const onDragEnd = useCallback(
-    async (event) => {
+    async (event: DragEndEvent) => {
       const { active, over } = event;
       setActiveDrag(null);
 
       if (!active?.id || !over?.id) return;
       if (isFrozen) return;
 
-      // active.id can be "POOL:<operator_id>" or "SLOT:<capo_id>:<operator_id>"
       const a = String(active.id);
       const o = String(over.id);
 
-      // Drop target can be "DROP:<capo_id>" or a chip id
-      // We support adding from pool and sorting within slot.
       const isFromPool = a.startsWith("POOL:");
       const opId = isFromPool ? a.replace("POOL:", "") : a.split(":").slice(-1)[0];
 
       const targetCapoId = o.startsWith("DROP:") ? o.replace("DROP:", "") : o.split(":")[1];
-
       if (!targetCapoId) return;
 
       setBusy(true);
@@ -411,46 +427,33 @@ export default function ManagerAssignments() {
       try {
         if (!plan?.id) throw new Error("plan missing");
 
-        // Ensure slot exists for capo
-        let capoEntry = caps.find((c) => c.capo_id === targetCapoId);
+        const capoEntry = caps.find((c) => c.capo_id === targetCapoId);
         if (!capoEntry) return;
 
         let slotId = capoEntry.slot_id;
 
         if (!slotId) {
-          // create slot
           const payload = {
             plan_id: plan.id,
             capo_id: targetCapoId,
             position: safeInt(caps.findIndex((c) => c.capo_id === targetCapoId), 0) + 1,
           };
 
-          const { data: created, error: createErr } = await supabase
-            .from("plan_capo_slots")
-            .insert(payload)
-            .select("*")
-            .single();
-
+          const { data: created, error: createErr } = await supabase.from("plan_capo_slots").insert(payload).select("*").single();
           if (createErr) throw createErr;
-          slotId = created.id;
 
-          // update local
+          slotId = (created as unknown as PlanCapoSlotRow).id;
+
           setCaps((prev) => prev.map((c) => (c.capo_id === targetCapoId ? { ...c, slot_id: slotId } : c)));
         }
 
-        // Fetch current members for that slot
-        const { data: mem, error: memErr } = await supabase
-          .from("plan_slot_members")
-          .select("*")
-          .eq("slot_id", slotId);
-
+        const { data: mem, error: memErr } = await supabase.from("plan_slot_members").select("*").eq("slot_id", slotId);
         if (memErr) throw memErr;
 
-        const current = stableSortByPosition(mem ?? []);
+        const current = stableSortByPosition((mem ?? []) as unknown as PlanSlotMemberRow[]);
         const exists = current.some((x) => x.operator_id === opId);
 
         if (!exists) {
-          // Insert new member at end
           const payload = {
             slot_id: slotId,
             operator_id: opId,
@@ -461,9 +464,8 @@ export default function ManagerAssignments() {
           if (insErr) throw insErr;
         }
 
-        // Reload slots for correctness
         await loadSlots(plan.id);
-      } catch (e) {
+      } catch (e: any) {
         console.error(e);
         setErr(String(e?.message ?? e));
       } finally {
@@ -474,23 +476,20 @@ export default function ManagerAssignments() {
   );
 
   const removeFromCapo = useCallback(
-    async (capoId, operatorId) => {
+    async (capoId: string, operatorId: string): Promise<void> => {
       if (isFrozen) return;
       setBusy(true);
       setErr(null);
       try {
         const capo = caps.find((c) => c.capo_id === capoId);
         if (!capo?.slot_id) return;
+        if (!plan?.id) return;
 
-        const { error } = await supabase
-          .from("plan_slot_members")
-          .delete()
-          .eq("slot_id", capo.slot_id)
-          .eq("operator_id", operatorId);
-
+        const { error } = await supabase.from("plan_slot_members").delete().eq("slot_id", capo.slot_id).eq("operator_id", operatorId);
         if (error) throw error;
+
         await loadSlots(plan.id);
-      } catch (e) {
+      } catch (e: any) {
         console.error(e);
         setErr(String(e?.message ?? e));
       } finally {
@@ -500,9 +499,15 @@ export default function ManagerAssignments() {
     [caps, isFrozen, loadSlots, plan?.id]
   );
 
-  /**
-   * UI
-   */
+  const activeDragLabel = useMemo(() => {
+    if (!activeDrag) return null;
+    if (activeDrag.startsWith("POOL:")) {
+      const id = activeDrag.replace("POOL:", "");
+      return operatorsPool.find((o) => o.id === id)?.name ?? id;
+    }
+    return activeDrag;
+  }, [activeDrag, operatorsPool]);
+
   return (
     <div className="min-h-[calc(100vh-64px)] p-6">
       <div className="mx-auto max-w-[1400px]">
@@ -532,7 +537,7 @@ export default function ManagerAssignments() {
               type="button"
               className={cn(
                 "rounded-full border border-border/30 bg-white/5 px-4 py-2 text-xs font-semibold text-foreground shadow-soft hover:bg-white/10",
-                busy && "opacity-60 pointer-events-none"
+                busy ? "opacity-60 pointer-events-none" : ""
               )}
               onClick={() => setGlobalView((v) => !v)}
               title="Vista globale"
@@ -544,7 +549,7 @@ export default function ManagerAssignments() {
               type="button"
               className={cn(
                 "rounded-full border border-border/30 bg-white/5 px-4 py-2 text-xs font-semibold text-foreground shadow-soft hover:bg-white/10",
-                busy && "opacity-60 pointer-events-none"
+                busy ? "opacity-60 pointer-events-none" : ""
               )}
               onClick={reloadAll}
               title="Ricarica dati"
@@ -556,7 +561,7 @@ export default function ManagerAssignments() {
               type="button"
               className={cn(
                 "rounded-full border border-border/30 bg-white/5 px-4 py-2 text-xs font-semibold text-foreground shadow-soft hover:bg-white/10",
-                (!plan?.id || busy || isFrozen) && "opacity-60 pointer-events-none"
+                !plan?.id || busy || isFrozen ? "opacity-60 pointer-events-none" : ""
               )}
               onClick={() => updatePlanStatus("PUBLISHED")}
               title="Pubblica il piano (visibile come riferimento)"
@@ -564,28 +569,26 @@ export default function ManagerAssignments() {
               Pubblica
             </button>
 
-
-              {status !== "FROZEN" ? (
-            <button
-              type="button"
-              className={cn(
-                "rounded-full border border-border/30 bg-white/5 px-4 py-2 text-xs font-semibold text-foreground shadow-soft hover:bg-white/10",
-                (!plan?.id || busy) && "opacity-60 pointer-events-none"
-              )}
-              onClick={() => updatePlanStatus("FROZEN")}
-              title="Congela il piano (blocca le modifiche)"
-            >
-              Congela
-            </button>
-
-              ) : null}
+            {status !== "FROZEN" ? (
+              <button
+                type="button"
+                className={cn(
+                  "rounded-full border border-border/30 bg-white/5 px-4 py-2 text-xs font-semibold text-foreground shadow-soft hover:bg-white/10",
+                  !plan?.id || busy ? "opacity-60 pointer-events-none" : ""
+                )}
+                onClick={() => updatePlanStatus("FROZEN")}
+                title="Congela il piano (blocca le modifiche)"
+              >
+                Congela
+              </button>
+            ) : null}
 
             {status === "FROZEN" ? (
               <button
                 type="button"
                 className={cn(
                   "rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-200 shadow-soft hover:bg-emerald-500/15",
-                  (!plan?.id || busy) && "opacity-60 pointer-events-none"
+                  !plan?.id || busy ? "opacity-60 pointer-events-none" : ""
                 )}
                 onClick={() => updatePlanStatus("PUBLISHED")}
                 title="Sblocca il piano (riabilita le modifiche durante la giornata)"
@@ -646,7 +649,7 @@ export default function ManagerAssignments() {
                     type="date"
                     className={cn(
                       "w-full rounded-xl border border-border/20 bg-black/20 px-3 py-2 text-sm text-foreground outline-none",
-                      busy && "opacity-60"
+                      busy ? "opacity-60" : ""
                     )}
                     value={planDate}
                     onChange={(e) => setPlanDate(e.target.value)}
@@ -660,7 +663,7 @@ export default function ManagerAssignments() {
                   type="button"
                   className={cn(
                     "rounded-full border border-border/30 bg-white/5 px-4 py-2 text-xs font-semibold text-foreground shadow-soft hover:bg-white/10",
-                    busy && "opacity-60 pointer-events-none"
+                    busy ? "opacity-60 pointer-events-none" : ""
                   )}
                   onClick={ensurePlan}
                 >
@@ -671,10 +674,9 @@ export default function ManagerAssignments() {
                   type="button"
                   className={cn(
                     "rounded-full border border-border/30 bg-white/5 px-4 py-2 text-xs font-semibold text-foreground shadow-soft hover:bg-white/10",
-                    busy && "opacity-60 pointer-events-none"
+                    busy ? "opacity-60 pointer-events-none" : ""
                   )}
                   onClick={() => {
-                    // Placeholder for future slots management modal
                     console.info("Slots clicked");
                   }}
                 >
@@ -689,10 +691,7 @@ export default function ManagerAssignments() {
                     Capi assegnati: <span className="font-semibold text-foreground">{caps.length}</span>
                   </div>
                   <div>
-                    Operatori liberi:{" "}
-                    <span className="font-semibold text-foreground">
-                      {operatorsPool.length}
-                    </span>
+                    Operatori liberi: <span className="font-semibold text-foreground">{operatorsPool.length}</span>
                   </div>
                   <div>
                     Stato:{" "}
@@ -727,9 +726,7 @@ export default function ManagerAssignments() {
                                 {capoLabel}
                               </span>
                             </div>
-                            <div className="text-xs text-muted-foreground">
-                              {capo.members?.length ?? 0} operatori
-                            </div>
+                            <div className="text-xs text-muted-foreground">{capo.members?.length ?? 0} operatori</div>
                           </div>
 
                           <div className="mt-4">
@@ -752,7 +749,7 @@ export default function ManagerAssignments() {
                                   id={`DROP:${capo.capo_id}`}
                                   className={cn(
                                     "min-h-[40px] min-w-[220px] rounded-2xl border border-dashed border-border/25 bg-white/3 px-4 py-3 text-xs text-muted-foreground",
-                                    isFrozen && "opacity-50"
+                                    isFrozen ? "opacity-50" : ""
                                   )}
                                 >
                                   + Aggiungi operatore
@@ -762,21 +759,16 @@ export default function ManagerAssignments() {
                             </SortableContext>
                           </div>
 
-                          {isFrozen ? (
-                            <div className="mt-4 text-xs text-red-200">Piano congelato: modifiche disabilitate.</div>
-                          ) : null}
+                          {isFrozen ? <div className="mt-4 text-xs text-red-200">Piano congelato: modifiche disabilitate.</div> : null}
                         </div>
                       );
                     })}
                   </div>
 
                   <DragOverlay>
-                    {activeDrag ? (
+                    {activeDragLabel ? (
                       <div className="rounded-full border border-border/30 bg-white/10 px-3 py-2 text-xs font-semibold text-foreground shadow-soft backdrop-blur">
-                        {activeDrag.startsWith("POOL:")
-                          ? operatorsPool.find((o) => o.id === activeDrag.replace("POOL:", ""))?.name ??
-                            activeDrag.replace("POOL:", "")
-                          : activeDrag}
+                        {activeDragLabel}
                       </div>
                     ) : null}
                   </DragOverlay>
@@ -796,13 +788,8 @@ export default function ManagerAssignments() {
                   type="text"
                   className="w-full rounded-xl border border-border/20 bg-black/20 px-3 py-2 text-sm text-foreground outline-none"
                   placeholder="Cerca..."
-                  onChange={(e) => {
-                    // quick filter in-memory
-                    const q = e.target.value?.toLowerCase?.() ?? "";
-                    if (!q) {
-                      // no-op
-                      return;
-                    }
+                  onChange={() => {
+                    // placeholder: implement in-memory filter
                   }}
                 />
               </div>
@@ -817,10 +804,10 @@ export default function ManagerAssignments() {
                       id={`POOL:${op.id}`}
                       className={cn(
                         "cursor-grab rounded-2xl border border-border/25 bg-white/5 px-4 py-3 text-sm text-foreground shadow-soft active:cursor-grabbing",
-                        isFrozen && "opacity-50 pointer-events-none"
+                        isFrozen ? "opacity-50 pointer-events-none" : ""
                       )}
                     >
-                      <div className="text-sm font-semibold">{op.name}</div>
+                      <div className="text-sm font-semibold">{op.name ?? op.id}</div>
                       <div className="mt-1 text-[11px] text-muted-foreground">Roles: {op.roles ?? "—"}</div>
                     </div>
                   ))}
@@ -831,7 +818,7 @@ export default function ManagerAssignments() {
                     type="button"
                     className={cn(
                       "rounded-full border border-border/30 bg-white/5 px-4 py-2 text-xs font-semibold text-foreground shadow-soft hover:bg-white/10",
-                      busy && "opacity-60 pointer-events-none"
+                      busy ? "opacity-60 pointer-events-none" : ""
                     )}
                     onClick={reloadAll}
                   >
@@ -841,7 +828,7 @@ export default function ManagerAssignments() {
                     type="button"
                     className={cn(
                       "rounded-full border border-border/30 bg-white/5 px-4 py-2 text-xs font-semibold text-foreground shadow-soft hover:bg-white/10",
-                      busy && "opacity-60 pointer-events-none"
+                      busy ? "opacity-60 pointer-events-none" : ""
                     )}
                     onClick={reloadAll}
                   >
@@ -850,15 +837,13 @@ export default function ManagerAssignments() {
                 </div>
 
                 <div className="mt-4 text-xs text-muted-foreground">
-                  Nota: il pool è limitato al perimetro Manager (ship_managers → ship_operators). Gli operatori già
-                  assegnati non compaiono qui.
+                  Nota: il pool è limitato al perimetro Manager (ship_managers → ship_operators). Gli operatori già assegnati non compaiono qui.
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Debug/Global view placeholder */}
         {globalView ? (
           <div className="mt-8 rounded-2xl border border-border/20 bg-white/5 p-5 shadow-soft">
             <div className="text-xs uppercase tracking-wider text-muted-foreground">Vista globale</div>
