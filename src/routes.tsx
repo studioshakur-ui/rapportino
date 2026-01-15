@@ -1,4 +1,5 @@
 // src/routes.tsx
+import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 
 import RequireAuth from "./auth/RequireAuth";
@@ -18,7 +19,6 @@ import AdminShell from "./shells/AdminShell";
 
 // CAPO
 import RapportinoPage from "./components/RapportinoPage";
-import RapportinoSheet from "./components/RapportinoSheet";
 import ShipSelector from "./pages/ShipSelector";
 import CapoOperatorKpi from "./features/kpi/pages/CapoOperatorKpi";
 import CapoMegaKpiStesura from "./features/kpi/pages/CapoMegaKpiStesura";
