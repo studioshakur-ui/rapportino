@@ -1,323 +1,184 @@
-// src/features/kpi/components/MegaKpiCapoStesuraPanel.jsx
-import React, { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "./lib/supabaseClient";
+// src/routes.tsx
+import { Routes, Route, Navigate } from "react-router-dom";
 
-import CoreEChart from "./components/charts/CoreEChart";
-import { CORE_CHART_THEME, coreTooltipStyle, formatCompactNumber } from "./components/charts/coreChartTheme";
+import RequireAuth from "./auth/RequireAuth";
+import RequireRole from "./auth/RequireRole";
 
-function cn(...parts) {
-  return parts.filter(Boolean).join(" ");
-}
+import Landing from "./pages/Landing";
+import Login from "./pages/Login";
+import Unauthorized from "./pages/Unauthorized";
+import ForcePasswordChange from "./pages/ForcePasswordChange";
 
-function safeNum(v) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-}
+// SHELLS
+import AppShell from "./shells/AppShell";
+import UfficioShell from "./shells/UfficioShell";
+import DirectionShell from "./shells/DirectionShell";
+import ManagerShell from "./shells/ManagerShell";
+import AdminShell from "./shells/AdminShell";
 
-function safePct(v) {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return null;
-  return Math.max(0, Math.min(100, n));
-}
+// CAPO
+import RapportinoPage from "./components/RapportinoPage";
+import RapportinoSheet from "./components/RapportinoSheet";
+import ShipSelector from "./pages/ShipSelector";
+import CapoOperatorKpi from "./features/kpi/pages/CapoOperatorKpi";
+import CapoMegaKpiStesura from "./features/kpi/pages/CapoMegaKpiStesura";
+import CapoModuleSelector from "./pages/CapoModuleSelector";
+import CapoRoleSelector from "./pages/CapoRoleSelector";
+import IncaCapoCockpit from "./capo/IncaCapoCockpit";
 
-function buildOption({ data, isDark }) {
-  const theme = CORE_CHART_THEME;
+// CAPO SIMPLE (new)
+import CapoEntryRouter from "./capo/simple/CapoEntryRouter";
+import CapoPresencePage from "./capo/simple/CapoPresencePage";
 
-  const daily = Array.isArray(data?.series?.daily) ? data.series.daily : [];
-  const events = Array.isArray(data?.series?.events) ? data.series.events : [];
-  const projection = Array.isArray(data?.series?.projection_7d) ? data.series.projection_7d : [];
+// ADMIN
+import AdminUsersPage from "./admin/AdminUsersPage";
+import AdminOperatorsPage from "./admin/AdminOperatorsPage";
+import AdminCatalogoPage from "./admin/AdminCatalogoPage";
+import AdminPlanningPage from "./admin/AdminPlanningPage";
+import AdminAssignmentsPage from "./admin/AdminAssignmentsPage";
+import AdminAuditPage from "./admin/AdminAuditPage";
 
-  const x = daily.map((r) => r.date);
-  const y = daily.map((r) => safeNum(r.stesura_cum_m));
+// UFFICIO
+import UfficioRapportiniList from "./ufficio/UfficioRapportiniList";
+import UfficioRapportinoDetail from "./ufficio/UfficioRapportinoDetail";
+import UfficioInca from "./pages/UfficioInca";
 
-  const yProj = projection.map((r) => safeNum(r.stesura_cum_proj_m));
-  const xProj = projection.map((r) => r.date);
+// DIRECTION
+import DirectionDashboard from "./components/DirectionDashboard";
 
-  const lastY = y.length ? y[y.length - 1] : null;
+// MANAGER
+import ManagerDashboard from "./pages/ManagerDashboard";
+import ManagerAssignments from "./pages/ManagerAssignments";
+import ManagerCapoShipPlanning from "./pages/ManagerCapoShipPlanning";
 
-  const milestoneLines = (events || [])
-    .filter((e) => e?.date)
-    .map((e) => ({
-      xAxis: e.date,
-      label: {
-        formatter: e.label || "Evento",
-        color: theme.text,
-        fontSize: 11,
-        padding: [3, 6, 3, 6],
-        backgroundColor: "rgba(2,6,23,0.90)",
-        borderColor: theme.axisLine,
-        borderWidth: 1,
-        borderRadius: 10,
-      },
-      lineStyle: { type: "dashed", width: 1, opacity: 0.8 },
-    }));
+// CORE DRIVE
+import ArchivePage from "./pages/Archive";
 
-  const tooltip = {
-    trigger: "axis",
-    axisPointer: { type: "line" },
-    confine: true,
-    backgroundColor: coreTooltipStyle(theme).backgroundColor,
-    borderColor: coreTooltipStyle(theme).border,
-    borderWidth: 1,
-    extraCssText: [
-      "border-radius: 12px",
-      "box-shadow: 0 12px 32px rgba(0,0,0,0.35)",
-      "padding: 10px 12px",
-      "color: #e5e7eb",
-      "font-size: 12px",
-    ].join(";"),
-    formatter: (params) => {
-      const p0 = Array.isArray(params) ? params[0] : null;
-      if (!p0) return "";
+// EVOLUZIONE
+import Evoluzione from "./data/Evoluzione";
 
-      const idx = p0.dataIndex ?? 0;
-      const row = daily[idx] || {};
-
-      const stesura = safeNum(row.stesura_m);
-      const ripresa = safeNum(row.ripresa_m);
-      const fasc = row.fascettatura_m == null ? null : safeNum(row.fascettatura_m);
-      const day = safeNum(row.stesura_giorno_m);
-      const cum = safeNum(row.stesura_cum_m);
-
-      const target = row.target_cum_m == null ? null : safeNum(row.target_cum_m);
-      const delta = row.delta_m == null ? null : safeNum(row.delta_m);
-
-      const s = [];
-      s.push(`<div style="font-weight:700;margin-bottom:6px">${row.date || ""}</div>`);
-      s.push(`<div><span style="color:#94a3b8">Cumul posa</span>: <b>${formatCompactNumber(cum)}</b> m</div>`);
-
-      if (target != null && delta != null) {
-        const deltaLabel = delta >= 0 ? `+${formatCompactNumber(delta)}` : `${formatCompactNumber(delta)}`;
-        s.push(
-          `<div style="margin-top:4px"><span style="color:#94a3b8">Target</span>: <b>${formatCompactNumber(
-            target
-          )}</b> m · <span style="color:#94a3b8">Δ</span>: <b>${deltaLabel}</b> m</div>`
-        );
-      }
-
-      s.push(`<div style="margin-top:8px"><span style="color:#94a3b8">Stesura</span>: <b>${formatCompactNumber(stesura)}</b> m</div>`);
-      s.push(`<div><span style="color:#94a3b8">Ripresa</span>: <b>${formatCompactNumber(ripresa)}</b> m</div>`);
-      s.push(`<div><span style="color:#94a3b8">Totale posa (oggi)</span>: <b>${formatCompactNumber(day)}</b> m</div>`);
-
-      if (fasc != null) {
-        s.push(
-          `<div style="margin-top:6px"><span style="color:#94a3b8">Fascettatura</span>: <b>${formatCompactNumber(
-            fasc
-          )}</b> m <span style="color:#64748b">(non inclusa)</span></div>`
-        );
-      }
-
-      return s.join("");
-    },
-  };
-
-  const option = {
-    backgroundColor: "transparent",
-    animation: true,
-    animationDuration: 1100,
-    animationEasing: "cubicOut",
-    grid: { left: 10, right: 10, top: 18, bottom: 34, containLabel: true },
-    tooltip,
-    xAxis: {
-      type: "category",
-      data: x,
-      boundaryGap: false,
-      axisLabel: { color: theme.subtext, fontSize: 11 },
-      axisLine: { lineStyle: { color: theme.axisLine } },
-      axisTick: { show: false },
-    },
-    yAxis: {
-      type: "value",
-      axisLabel: { color: theme.subtext, fontSize: 11 },
-      splitLine: { lineStyle: { color: theme.gridLine } },
-    },
-    dataZoom: [
-      { type: "inside", xAxisIndex: 0, filterMode: "none" },
-      {
-        type: "slider",
-        xAxisIndex: 0,
-        height: 18,
-        bottom: 8,
-        borderColor: "transparent",
-        backgroundColor: "rgba(15,23,42,0.35)",
-        fillerColor: "rgba(16,185,129,0.18)",
-        handleStyle: { color: "rgba(16,185,129,0.45)", borderColor: "rgba(16,185,129,0.65)" },
-        textStyle: { color: theme.subtext },
-      },
-    ],
-    series: [
-      {
-        name: "Cumul posa",
-        type: "line",
-        data: y,
-        smooth: true,
-        showSymbol: false,
-        lineStyle: { width: 3 },
-        areaStyle: { opacity: 0.12 },
-        emphasis: { focus: "series" },
-        markLine: milestoneLines.length
-          ? {
-              symbol: ["none", "none"],
-              precision: 0,
-              data: milestoneLines,
-            }
-          : undefined,
-      },
-      ...(xProj.length
-        ? [
-            {
-              name: "Proiezione 7g",
-              type: "line",
-              data: yProj,
-              smooth: true,
-              showSymbol: false,
-              lineStyle: { width: 2, type: "dashed", opacity: 0.7 },
-              silent: true,
-              xAxisIndex: 0,
-            },
-          ]
-        : []),
-    ],
-  };
-
-  // Projection alignment (robust)
-  if (xProj.length && option.series[1]) {
-    const projDatesSet = new Set(xProj);
-    const aligned = x.map((d) => (projDatesSet.has(d) ? yProj[xProj.indexOf(d)] : null));
-    option.series[1].data = aligned;
-  }
-
-  // Highlight last point (subtle)
-  if (lastY != null && x.length) {
-    option.series[0].markPoint = {
-      symbol: "circle",
-      symbolSize: 10,
-      data: [{ coord: [x[x.length - 1], lastY] }],
-      label: { show: false },
-    };
-  }
-
-  return option;
-}
-
-export default function MegaKpiCapoStesuraPanel({ isDark = true, costr, commessa }) {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["capo-mega-kpi-stesura-v1", String(costr || ""), String(commessa || "")],
-    enabled: Boolean(costr),
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("capo_mega_kpi_stesura_v1", {
-        p_costr: costr ?? null,
-        p_commessa: commessa ?? null,
-        p_inca_file_id: null,
-        p_date_from: null,
-        p_date_to: null,
-      });
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const empty = useMemo(() => {
-    const daily = Array.isArray(data?.series?.daily) ? data.series.daily : [];
-    return daily.length === 0;
-  }, [data]);
-
-  const option = useMemo(() => buildOption({ data, isDark }), [data, isDark]);
-
-  const headline = data?.headline || {};
-  const today = headline?.today || {};
-  const cum = headline?.cumulative || {};
-  const scope = data?.meta?.scope || {};
-  const offset = safeNum(scope?.offset_m);
-
-  const stesuraDay = safeNum(today?.stesura_giorno_m);
-  const fascDay = today?.fascettatura_m == null ? null : safeNum(today?.fascettatura_m);
-
-  const cumM = safeNum(cum?.stesura_cum_m);
-  const pct = safePct(cum?.progress_pct);
-
+export default function AppRoutes(): JSX.Element {
   return (
-    <div className={cn("rounded-2xl border px-4 py-4", isDark ? "border-slate-800 bg-slate-950/60" : "border-slate-200 bg-white")}>
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3 mb-3">
-        <div>
-          <div className={cn("text-[11px] uppercase tracking-[0.20em] mb-1", isDark ? "text-slate-400" : "text-slate-500")}>
-            KPI · Capo · Stesura
-          </div>
-          <div className={cn("text-lg font-semibold", isDark ? "text-slate-50" : "text-slate-900")}>
-            Curva di produzione (cumulata)
-          </div>
-          <div className={cn("text-sm", isDark ? "text-slate-400" : "text-slate-600")}>
-            Include <span className={cn("font-semibold", isDark ? "text-slate-200" : "text-slate-800")}>stesura + ripresa</span>. Fascettatura esclusa.
-          </div>
-        </div>
+    <Routes>
+      {/* PUBLIC */}
+      <Route path="/" element={<Landing />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/unauthorized" element={<Unauthorized />} />
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <div className={cn("rounded-xl border px-3 py-2", isDark ? "border-slate-800 bg-slate-950/40" : "border-slate-200 bg-white")}>
-            <div className={cn("text-[10px] uppercase tracking-[0.18em]", isDark ? "text-slate-500" : "text-slate-500")}>
-              Stesura oggi
-            </div>
-            <div className={cn("text-base font-semibold", isDark ? "text-slate-50" : "text-slate-900")}>
-              {formatCompactNumber(stesuraDay)} m
-            </div>
-          </div>
+      {/* Force password change */}
+      <Route
+        path="/force-password-change"
+        element={
+          <RequireAuth>
+            <ForcePasswordChange />
+          </RequireAuth>
+        }
+      />
 
-          <div className={cn("rounded-xl border px-3 py-2", isDark ? "border-slate-800 bg-slate-950/40" : "border-slate-200 bg-white")}>
-            <div className={cn("text-[10px] uppercase tracking-[0.18em]", isDark ? "text-slate-500" : "text-slate-500")}>
-              Cumul posa
-            </div>
-            <div className={cn("text-base font-semibold", isDark ? "text-slate-50" : "text-slate-900")}>
-              {formatCompactNumber(cumM)} m
-            </div>
-          </div>
+      {/* ===== ADMIN ===== */}
+      <Route
+        path="/admin/*"
+        element={
+          <RequireAuth>
+            <RequireRole allowed={["ADMIN"]}>
+              <AdminShell />
+            </RequireRole>
+          </RequireAuth>
+        }
+      >
+        <Route index element={<Navigate to="users" replace />} />
+        <Route path="users" element={<AdminUsersPage />} />
+        <Route path="operators" element={<AdminOperatorsPage />} />
+        <Route path="catalogo" element={<AdminCatalogoPage />} />
+        <Route path="planning" element={<AdminPlanningPage />} />
+        <Route path="assignments" element={<AdminAssignmentsPage />} />
+        <Route path="audit" element={<AdminAuditPage />} />
+        <Route path="core-drive" element={<ArchivePage />} />
+        <Route path="archive" element={<Navigate to="../core-drive" replace />} />
+      </Route>
 
-          <div className={cn("rounded-xl border px-3 py-2", isDark ? "border-slate-800 bg-slate-950/40" : "border-slate-200 bg-white")}>
-            <div className={cn("text-[10px] uppercase tracking-[0.18em]", isDark ? "text-slate-500" : "text-slate-500")}>
-              % INCA
-            </div>
-            <div className={cn("text-base font-semibold", isDark ? "text-slate-50" : "text-slate-900")}>
-              {pct == null ? "—" : `${pct.toFixed(1)}%`}
-            </div>
-          </div>
+      {/* ===== CAPO ===== */}
+      <Route
+        path="/app/*"
+        element={
+          <RequireAuth>
+            <RequireRole allowed={["CAPO"]}>
+              <AppShell />
+            </RequireRole>
+          </RequireAuth>
+        }
+      >
+        <Route index element={<CapoEntryRouter />} />
+        <Route path="ship/:shipId/presence" element={<CapoPresencePage />} />
 
-          <div className={cn("rounded-xl border px-3 py-2", isDark ? "border-slate-800 bg-slate-950/40" : "border-slate-200 bg-white")}>
-            <div className={cn("text-[10px] uppercase tracking-[0.18em]", isDark ? "text-slate-500" : "text-slate-500")}>
-              Offset INCA
-            </div>
-            <div className={cn("text-base font-semibold", isDark ? "text-slate-50" : "text-slate-900")}>
-              {formatCompactNumber(offset)} m
-            </div>
-          </div>
-        </div>
-      </div>
+        <Route path="ship-selector" element={<ShipSelector />} />
+        <Route path="kpi-operatori" element={<CapoOperatorKpi isDark={true} />} />
+        <Route path="ship/:shipId/kpi-stesura" element={<CapoMegaKpiStesura isDark={true} />} />
+        <Route path="ship/:shipId" element={<CapoModuleSelector />} />
 
-      {fascDay != null ? (
-        <div className={cn("mb-3 text-xs", isDark ? "text-slate-400" : "text-slate-600")}>
-          Fascettatura oggi: <span className={cn("font-semibold", isDark ? "text-slate-200" : "text-slate-800")}>{formatCompactNumber(fascDay)} m</span>{" "}
-          <span className={cn(isDark ? "text-slate-500" : "text-slate-500")}>(non inclusa nella posa)</span>
-        </div>
-      ) : null}
+        <Route path="ship/:shipId/rapportino/role" element={<CapoRoleSelector />} />
+        <Route path="ship/:shipId/rapportino" element={<RapportinoPage />} />
 
-      {error ? (
-        <div className={cn("rounded-xl border px-3 py-3 text-sm", isDark ? "border-rose-500/30 bg-rose-500/10 text-rose-100" : "border-rose-200 bg-rose-50 text-rose-800")}>
-          Errore nel caricamento KPI: {String(error?.message || error)}
-        </div>
-      ) : (
-        <CoreEChart
-          option={option}
-          height={360}
-          loading={isLoading}
-          empty={empty}
-          emptyLabel="Nessun dato per la posa"
-          emptyHint="Verifica di avere rapportini con stesura/ripresa (fascettatura esclusa)."
-          isDark={isDark}
-        />
-      )}
+        <Route path="ship/:shipId/inca" element={<IncaCapoCockpit />} />
+        <Route path="core-drive" element={<ArchivePage />} />
+        <Route path="archive" element={<Navigate to="../core-drive" replace />} />
+      </Route>
 
-      <div className={cn("mt-3 text-[11px]", isDark ? "text-slate-500" : "text-slate-500")}>
-        Nota: la curva parte dalla data del primo rapportino del Capo e include un offset INCA (cavi già in P). Il back applica la regola:
-        <span className={cn("font-semibold", isDark ? "text-slate-300" : "text-slate-700")}> stesura del giorno = stesura + ripresa</span>.
-      </div>
-    </div>
+      {/* ===== UFFICIO ===== */}
+      <Route
+        path="/ufficio/*"
+        element={
+          <RequireAuth>
+            <RequireRole allowed={["UFFICIO", "DIREZIONE", "MANAGER", "ADMIN"]}>
+              <UfficioShell />
+            </RequireRole>
+          </RequireAuth>
+        }
+      >
+        <Route index element={<UfficioRapportiniList />} />
+        <Route path="rapportino/:rapportinoId" element={<UfficioRapportinoDetail />} />
+        <Route path="inca" element={<UfficioInca />} />
+        <Route path="core-drive" element={<ArchivePage />} />
+        <Route path="archive" element={<Navigate to="../core-drive" replace />} />
+      </Route>
+
+      {/* ===== DIREZIONE ===== */}
+      <Route
+        path="/direzione/*"
+        element={
+          <RequireAuth>
+            <RequireRole allowed={["DIREZIONE", "ADMIN"]}>
+              <DirectionShell />
+            </RequireRole>
+          </RequireAuth>
+        }
+      >
+        <Route index element={<DirectionDashboard />} />
+        <Route path="core-drive" element={<ArchivePage />} />
+        <Route path="archive" element={<Navigate to="../core-drive" replace />} />
+      </Route>
+
+      {/* ===== MANAGER ===== */}
+      <Route
+        path="/manager/*"
+        element={
+          <RequireAuth>
+            <RequireRole allowed={["MANAGER", "ADMIN"]}>
+              <ManagerShell />
+            </RequireRole>
+          </RequireAuth>
+        }
+      >
+        <Route index element={<ManagerDashboard />} />
+        <Route path="assignments" element={<ManagerAssignments />} />
+        <Route path="capi-cantieri" element={<ManagerCapoShipPlanning isDark={true} />} />
+        <Route path="core-drive" element={<ArchivePage />} />
+        <Route path="archive" element={<Navigate to="../core-drive" replace />} />
+      </Route>
+
+      {/* ===== MISC ===== */}
+      <Route path="/evoluzione" element={<Evoluzione />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }
