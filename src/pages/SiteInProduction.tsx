@@ -17,7 +17,7 @@ const pageStyles: React.CSSProperties = {
 };
 
 const wrapStyles: React.CSSProperties = {
-  maxWidth: 480,
+  maxWidth: 520,
   width: "100%",
 };
 
@@ -25,11 +25,11 @@ const cardStyles: React.CSSProperties = {
   position: "relative",
   borderRadius: 24,
   padding: "32px 28px 26px",
-  background: "rgba(15, 23, 42, 0.85)",
-  border: "1px solid rgba(148, 163, 184, 0.4)",
+  background: "rgba(15, 23, 42, 0.9)",
+  border: "1px solid rgba(148, 163, 184, 0.5)",
   boxShadow:
-    "0 22px 60px rgba(15, 23, 42, 0.8), 0 0 0 1px rgba(15, 23, 42, 0.8)",
-  backdropFilter: "blur(18px)",
+    "0 24px 70px rgba(15, 23, 42, 0.9), 0 0 0 1px rgba(15, 23, 42, 0.9)",
+  backdropFilter: "blur(20px)",
   overflow: "hidden",
 };
 
@@ -37,7 +37,7 @@ const cardGradientOverlay: React.CSSProperties = {
   position: "absolute",
   inset: 0,
   background:
-    "radial-gradient(circle at top center, rgba(148, 163, 255, 0.22), transparent 55%)",
+    "radial-gradient(circle at top center, rgba(129, 140, 248, 0.24), transparent 55%)",
   pointerEvents: "none",
 };
 
@@ -55,26 +55,26 @@ const logoMarkStyles: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  width: 36,
-  height: 36,
+  width: 38,
+  height: 38,
   borderRadius: 999,
   background:
     "radial-gradient(circle at 30% 0, #f97316, #a855f7 55%, #4f46e5)",
   boxShadow:
-    "0 0 0 1px rgba(15, 23, 42, 0.8), 0 16px 40px rgba(15, 23, 42, 0.9)",
+    "0 0 0 1px rgba(15, 23, 42, 0.9), 0 18px 45px rgba(15, 23, 42, 1)",
 };
 
 const logoTextStyles: React.CSSProperties = {
   fontSize: 18,
   fontWeight: 700,
   color: "#f9fafb",
-  letterSpacing: "0.06em",
+  letterSpacing: "0.08em",
 };
 
 const brandNameStyles: React.CSSProperties = {
   fontSize: 15,
   fontWeight: 600,
-  letterSpacing: "0.08em",
+  letterSpacing: "0.14em",
   textTransform: "uppercase",
   color: "#e5e7eb",
 };
@@ -89,13 +89,13 @@ const statusPillStyles: React.CSSProperties = {
   alignItems: "center",
   gap: 8,
   borderRadius: 999,
-  padding: "6px 11px",
+  padding: "6px 12px",
   fontSize: 11,
   fontWeight: 600,
   textTransform: "uppercase",
-  letterSpacing: "0.12em",
-  border: "1px solid rgba(148, 163, 184, 0.45)",
-  background: "rgba(15, 23, 42, 0.85)",
+  letterSpacing: "0.13em",
+  border: "1px solid rgba(148, 163, 184, 0.6)",
+  background: "rgba(15, 23, 42, 0.9)",
   backdropFilter: "blur(16px)",
   color: "#e5e7eb",
 };
@@ -119,12 +119,12 @@ const badgeStyles: React.CSSProperties = {
   alignItems: "center",
   gap: 8,
   borderRadius: 999,
-  border: "1px solid rgba(148, 163, 184, 0.4)",
-  background: "rgba(168, 85, 247, 0.15)",
+  border: "1px solid rgba(129, 140, 248, 0.7)",
+  background: "rgba(79, 70, 229, 0.15)",
   color: "#e5e7eb",
   fontSize: 11,
   fontWeight: 500,
-  padding: "6px 11px",
+  padding: "6px 12px",
   marginBottom: 12,
 };
 
@@ -133,7 +133,7 @@ const badgeDotStyles: React.CSSProperties = {
   height: 7,
   borderRadius: 999,
   border: "1px solid rgba(248, 250, 252, 0.9)",
-  background: "#a855f7",
+  background: "#6366f1",
 };
 
 const titleStyles: React.CSSProperties = {
@@ -146,7 +146,7 @@ const titleStyles: React.CSSProperties = {
 const subtitleStyles: React.CSSProperties = {
   fontSize: 14,
   color: "#9ca3af",
-  lineHeight: 1.5,
+  lineHeight: 1.6,
 };
 
 const metaSectionStyles: React.CSSProperties = {
@@ -155,9 +155,9 @@ const metaSectionStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: 8,
-  marginTop: 18,
+  marginTop: 20,
   paddingTop: 14,
-  borderTop: "1px dashed rgba(148, 163, 184, 0.4)",
+  borderTop: "1px dashed rgba(148, 163, 184, 0.5)",
 };
 
 const metaRowStyles: React.CSSProperties = {
@@ -170,8 +170,8 @@ const metaRowStyles: React.CSSProperties = {
 const metaLabelStyles: React.CSSProperties = {
   fontSize: 11,
   textTransform: "uppercase",
-  letterSpacing: "0.13em",
-  color: "rgba(148, 163, 184, 0.9)",
+  letterSpacing: "0.14em",
+  color: "rgba(148, 163, 184, 0.95)",
 };
 
 const metaValueStyles: React.CSSProperties = {
@@ -183,48 +183,49 @@ const metaValueStyles: React.CSSProperties = {
 const metaContactStyles: React.CSSProperties = {
   fontSize: 13,
   color: "#9ca3af",
+  marginTop: 4,
 };
 
 const metaContactLinkStyles: React.CSSProperties = {
   color: "#e5e7eb",
   textDecoration: "none",
-  borderBottom: "1px solid rgba(248, 250, 252, 0.45)",
+  borderBottom: "1px solid rgba(248, 250, 252, 0.5)",
   paddingBottom: 1,
 };
 
 const footerStyles: React.CSSProperties = {
-  marginTop: 18,
+  marginTop: 20,
   paddingTop: 14,
-  borderTop: "1px solid rgba(15, 23, 42, 0.9)",
+  borderTop: "1px solid rgba(15, 23, 42, 0.95)",
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
   gap: 12,
   fontSize: 11,
-  color: "rgba(148, 163, 184, 0.9)",
+  color: "rgba(148, 163, 184, 0.95)",
 };
 
 const chipStyles: React.CSSProperties = {
   borderRadius: 999,
-  border: "1px solid rgba(148, 163, 184, 0.45)",
+  border: "1px solid rgba(148, 163, 184, 0.7)",
   padding: "4px 9px",
   fontSize: 11,
   textTransform: "uppercase",
-  letterSpacing: "0.12em",
+  letterSpacing: "0.13em",
 };
 
 export const SiteInProduction: React.FC = () => {
   return (
     <div style={pageStyles}>
-      {/* Background gradients */}
+      {/* Gradient di sfondo in stile CORE */}
       <div
         style={{
           position: "fixed",
           inset: "-40%",
           background:
-            "radial-gradient(circle at top left, #7c3aed, #0f172a 55%, #020617)",
-          opacity: 0.9,
-          filter: "blur(40px)",
+            "radial-gradient(circle at top left, #6366f1, #0f172a 55%, #020617)",
+          opacity: 0.95,
+          filter: "blur(42px)",
           zIndex: -2,
         }}
       />
@@ -233,71 +234,75 @@ export const SiteInProduction: React.FC = () => {
           position: "fixed",
           inset: 0,
           background:
-            "radial-gradient(circle at top, rgba(15,23,42,0.6), transparent), radial-gradient(circle at bottom, rgba(15,23,42,0.9), transparent)",
+            "radial-gradient(circle at top, rgba(15,23,42,0.7), transparent), radial-gradient(circle at bottom, rgba(15,23,42,0.95), transparent)",
           zIndex: -1,
         }}
       />
 
-      <main style={wrapStyles} aria-label="Site en production">
+      <main style={wrapStyles} aria-label="Sito in produzione">
         <section style={cardStyles}>
           <div style={cardGradientOverlay} aria-hidden />
+
           <header style={cardHeaderStyles}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div style={logoMarkStyles} aria-hidden>
-                {/* Remplace ST par les initiales de ta marque */}
-                <span style={logoTextStyles}>ST</span>
+                {/* Metti qui le iniziali che vuoi: es. "CR" per CORE Rapportino */}
+                <span style={logoTextStyles}>CR</span>
               </div>
               <div>
-                {/* Remplace par le nom de ta plateforme */}
-                <div style={brandNameStyles}>Studio / Plateforme</div>
+                {/* Nome brand in stile CORE */}
+                <div style={brandNameStyles}>CORE · Rapportino</div>
                 <div style={brandTaglineStyles}>
-                  Nouvelle version en préparation
+                  Piattaforma operativa in aggiornamento
                 </div>
               </div>
             </div>
+
             <div style={statusPillStyles}>
               <span style={statusDotStyles} aria-hidden />
-              <span>Site en production</span>
+              <span>Sito in produzione</span>
             </div>
           </header>
 
           <div style={titleBlockStyles}>
             <div style={badgeStyles}>
               <span style={badgeDotStyles} aria-hidden />
-              <span>Nous optimisons l&rsquo;expérience</span>
+              <span>Stiamo migliorando l&rsquo;esperienza</span>
             </div>
-            <h1 style={titleStyles}>Le site est actuellement en production.</h1>
+
+            <h1 style={titleStyles}>Il sito è attualmente in aggiornamento.</h1>
             <p style={subtitleStyles}>
-              Nous finalisons une version optimisée pour garantir{" "}
-              <strong>performance</strong>, <strong>stabilité</strong> et{" "}
-              <strong>sécurité</strong>. Merci pour votre patience.
+              Stiamo finalizzando una versione ottimizzata per garantire{" "}
+              <strong>prestazioni</strong>, <strong>stabilità</strong> e{" "}
+              <strong>sicurezza</strong>. Ti ringraziamo per la pazienza e la
+              fiducia.
             </p>
           </div>
 
           <div style={metaSectionStyles}>
             <div style={metaRowStyles}>
-              <div style={metaLabelStyles}>Statut</div>
-              <div style={metaValueStyles}>Mise en ligne en préparation</div>
+              <div style={metaLabelStyles}>Stato</div>
+              <div style={metaValueStyles}>Messa in produzione in corso</div>
             </div>
             <div style={metaRowStyles}>
-              <div style={metaLabelStyles}>Accès</div>
-              <div style={metaValueStyles}>Temporairement indisponible</div>
+              <div style={metaLabelStyles}>Accesso</div>
+              <div style={metaValueStyles}>Temporaneamente non disponibile</div>
             </div>
             <p style={metaContactStyles}>
-              Pour toute demande urgente, vous pouvez nous contacter à{" "}
+              Per esigenze operative o urgenze, puoi contattarci a{" "}
               <a
-                href="mailto:contact@votre-domaine.com"
+                href="mailto:core@tuodominio.com"
                 style={metaContactLinkStyles}
               >
-                contact@votre-domaine.com
+                core@tuodominio.com
               </a>
               .
             </p>
           </div>
 
           <footer style={footerStyles}>
-            <span>Version de pré-production</span>
-            <span style={chipStyles}>Bientôt disponible</span>
+            <span>Ambiente di pre-produzione</span>
+            <span style={chipStyles}>Nuova release in arrivo</span>
           </footer>
         </section>
       </main>
