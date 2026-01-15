@@ -48,7 +48,6 @@ import DirectionDashboard from "./components/DirectionDashboard";
 
 // MANAGER
 import ManagerDashboard from "./pages/ManagerDashboard";
-import ManagerAssignments from "./pages/ManagerAssignments";
 import ManagerCapoShipPlanning from "./pages/ManagerCapoShipPlanning";
 
 // CORE DRIVE
@@ -170,7 +169,6 @@ export default function AppRoutes(): JSX.Element {
         }
       >
         <Route index element={<ManagerDashboard />} />
-        <Route path="assignments" element={<ManagerAssignments />} />
         <Route path="capi-cantieri" element={<ManagerCapoShipPlanning isDark={true} />} />
         <Route path="core-drive" element={<ArchivePage />} />
         <Route path="archive" element={<Navigate to="../core-drive" replace />} />
