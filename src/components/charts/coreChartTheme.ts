@@ -1,12 +1,37 @@
 // src/components/charts/coreChartTheme.ts
 
+export type CoreChartGrid = {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+  containLabel: boolean;
+};
+
 export type CoreChartTheme = {
+  // text
   text: string;
   subtext: string;
+
+  // lines
   axisLine: string;
   gridLine: string;
   border: string;
+
+  // surfaces
+  bg: string;
   cardBg: string;
+
+  // semantic colors
+  accent: string;
+  positive: string;
+  danger: string;
+  warning: string;
+  info: string;
+
+  // charts
+  grid: CoreChartGrid;
+  animMs: number;
 };
 
 export const CORE_CHART_THEME: CoreChartTheme = {
@@ -15,7 +40,27 @@ export const CORE_CHART_THEME: CoreChartTheme = {
   axisLine: "rgba(148,163,184,0.28)",
   gridLine: "rgba(148,163,184,0.12)",
   border: "rgba(148,163,184,0.20)",
+
+  // Surfaces (dark-first)
+  bg: "rgba(2,6,23,0.60)",
   cardBg: "rgba(2,6,23,0.60)",
+
+  // Semantic colors
+  accent: "#a78bfa", // violet
+  positive: "#34d399", // emerald
+  danger: "#fb7185", // rose
+  warning: "#fbbf24", // amber
+  info: "#38bdf8", // sky
+
+  grid: {
+    left: 12,
+    right: 12,
+    top: 18,
+    bottom: 28,
+    containLabel: true,
+  },
+
+  animMs: 520,
 };
 
 /**

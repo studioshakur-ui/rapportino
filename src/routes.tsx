@@ -15,7 +15,8 @@ import AppShell from "./shells/AppShell";
 import UfficioShell from "./shells/UfficioShell";
 import DirectionShell from "./shells/DirectionShell";
 import ManagerShell from "./shells/ManagerShell";
-import AdminShell from "./admin/AdminShell";
+// IMPORTANT: explicit extension to avoid resolving the legacy AdminShell.jsx
+import AdminShell from "./admin/AdminShell.tsx";
 
 // CAPO
 import RapportinoPage from "./components/RapportinoPage";
@@ -37,6 +38,8 @@ import AdminCatalogoPage from "./admin/AdminCatalogoPage";
 import AdminPlanningPage from "./admin/AdminPlanningPage";
 import AdminAssignmentsPage from "./admin/AdminAssignmentsPage";
 import AdminAuditPage from "./admin/AdminAuditPage";
+// IMPORTANT: explicit extension to avoid resolving the legacy AdminPerimetersPage.jsx
+import AdminPerimetersPage from "./admin/AdminPerimetersPage.tsx";
 
 // UFFICIO
 import UfficioRapportiniList from "./ufficio/UfficioRapportiniList";
@@ -89,6 +92,7 @@ export default function AppRoutes(): JSX.Element {
         <Route index element={<Navigate to="users" replace />} />
         <Route path="users" element={<AdminUsersPage />} />
         <Route path="operators" element={<AdminOperatorsPage />} />
+        <Route path="perimetri" element={<AdminPerimetersPage isDark={true} />} />
         <Route path="catalogo" element={<AdminCatalogoPage />} />
         <Route path="planning" element={<AdminPlanningPage />} />
         <Route path="assignments" element={<AdminAssignmentsPage />} />

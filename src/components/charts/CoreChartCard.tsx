@@ -26,8 +26,9 @@ export default function CoreChartCard({
   className = "",
 }: CoreChartCardProps): JSX.Element {
   const card = cn(
-    "rounded-2xl border p-4",
-    isDark ? "border-slate-800 bg-slate-950/70" : "border-slate-200 bg-white",
+    "rounded-2xl border bg-slate-950/70",
+    isDark ? "border-slate-800" : "border-slate-200 bg-white",
+    "p-4",
     className
   );
 

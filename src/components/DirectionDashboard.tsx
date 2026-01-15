@@ -1,18 +1,19 @@
-// src/components/DirectionDashboard.jsx
+// src/components/DirectionDashboard.tsx
 //
-// Direction Dashboard (Direzione) — Clickable KPI strip + charts kept.
-// Fix: i18n fallback when t(key) returns the key itself (missing dictionary entries).
-// Keeps:
-// - KPI cards cliquables (modal drill-down)
-// - Graphes (Timeline, INCA, Trend, Drivers)
-// - CORE Chart Kit wrappers (no commercial libs)
+// Direction Dashboard (Direzione) — KPI strip cliquable + charts.
+// Fix pack (Direction-level):
+// - Branche le drill-down (Modal) sur les composants existants src/components/direzione/kpiDetails/*
+// - Unifie la source Produttivita avec fallback view v3 -> v2 (comme KPI Operatori)
+// - Expose le KPI "Ore lavoro" (facts) + drill-down
+// - Continue a utiliser CORE Chart Kit
 
 import React, { useEffect, useMemo, useState } from "react";
+
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
 
 import { useCoreI18n } from "../i18n/CoreI18n";
-import LangSwitcher from "../components/shell/LangSwitcher";
+import LangSwitcher from "./shell/LangSwitcher";
 import Modal from "../ui/Modal";
 import KpiCard from "./ui/KpiCard";
 
@@ -25,8 +26,17 @@ import {
   formatNumberIT,
 } from "./charts";
 
+import KpiRapportiniDetails from "./direzione/kpiDetails/KpiRapportiniDetails";
+import KpiRigheDetails from "./direzione/kpiDetails/KpiRigheDetails";
+import KpiProdIndexDetails from "./direzione/kpiDetails/KpiProdIndexDetails";
+import KpiIncaDetails from "./direzione/kpiDetails/KpiIncaDetails";
+import KpiRitardiCapiDetails from "./direzione/kpiDetails/KpiRitardiCapiDetails";
+import KpiHoursDetails from "./direzione/kpiDetails/KpiHoursDetails";
+
+type AnyRow = Record<string, any>;
+
 // Utils dates / format
-function toISODate(d) {
+function toISODate(d: Date): string {
   if (!(d instanceof Date)) return "";
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -34,24 +44,23 @@ function toISODate(d) {
   return `${y}-${m}-${da}`;
 }
 
-function parseISODate(s) {
+function parseISODate(s: string): Date | null {
   if (!s) return null;
   const d = new Date(s);
   if (Number.isNaN(d.getTime())) return null;
   return d;
 }
 
-function formatDateLabel(dateString) {
+function formatDateLabel(dateString: string): string {
   if (!dateString) return "";
   const d = new Date(dateString);
   if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleDateString("it-IT");
 }
 
-function toNumber(v) {
+function toNumber(v: unknown): number {
   if (v == null) return 0;
   if (typeof v === "number") return Number.isFinite(v) ? v : 0;
-
   if (typeof v === "string") {
     const s = v.trim();
     if (!s) return 0;
@@ -62,10 +71,12 @@ function toNumber(v) {
     const n = Number.parseFloat(normalized);
     return Number.isFinite(n) ? n : 0;
   }
-  return 0;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const n = Number((v as any) ?? 0);
+  return Number.isFinite(n) ? n : 0;
 }
 
-function cutoffNextDay0830Z(reportDateISO) {
+function cutoffNextDay0830(reportDateISO: string): Date | null {
   const d = parseISODate(reportDateISO);
   if (!d) return null;
   const x = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 8, 30, 0, 0);
@@ -79,69 +90,77 @@ const KPI_IDS = {
   PROD: "PROD",
   INCA_PREV: "INCA_PREV",
   INCA_REAL: "INCA_REAL",
+  ORE: "ORE",
   RITARDI: "RITARDI",
-};
+} as const;
 
-function formatIndexIT(v) {
+type KpiId = (typeof KPI_IDS)[keyof typeof KPI_IDS] | null;
+
+function formatIndexIT(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return "—";
   return formatNumberIT(v, 2);
 }
 
-export default function DirectionDashboard() {
+function isMissingRelation(err: unknown): boolean {
+  const e = err as { message?: string; code?: string };
+  const msg = String(e?.message || "");
+  const code = String(e?.code || "");
+  return code === "42P01" || /relation .* does not exist/i.test(msg) || /does not exist/i.test(msg);
+}
+
+export default function DirectionDashboard({ isDark = true }: { isDark?: boolean }): JSX.Element {
   const { profile } = useAuth();
 
   // i18n (fallback if missing keys)
   const i18n = useCoreI18n();
-  const tRaw = i18n?.t ? i18n.t : (k) => k;
-  const t = (key, fallback) => {
+  const tRaw = i18n?.t ? i18n.t : (k: string) => k;
+  const t = (key: string, fallback?: string) => {
     const v = tRaw(key);
     if (!v || v === key) return fallback ?? key;
     return v;
   };
 
   // Filtres globaux
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [costrFilter, setCostrFilter] = useState("");
-  const [commessaFilter, setCommessaFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
+  const [costrFilter, setCostrFilter] = useState<string>("");
+  const [commessaFilter, setCommessaFilter] = useState<string>("");
 
   // État data
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Rapportini (vue enrichie) — canonique pour noms capo
-  const [rapportiniCurrent, setRapportiniCurrent] = useState([]);
-  const [rapportiniPrevious, setRapportiniPrevious] = useState([]);
+  const [rapportiniCurrent, setRapportiniCurrent] = useState<AnyRow[]>([]);
+  const [rapportiniPrevious, setRapportiniPrevious] = useState<AnyRow[]>([]);
 
   // INCA
-  const [incaTeorico, setIncaTeorico] = useState([]);
+  const [incaTeorico, setIncaTeorico] = useState<AnyRow[]>([]);
 
-  // Produzioni (canonique): breakdown par descrizione sur la fenêtre
-  const [produzioniAggCurrent, setProduzioniAggCurrent] = useState([]);
-  const [produzioniAggPrevious, setProduzioniAggPrevious] = useState([]);
+  // Produzioni – breakdown par descrizione sur la fenêtre
+  const [produzioniAggCurrent, setProduzioniAggCurrent] = useState<AnyRow[]>([]);
+  const [produzioniAggPrevious, setProduzioniAggPrevious] = useState<AnyRow[]>([]);
 
   // KPI heures (facts tokenisés)
-  const [hoursFactsCurrent, setHoursFactsCurrent] = useState([]);
-  const [hoursFactsPrevious, setHoursFactsPrevious] = useState([]);
+  const [hoursFactsCurrent, setHoursFactsCurrent] = useState<AnyRow[]>([]);
+  const [hoursFactsPrevious, setHoursFactsPrevious] = useState<AnyRow[]>([]);
 
   // KPI indice produttività (daily) su previsto
-  const [prodDailyCurrent, setProdDailyCurrent] = useState([]);
-  const [prodDailyPrevious, setProdDailyPrevious] = useState([]);
+  const [prodDailyCurrent, setProdDailyCurrent] = useState<AnyRow[]>([]);
+  const [prodDailyPrevious, setProdDailyPrevious] = useState<AnyRow[]>([]);
 
   // Retards capi (deadline J+1 08:30)
-  const [capiDelayDaily, setCapiDelayDaily] = useState([]);
+  const [capiDelayDaily, setCapiDelayDaily] = useState<AnyRow[]>([]);
 
   // Modal KPI
-  const [activeKpi, setActiveKpi] = useState(null);
+  const [activeKpi, setActiveKpi] = useState<KpiId>(null);
 
   // INIT : dernière semaine glissante
   useEffect(() => {
     if (dateFrom || dateTo) return;
-
     const today = new Date();
     const start = new Date();
     start.setDate(today.getDate() - 6);
-
     setDateFrom(toISODate(start));
     setDateTo(toISODate(today));
   }, [dateFrom, dateTo]);
@@ -153,7 +172,7 @@ export default function DirectionDashboard() {
 
     let cancelled = false;
 
-    async function load() {
+    async function load(): Promise<void> {
       setLoading(true);
       setError(null);
 
@@ -205,20 +224,19 @@ export default function DirectionDashboard() {
         if (incaErr) throw incaErr;
 
         // 4) Produzioni – agrège par descrizione depuis rapportino_rows
-        const nowIds = (rapNow || []).map((r) => r.id).filter(Boolean);
-        const prevIds = (rapPrev || []).map((r) => r.id).filter(Boolean);
+        const nowIds = (rapNow || []).map((r: AnyRow) => r.id).filter(Boolean);
+        const prevIds = (rapPrev || []).map((r: AnyRow) => r.id).filter(Boolean);
 
-        async function aggByDescrizione(ids) {
+        async function aggByDescrizione(ids: string[]): Promise<AnyRow[]> {
           if (!ids.length) return [];
           const { data: rows, error: e } = await supabase
             .from("rapportino_rows")
             .select("rapportino_id, descrizione, prodotto")
             .in("rapportino_id", ids);
-
           if (e) return [];
 
-          const m = new Map();
-          (rows || []).forEach((rr) => {
+          const m = new Map<string, { descrizione: string; prodotto_sum: number; righe: number }>();
+          (rows || []).forEach((rr: AnyRow) => {
             const k = (rr?.descrizione ?? "—").toString().trim() || "—";
             const obj = m.get(k) || { descrizione: k, prodotto_sum: 0, righe: 0 };
             obj.prodotto_sum += toNumber(rr?.prodotto);
@@ -229,13 +247,10 @@ export default function DirectionDashboard() {
           return Array.from(m.values()).sort((a, b) => b.prodotto_sum - a.prodotto_sum);
         }
 
-        const [aggNow, aggPrev] = await Promise.all([
-          aggByDescrizione(nowIds),
-          aggByDescrizione(prevIds),
-        ]);
+        const [aggNow, aggPrev] = await Promise.all([aggByDescrizione(nowIds), aggByDescrizione(prevIds)]);
 
         // 5) Facts heures (tokenisés)
-        async function loadHoursFacts(rangeFrom, rangeTo) {
+        async function loadHoursFacts(rangeFrom: string, rangeTo: string): Promise<AnyRow[]> {
           let q = supabase
             .from("direzione_operator_facts_v1")
             .select(
@@ -252,28 +267,42 @@ export default function DirectionDashboard() {
           return data || [];
         }
 
-        // 5bis) KPI Indice Produttività (daily) — v2
-        function normalizeProdFromGlobalDayV2(rows) {
-          return (rows || []).map((r) => ({
+        // 5bis) KPI Indice Produttività (daily) — v3 -> v2 fallback
+        function normalizeProd(rows: AnyRow[]): AnyRow[] {
+          return (rows || []).map((r: AnyRow) => ({
             report_date: r?.report_date ? String(r.report_date) : null,
             previsto_eff: toNumber(r?.total_previsto_eff),
             prodotto_alloc: toNumber(r?.total_prodotto_alloc),
+            ore_indexed: toNumber(r?.total_hours_indexed),
           }));
         }
 
-        async function loadProdDaily(rangeFrom, rangeTo) {
-          let q = supabase
-            .from("kpi_operator_global_day_v2")
-            .select("report_date, total_previsto_eff, total_prodotto_alloc")
-            .gte("report_date", rangeFrom)
-            .lte("report_date", rangeTo);
+        async function loadProdDaily(rangeFrom: string, rangeTo: string): Promise<AnyRow[]> {
+          const views = ["kpi_operator_global_day_v3", "kpi_operator_global_day_v2"];
 
-          if (costrFilter.trim()) q = q.eq("costr", costrFilter.trim());
-          if (commessaFilter.trim()) q = q.eq("commessa", commessaFilter.trim());
+          let lastErr: unknown = null;
+          for (const view of views) {
+            try {
+              let q = supabase
+                .from(view)
+                .select("report_date, total_previsto_eff, total_prodotto_alloc, total_hours_indexed, costr, commessa")
+                .gte("report_date", rangeFrom)
+                .lte("report_date", rangeTo);
 
-          const { data, error: e } = await q;
-          if (e) throw e;
-          return normalizeProdFromGlobalDayV2(data);
+              if (costrFilter.trim()) q = q.eq("costr", costrFilter.trim());
+              if (commessaFilter.trim()) q = q.eq("commessa", commessaFilter.trim());
+
+              const { data, error: e } = await q;
+              if (e) throw e;
+              return normalizeProd(data || []);
+            } catch (e) {
+              lastErr = e;
+              if (!isMissingRelation(e)) throw e;
+            }
+          }
+
+          if (lastErr) throw lastErr;
+          return [];
         }
 
         const [factsNow, factsPrev, prodNow, prodPrev] = await Promise.all([
@@ -283,45 +312,46 @@ export default function DirectionDashboard() {
           loadProdDaily(toISODate(prevFrom), toISODate(prevTo)),
         ]);
 
-        // 6) Retards capi J+1 08:30
-        async function loadCapiDelays(rangeFrom, rangeTo, rapListNow) {
-          let pQ = supabase
+        // 6) Retards capi J+1 08:30 (planning DAY FROZEN)
+        async function loadCapiDelays(
+          rangeFrom: string,
+          rangeTo: string,
+          rapListNow: AnyRow[]
+        ): Promise<AnyRow[]> {
+          const { data: plans, error: pErr } = await supabase
             .from("manager_plans")
             .select("id, manager_id, plan_date, period_type, status, year_iso, week_iso")
             .gte("plan_date", rangeFrom)
             .lte("plan_date", rangeTo)
             .eq("period_type", "DAY")
             .eq("status", "FROZEN");
-
-          const { data: plans, error: pErr } = await pQ;
           if (pErr) throw pErr;
 
-          const planIds = (plans || []).map((p) => p.id).filter(Boolean);
+          const planIds = (plans || []).map((p: AnyRow) => p.id).filter(Boolean);
           if (!planIds.length) return [];
 
           const { data: slots, error: sErr } = await supabase
             .from("plan_capo_slots")
             .select("id, plan_id, capo_id")
             .in("plan_id", planIds);
-
           if (sErr) throw sErr;
 
-          const planById = new Map();
-          (plans || []).forEach((p) => planById.set(p.id, p));
+          const planById = new Map<string, AnyRow>();
+          (plans || []).forEach((p: AnyRow) => planById.set(p.id, p));
 
-          const expectedByDate = new Map(); // date -> Set(capo_id)
-          (slots || []).forEach((s) => {
+          const expectedByDate = new Map<string, Set<string>>();
+          (slots || []).forEach((s: AnyRow) => {
             const p = planById.get(s.plan_id);
             if (!p?.plan_date || !s?.capo_id) return;
-            const d = p.plan_date;
+            const d = p.plan_date as string;
             if (!expectedByDate.has(d)) expectedByDate.set(d, new Set());
-            expectedByDate.get(d).add(s.capo_id);
+            expectedByDate.get(d)?.add(String(s.capo_id));
           });
 
-          const reportByDayCapo = new Map(); // `${date}::${capo}` -> created_at
-          (rapListNow || []).forEach((r) => {
-            const d = r.report_date;
-            const c = r.capo_id;
+          const reportByDayCapo = new Map<string, Date | null>();
+          (rapListNow || []).forEach((r: AnyRow) => {
+            const d = r.report_date as string;
+            const c = r.capo_id as string;
             if (!d || !c) return;
             const k = `${d}::${c}`;
             const createdAt = r.created_at ? new Date(r.created_at) : null;
@@ -336,14 +366,13 @@ export default function DirectionDashboard() {
           const allCapoIds = Array.from(expectedByDate.values()).flatMap((s) => Array.from(s));
           const uniqueCapoIds = Array.from(new Set(allCapoIds));
 
-          let capoNameById = new Map();
+          const capoNameById = new Map<string, string>();
           if (uniqueCapoIds.length) {
             const { data: capiProfiles } = await supabase
               .from("profiles")
               .select("id, full_name, display_name, email")
               .in("id", uniqueCapoIds);
-
-            (capiProfiles || []).forEach((p) => {
+            (capiProfiles || []).forEach((p: AnyRow) => {
               const label =
                 (p?.display_name || "").trim() ||
                 (p?.full_name || "").trim() ||
@@ -353,21 +382,20 @@ export default function DirectionDashboard() {
             });
           }
 
-          const dates = Array.from(expectedByDate.keys()).sort((a, b) => new Date(a) - new Date(b));
+          const dates = Array.from(expectedByDate.keys()).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
           return dates.map((d) => {
-            const expected = expectedByDate.get(d) || new Set();
-            const cutoff = cutoffNextDay0830Z(d);
+            const expected = expectedByDate.get(d) || new Set<string>();
+            const cutoff = cutoffNextDay0830(d);
 
             let inOrario = 0;
-            const lateIds = [];
-            const lateNames = [];
+            const lateIds: string[] = [];
+            const lateNames: string[] = [];
 
             expected.forEach((capoId) => {
               const k = `${d}::${capoId}`;
               const createdAt = reportByDayCapo.get(k) || null;
               const isOk = createdAt && cutoff ? createdAt <= cutoff : false;
-
               if (isOk) inOrario += 1;
               else {
                 lateIds.push(capoId);
@@ -401,6 +429,7 @@ export default function DirectionDashboard() {
           setCapiDelayDaily(delays || []);
         }
       } catch (err) {
+        // eslint-disable-next-line no-console
         console.error("[DirectionDashboard] Errore caricamento dati:", err);
         if (!cancelled) {
           setError("Errore nel caricamento dei dati Direzione. Riprova o contatta l’Ufficio.");
@@ -420,7 +449,7 @@ export default function DirectionDashboard() {
       }
     }
 
-    load();
+    void load();
     return () => {
       cancelled = true;
     };
@@ -437,19 +466,20 @@ export default function DirectionDashboard() {
     let incaRealizzati = 0;
     let incaPosati = 0;
 
-    incaTeorico.forEach((row) => {
+    (incaTeorico || []).forEach((row) => {
       incaPrevisti += toNumber(row.metri_previsti_totali);
       incaRealizzati += toNumber(row.metri_realizzati);
       incaPosati += toNumber(row.metri_posati);
     });
 
-    const sumHours = (facts) =>
+    const sumHoursFacts = (facts: AnyRow[]) =>
       (facts || []).reduce((acc, f) => {
         const h = toNumber(f?.tempo_hours);
         return h > 0 ? acc + h : acc;
       }, 0);
 
-    const currHours = sumHours(hoursFactsCurrent);
+    const currHours = sumHoursFacts(hoursFactsCurrent);
+    const prevHours = sumHoursFacts(hoursFactsPrevious);
 
     const totalAttesi = (capiDelayDaily || []).reduce((a, d) => a + Number(d.capi_attesi || 0), 0);
     const totalRitardo = (capiDelayDaily || []).reduce((a, d) => a + Number(d.capi_in_ritardo || 0), 0);
@@ -457,6 +487,7 @@ export default function DirectionDashboard() {
 
     const sumPrevNow = (prodDailyCurrent || []).reduce((a, r) => a + toNumber(r.previsto_eff), 0);
     const sumProdNow = (prodDailyCurrent || []).reduce((a, r) => a + toNumber(r.prodotto_alloc), 0);
+    const sumHoursIndexedNow = (prodDailyCurrent || []).reduce((a, r) => a + toNumber(r.ore_indexed), 0);
     const productivityIndexNow = sumPrevNow > 0 ? sumProdNow / sumPrevNow : null;
 
     return {
@@ -467,49 +498,61 @@ export default function DirectionDashboard() {
       incaRealizzati,
       incaPosati,
       currHours,
+      prevHours,
       totalAttesi,
       totalRitardo,
       lateRate,
       productivityIndexNow,
       sumPrevNow,
       sumProdNow,
+      sumHoursIndexedNow,
     };
-  }, [rapportiniCurrent, rapportiniPrevious, incaTeorico, produzioniAggCurrent, hoursFactsCurrent, capiDelayDaily, prodDailyCurrent]);
+  }, [
+    rapportiniCurrent,
+    rapportiniPrevious,
+    incaTeorico,
+    produzioniAggCurrent,
+    hoursFactsCurrent,
+    hoursFactsPrevious,
+    capiDelayDaily,
+    prodDailyCurrent,
+  ]);
 
   // Timeline data (combo chart)
   const timelineData = useMemo(() => {
-    const map = new Map();
+    const map = new Map<string, { date: string; label: string; rapportini: number; capi_ritardo: number }>();
 
     (rapportiniCurrent || []).forEach((r) => {
-      const key = r.report_date;
+      const key = String(r.report_date || "");
       if (!key) return;
       if (!map.has(key)) map.set(key, { date: key, label: formatDateLabel(key), rapportini: 0, capi_ritardo: 0 });
-      map.get(key).rapportini += 1;
+      map.get(key)!.rapportini += 1;
     });
 
     (capiDelayDaily || []).forEach((d) => {
-      const key = d.report_date;
+      const key = String(d.report_date || "");
       if (!key) return;
       if (!map.has(key)) map.set(key, { date: key, label: formatDateLabel(key), rapportini: 0, capi_ritardo: 0 });
-      map.get(key).capi_ritardo = Number(d.capi_in_ritardo || 0);
+      map.get(key)!.capi_ritardo = Number(d.capi_in_ritardo || 0);
     });
 
-    return Array.from(map.values()).sort((a, b) => new Date(a.date) - new Date(b.date));
+    return Array.from(map.values()).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [rapportiniCurrent, capiDelayDaily]);
 
   // Trend productivity (line)
   const prodTrend = useMemo(() => {
-    const m = new Map();
+    const m = new Map<string, { report_date: string; label: string; prev: number; prod: number }>();
     (prodDailyCurrent || []).forEach((r) => {
       if (!r.report_date) return;
-      const cur = m.get(r.report_date) || { report_date: r.report_date, label: formatDateLabel(r.report_date), prev: 0, prod: 0 };
+      const key = String(r.report_date);
+      const cur = m.get(key) || { report_date: key, label: formatDateLabel(key), prev: 0, prod: 0 };
       cur.prev += toNumber(r.previsto_eff);
       cur.prod += toNumber(r.prodotto_alloc);
-      m.set(r.report_date, cur);
+      m.set(key, cur);
     });
 
     return Array.from(m.values())
-      .sort((a, b) => new Date(a.report_date) - new Date(b.report_date))
+      .sort((a, b) => new Date(a.report_date).getTime() - new Date(b.report_date).getTime())
       .map((x) => ({ ...x, indice: x.prev > 0 ? x.prod / x.prev : null }));
   }, [prodDailyCurrent]);
 
@@ -580,12 +623,14 @@ export default function DirectionDashboard() {
         return t("KPI_INCA_PREV", "INCA prev");
       case KPI_IDS.INCA_REAL:
         return t("KPI_INCA_REAL", "INCA real");
+      case KPI_IDS.ORE:
+        return t("KPI_ORE_LAVORO", "Ore lavoro");
       case KPI_IDS.RITARDI:
         return t("KPI_RITARDI_CAPI", "Ritardi Capi");
       default:
         return t("MODAL_DETAILS", "Dettagli");
     }
-  }, [activeKpi]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeKpi]);
 
   const modalSubtitle = useMemo(() => {
     const windowLabel = t("DIR_WINDOW", "Finestra");
@@ -594,18 +639,45 @@ export default function DirectionDashboard() {
     return `${windowLabel}: ${formatDateLabel(dateFrom)} → ${formatDateLabel(dateTo)} · ${costrLabel}: ${
       costrFilter || "—"
     } · ${commessaLabel}: ${commessaFilter || "—"}`;
-  }, [dateFrom, dateTo, costrFilter, commessaFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dateFrom, dateTo, costrFilter, commessaFilter]);
+
+  const modalContent = useMemo(() => {
+    switch (activeKpi) {
+      case KPI_IDS.RAPPORTINI:
+        return <KpiRapportiniDetails rapportini={rapportiniCurrent} dateFrom={dateFrom} dateTo={dateTo} />;
+      case KPI_IDS.RIGHE:
+        return <KpiRigheDetails produzioniAgg={produzioniAggCurrent} />;
+      case KPI_IDS.PROD:
+        return (
+          <KpiProdIndexDetails
+            sumPrevEff={kpi.sumPrevNow}
+            sumProdAlloc={kpi.sumProdNow}
+            sumHoursIndexed={kpi.sumHoursIndexedNow}
+            productivityIndex={kpi.productivityIndexNow}
+          />
+        );
+      case KPI_IDS.INCA_PREV:
+        return <KpiIncaDetails incaTeorico={incaTeorico} mode="PREV" />;
+      case KPI_IDS.INCA_REAL:
+        return <KpiIncaDetails incaTeorico={incaTeorico} mode="REAL" />;
+      case KPI_IDS.ORE:
+        return <KpiHoursDetails dateFrom={dateFrom} dateTo={dateTo} hoursFacts={hoursFactsCurrent} />;
+      case KPI_IDS.RITARDI:
+        return <KpiRitardiCapiDetails capiDelayDaily={capiDelayDaily} />;
+      default:
+        return null;
+    }
+  }, [activeKpi, rapportiniCurrent, dateFrom, dateTo, produzioniAggCurrent, incaTeorico, capiDelayDaily, hoursFactsCurrent, kpi]);
+
+  // isDark is currently used for future-proofing (shell-level theme toggle). The dashboard itself is styled dark-first.
+  // Keeping the prop avoids breaking DirectionShell which passes isDark.
 
   return (
     <div className="space-y-5">
       <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400 mb-1">
-            {t("DIR_KICKER", "Direzione · CNCS / CORE")}
-          </div>
-          <h1 className="text-2xl md:text-3xl font-semibold text-slate-50">
-            {t("DIR_TITLE", "Dashboard Direzione")}
-          </h1>
+          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400 mb-1">{t("DIR_KICKER", "Direzione · CNCS / CORE")}</div>
+          <h1 className="text-2xl md:text-3xl font-semibold text-slate-50">{t("DIR_TITLE", "Dashboard Direzione")}</h1>
         </div>
 
         <div className="flex flex-col items-end gap-2 text-[11px]">
@@ -672,19 +744,13 @@ export default function DirectionDashboard() {
         </div>
       </section>
 
-      {error && (
-        <div className="rounded-2xl border border-rose-500/60 bg-rose-500/10 px-4 py-2 text-[12px] text-rose-100">
-          {error}
-        </div>
-      )}
+      {error && <div className="rounded-2xl border border-rose-500/60 bg-rose-500/10 px-4 py-2 text-[12px] text-rose-100">{error}</div>}
       {loading && !error && (
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/50 px-4 py-2 text-[12px] text-slate-300">
-          {t("DETAILS_LOADING", "Caricamento…")}
-        </div>
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/50 px-4 py-2 text-[12px] text-slate-300">{t("DETAILS_LOADING", "Caricamento…")}</div>
       )}
 
       {/* KPI STRIP (clickable) */}
-      <section className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <section className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-7 gap-3">
         <KpiCard
           title={t("KPI_RAPPORTINI", "Rapportini")}
           value={loading ? "—" : String(kpi.currCount)}
@@ -726,6 +792,14 @@ export default function DirectionDashboard() {
         />
 
         <KpiCard
+          title={t("KPI_ORE_LAVORO", "Ore lavoro")}
+          value={loading ? "—" : formatNumberIT(kpi.currHours, 1)}
+          subline={loading ? "" : `${t("KPI_PREV", "Prev")}: ${formatNumberIT(kpi.prevHours, 1)}`}
+          accent="amber"
+          onClick={() => setActiveKpi(KPI_IDS.ORE)}
+        />
+
+        <KpiCard
           title={t("KPI_RITARDI_CAPI", "Ritardi Capi")}
           value={loading ? "—" : kpi.totalAttesi > 0 ? `${kpi.totalRitardo}/${kpi.totalAttesi}` : "—"}
           subline={t("KPI_DEADLINE", "deadline 08:30 (J+1)")}
@@ -734,8 +808,7 @@ export default function DirectionDashboard() {
         />
       </section>
 
-      {/* Modal drill-down (content left to your existing detail components if you have them).
-          Here we keep the modal shell stable; you can plug your KPI detail components inside. */}
+      {/* Modal drill-down */}
       <Modal
         open={!!activeKpi}
         onClose={() => setActiveKpi(null)}
@@ -743,14 +816,12 @@ export default function DirectionDashboard() {
         subtitle={modalSubtitle}
         maxWidthClass="max-w-5xl"
       >
-        <div className="text-[12px] text-slate-300">
-          Se vuoi, on peut brancher ici tes composants de détail (Rapportini / Righe / Prod / INCA / Ritardi) comme dans ta version refactor.
-        </div>
+        {modalContent}
       </Modal>
 
       {/* CHARTS (kept) */}
       <section className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1.4fr)] gap-4">
-        <CoreChartCard title="Timeline" subtitle="Bar: Ritardi Capi · Line: Rapportini">
+        <CoreChartCard isDark={isDark} title="Timeline" subtitle="Bar: Ritardi Capi · Line: Rapportini">
           <CoreBarLineCombo
             loading={loading}
             data={timelineData}
@@ -769,7 +840,7 @@ export default function DirectionDashboard() {
           </div>
         </CoreChartCard>
 
-        <CoreChartCard title="INCA" subtitle="Top file/commesse per volume previsto (lettura rapida).">
+        <CoreChartCard isDark={isDark} title="INCA" subtitle="Top file/commesse per volume previsto (lettura rapida).">
           <CoreEChart
             loading={loading}
             option={incaOption}
@@ -784,7 +855,7 @@ export default function DirectionDashboard() {
       </section>
 
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <CoreChartCard title="Trend · Produttività giornaliera" subtitle="Evidenzia deriva o miglioramento (indice su previsto).">
+        <CoreChartCard isDark={isDark} title="Trend · Produttività giornaliera" subtitle="Evidenzia deriva o miglioramento (indice su previsto).">
           <CoreLineChart
             loading={loading}
             data={prodTrend}
@@ -793,7 +864,7 @@ export default function DirectionDashboard() {
             yLines={[{ key: "indice", name: "Indice", stroke: CORE_CHART_THEME.accent }]}
             yDomain={[0, "auto"]}
             emptyHint="Serve almeno 1 giorno con linee indicizzabili (previsto > 0)."
-            yTickFormatter={(v) => (v == null ? "—" : formatNumberIT(v, 2))}
+            yTickFormatter={(v: unknown) => (v == null ? "—" : formatNumberIT(v, 2))}
           />
           <div className="mt-2 text-[11px] text-slate-500">
             KPI range attuale: {kpi.productivityIndexNow == null ? "—" : formatNumberIT(kpi.productivityIndexNow, 2)} · Prev_eff:{" "}
@@ -801,7 +872,7 @@ export default function DirectionDashboard() {
           </div>
         </CoreChartCard>
 
-        <CoreChartCard title="Produzioni · Top descrizioni" subtitle="Volume (prodotto) per leggere il “perché” senza aprire tabelle.">
+        <CoreChartCard isDark={isDark} title="Produzioni · Top descrizioni" subtitle="Volume (prodotto) per leggere il “perché” senza aprire tabelle.">
           <div className="space-y-2">
             {(produzioniAggCurrent || []).slice(0, 6).map((r, idx) => (
               <div key={`${r.descrizione}-${idx}`} className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2">

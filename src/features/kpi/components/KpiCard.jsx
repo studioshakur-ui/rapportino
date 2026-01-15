@@ -1,6 +1,10 @@
 // src/components/kpi/KpiCard.jsx
 import React from "react";
-import { cn } from "../../ui/cn";
+import CenterModal from "../../../components/overlay/CenterModal";
+import { cn } from "../../../ui/cn";
+import { useCoreI18n } from "../../../i18n/coreI18n";
+import { formatNumberIT, safeText } from "../../../ui/format";
+
 
 export default function KpiCard({
   label,
