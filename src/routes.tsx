@@ -41,7 +41,7 @@ import AdminAuditPage from "./admin/AdminAuditPage";
 // UFFICIO
 import UfficioRapportiniList from "./ufficio/UfficioRapportiniList";
 import UfficioRapportinoDetail from "./ufficio/UfficioRapportinoDetail";
-import UfficioInca from "./pages/UfficioInca";
+import UfficioIncaHub from "./ufficio/UfficioIncaHub";
 
 // DIRECTION
 import DirectionDashboard from "./components/DirectionDashboard";
@@ -137,7 +137,7 @@ export default function AppRoutes(): JSX.Element {
       >
         <Route index element={<UfficioRapportiniList />} />
         <Route path="rapportino/:rapportinoId" element={<UfficioRapportinoDetail />} />
-        <Route path="inca" element={<UfficioInca />} />
+        <Route path="inca" element={<UfficioIncaHub />} />
         <Route path="core-drive" element={<ArchivePage />} />
         <Route path="archive" element={<Navigate to="../core-drive" replace />} />
       </Route>
