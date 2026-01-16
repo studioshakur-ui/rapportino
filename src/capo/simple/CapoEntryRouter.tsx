@@ -1,14 +1,16 @@
 // src/capo/simple/CapoEntryRouter.tsx
-// CAPO entry router:
-// - Detect profile UI mode (simple/rich)
+// CAPO entry router (patched):
+// - Source of truth for capo_ui_mode is AuthProvider.profile (already hydrated in UI)
+// - Fallback to RPC core_current_profile ONLY if profile isn't available yet
 // - In RICH: auto-open today's ship (if exactly one assignment), otherwise ship selector
 // - In SIMPLE: render CapoSimpleEntry (legacy simplified flow)
 
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
+import { useAuth } from "../../auth/AuthProvider";
 
-type Profile = {
+type ProfileLite = {
   id: string;
   role?: string;
   capo_ui_mode?: "simple" | "rich" | string;
@@ -32,10 +34,17 @@ function localIsoDate(): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function normalizeMode(v: unknown): "simple" | "rich" {
+  const m = String(v || "simple").toLowerCase();
+  return m === "rich" ? "rich" : "simple";
+}
+
 const CapoSimpleEntry = lazy(() => import("./CapoSimpleEntry"));
 
 export default function CapoEntryRouter(): JSX.Element {
   const nav = useNavigate();
+  const { profile } = useAuth();
+
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<"simple" | "rich">("simple");
   const [error, setError] = useState<string>("");
@@ -45,23 +54,37 @@ export default function CapoEntryRouter(): JSX.Element {
   useEffect(() => {
     let mounted = true;
 
+    async function resolveMode(): Promise<"simple" | "rich"> {
+      // ✅ Source of truth: AuthProvider.profile (already used by UI)
+      const fromAuth = (profile as ProfileLite | null | undefined) || null;
+      if (fromAuth?.capo_ui_mode) return normalizeMode(fromAuth.capo_ui_mode);
+
+      // Fallback: RPC (can be empty in some contexts → do not trust blindly)
+      try {
+        const { data, error: rpcErr } = await supabase.rpc("core_current_profile");
+        if (rpcErr) throw rpcErr;
+        const p = (data || null) as ProfileLite | null;
+        if (p?.capo_ui_mode) return normalizeMode(p.capo_ui_mode);
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn("[CapoEntryRouter] core_current_profile fallback failed:", e);
+      }
+
+      // Default: simple
+      return "simple";
+    }
+
     async function load(): Promise<void> {
       try {
         setLoading(true);
         setError("");
 
-        // 1) Resolve profile → UI mode
-        const { data, error: rpcErr } = await supabase.rpc("core_current_profile");
-        if (rpcErr) throw rpcErr;
-
-        const p = (data || null) as Profile | null;
-        const m = String(p?.capo_ui_mode || "simple").toLowerCase();
-        const finalMode = (m === "rich" ? "rich" : "simple") as "simple" | "rich";
-
+        const finalMode = await resolveMode();
         if (!mounted) return;
+
         setMode(finalMode);
 
-        // 2) Rich flow: auto-open today's ship if unique
+        // ✅ RICH: first page = ship (auto if unique) -> module selector, never rapportino directly
         if (finalMode === "rich") {
           try {
             const { data: rows, error: shipErr } = await supabase
@@ -73,20 +96,16 @@ export default function CapoEntryRouter(): JSX.Element {
             if (shipErr) throw shipErr;
 
             const list = (Array.isArray(rows) ? rows : []) as ShipAssignment[];
-
             if (!mounted) return;
 
-            // ✅ If exactly one ship today → go straight to that ship's module selector
             if (list.length === 1 && list[0]?.ship_id) {
               nav(`/app/ship/${list[0].ship_id}`, { replace: true });
               return;
             }
 
-            // Otherwise (0 or >1) → open ship selector
             nav("/app/ship-selector", { replace: true });
             return;
           } catch (e) {
-            // If view/RLS not ready, fallback to ship selector.
             // eslint-disable-next-line no-console
             console.error("[CapoEntryRouter] rich ship auto-open failed:", e);
             if (!mounted) return;
@@ -94,22 +113,23 @@ export default function CapoEntryRouter(): JSX.Element {
             return;
           }
         }
+
+        // SIMPLE: render legacy flow below (no navigation here)
       } catch (e) {
         // eslint-disable-next-line no-console
         console.error("[CapoEntryRouter] load error:", e);
         if (!mounted) return;
-        setError("Impossibile caricare il profilo (core_current_profile).");
+        setError("Impossibile caricare il profilo CAPO.");
       } finally {
         if (mounted) setLoading(false);
       }
     }
 
     load();
-
     return () => {
       mounted = false;
     };
-  }, [nav, today]);
+  }, [nav, today, profile]);
 
   if (loading) {
     return (
