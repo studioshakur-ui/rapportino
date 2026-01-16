@@ -53,11 +53,12 @@ export default function CapoSimpleEntry(): JSX.Element {
         const list = (Array.isArray(rows) ? rows : []) as ShipAssignment[];
         setShips(list);
 
-        // ✅ DIRECT ENTRY: if only one ship, go straight to rapportino (no presence)
+        // ✅ DIRECT ENTRY: if only one ship, go to role selector first (no module selector in SIMPLE mode)
         if (list.length === 1 && list[0]?.ship_id) {
-          nav(`/app/ship/${list[0].ship_id}/rapportino`, { replace: true });
+          nav(`/app/ship/${list[0].ship_id}/rapportino/role`, { replace: true });
         }
       } catch (e) {
+        // eslint-disable-next-line no-console
         console.error("[CapoSimpleEntry] load error:", e);
         if (!mounted) return;
         setErr("Impossibile caricare le assegnazioni di oggi (verifica view/RLS).");
@@ -76,7 +77,9 @@ export default function CapoSimpleEntry(): JSX.Element {
   if (loading) {
     return (
       <div className="p-4">
-        <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-slate-200">Caricamento…</div>
+        <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-slate-200">
+          Caricamento…
+        </div>
       </div>
     );
   }
@@ -84,7 +87,9 @@ export default function CapoSimpleEntry(): JSX.Element {
   if (err) {
     return (
       <div className="p-4 space-y-3">
-        <div className="rounded-2xl border border-rose-400/40 bg-rose-500/10 p-4 text-rose-100">{err}</div>
+        <div className="rounded-2xl border border-rose-400/40 bg-rose-500/10 p-4 text-rose-100">
+          {err}
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
@@ -109,9 +114,13 @@ export default function CapoSimpleEntry(): JSX.Element {
     return (
       <div className="p-4">
         <div className="rounded-2xl border border-slate-800 bg-slate-950 p-5 text-slate-100 space-y-3">
-          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">CAPO · OGGI ({today})</div>
+          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">
+            CAPO · OGGI ({today})
+          </div>
           <div className="text-[16px] font-semibold">Nessuna assegnazione oggi</div>
-          <div className="text-[13px] text-slate-300">Contatta il tuo Manager per assegnare il cantiere.</div>
+          <div className="text-[13px] text-slate-300">
+            Contatta il tuo Manager per assegnare il cantiere.
+          </div>
           <div className="pt-1">
             <button
               type="button"
@@ -130,9 +139,13 @@ export default function CapoSimpleEntry(): JSX.Element {
   return (
     <div className="p-4 space-y-3">
       <div className="rounded-2xl border border-slate-800 bg-slate-950 p-5 text-slate-100 space-y-1">
-        <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">CAPO · OGGI ({today})</div>
+        <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">
+          CAPO · OGGI ({today})
+        </div>
         <div className="text-[16px] font-semibold">Seleziona il cantiere</div>
-        <div className="text-[12px] text-slate-400">Hai 2 assegnazioni. Scegli 1 ship per aprire il rapportino.</div>
+        <div className="text-[12px] text-slate-400">
+          Hai 2 assegnazioni. Scegli 1 ship per aprire il rapportino.
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-3">
@@ -140,7 +153,7 @@ export default function CapoSimpleEntry(): JSX.Element {
           <button
             key={s.ship_id}
             type="button"
-            onClick={() => nav(`/app/ship/${s.ship_id}/rapportino`)}
+            onClick={() => nav(`/app/ship/${s.ship_id}/rapportino/role`)}
             className={cn(
               "w-full text-left rounded-2xl border border-slate-800 bg-slate-950/60 p-4",
               "hover:bg-slate-900/40 active:scale-[0.99] transition"
