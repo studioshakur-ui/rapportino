@@ -1,4 +1,5 @@
-// /src/components/RapportinoPage.jsx
+// /src/components/RapportinoPage.tsx
+// @ts-nocheck
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useOutletContext, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
@@ -293,8 +294,13 @@ export default function RapportinoPage() {
 
   const {
     rapportinoId,
-    setRapportinoId,
-    setRapportinoCrewRole,
+    setRapportinoId: (nextId: any) => {
+          const v = nextId == null ? null : String(nextId);
+          savedRapportinoId = v;
+          // @ts-ignore
+          setRapportinoId(v);
+        },
+        setRapportinoCrewRole,
     costr,
     setCostr,
     commessa,
@@ -486,8 +492,8 @@ export default function RapportinoPage() {
     }
   };
 
-  const handleSave = async (forcedStatus) => {
-    if (!profile?.id) return false;
+  const handleSave = async (forcedStatus): Promise<string | null> => {
+    if (!profile?.id) return null;
 
     // HARD RULE: if validating and PRODOTTO is NULL/empty => NOTE is mandatory.
     if (forcedStatus === "VALIDATED_CAPO") {
@@ -515,9 +521,11 @@ export default function RapportinoPage() {
             (invalid.length > 5 ? `\n(+${invalid.length - 5} altre)` : ""),
         });
 
-        return false;
+        return null;
       }
     }
+
+    let savedRapportinoId: string | null = rapportinoId ? String(rapportinoId) : null;
 
     setSaving(true);
     setUiError(null);
@@ -536,13 +544,18 @@ export default function RapportinoPage() {
         prodottoTotale,
         rows: visibleRows, // save uniquement lignes avec description
         rapportinoId,
-        setRapportinoId,
+        setRapportinoId: (id) => {
+          try {
+            savedRapportinoId = id ? String(id) : savedRapportinoId;
+          } catch {}
+          setRapportinoId(id);
+        },
         setRapportinoCrewRole,
         setStatus,
         loadReturnedInbox,
         setSuccessMessage: (msg) => pushToast({ type: "success", message: msg || "Salvataggio riuscito." }),
       });
-      return true;
+      return savedRapportinoId;
     } catch (err) {
       console.error("Errore salvataggio rapportino:", err);
       setUiError("Errore durante il salvataggio del rapportino.");
@@ -552,7 +565,7 @@ export default function RapportinoPage() {
         message: "Errore durante il salvataggio del rapportino.",
         detail: err?.message || String(err),
       });
-      return false;
+      return null;
     } finally {
       setSaving(false);
     }
@@ -562,18 +575,17 @@ export default function RapportinoPage() {
     await handleSave("VALIDATED_CAPO");
   };
 
-  // Export: UNIQUEMENT la feuille rapport (rapportino-document)
+  // Export: ouverture de la feuille rapport (stampa) en route dédiée 1-page
   const handlePrint = async () => {
-    const ok = await handleSave(status);
-    if (!ok) return;
+    const savedId = await handleSave(status);
+    if (!savedId) return;
 
-    setTimeout(() => {
-      try {
-        window.print();
-      } catch (e) {
-        console.warn("Print failed:", e);
-      }
-    }, 120);
+    try {
+      const url = `/print/rapportino?id=${encodeURIComponent(savedId)}`;
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (e) {
+      console.warn("Open print route failed:", e);
+    }
   };
 
   // ────────────────────────────────────────────────────────────────

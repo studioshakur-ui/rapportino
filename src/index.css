@@ -77,7 +77,7 @@
 .rapportino-table td:nth-child(1) { width: 120px; }   /* CATEGORIA */
 
 .rapportino-table th:nth-child(2),
-.rapportino-table td:nth-child(2) { width: 220px; }   /* DESCRIZIONE (réduite) */
+.rapportino-table td:nth-child(2) { width: 220px; }   /* DESCRIZIONE */
 
 .rapportino-table th:nth-child(3),
 .rapportino-table td:nth-child(3) { width: 170px; }   /* OPERATORE */
@@ -107,12 +107,35 @@
 }
 
 /* =========================
-   PRINT — A4 LANDSCAPE
+   CORE PRINT: 1 page + signature
+   ========================= */
+.core-print-wrap {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.core-print-ml {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.core-print-ml-line {
+  line-height: 1.25;
+}
+
+.core-print-ml-nowrap .core-print-ml-line {
+  white-space: nowrap;
+}
+
+/* =========================
+   PRINT — A4 LANDSCAPE (1 page)
    ========================= */
 @media print {
+  /* Reserve a little more bottom margin for the fixed footer */
   @page {
     size: A4 landscape;
-    margin: 10mm;
+    margin: 8mm 8mm 14mm 8mm;
   }
 
   html, body {
@@ -191,5 +214,32 @@
   button, input, textarea, select {
     box-shadow: none !important;
     outline: none !important;
+  }
+
+  /* A4 landscape inner box (minus margins) */
+  .core-print-page {
+    /* approximate inner printable area: 297x210 minus margins (8+8 horizontal, 8+14 vertical) */
+    width: 281mm;
+    height: 188mm;
+    margin: 0 auto;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .core-print-scale {
+    transform-origin: top left;
+    transform: scale(var(--core-print-scale, 1));
+  }
+
+  .core-print-footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 4mm;
+    text-align: center;
+    font-size: 9px;
+    letter-spacing: 0.22em;
+    color: #64748b;
+    text-transform: uppercase;
   }
 }

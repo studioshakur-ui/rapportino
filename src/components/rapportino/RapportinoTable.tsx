@@ -46,8 +46,41 @@ type Props = {
   onDropOperatorToRow?: (rowIndex: number, dropped: DroppedOperator) => void;
 };
 
-function PrintText({ value }: { value: unknown }) {
-  return <div className="rapportino-print-text">{String(value ?? "")}</div>;
+function PrintText({ value, className }: { value: unknown; className?: string }) {
+  return <div className={cn("rapportino-print-text", className)}>{String(value ?? "")}</div>;
+}
+
+function PrintLines({
+  value,
+  numeric = false,
+  align = "left",
+  className,
+}: {
+  value: unknown;
+  numeric?: boolean;
+  align?: "left" | "center" | "right";
+  className?: string;
+}) {
+  const lines = splitLinesKeepEmpties(String(value ?? ""));
+
+  return (
+    <div
+      className={cn(
+        "rapportino-print-lines",
+        align === "center" && "text-center",
+        align === "right" && "text-right",
+        numeric && "rapportino-print-numeric",
+        className
+      )}
+    >
+      {lines.map((line, idx) => (
+        // Use NBSP to preserve row height when the line is intentionally blank
+        <div key={idx} className="rapportino-print-line">
+          {line ? line : "\u00A0"}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function cn(...parts: Array<string | false | null | undefined>) {
@@ -144,7 +177,7 @@ export default function RapportinoTable({
   return (
     <div className="mt-3">
       {/* ───────────────────────── MOBILE (md-) : cards ───────────────────────── */}
-      <div className="md:hidden space-y-3">
+      <div className="rapportino-mobile md:hidden space-y-3">
         {rows.map((r, idx) => {
           const isCanonical = canonicalByIdx[idx];
 
@@ -330,10 +363,6 @@ export default function RapportinoTable({
                           )}
                         </div>
                       </button>
-
-                      <div className="print-only">
-                        <PrintText value={r.operatori} />
-                      </div>
                     </>
                   ) : (
                     <>
@@ -368,9 +397,6 @@ export default function RapportinoTable({
                           }}
                         />
                       )}
-                      <div className="print-only">
-                        <PrintText value={r.operatori} />
-                      </div>
                     </>
                   )}
                 </div>
@@ -417,9 +443,7 @@ export default function RapportinoTable({
                     </div>
                   </div>
 
-                  <div className="print-only text-center">
-                    <PrintText value={r.tempo} />
-                  </div>
+                  {/* Print uses the desktop table layout; mobile cards are hidden in print. */}
                 </div>
 
                 {/* PREVISTO (LOCKED) */}
@@ -474,7 +498,7 @@ export default function RapportinoTable({
       </div>
 
       {/* ───────────────────────── DESKTOP (md+) : table ───────────────────────── */}
-      <div className="hidden md:block">
+      <div className="rapportino-desktop hidden md:block">
         <table className="rapportino-table text-[11px] w-full">
           <thead>
             <tr className="bg-slate-50">
@@ -661,7 +685,7 @@ export default function RapportinoTable({
                         </button>
 
                         <div className="print-only">
-                          <PrintText value={r.operatori} />
+                          <PrintLines value={r.operatori} />
                         </div>
                       </>
                     ) : (
@@ -698,7 +722,7 @@ export default function RapportinoTable({
                           />
                         )}
                         <div className="print-only">
-                          <PrintText value={r.operatori} />
+                          <PrintLines value={r.operatori} />
                         </div>
                       </>
                     )}
@@ -746,7 +770,7 @@ export default function RapportinoTable({
                     </div>
 
                     <div className="print-only text-center">
-                      <PrintText value={r.tempo} />
+                      <PrintLines value={r.tempo} numeric={true} align="center" />
                     </div>
                   </td>
 
