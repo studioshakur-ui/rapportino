@@ -1,5 +1,10 @@
 // src/capo/simple/CapoEntryRouter.tsx
-import { lazy, Suspense, useEffect, useState } from "react";
+// CAPO entry router:
+// - Detect profile UI mode (simple/rich)
+// - In RICH: auto-open today's ship (if exactly one assignment), otherwise ship selector
+// - In SIMPLE: render CapoSimpleEntry (legacy simplified flow)
+
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -9,6 +14,24 @@ type Profile = {
   capo_ui_mode?: "simple" | "rich" | string;
 };
 
+type ShipAssignment = {
+  plan_date: string; // YYYY-MM-DD
+  ship_id: string;
+  ship_code: string | null;
+  ship_name: string | null;
+  costr: string | null;
+  commessa: string | null;
+  position: number | null;
+};
+
+function localIsoDate(): string {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 const CapoSimpleEntry = lazy(() => import("./CapoSimpleEntry"));
 
 export default function CapoEntryRouter(): JSX.Element {
@@ -17,14 +40,17 @@ export default function CapoEntryRouter(): JSX.Element {
   const [mode, setMode] = useState<"simple" | "rich">("simple");
   const [error, setError] = useState<string>("");
 
+  const today = useMemo(() => localIsoDate(), []);
+
   useEffect(() => {
     let mounted = true;
 
-    async function load() {
+    async function load(): Promise<void> {
       try {
         setLoading(true);
         setError("");
 
+        // 1) Resolve profile → UI mode
         const { data, error: rpcErr } = await supabase.rpc("core_current_profile");
         if (rpcErr) throw rpcErr;
 
@@ -33,13 +59,43 @@ export default function CapoEntryRouter(): JSX.Element {
         const finalMode = (m === "rich" ? "rich" : "simple") as "simple" | "rich";
 
         if (!mounted) return;
-
         setMode(finalMode);
 
+        // 2) Rich flow: auto-open today's ship if unique
         if (finalMode === "rich") {
-          nav("/app/ship-selector", { replace: true });
+          try {
+            const { data: rows, error: shipErr } = await supabase
+              .from("capo_today_ship_assignments_v1")
+              .select("plan_date, ship_id, ship_code, ship_name, costr, commessa, position")
+              .eq("plan_date", today)
+              .order("position", { ascending: true });
+
+            if (shipErr) throw shipErr;
+
+            const list = (Array.isArray(rows) ? rows : []) as ShipAssignment[];
+
+            if (!mounted) return;
+
+            // ✅ If exactly one ship today → go straight to that ship's module selector
+            if (list.length === 1 && list[0]?.ship_id) {
+              nav(`/app/ship/${list[0].ship_id}`, { replace: true });
+              return;
+            }
+
+            // Otherwise (0 or >1) → open ship selector
+            nav("/app/ship-selector", { replace: true });
+            return;
+          } catch (e) {
+            // If view/RLS not ready, fallback to ship selector.
+            // eslint-disable-next-line no-console
+            console.error("[CapoEntryRouter] rich ship auto-open failed:", e);
+            if (!mounted) return;
+            nav("/app/ship-selector", { replace: true });
+            return;
+          }
         }
       } catch (e) {
+        // eslint-disable-next-line no-console
         console.error("[CapoEntryRouter] load error:", e);
         if (!mounted) return;
         setError("Impossibile caricare il profilo (core_current_profile).");
@@ -53,12 +109,14 @@ export default function CapoEntryRouter(): JSX.Element {
     return () => {
       mounted = false;
     };
-  }, [nav]);
+  }, [nav, today]);
 
   if (loading) {
     return (
       <div className="p-4">
-        <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-slate-200">Caricamento…</div>
+        <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-slate-200">
+          Caricamento…
+        </div>
       </div>
     );
   }
@@ -66,7 +124,9 @@ export default function CapoEntryRouter(): JSX.Element {
   if (error) {
     return (
       <div className="p-4 space-y-3">
-        <div className="rounded-2xl border border-rose-400/40 bg-rose-500/10 p-4 text-rose-100">{error}</div>
+        <div className="rounded-2xl border border-rose-400/40 bg-rose-500/10 p-4 text-rose-100">
+          {error}
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
@@ -87,19 +147,25 @@ export default function CapoEntryRouter(): JSX.Element {
     );
   }
 
+  // Rich mode navigates away inside the effect
   if (mode === "rich") {
     return (
       <div className="p-4">
-        <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-slate-200">Reindirizzamento…</div>
+        <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-slate-200">
+          Reindirizzamento…
+        </div>
       </div>
     );
   }
 
+  // Simple mode: legacy simplified flow
   return (
     <Suspense
       fallback={
         <div className="p-4">
-          <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-slate-200">Caricamento…</div>
+          <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-slate-200">
+            Caricamento…
+          </div>
         </div>
       }
     >
