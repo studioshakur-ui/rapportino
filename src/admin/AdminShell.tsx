@@ -1,250 +1,158 @@
 // src/admin/AdminShell.tsx
 import React, { useMemo, useState } from "react";
-import { NavLink, Outlet, useLocation, Navigate } from "react-router-dom";
-import ConnectionIndicator from "../components/ConnectionIndicator";
-import { useAuth } from "../auth/AuthProvider";
+import { Link, Outlet, useLocation } from "react-router-dom";
 
-function cn(...p: Array<string | false | null | undefined>): string {
-  return p.filter(Boolean).join(" ");
-}
+type Lang = "it" | "fr" | "en";
 
-type ItemProps = {
-  to: string;
-  label: string;
-  icon: React.ReactNode;
-  end?: boolean;
+type OutletCtx = {
+  lang: Lang;
+  setLang: React.Dispatch<React.SetStateAction<Lang>>;
 };
 
-function Item({ to, label, icon, end }: ItemProps): JSX.Element {
-  const location = useLocation();
-  const active = end
-    ? location.pathname === to || location.pathname === `${to}/`
-    : location.pathname === to || location.pathname.startsWith(to + "/");
+function cn(...parts: Array<string | false | null | undefined>): string {
+  return parts.filter(Boolean).join(" ");
+}
 
-  const cls = cn(
-    "w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm border transition-colors",
+function itemClass(active: boolean): string {
+  return cn(
+    "group flex items-center gap-2 rounded-xl border px-3 py-2 text-[13px]",
     active
-      ? "bg-sky-500/12 border-sky-500/55 text-slate-100"
-      : "bg-slate-950/20 border-slate-800 text-slate-300 hover:bg-slate-900/35"
-  );
-
-  return (
-    <NavLink to={to} end={Boolean(end)} className={cls} title={label}>
-      <span className="text-slate-300">{icon}</span>
-      <span>{label}</span>
-    </NavLink>
+      ? "border-sky-400/45 bg-slate-50/10 text-slate-50"
+      : "border-slate-800 bg-slate-950/60 text-slate-200 hover:bg-slate-900/35",
+    "transition-colors"
   );
 }
 
-function IconUsers(): JSX.Element {
-  return (
-    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
-      <path d="M16 11a4 4 0 1 0-8 0" stroke="currentColor" />
-      <path d="M4 21c0-4 4-6 8-6s8 2 8 6" stroke="currentColor" />
-    </svg>
+function pill(): string {
+  return cn(
+    "inline-flex items-center rounded-full border px-2.5 py-1",
+    "text-[11px] font-extrabold tracking-[0.16em]",
+    "border-slate-700 bg-slate-950/70 text-slate-200"
   );
 }
 
-function IconWorkers(): JSX.Element {
+function SectionTitle({ kicker, title }: { kicker: string; title: string }): JSX.Element {
   return (
-    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
-      <path d="M7 20v-2a5 5 0 0 1 10 0v2" stroke="currentColor" />
-      <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z" stroke="currentColor" />
-      <path d="M4 20h16" stroke="currentColor" />
-    </svg>
+    <div className="min-w-0">
+      <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">{kicker}</div>
+      <div className="mt-1 text-[14px] font-semibold text-slate-50 truncate">{title}</div>
+    </div>
   );
 }
 
-function IconCalendar(): JSX.Element {
-  return (
-    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
-      <rect x="4" y="5" width="16" height="16" rx="2" stroke="currentColor" />
-      <path d="M8 3v4M16 3v4" stroke="currentColor" />
-      <path d="M4 9h16" stroke="currentColor" />
-    </svg>
-  );
-}
-
-function IconLink(): JSX.Element {
-  return (
-    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
-      <path d="M10 13a5 5 0 0 1 0-7l1-1a5 5 0 0 1 7 7l-1 1" stroke="currentColor" />
-      <path d="M14 11a5 5 0 0 1 0 7l-1 1a5 5 0 0 1-7-7l1-1" stroke="currentColor" />
-    </svg>
-  );
-}
-
-function IconHistory(): JSX.Element {
-  return (
-    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
-      <path d="M12 8v5l3 2" stroke="currentColor" />
-      <path d="M3 12a9 9 0 1 0 3-6.7" stroke="currentColor" />
-      <path d="M3 4v4h4" stroke="currentColor" />
-    </svg>
-  );
-}
-
-function IconCatalog(): JSX.Element {
-  return (
-    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
-      <path
-        d="M7 4h10a2 2 0 0 1 2 2v14H7a2 2 0 0 0-2 2V6a2 2 0 0 1 2-2Z"
-        stroke="currentColor"
-      />
-      <path d="M7 4v16" stroke="currentColor" />
-      <path d="M10 8h7" stroke="currentColor" />
-      <path d="M10 12h7" stroke="currentColor" />
-      <path d="M10 16h7" stroke="currentColor" />
-    </svg>
-  );
-}
-
-function IconDrive(): JSX.Element {
-  return (
-    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
-      <path d="M4 7h16" stroke="currentColor" />
-      <path d="M4 7l2-3h12l2 3" stroke="currentColor" />
-      <rect x="4" y="7" width="16" height="13" rx="2" stroke="currentColor" />
-      <path d="M9 12h6" stroke="currentColor" />
-    </svg>
-  );
-}
-
-function IconPerimeters(): JSX.Element {
-  return (
-    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
-      <path d="M4 7h7" stroke="currentColor" />
-      <path d="M4 17h7" stroke="currentColor" />
-      <path d="M13 6l7 6-7 6" stroke="currentColor" />
-      <path d="M11 12h9" stroke="currentColor" />
-    </svg>
-  );
+function menuItems(pathname: string) {
+  const is = (p: string) => pathname.startsWith(p);
+  return [
+    { to: "/admin/users", label: "Utenti", active: is("/admin/users") },
+    { to: "/admin/operators", label: "Operatori", active: is("/admin/operators") },
+    // ✅ Perimetri (ship_managers + ship_operators)
+    { to: "/admin/perimetri", label: "Perimetri", active: is("/admin/perimetri") },
+    { to: "/admin/catalogo", label: "Catalogo", active: is("/admin/catalogo") },
+    { to: "/admin/planning", label: "Planning (overview)", active: is("/admin/planning") },
+    { to: "/admin/assignments", label: "Manager ↔ Capo", active: is("/admin/assignments") },
+    { to: "/admin/audit", label: "Audit planning", active: is("/admin/audit") },
+    { to: "/admin/core-drive", label: "CORE Drive", active: is("/admin/core-drive") || is("/admin/archive") },
+  ];
 }
 
 export default function AdminShell(): JSX.Element {
-  const { profile, signOut } = useAuth();
-  const [collapsed, setCollapsed] = useState<boolean>(false);
-
-  const displayName = useMemo(() => {
-    const p = profile as any;
-    return p?.display_name || p?.full_name || p?.email || "Admin";
-  }, [profile]);
-
-  const handleLogout = async (): Promise<void> => {
-    try {
-      await signOut();
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error("Admin logout error:", e);
-    } finally {
-      window.location.href = "/login";
-    }
-  };
-
   const location = useLocation();
-  const isBareAdmin = location.pathname === "/admin" || location.pathname === "/admin/";
-  if (isBareAdmin) return <Navigate to="/admin/users" replace />;
+  const [lang, setLang] = useState<Lang>("it");
+
+  const items = useMemo(() => menuItems(location.pathname), [location.pathname]);
+
+  const outletCtx: OutletCtx = useMemo(
+    () => ({ lang, setLang }),
+    [lang]
+  );
 
   return (
-    <div className="min-h-screen bg-[#050910] text-slate-100">
-      <div className="flex">
-        {/* Sidebar */}
-        <aside
-          className={cn(
-            "no-print sticky top-0 h-screen border-r border-slate-800 bg-[#050910] flex flex-col",
-            collapsed ? "w-[92px] px-2 py-4" : "w-72 px-3 py-4",
-            "transition-[width] duration-200"
-          )}
-        >
-          <div className="rounded-2xl border border-slate-800 bg-slate-950/20 p-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="h-9 w-9 rounded-xl border border-slate-800 bg-slate-950/30" />
-                {!collapsed ? (
+    <div className="min-h-screen bg-[#050910] text-slate-50">
+      <div className="mx-auto max-w-7xl px-4 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          {/* Sidebar */}
+          <aside className="lg:col-span-3">
+            <div className="rounded-2xl border border-slate-800 bg-slate-950 shadow-[0_10px_40px_rgba(0,0,0,0.35)]">
+              <div className="p-4 border-b border-slate-800">
+                <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="text-[11px] uppercase tracking-[0.24em] text-slate-500">CNCS</div>
-                    <div className="text-sm font-semibold truncate">ADMIN</div>
+                    <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">CNCS</div>
+                    <div className="mt-1 text-[16px] font-semibold text-slate-50">ADMIN</div>
                   </div>
-                ) : null}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setCollapsed((v) => !v)}
-                className="rounded-xl border border-slate-800 bg-slate-950/20 hover:bg-slate-900/35 text-slate-300 px-2 py-2"
-                title={collapsed ? "Espandi menu" : "Riduci menu"}
-              >
-                {collapsed ? "›" : "‹"}
-              </button>
-            </div>
-
-            <div className="mt-3 flex items-center justify-between gap-2">
-              {!collapsed ? (
-                <div className="min-w-0">
-                  <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Profilo</div>
-                  <div className="text-sm font-semibold truncate">{displayName}</div>
+                  <span className={pill()}>Console Admin</span>
                 </div>
-              ) : null}
-              <ConnectionIndicator compact />
-            </div>
-          </div>
 
-          <nav className={cn("mt-3 space-y-2", collapsed ? "px-0" : "px-1")}>
-            <Item to="/admin/users" label={collapsed ? "" : "Utenti"} icon={<IconUsers />} end />
-            <Item to="/admin/operators" label={collapsed ? "" : "Operatori"} icon={<IconWorkers />} />
-
-            {/* ✅ NEW: Perimetri */}
-            <Item to="/admin/perimetri" label={collapsed ? "" : "Perimetri"} icon={<IconPerimeters />} />
-
-            <Item to="/admin/catalogo" label={collapsed ? "" : "Catalogo"} icon={<IconCatalog />} />
-            <Item to="/admin/planning" label={collapsed ? "" : "Planning (overview)"} icon={<IconCalendar />} />
-            <Item to="/admin/assignments" label={collapsed ? "" : "Manager ↔ Capo"} icon={<IconLink />} />
-            <Item to="/admin/audit" label={collapsed ? "" : "Audit planning"} icon={<IconHistory />} />
-            <Item to="/admin/core-drive" label={collapsed ? "" : "CORE Drive"} icon={<IconDrive />} />
-          </nav>
-
-          <div className="mt-auto pt-4 border-t border-slate-800 text-[10px] text-slate-600">
-            <div>CORE · Admin Console</div>
-          </div>
-        </aside>
-
-        {/* Main */}
-        <main className="flex-1 px-4 sm:px-6 py-6">
-          <header className="no-print sticky top-0 z-30 rounded-2xl border border-slate-800 bg-[#050910]/70 backdrop-blur px-3 py-2">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500 truncate">
-                  ADMIN · CNCS / CORE
+                <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/60 px-3 py-2">
+                  <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">Profilo</div>
+                  <div className="mt-1 flex items-center justify-between gap-2">
+                    <div className="text-[13px] font-semibold text-slate-50 truncate">admin@core.com</div>
+                    <div className="h-2 w-2 rounded-full bg-emerald-400" title="Online" />
+                  </div>
                 </div>
-                <div className="text-sm font-semibold truncate">Console Admin</div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <span
-                  className="hidden sm:inline-flex max-w-[260px] truncate rounded-full border px-3 py-2 text-[11px] uppercase tracking-[0.18em] border-slate-800 bg-slate-950/20 text-slate-200"
-                  title={displayName}
-                >
-                  {displayName}
-                </span>
+              <nav className="p-3 space-y-2">
+                {items.map((it) => (
+                  <Link key={it.to} to={it.to} className={itemClass(it.active)}>
+                    <span className="h-2 w-2 rounded-full bg-slate-700 group-hover:bg-slate-600" />
+                    <span className="truncate">{it.label}</span>
+                  </Link>
+                ))}
+              </nav>
+            </div>
+          </aside>
 
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="inline-flex items-center gap-2 rounded-full border border-rose-500/40 bg-rose-950/20 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-rose-200 hover:bg-rose-900/25 transition"
-                  title="Logout"
-                  aria-label="Logout"
-                >
-                  <span className="h-1.5 w-1.5 rounded-full bg-rose-400" />
-                  Logout
-                </button>
+          {/* Content */}
+          <main className="lg:col-span-9">
+            <div className="rounded-2xl border border-slate-800 bg-slate-950 shadow-[0_10px_40px_rgba(0,0,0,0.35)]">
+              <div className="p-4 border-b border-slate-800">
+                <div className="flex items-start justify-between gap-3">
+                  <SectionTitle kicker="ADMIN · CNCS / CORE" title="Console Admin" />
+
+                  <div className="flex items-center gap-2">
+                    <div className="inline-flex items-center rounded-full border border-slate-800 bg-slate-950/60 px-3 py-2">
+                      <div className="text-[12px] text-slate-200">ADMIN@CORE.COM</div>
+                    </div>
+
+                    <div className="inline-flex items-center gap-1 rounded-full border border-slate-800 bg-slate-950/60 p-1">
+                      {(["it", "fr", "en"] as const).map((l) => (
+                        <button
+                          key={l}
+                          type="button"
+                          onClick={() => setLang(l)}
+                          className={cn(
+                            "rounded-full px-2.5 py-1 text-[12px] font-semibold",
+                            l === lang
+                              ? "bg-slate-50/10 text-slate-50 border border-slate-700"
+                              : "text-slate-300 hover:bg-slate-900/35"
+                          )}
+                        >
+                          {l.toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      className={cn(
+                        "inline-flex items-center rounded-full border px-3 py-2",
+                        "text-[12px] font-semibold",
+                        "border-rose-400/45 bg-rose-500/10 text-rose-100 hover:bg-rose-500/15"
+                      )}
+                      title="Logout"
+                    >
+                      LOGOUT
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4">
+                <Outlet context={outletCtx} />
               </div>
             </div>
-          </header>
-
-          <div className="max-w-6xl mx-auto space-y-4 pt-4">
-            <Outlet />
-          </div>
-        </main>
+          </main>
+        </div>
       </div>
     </div>
   );
