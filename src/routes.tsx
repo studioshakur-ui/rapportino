@@ -16,7 +16,7 @@ import UfficioShell from "./shells/UfficioShell";
 import DirectionShell from "./shells/DirectionShell";
 import ManagerShell from "./shells/ManagerShell";
 // IMPORTANT: explicit extension to avoid resolving the legacy AdminShell.jsx
-import AdminShell from "./admin/AdminShell.tsx";
+import AdminShell from "./admin/AdminShell";
 
 // CAPO
 import RapportinoPage from "./components/RapportinoPage";
@@ -39,7 +39,7 @@ import AdminPlanningPage from "./admin/AdminPlanningPage";
 import AdminAssignmentsPage from "./admin/AdminAssignmentsPage";
 import AdminAuditPage from "./admin/AdminAuditPage";
 // IMPORTANT: explicit extension to avoid resolving the legacy AdminPerimetersPage.jsx
-import AdminPerimetersPage from "./admin/AdminPerimetersPage.tsx";
+import AdminPerimetersPage from "./admin/AdminPerimetersPage";
 
 // UFFICIO
 import UfficioRapportiniList from "./ufficio/UfficioRapportiniList";
@@ -174,9 +174,23 @@ export default function AppRoutes(): JSX.Element {
         }
       >
         <Route index element={<ManagerDashboard />} />
+
+        {/* Canonical routes (existing) */}
         <Route path="assignments" element={<ManagerAssignments />} />
         <Route path="capi-cantieri" element={<ManagerCapoShipPlanning isDark={true} />} />
         <Route path="core-drive" element={<ArchivePage />} />
+
+        {/* ✅ Aliases to match Manager menu links (your screenshot) */}
+        <Route path="assegnazioni" element={<ManagerAssignments />} />
+        <Route path="drive" element={<ArchivePage />} />
+
+        {/* If menu exposes Analytics but page not ready: safe fallback */}
+        <Route path="analytics" element={<Navigate to="." replace />} />
+
+        {/* KPI Operatori in Manager sidebar (reuse KPI page) */}
+        <Route path="kpi-operatori" element={<CapoOperatorKpi isDark={true} />} />
+
+        {/* Existing alias */}
         <Route path="archive" element={<Navigate to="../core-drive" replace />} />
       </Route>
 

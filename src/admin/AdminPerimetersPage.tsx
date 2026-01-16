@@ -1,6 +1,5 @@
 // src/admin/AdminPerimetersPage.tsx
 import React, { useEffect, useMemo, useState } from "react";
-
 import { supabase } from "../lib/supabaseClient";
 import ImportOperatorsExcel from "./ImportOperatorsExcel";
 import { getInitialLang, t } from "../i18n/coreI18n";
@@ -8,10 +7,6 @@ import { getInitialLang, t } from "../i18n/coreI18n";
 function safeText(v: unknown): string {
   if (v === null || v === undefined) return "";
   return String(v);
-}
-
-function normName(v: unknown): string {
-  return safeText(v).trim().replace(/\s+/g, " ");
 }
 
 function cn(...parts: Array<string | false | null | undefined>): string {
@@ -36,12 +31,30 @@ type ManagerRow = {
 
 type OperatorRow = {
   id: string;
-  name: string | null;
+  display: string; // cognome nome
+  cognome: string | null;
+  nome: string | null;
+  birth_date: string | null;
   roles: string[];
   active: boolean;
 };
 
+type OperatorSearchRow = {
+  id: string;
+  cognome: string | null;
+  nome: string | null;
+  birth_date: string | null;
+  roles: unknown;
+};
+
 type InlineMsg = { ok: boolean; text: string };
+
+function operatorDisplay(cognome: unknown, nome: unknown): string {
+  const c = safeText(cognome).trim();
+  const n = safeText(nome).trim();
+  const full = `${c} ${n}`.trim();
+  return full || "—";
+}
 
 export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolean }): JSX.Element {
   const lang = getInitialLang();
@@ -77,14 +90,17 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
   const [loadingOperators, setLoadingOperators] = useState<boolean>(false);
   const [operatorsError, setOperatorsError] = useState<string | null>(null);
 
-  const [addName, setAddName] = useState<string>("");
-  const [addRole, setAddRole] = useState<string>("");
-  const [adding, setAdding] = useState<boolean>(false);
-  const [addMsg, setAddMsg] = useState<InlineMsg | null>(null);
+  // Operator search + link (NEW)
+  const [opQuery, setOpQuery] = useState<string>("");
+  const [opSearching, setOpSearching] = useState<boolean>(false);
+  const [opResults, setOpResults] = useState<OperatorSearchRow[]>([]);
+  const [selectedOperatorId, setSelectedOperatorId] = useState<string>("");
+  const [linkingOperator, setLinkingOperator] = useState<boolean>(false);
+  const [opMsg, setOpMsg] = useState<InlineMsg | null>(null);
 
   // ----- Loaders -----
 
-  const loadShips = async (): Promise<void> => {
+  async function loadShips(): Promise<void> {
     setLoadingShips(true);
     setShipsError(null);
 
@@ -98,7 +114,6 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
 
       const list = (Array.isArray(data) ? data : []) as ShipRow[];
 
-      // active first (nice UX)
       const sorted = [...list].sort((a, b) => {
         const aa = a?.is_active ? 0 : 1;
         const bb = b?.is_active ? 0 : 1;
@@ -107,13 +122,13 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
 
       setShips(sorted);
 
-      // keep selection if still exists, else pick first active/first
       const stillExists = sorted.some((s) => s.id === selectedShipId);
       if (!stillExists) {
         const firstActive = sorted.find((s) => s.is_active) || sorted[0];
         setSelectedShipId(firstActive?.id || "");
       }
     } catch (err: unknown) {
+      // eslint-disable-next-line no-console
       console.error("[AdminPerimetersPage] loadShips error:", err);
       const msg =
         typeof err === "object" && err && "message" in err
@@ -123,9 +138,9 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
     } finally {
       setLoadingShips(false);
     }
-  };
+  }
 
-  const loadManagersByShip = async (shipId: string): Promise<void> => {
+  async function loadManagersByShip(shipId: string): Promise<void> {
     setLoadingManagers(true);
     setManagersError(null);
     setManagers([]);
@@ -181,6 +196,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
 
       setManagers(mapped);
     } catch (err: unknown) {
+      // eslint-disable-next-line no-console
       console.error("[AdminPerimetersPage] loadManagers error:", err);
       const msg =
         typeof err === "object" && err && "message" in err
@@ -190,9 +206,9 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
     } finally {
       setLoadingManagers(false);
     }
-  };
+  }
 
-  const loadOperatorsByShip = async (shipId: string): Promise<void> => {
+  async function loadOperatorsByShip(shipId: string): Promise<void> {
     setLoadingOperators(true);
     setOperatorsError(null);
     setOperators([]);
@@ -211,36 +227,51 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
           active,
           operators:operators (
             id,
-            name,
+            cognome,
+            nome,
+            birth_date,
             roles
           )
         `
         )
-        .eq("ship_id", shipId)
-        .order("operators(name)", { ascending: true });
+        .eq("ship_id", shipId);
 
       if (error) throw error;
 
       const rows = (Array.isArray(data) ? data : []) as Array<{
         active?: boolean | null;
-        operators?: { id?: string; name?: string | null; roles?: unknown } | null;
+        operators?: {
+          id?: string;
+          cognome?: string | null;
+          nome?: string | null;
+          birth_date?: string | null;
+          roles?: unknown;
+        } | null;
       }>;
 
       const mapped = rows
         .map((r) => {
           const op = r.operators;
           if (!op?.id) return null;
+
+          const rolesArr = Array.isArray(op.roles) ? (op.roles as string[]) : [];
+
           return {
             id: op.id,
-            name: op.name ?? null,
-            roles: Array.isArray(op.roles) ? (op.roles as string[]) : [],
+            cognome: op.cognome ?? null,
+            nome: op.nome ?? null,
+            birth_date: op.birth_date ?? null,
+            display: operatorDisplay(op.cognome, op.nome),
+            roles: rolesArr,
             active: Boolean(r.active),
           } satisfies OperatorRow;
         })
         .filter(Boolean) as OperatorRow[];
 
+      mapped.sort((a, b) => a.display.localeCompare(b.display));
       setOperators(mapped);
     } catch (err: unknown) {
+      // eslint-disable-next-line no-console
       console.error("[AdminPerimetersPage] loadOperators error:", err);
       const msg =
         typeof err === "object" && err && "message" in err
@@ -250,11 +281,50 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
     } finally {
       setLoadingOperators(false);
     }
-  };
+  }
+
+  async function searchOperators(q: string): Promise<void> {
+    const shipId = selectedShipId;
+    const query = safeText(q).trim();
+
+    setOpMsg(null);
+    setSelectedOperatorId("");
+
+    if (!shipId || query.length < 2) {
+      setOpResults([]);
+      return;
+    }
+
+    setOpSearching(true);
+    try {
+      // Search by cognome OR nome (ilike). Limit to 20.
+      const { data, error } = await supabase
+        .from("operators")
+        .select("id, cognome, nome, birth_date, roles")
+        .or(`cognome.ilike.%${query}%,nome.ilike.%${query}%`)
+        .limit(20);
+
+      if (error) throw error;
+
+      const rows = (Array.isArray(data) ? data : []) as OperatorSearchRow[];
+      setOpResults(rows);
+    } catch (err: unknown) {
+      // eslint-disable-next-line no-console
+      console.error("[AdminPerimetersPage] searchOperators error:", err);
+      const msg =
+        typeof err === "object" && err && "message" in err
+          ? String((err as { message?: unknown }).message || "")
+          : "";
+      setOpMsg({ ok: false, text: msg || "Errore ricerca operatore." });
+      setOpResults([]);
+    } finally {
+      setOpSearching(false);
+    }
+  }
 
   // ----- Actions -----
 
-  const addManager = async (): Promise<void> => {
+  async function addManager(): Promise<void> {
     const shipId = selectedShipId;
     const email = safeText(addManagerEmail).trim().toLowerCase();
     if (!shipId || !email || addingManager) return;
@@ -272,18 +342,11 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
       if (pErr) throw pErr;
 
       const p = (Array.isArray(pRows) ? pRows[0] : null) as
-        | {
-            id?: string;
-            email?: string | null;
-            app_role?: string | null;
-            display_name?: string | null;
-            full_name?: string | null;
-          }
+        | { id?: string; email?: string | null; app_role?: string | null }
         | null;
 
       if (!p?.id) throw new Error("Utente non trovato (email).");
 
-      // Guard: only MANAGER role should be assigned as manager
       if (String(p.app_role || "").toUpperCase() !== "MANAGER") {
         throw new Error(`Ruolo non valido: ${p.app_role}. Serve app_role=MANAGER.`);
       }
@@ -298,6 +361,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
       setAddManagerEmail("");
       await loadManagersByShip(shipId);
     } catch (err: unknown) {
+      // eslint-disable-next-line no-console
       console.error("[AdminPerimetersPage] addManager error:", err);
       const msg =
         typeof err === "object" && err && "message" in err
@@ -307,9 +371,9 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
     } finally {
       setAddingManager(false);
     }
-  };
+  }
 
-  const removeManager = async (managerId: string): Promise<void> => {
+  async function removeManager(managerId: string): Promise<void> {
     const shipId = selectedShipId;
     if (!shipId || !managerId) return;
 
@@ -327,6 +391,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
       setManagerMsg({ ok: true, text: "Manager rimosso." });
       await loadManagersByShip(shipId);
     } catch (err: unknown) {
+      // eslint-disable-next-line no-console
       console.error("[AdminPerimetersPage] removeManager error:", err);
       const msg =
         typeof err === "object" && err && "message" in err
@@ -334,54 +399,44 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
           : "";
       setManagerMsg({ ok: false, text: msg || "Errore durante la rimozione." });
     }
-  };
+  }
 
-  const addOperatorInline = async (): Promise<void> => {
+  async function linkSelectedOperator(): Promise<void> {
     const shipId = selectedShipId;
-    const name = normName(addName);
-    const role = normName(addRole);
+    const operatorId = safeText(selectedOperatorId).trim();
+    if (!shipId || !operatorId || linkingOperator) return;
 
-    if (!shipId || !name || adding) return;
-
-    setAdding(true);
-    setAddMsg(null);
+    setLinkingOperator(true);
+    setOpMsg(null);
 
     try {
-      // 1) Upsert operator by name (name expected UNIQUE)
-      const { data: opRows, error: opErr } = await supabase
-        .from("operators")
-        .upsert([{ name, roles: role ? [role] : [] }], { onConflict: "name" })
-        .select("id,name");
-
-      if (opErr) throw opErr;
-
-      const op = (Array.isArray(opRows) ? opRows[0] : null) as { id?: string; name?: string } | null;
-      if (!op?.id) throw new Error("Creazione operaio fallita.");
-
-      // 2) Link to ship
-      const { error: linkErr } = await supabase
+      const { error } = await supabase
         .from("ship_operators")
-        .upsert([{ ship_id: shipId, operator_id: op.id, active: true }], { onConflict: "ship_id,operator_id" });
+        .upsert([{ ship_id: shipId, operator_id: operatorId, active: true }], {
+          onConflict: "ship_id,operator_id",
+        });
 
-      if (linkErr) throw linkErr;
+      if (error) throw error;
 
-      setAddMsg({ ok: true, text: `Operaio aggiunto: ${op.name || name}` });
-      setAddName("");
-      setAddRole("");
+      setOpMsg({ ok: true, text: "Operatore collegato al cantiere." });
+      setSelectedOperatorId("");
+      setOpResults([]);
+      setOpQuery("");
       await loadOperatorsByShip(shipId);
     } catch (err: unknown) {
-      console.error("[AdminPerimetersPage] addOperatorInline error:", err);
+      // eslint-disable-next-line no-console
+      console.error("[AdminPerimetersPage] linkSelectedOperator error:", err);
       const msg =
         typeof err === "object" && err && "message" in err
           ? String((err as { message?: unknown }).message || "")
           : "";
-      setAddMsg({ ok: false, text: msg || "Errore durante l'aggiunta." });
+      setOpMsg({ ok: false, text: msg || "Errore collegamento operatore." });
     } finally {
-      setAdding(false);
+      setLinkingOperator(false);
     }
-  };
+  }
 
-  const toggleOperatorActive = async (operatorId: string, nextActive: boolean): Promise<void> => {
+  async function toggleOperatorActive(operatorId: string, nextActive: boolean): Promise<void> {
     const shipId = selectedShipId;
     if (!shipId || !operatorId) return;
 
@@ -395,6 +450,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
       if (error) throw error;
       await loadOperatorsByShip(shipId);
     } catch (err: unknown) {
+      // eslint-disable-next-line no-console
       console.error("[AdminPerimetersPage] toggleOperatorActive error:", err);
       const msg =
         typeof err === "object" && err && "message" in err
@@ -402,7 +458,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
           : "";
       setOperatorsError(msg || "Errore aggiornamento stato operaio.");
     }
-  };
+  }
 
   // ----- Effects -----
 
@@ -424,11 +480,24 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
       if (!alive) return;
       await loadManagersByShip(selectedShipId);
       await loadOperatorsByShip(selectedShipId);
+      setOpQuery("");
+      setOpResults([]);
+      setSelectedOperatorId("");
+      setOpMsg(null);
     })();
     return () => {
       alive = false;
     };
   }, [selectedShipId]);
+
+  // Debounced operator search
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      void searchOperators(opQuery);
+    }, 250);
+    return () => window.clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opQuery, selectedShipId]);
 
   const cardBase = cn(
     "rounded-2xl border p-3 sm:p-4",
@@ -603,7 +672,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
         </section>
       ) : null}
 
-      {/* IMPORT OPERATORS (same as Manager) */}
+      {/* IMPORT OPERATORS */}
       {selectedShipId ? (
         <div className="mx-3 sm:mx-4">
           <ImportOperatorsExcel
@@ -615,14 +684,17 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
         </div>
       ) : null}
 
-      {/* ADD SINGLE OPERATOR */}
+      {/* LINK OPERATOR (NEW) */}
       {selectedShipId ? (
         <section className={cn(cardBase, "mx-3 sm:mx-4")}>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">{t(lang, "PERIM_ADD_OP")}</div>
-              <div className="text-sm font-medium text-slate-100">{t(lang, "PERIM_ADD_OP_TITLE")}</div>
-              <div className="text-xs text-slate-400 mt-1">{t(lang, "PERIM_ADD_OP_HINT")}</div>
+              <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Perimetri · Link Operatore</div>
+              <div className="text-sm font-medium text-slate-100">Collega un operatore esistente al cantiere</div>
+              <div className="text-xs text-slate-400 mt-1">
+                Creazione identità: <span className="text-slate-200">Admin → Operatori</span>. Qui fai solo il link in{" "}
+                <span className="text-slate-200">ship_operators</span>.
+              </div>
             </div>
             <div className="text-[11px] text-slate-500 text-right">
               <div className="uppercase tracking-[0.18em] text-slate-600">Scope</div>
@@ -630,55 +702,82 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
             </div>
           </div>
 
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-[1fr_220px_auto] gap-2 items-end">
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-end">
             <div>
               <label className="block text-[10px] uppercase tracking-[0.16em] text-slate-500 mb-1">
-                {t(lang, "PERIM_OP_NAME")}
+                Cerca operatore (min 2 caratteri)
               </label>
               <input
-                value={addName}
-                onChange={(e) => setAddName(e.target.value)}
-                placeholder="Es. Rossi Marco"
+                value={opQuery}
+                onChange={(e) => setOpQuery(e.target.value)}
+                placeholder="Es. Belal / Hossain / Rossi / Marco"
                 className="h-9 w-full rounded-xl border border-slate-800 bg-slate-950 px-2.5 text-sm text-slate-100"
               />
-            </div>
-
-            <div>
-              <label className="block text-[10px] uppercase tracking-[0.16em] text-slate-500 mb-1">
-                {t(lang, "PERIM_OP_ROLE")}
-              </label>
-              <input
-                value={addRole}
-                onChange={(e) => setAddRole(e.target.value)}
-                placeholder="Es. ELETTRICISTA"
-                className="h-9 w-full rounded-xl border border-slate-800 bg-slate-950 px-2.5 text-sm text-slate-100"
-              />
+              {opSearching ? <div className="mt-1 text-[11px] text-slate-500">Ricerca…</div> : null}
             </div>
 
             <button
               type="button"
-              onClick={addOperatorInline}
-              disabled={adding || !normName(addName)}
+              onClick={linkSelectedOperator}
+              disabled={linkingOperator || !safeText(selectedOperatorId).trim()}
               className={cn(
                 "h-9 px-3 rounded-xl border text-xs font-medium",
                 "border-slate-700 text-slate-100 hover:bg-slate-900/60",
                 "disabled:opacity-50 disabled:cursor-not-allowed"
               )}
             >
-              {adding ? t(lang, "PERIM_LOADING") : t(lang, "PERIM_ADD")}
+              {linkingOperator ? "Link…" : "Link"}
             </button>
           </div>
 
-          {addMsg ? (
+          {opMsg ? (
             <div
               className={cn(
                 "mt-3 rounded-xl border px-3 py-2 text-xs",
-                addMsg.ok
+                opMsg.ok
                   ? "border-emerald-700/30 bg-emerald-500/10 text-emerald-200"
                   : "border-rose-700/40 bg-rose-500/10 text-rose-200"
               )}
             >
-              {addMsg.text}
+              {opMsg.text}
+            </div>
+          ) : null}
+
+          {opResults.length ? (
+            <div className="mt-3 overflow-x-auto border border-slate-800 rounded-xl">
+              <table className="min-w-full text-[12px]">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400">
+                    <th className="text-left py-2 px-3">Seleziona</th>
+                    <th className="text-left py-2 px-3">Cognome</th>
+                    <th className="text-left py-2 px-3">Nome</th>
+                    <th className="text-left py-2 px-3">Birth</th>
+                    <th className="text-left py-2 px-3">Ruoli</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                  {opResults.map((r) => {
+                    const rolesArr = Array.isArray(r.roles) ? (r.roles as string[]) : [];
+                    const picked = selectedOperatorId === r.id;
+                    return (
+                      <tr key={r.id} className="hover:bg-slate-900/40">
+                        <td className="py-2 px-3">
+                          <input
+                            type="radio"
+                            name="opPick"
+                            checked={picked}
+                            onChange={() => setSelectedOperatorId(r.id)}
+                          />
+                        </td>
+                        <td className="py-2 px-3 text-slate-100">{safeText(r.cognome) || "—"}</td>
+                        <td className="py-2 px-3 text-slate-100">{safeText(r.nome) || "—"}</td>
+                        <td className="py-2 px-3 text-slate-400">{safeText(r.birth_date) || "—"}</td>
+                        <td className="py-2 px-3 text-slate-300">{rolesArr.length ? rolesArr.join(", ") : "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           ) : null}
         </section>
@@ -707,15 +806,15 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
           <div className="text-xs text-slate-400">{t(lang, "PERIM_LOADING")}</div>
         ) : operators.length === 0 ? (
           <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-3">
-            <div className="text-sm font-medium text-slate-100">Nessun operaio assegnato</div>
-            <div className="text-xs text-slate-400 mt-1">Importa una lista (formato CORE) o aggiungi manualmente.</div>
+            <div className="text-sm font-medium text-slate-100">Nessun operatore collegato</div>
+            <div className="text-xs text-slate-400 mt-1">Usa import o “Link Operatore”.</div>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-[12px]">
               <thead>
                 <tr className="border-b border-slate-800 text-slate-400">
-                  <th className="text-left py-1.5 pr-3">Nome</th>
+                  <th className="text-left py-1.5 pr-3">Operatore</th>
                   <th className="text-left py-1.5 pr-3">Ruoli</th>
                   <th className="text-left py-1.5 pr-3">{t(lang, "PERIM_STATUS")}</th>
                   <th className="text-right py-1.5 pr-3">{t(lang, "ACTIONS")}</th>
@@ -724,21 +823,18 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
               <tbody className="divide-y divide-slate-800">
                 {operators.map((op) => (
                   <tr key={op.id} className="hover:bg-slate-900/40">
-                    <td className="py-2 pr-3 text-slate-100">{safeText(op.name) || "—"}</td>
+                    <td className="py-2 pr-3 text-slate-100">
+                      {op.display}
+                      <span className="ml-2 text-slate-500 text-[11px]">{op.birth_date ? `(${op.birth_date})` : ""}</span>
+                    </td>
                     <td className="py-2 pr-3 text-slate-300">{op.roles.length ? op.roles.join(", ") : "—"}</td>
                     <td className="py-2 pr-3">
-                      {op.active ? (
-                        <span className="text-emerald-400">{t(lang, "PERIM_ACTIVE")}</span>
-                      ) : (
-                        <span className="text-slate-500">{t(lang, "PERIM_INACTIVE")}</span>
-                      )}
+                      {op.active ? <span className="text-emerald-400">Active</span> : <span className="text-slate-500">Inactive</span>}
                     </td>
                     <td className="py-2 pr-3 text-right">
                       <button
                         type="button"
-                        onClick={() => {
-                          void toggleOperatorActive(op.id, !op.active);
-                        }}
+                        onClick={() => void toggleOperatorActive(op.id, !op.active)}
                         className={cn(
                           "px-2 py-1 rounded-md border text-xs",
                           op.active

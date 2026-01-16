@@ -1,14 +1,21 @@
-// src/admin/AdminShell.jsx
+// src/admin/AdminShell.tsx
 import React, { useMemo, useState } from "react";
 import { NavLink, Outlet, useLocation, Navigate } from "react-router-dom";
 import ConnectionIndicator from "../components/ConnectionIndicator";
 import { useAuth } from "../auth/AuthProvider";
 
-function cn(...p) {
+function cn(...p: Array<string | false | null | undefined>): string {
   return p.filter(Boolean).join(" ");
 }
 
-function Item({ to, label, icon, end }) {
+type ItemProps = {
+  to: string;
+  label: string;
+  icon: React.ReactNode;
+  end?: boolean;
+};
+
+function Item({ to, label, icon, end }: ItemProps): JSX.Element {
   const location = useLocation();
   const active = end
     ? location.pathname === to || location.pathname === `${to}/`
@@ -29,7 +36,7 @@ function Item({ to, label, icon, end }) {
   );
 }
 
-function IconUsers() {
+function IconUsers(): JSX.Element {
   return (
     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
       <path d="M16 11a4 4 0 1 0-8 0" stroke="currentColor" />
@@ -38,7 +45,7 @@ function IconUsers() {
   );
 }
 
-function IconWorkers() {
+function IconWorkers(): JSX.Element {
   return (
     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
       <path d="M7 20v-2a5 5 0 0 1 10 0v2" stroke="currentColor" />
@@ -48,7 +55,7 @@ function IconWorkers() {
   );
 }
 
-function IconCalendar() {
+function IconCalendar(): JSX.Element {
   return (
     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
       <rect x="4" y="5" width="16" height="16" rx="2" stroke="currentColor" />
@@ -57,7 +64,8 @@ function IconCalendar() {
     </svg>
   );
 }
-function IconLink() {
+
+function IconLink(): JSX.Element {
   return (
     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
       <path d="M10 13a5 5 0 0 1 0-7l1-1a5 5 0 0 1 7 7l-1 1" stroke="currentColor" />
@@ -65,7 +73,8 @@ function IconLink() {
     </svg>
   );
 }
-function IconHistory() {
+
+function IconHistory(): JSX.Element {
   return (
     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
       <path d="M12 8v5l3 2" stroke="currentColor" />
@@ -75,10 +84,13 @@ function IconHistory() {
   );
 }
 
-function IconCatalog() {
+function IconCatalog(): JSX.Element {
   return (
     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
-      <path d="M7 4h10a2 2 0 0 1 2 2v14H7a2 2 0 0 0-2 2V6a2 2 0 0 1 2-2Z" stroke="currentColor" />
+      <path
+        d="M7 4h10a2 2 0 0 1 2 2v14H7a2 2 0 0 0-2 2V6a2 2 0 0 1 2-2Z"
+        stroke="currentColor"
+      />
       <path d="M7 4v16" stroke="currentColor" />
       <path d="M10 8h7" stroke="currentColor" />
       <path d="M10 12h7" stroke="currentColor" />
@@ -87,7 +99,7 @@ function IconCatalog() {
   );
 }
 
-function IconDrive() {
+function IconDrive(): JSX.Element {
   return (
     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
       <path d="M4 7h16" stroke="currentColor" />
@@ -98,18 +110,31 @@ function IconDrive() {
   );
 }
 
-export default function AdminShell() {
+function IconPerimeters(): JSX.Element {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
+      <path d="M4 7h7" stroke="currentColor" />
+      <path d="M4 17h7" stroke="currentColor" />
+      <path d="M13 6l7 6-7 6" stroke="currentColor" />
+      <path d="M11 12h9" stroke="currentColor" />
+    </svg>
+  );
+}
+
+export default function AdminShell(): JSX.Element {
   const { profile, signOut } = useAuth();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState<boolean>(false);
 
   const displayName = useMemo(() => {
-    return profile?.display_name || profile?.full_name || profile?.email || "Admin";
+    const p = profile as any;
+    return p?.display_name || p?.full_name || p?.email || "Admin";
   }, [profile]);
 
-  const handleLogout = async () => {
+  const handleLogout = async (): Promise<void> => {
     try {
       await signOut();
     } catch (e) {
+      // eslint-disable-next-line no-console
       console.error("Admin logout error:", e);
     } finally {
       window.location.href = "/login";
@@ -135,14 +160,12 @@ export default function AdminShell() {
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
                 <div className="h-9 w-9 rounded-xl border border-slate-800 bg-slate-950/30" />
-                {!collapsed && (
+                {!collapsed ? (
                   <div className="min-w-0">
-                    <div className="text-[11px] uppercase tracking-[0.24em] text-slate-500">
-                      CNCS
-                    </div>
+                    <div className="text-[11px] uppercase tracking-[0.24em] text-slate-500">CNCS</div>
                     <div className="text-sm font-semibold truncate">ADMIN</div>
                   </div>
-                )}
+                ) : null}
               </div>
 
               <button
@@ -158,9 +181,7 @@ export default function AdminShell() {
             <div className="mt-3 flex items-center justify-between gap-2">
               {!collapsed ? (
                 <div className="min-w-0">
-                  <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
-                    Profilo
-                  </div>
+                  <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Profilo</div>
                   <div className="text-sm font-semibold truncate">{displayName}</div>
                 </div>
               ) : null}
@@ -169,42 +190,17 @@ export default function AdminShell() {
           </div>
 
           <nav className={cn("mt-3 space-y-2", collapsed ? "px-0" : "px-1")}>
-            <Item
-              to="/admin/users"
-              label={collapsed ? "" : "Utenti"}
-              icon={<IconUsers />}
-              end
-            />
-            <Item
-              to="/admin/operators"
-              label={collapsed ? "" : "Operatori"}
-              icon={<IconWorkers />}
-            />
-            <Item
-              to="/admin/catalogo"
-              label={collapsed ? "" : "Catalogo"}
-              icon={<IconCatalog />}
-            />
-            <Item
-              to="/admin/planning"
-              label={collapsed ? "" : "Planning (overview)"}
-              icon={<IconCalendar />}
-            />
-            <Item
-              to="/admin/assignments"
-              label={collapsed ? "" : "Manager ↔ Capo"}
-              icon={<IconLink />}
-            />
-            <Item
-              to="/admin/audit"
-              label={collapsed ? "" : "Audit planning"}
-              icon={<IconHistory />}
-            />
-            <Item
-              to="/admin/core-drive"
-              label={collapsed ? "" : "CORE Drive"}
-              icon={<IconDrive />}
-            />
+            <Item to="/admin/users" label={collapsed ? "" : "Utenti"} icon={<IconUsers />} end />
+            <Item to="/admin/operators" label={collapsed ? "" : "Operatori"} icon={<IconWorkers />} />
+
+            {/* ✅ NEW: Perimetri */}
+            <Item to="/admin/perimetri" label={collapsed ? "" : "Perimetri"} icon={<IconPerimeters />} />
+
+            <Item to="/admin/catalogo" label={collapsed ? "" : "Catalogo"} icon={<IconCatalog />} />
+            <Item to="/admin/planning" label={collapsed ? "" : "Planning (overview)"} icon={<IconCalendar />} />
+            <Item to="/admin/assignments" label={collapsed ? "" : "Manager ↔ Capo"} icon={<IconLink />} />
+            <Item to="/admin/audit" label={collapsed ? "" : "Audit planning"} icon={<IconHistory />} />
+            <Item to="/admin/core-drive" label={collapsed ? "" : "CORE Drive"} icon={<IconDrive />} />
           </nav>
 
           <div className="mt-auto pt-4 border-t border-slate-800 text-[10px] text-slate-600">
