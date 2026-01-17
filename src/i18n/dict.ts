@@ -1,4 +1,7 @@
-// src/i18n/dict.js
+// src/i18n/dict.ts
+
+export type Lang = "it" | "fr" | "en";
+
 export const dict = {
   it: {
     "login.kicker": "SISTEMA CENTRALE DI CANTIERE",
@@ -55,3 +58,5 @@ export const dict = {
     "login.errorUnexpected": "Unexpected error",
   },
 };
+
+void (dict satisfies Record<Lang, Record<string, string>>);

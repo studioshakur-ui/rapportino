@@ -1,5 +1,39 @@
-// src/auth/IdleSessionManager.jsx
+// src/auth/IdleSessionManager.tsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+type LogoutReason = string;
+
+type IdleSessionManagerProps = {
+  enabled?: boolean;
+  warnAfterMs?: number;
+  logoutAfterMs?: number;
+
+  /**
+   * IMPORTANT:
+   * Provide a stable scope key (recommended: auth.uid()).
+   * Example usage:
+   * <IdleSessionManager storageScopeKey={session?.user?.id ?? "anon"} ... />
+   */
+  storageScopeKey?: string;
+
+  onBeforeLogout?: (reason: LogoutReason) => Promise<void> | void;
+  onExtend?: () => Promise<void> | void;
+  onLogout?: (reason: LogoutReason) => Promise<void> | void;
+};
+
+type WarningOwner = {
+  tabId: string;
+  expiresAt: number;
+};
+
+type BroadcastMsg = {
+  type: "activity" | "extend" | "logout" | "warning";
+  tabId: string;
+  at: number;
+  scope: string;
+  source?: string;
+  reason?: string;
+};
 
 /**
  * CORE — Idle session manager (CAPO)
@@ -17,22 +51,13 @@ export default function IdleSessionManager({
   enabled = true,
   warnAfterMs = 25 * 60 * 1000,
   logoutAfterMs = 30 * 60 * 1000,
-
-  /**
-   * IMPORTANT:
-   * Provide a stable scope key (recommended: auth.uid()).
-   * Example usage:
-   * <IdleSessionManager storageScopeKey={session?.user?.id ?? "anon"} ... />
-   */
   storageScopeKey = "anon",
-
-  onBeforeLogout, // async (reason) => void
-  onExtend, // async () => void
-  onLogout, // async (reason) => void
-}) {
+  onBeforeLogout,
+  onExtend,
+  onLogout,
+}: IdleSessionManagerProps): JSX.Element | null {
   const TAB_ID = useMemo(() => {
     try {
-      // eslint-disable-next-line no-undef
       return crypto?.randomUUID?.() ?? `tab_${Date.now()}_${Math.random().toString(16).slice(2)}`;
     } catch {
       return `tab_${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -55,18 +80,18 @@ export default function IdleSessionManager({
     [scope]
   );
 
-  const bcRef = useRef(null);
-  const lastBroadcastAtRef = useRef(0);
-  const lastActivityAtRef = useRef(0);
-  const warningOpenRef = useRef(false);
-  const loggingOutRef = useRef(false);
+  const bcRef = useRef<BroadcastChannel | null>(null);
+  const lastBroadcastAtRef = useRef<number>(0);
+  const lastActivityAtRef = useRef<number>(0);
+  const warningOpenRef = useRef<boolean>(false);
+  const loggingOutRef = useRef<boolean>(false);
 
-  const [warningOpen, setWarningOpen] = useState(false);
-  const [remainingMs, setRemainingMs] = useState(logoutAfterMs);
+  const [warningOpen, setWarningOpen] = useState<boolean>(false);
+  const [remainingMs, setRemainingMs] = useState<number>(logoutAfterMs);
 
   const nowMs = () => Date.now();
 
-  const readLastActivityAt = useCallback(() => {
+  const readLastActivityAt = useCallback((): number => {
     try {
       const raw = window.localStorage.getItem(KEYS.lastActivityAt);
       const n = raw ? Number(raw) : 0;
@@ -77,7 +102,7 @@ export default function IdleSessionManager({
   }, [KEYS.lastActivityAt]);
 
   const writeLastActivityAt = useCallback(
-    (ts) => {
+    (ts: number) => {
       try {
         window.localStorage.setItem(KEYS.lastActivityAt, String(ts));
       } catch {
@@ -89,8 +114,13 @@ export default function IdleSessionManager({
   );
 
   const broadcast = useCallback(
-    (payload) => {
-      const msg = { ...payload, tabId: TAB_ID, at: payload?.at ?? nowMs(), scope };
+    (payload: Omit<BroadcastMsg, "tabId" | "scope" | "at"> & Partial<Pick<BroadcastMsg, "at">>) => {
+      const msg: BroadcastMsg = {
+        ...(payload as BroadcastMsg),
+        tabId: TAB_ID,
+        at: payload?.at ?? nowMs(),
+        scope,
+      };
 
       // BroadcastChannel (best)
       try {
@@ -111,24 +141,24 @@ export default function IdleSessionManager({
     [KEYS.broadcast, TAB_ID, scope]
   );
 
-  const isWarningOwnerValid = useCallback((owner) => {
+  const isWarningOwnerValid = useCallback((owner: WarningOwner | null): boolean => {
     if (!owner?.tabId || !owner?.expiresAt) return false;
     const exp = Number(owner.expiresAt);
     return Number.isFinite(exp) && exp > nowMs();
   }, []);
 
-  const getWarningOwner = useCallback(() => {
+  const getWarningOwner = useCallback((): WarningOwner | null => {
     try {
       const raw = window.localStorage.getItem(KEYS.warningOwner);
       if (!raw) return null;
-      return JSON.parse(raw);
+      return JSON.parse(raw) as WarningOwner;
     } catch {
       return null;
     }
   }, [KEYS.warningOwner]);
 
   const setWarningOwner = useCallback(
-    (owner) => {
+    (owner: WarningOwner) => {
       try {
         window.localStorage.setItem(KEYS.warningOwner, JSON.stringify(owner));
       } catch {
@@ -142,7 +172,7 @@ export default function IdleSessionManager({
     try {
       const raw = window.localStorage.getItem(KEYS.warningOwner);
       if (!raw) return;
-      const owner = JSON.parse(raw);
+      const owner = JSON.parse(raw) as WarningOwner;
       // Only the owner can clear
       if (owner?.tabId === TAB_ID) {
         window.localStorage.removeItem(KEYS.warningOwner);
@@ -162,7 +192,7 @@ export default function IdleSessionManager({
     setWarningOpen(true);
   }, []);
 
-  const maybeAcquireWarningOwnership = useCallback(() => {
+  const maybeAcquireWarningOwnership = useCallback((): boolean => {
     const owner = getWarningOwner();
     if (isWarningOwnerValid(owner)) {
       return owner.tabId === TAB_ID;
@@ -171,12 +201,12 @@ export default function IdleSessionManager({
     const base = lastActivityAtRef.current || readLastActivityAt() || nowMs();
     const expiresAt = base + logoutAfterMs;
 
-    const newOwner = { tabId: TAB_ID, expiresAt };
+    const newOwner: WarningOwner = { tabId: TAB_ID, expiresAt };
     setWarningOwner(newOwner);
     return true;
   }, [TAB_ID, getWarningOwner, isWarningOwnerValid, logoutAfterMs, readLastActivityAt, setWarningOwner]);
 
-  const updateRemaining = useCallback(() => {
+  const updateRemaining = useCallback((): { idle: number; remaining: number } => {
     const last = lastActivityAtRef.current || readLastActivityAt();
     const lastEffective = last > 0 ? last : nowMs();
 
@@ -188,7 +218,7 @@ export default function IdleSessionManager({
   }, [logoutAfterMs, readLastActivityAt]);
 
   const doBeforeLogout = useCallback(
-    async (reason) => {
+    async (reason: LogoutReason) => {
       try {
         window.dispatchEvent(new CustomEvent("core:idle-before-logout", { detail: { reason } }));
       } catch {
@@ -202,7 +232,7 @@ export default function IdleSessionManager({
   );
 
   const doLogout = useCallback(
-    async (reason) => {
+    async (reason: LogoutReason) => {
       if (loggingOutRef.current) return;
       loggingOutRef.current = true;
 
@@ -232,7 +262,7 @@ export default function IdleSessionManager({
   );
 
   const bumpActivity = useCallback(
-    (source = "activity") => {
+    (source: string = "activity") => {
       const t = nowMs();
 
       // ALWAYS write local activity timestamp (critical for focus/visibility)
@@ -243,7 +273,8 @@ export default function IdleSessionManager({
       const shouldThrottle = t - lastB < 4000;
 
       // For focus/visibility we still want fast sync across tabs
-      const forceBroadcast = source === "extend" || source === "bootstrap" || source === "visibility" || source === "focus";
+      const forceBroadcast =
+        source === "extend" || source === "bootstrap" || source === "visibility" || source === "focus";
 
       if (!shouldThrottle || forceBroadcast) {
         lastBroadcastAtRef.current = t;
@@ -311,7 +342,7 @@ export default function IdleSessionManager({
       bcRef.current = null;
     }
 
-    const onMessage = (msg) => {
+    const onMessage = (msg: BroadcastMsg) => {
       if (!msg || msg.tabId === TAB_ID) return;
       if (msg.scope !== scope) return; // hard guard
 
@@ -333,17 +364,17 @@ export default function IdleSessionManager({
       }
 
       if (msg.type === "logout") {
-        doLogout(msg.reason || "logout_from_other_tab");
+        void doLogout(msg.reason || "logout_from_other_tab");
       }
     };
 
     const bc = bcRef.current;
-    const bcHandler = (e) => onMessage(e.data);
+    const bcHandler = (e: MessageEvent) => onMessage(e.data as BroadcastMsg);
     if (bc) {
       bc.addEventListener("message", bcHandler);
     }
 
-    const onStorage = (e) => {
+    const onStorage = (e: StorageEvent) => {
       if (!e?.key) return;
 
       if (e.key === KEYS.lastActivityAt) {
@@ -357,7 +388,7 @@ export default function IdleSessionManager({
 
       if (e.key === KEYS.broadcast && e.newValue) {
         try {
-          const msg = JSON.parse(e.newValue);
+          const msg = JSON.parse(e.newValue) as BroadcastMsg;
           onMessage(msg);
         } catch {
           // ignore
@@ -406,7 +437,7 @@ export default function IdleSessionManager({
       }
     };
 
-    const opts = { passive: true };
+    const opts: AddEventListenerOptions = { passive: true };
 
     window.addEventListener("mousedown", onPointer, opts);
     window.addEventListener("pointerdown", onPointer, opts);
@@ -461,7 +492,7 @@ export default function IdleSessionManager({
     };
 
     const id = window.setInterval(() => {
-      tick();
+      void tick();
     }, 1000);
 
     return () => window.clearInterval(id);

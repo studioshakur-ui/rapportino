@@ -1,24 +1,31 @@
-// /src/i18n/I18nProvider.jsx
+// /src/i18n/I18nProvider.tsx
 import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
 
-export const LANGS = ["it", "fr", "en"];
+export const LANGS = ["it", "fr", "en"] as const;
+export type Lang = (typeof LANGS)[number];
 
-export function getInitialLang() {
+type Dictionary = Record<string, unknown>;
+
+export function getInitialLang(): Lang {
   if (typeof window === "undefined") return "it";
   try {
     const saved = window.localStorage.getItem("core-lang");
-    if (saved && LANGS.includes(saved)) return saved;
-  } catch {}
+    if (saved && (LANGS as readonly string[]).includes(saved)) return saved as Lang;
+  } catch {
+    // ignore
+  }
   return "it";
 }
 
-export function setLangStorage(lang) {
+export function setLangStorage(lang: Lang) {
   try {
     window.localStorage.setItem("core-lang", lang);
-  } catch {}
+  } catch {
+    // ignore
+  }
 }
 
-const DICTS = {
+const DICTS: Record<Lang, Dictionary> = {
   it: {
     LANG: "Lingua",
     LOGOUT: "Logout",
@@ -137,7 +144,7 @@ const DICTS = {
   },
 };
 
-const KPI_OPPROD_FALLBACK_IT = {
+const KPI_OPPROD_FALLBACK_IT: Record<string, string> = {
   KPI_OPPROD_TITLE: "KPI Operatori",
   KPI_OPPROD_KICKER: "Direzione · CNCS / CORE",
   KPI_OPPROD_DESC:
@@ -173,11 +180,11 @@ const KPI_OPPROD_FALLBACK_IT = {
   KPI_OPPROD_TOTAL_IN_RANGE: "Totale nella finestra",
 };
 
-function safeStr(x) {
+function safeStr(x: unknown): string {
   return (x ?? "").toString();
 }
 
-function prettifyKey(key) {
+function prettifyKey(key: unknown): string {
   const s = safeStr(key).trim();
   if (!s) return "—";
   return s
@@ -186,14 +193,14 @@ function prettifyKey(key) {
     .replace(/\b[a-z]/g, (m) => m.toUpperCase());
 }
 
-function deepGet(obj, path) {
+function deepGet(obj: unknown, path: unknown): unknown {
   const p = safeStr(path);
   if (!p) return undefined;
-  if (!p.includes(".")) return obj ? obj[p] : undefined;
-  return p.split(".").reduce((acc, k) => (acc && acc[k] != null ? acc[k] : undefined), obj);
+  if (!p.includes(".")) return (obj as any)?.[p];
+  return p.split(".").reduce((acc: any, k) => (acc && acc[k] != null ? acc[k] : undefined), obj as any);
 }
 
-function computeFallback(lang, key) {
+function computeFallback(lang: Lang, key: unknown): string {
   const k = safeStr(key).trim();
   if (!k) return "—";
 
@@ -201,32 +208,45 @@ function computeFallback(lang, key) {
     return KPI_OPPROD_FALLBACK_IT[k] || prettifyKey(k);
   }
 
+  void lang;
   return prettifyKey(k);
 }
 
-const I18nContext = createContext(null);
+type I18nContextValue = {
+  lang: Lang;
+  setLang: (next: Lang | string) => void;
+  t: (key: string) => string;
+};
 
-export function I18nProvider({ children, defaultLang = "it", dictionaries = null }) {
+const I18nContext = createContext<I18nContextValue | null>(null);
+
+type I18nProviderProps = {
+  children: React.ReactNode;
+  defaultLang?: Lang;
+  dictionaries?: Partial<Record<Lang, Dictionary>> | null;
+};
+
+export function I18nProvider({ children, defaultLang = "it", dictionaries = null }: I18nProviderProps): JSX.Element {
   const external = dictionaries || {};
-  const dicts = {
+  const dicts: Record<Lang, Dictionary> = {
     it: { ...DICTS.it, ...(external.it || {}) },
     fr: { ...DICTS.fr, ...(external.fr || {}) },
     en: { ...DICTS.en, ...(external.en || {}) },
   };
 
-  const [lang, setLangState] = useState(() => {
+  const [lang, setLangState] = useState<Lang>(() => {
     const initial = getInitialLang();
-    return LANGS.includes(initial) ? initial : (defaultLang || "it");
+    return (LANGS as readonly string[]).includes(initial) ? (initial as Lang) : defaultLang || "it";
   });
 
-  const setLang = useCallback((next) => {
-    const v = LANGS.includes(next) ? next : "it";
+  const setLang = useCallback((next: Lang | string) => {
+    const v = (LANGS as readonly string[]).includes(next) ? (next as Lang) : "it";
     setLangState(v);
     setLangStorage(v);
   }, []);
 
   const t = useCallback(
-    (key) => {
+    (key: string) => {
       const k = safeStr(key).trim();
       if (!k) return "—";
 
@@ -249,7 +269,7 @@ export function I18nProvider({ children, defaultLang = "it", dictionaries = null
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
 
-export function useI18n() {
+export function useI18n(): I18nContextValue {
   const ctx = useContext(I18nContext);
   if (!ctx) {
     return {

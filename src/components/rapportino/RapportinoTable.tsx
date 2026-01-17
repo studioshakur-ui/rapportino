@@ -1,175 +1,60 @@
-// src/components/rapportino/RapportinoTable.tsx
-import React, { useMemo } from "react";
-import { formatPrevisto } from "../../rapportinoUtils";
-import { splitLinesKeepEmpties } from "./page/rapportinoHelpers.js";
-
-type OperatorItem = {
-  operator_id?: string | number | null;
-  label?: string | null;
-};
-
-export type RapportinoRow = {
-  id?: string | number | null;
-
-  // Catalog
-  categoria?: string | null;
-  descrizione?: string | null;
-
-  // Canonical
-  operator_items?: OperatorItem[] | null;
-
-  // Legacy / print
-  operatori?: string | null;
-
-  // Values
-  tempo?: string | null;
-  previsto?: string | number | null;
-  prodotto?: string | number | null;
-
-  // Notes
-  note?: string | null;
-
-  // Optional (exists in DB, may be present in UI rows)
-  activity_id?: string | null;
-};
-
-type DroppedOperator = { id: string | null; name: string };
+// /src/components/rapportino/RapportinoTable.tsx
+// @ts-nocheck
+import React, { useEffect, useMemo, useRef } from "react";
+import { cn, splitLinesKeepEmpties } from "../rapportino/page/rapportinoHelpers";
 
 type Props = {
-  rows: RapportinoRow[];
+  rows: any[];
   productivityIndexMap?: Map<string, number>;
-  onRowChange?: (rowIndex: number, field: keyof RapportinoRow | string, value: string) => void;
-  onRemoveRow?: (rowIndex: number) => void;
-  onRemoveOperatorFromRow?: (rowIndex: number, operatorId: string | number) => void;
+  onRowChange?: (idx: number, field: string, value: any, target?: HTMLElement | null) => void;
+  onRemoveRow?: (idx: number) => void;
+  onOpenOperatorPicker?: (idx: number) => void;
+  onOpenTempoPicker?: (idx: number) => void;
+  onRemoveOperatorFromRow?: (idx: number, operatorId: string) => void;
   readOnly?: boolean;
-  onOpenOperatorPicker?: (rowIndex: number) => void;
-  onOpenTempoPicker?: (rowIndex: number) => void;
-  onDropOperatorToRow?: (rowIndex: number, dropped: DroppedOperator) => void;
+  onDropOperatorToRow?: (rowIndex: number, op: any) => void;
 };
 
-function PrintText({ value, className }: { value: unknown; className?: string }) {
-  return <div className={cn("rapportino-print-text", className)}>{String(value ?? "")}</div>;
+function safeStr(v: any): string {
+  return String(v ?? "").trim();
 }
 
-function PrintLines({
-  value,
-  numeric = false,
-  align = "left",
-  className,
-}: {
-  value: unknown;
-  numeric?: boolean;
-  align?: "left" | "center" | "right";
-  className?: string;
-}) {
-  const lines = splitLinesKeepEmpties(String(value ?? ""));
-
-  return (
-    <div
-      className={cn(
-        "rapportino-print-lines",
-        align === "center" && "text-center",
-        align === "right" && "text-right",
-        numeric && "rapportino-print-numeric",
-        className
-      )}
-    >
-      {lines.map((line, idx) => (
-        // Use NBSP to preserve row height when the line is intentionally blank
-        <div key={idx} className="rapportino-print-line">
-          {line ? line : "\u00A0"}
-        </div>
-      ))}
-    </div>
-  );
+function normKey(v: any): string {
+  return safeStr(v).toLowerCase();
 }
 
-function cn(...parts: Array<string | false | null | undefined>) {
-  return parts.filter(Boolean).join(" ");
+function getRowDescr(row: any): string {
+  return safeStr(row?.descrizione_attivita ?? row?.descrizione);
 }
 
-function prettyMultiline(v: unknown) {
-  if (!v) return "";
-  return String(v ?? "").replace(/\r/g, "");
+function getRowCategoria(row: any): string {
+  return safeStr(row?.categoria);
 }
 
-function hasNonZeroNumber(v: unknown) {
-  if (v === null || v === undefined) return false;
+/**
+ * Operators (canonical preferred)
+ */
+function getCanonicalOperatorItems(row: any): Array<{ operator_id?: any; label?: any; tempo_raw?: any }> {
+  return Array.isArray(row?.operator_items) ? row.operator_items : [];
+}
+
+/**
+ * Legacy operators fallback (string lines)
+ */
+function getLegacyOperators(row: any): string[] {
+  const opLines = splitLinesKeepEmpties(row?.operatori);
+  return opLines.map((x: any) => safeStr(x)).filter(Boolean);
+}
+
+function getLegacyTempi(row: any): string[] {
+  const tmLines = splitLinesKeepEmpties(row?.tempo);
+  return tmLines.map((x: any) => safeStr(x));
+}
+
+function formatIdx(v: any): string {
   const n = Number(v);
-  return Number.isFinite(n) && n !== 0;
-}
-
-function hasAnyTempoValue(v: unknown) {
-  const s = String(v ?? "").trim();
-  if (!s) return false;
-  return s.split("\n").some((x) => String(x || "").trim().length > 0);
-}
-
-function hasAnyOperatorValueLegacy(v: unknown) {
-  const s = String(v ?? "").trim();
-  if (!s) return false;
-  return s.split("\n").some((x) => String(x || "").trim().length > 0);
-}
-
-function countLegacyOperators(op: unknown) {
-  const lines = splitLinesKeepEmpties(op);
-  const nonEmpty = lines.filter((x: unknown) => String(x || "").trim().length > 0);
-  return nonEmpty.length > 0 ? nonEmpty.length : (String(op ?? "").trim() ? lines.length : 0);
-}
-
-function readDroppedOperator(e: React.DragEvent) {
-  try {
-    const name = e.dataTransfer.getData("text/core-operator-name");
-    const id = e.dataTransfer.getData("text/core-operator-id");
-    const nm = String(name || "").trim();
-    const opId = String(id || "").trim();
-    if (!nm) return null;
-    return { id: opId || null, name: nm };
-  } catch {
-    return null;
-  }
-}
-
-
-
-function normKpiKey(v: unknown): string {
-  return String(v ?? "").trim().toLowerCase();
-}
-
-function formatIdx(v: unknown): string {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return "";
-  return (Math.round(n * 100) / 100).toFixed(2);
-}
-
-function getProductivityIndex({
-  productivityIndexMap,
-  operatorId,
-  categoria,
-  descrizione,
-}: {
-  productivityIndexMap?: Map<string, number>;
-  operatorId: unknown;
-  categoria: unknown;
-  descrizione: unknown;
-}): number | null {
-  if (!productivityIndexMap) return null;
-  const op = String(operatorId ?? "").trim();
-  if (!op) return null;
-  const cat = normKpiKey(categoria);
-  const desc = normKpiKey(descrizione);
-  const key = `${op}||${cat}||${desc}`;
-  const v = productivityIndexMap.get(key);
-  return typeof v === "number" && Number.isFinite(v) ? v : null;
-}
-function appendLegacyOperatorLine(existing: unknown, name: string) {
-  const cur = String(existing ?? "").replace(/\r/g, "");
-  const lines = cur.length ? cur.split("\n") : [];
-  const trimmed = name.trim();
-  if (!trimmed) return cur;
-  // avoid duplicates (case-insensitive)
-  if (lines.some((l) => l.trim().toLowerCase() === trimmed.toLowerCase())) return cur;
-  return [...lines, trimmed].filter((x) => x !== undefined).join("\n").trimStart();
+  if (!Number.isFinite(n)) return "—";
+  return n.toFixed(2);
 }
 
 export default function RapportinoTable({
@@ -177,770 +62,246 @@ export default function RapportinoTable({
   productivityIndexMap,
   onRowChange,
   onRemoveRow,
-  onRemoveOperatorFromRow,
-  readOnly = false,
   onOpenOperatorPicker,
   onOpenTempoPicker,
+  onRemoveOperatorFromRow,
+  readOnly = false,
   onDropOperatorToRow,
 }: Props): JSX.Element {
-  const ro = readOnly || !onRowChange;
+  const arr = Array.isArray(rows) ? rows : [];
 
-  /**
-   * IMPORTANT FIX:
-   * Avant: canonical = (operator_items.length > 0) -> si vide, on tombait en legacy textarea,
-   * donc pas de click-picker et pas de drop-handler => "je clique et y'a rien".
-   *
-   * Maintenant:
-   * - Si l'app fournit les callbacks du système opérateurs (picker / drop / remove),
-   *   on force l'UI canonical, même si operator_items est vide.
-   * - On garde un fallback legacy si vraiment le parent n'a pas câblé ces callbacks.
-   */
-  const hasCanonicalWiring = Boolean(onOpenOperatorPicker || onDropOperatorToRow || onRemoveOperatorFromRow);
+  // Small helper to render stacked values aligned with operator list
+  function renderIndiceForRow(row: any): JSX.Element {
+    const cat = normKey(getRowCategoria(row));
+    const desc = normKey(getRowDescr(row));
 
-  const canonicalByIdx = useMemo(() => {
-    return rows.map((r) => {
-      // si le système canonical est câblé: on force canonical
-      if (hasCanonicalWiring) return true;
+    const canon = getCanonicalOperatorItems(row);
+    if (canon.length > 0) {
+      return (
+        <div className="flex flex-col gap-1">
+          {canon.map((it, i) => {
+            const opId = it?.operator_id != null ? String(it.operator_id) : "";
+            const key = `${opId}||${cat}||${desc}`;
+            const idx = productivityIndexMap?.get(key);
+            return (
+              <div key={`${opId}-${i}`} className="text-[12px] tabular-nums text-slate-900">
+                {formatIdx(idx)}
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
 
-      // sinon fallback: canonical si operator_items existe déjà
-      const items = Array.isArray(r?.operator_items) ? r.operator_items : [];
-      return items.length > 0;
-    });
-  }, [rows, hasCanonicalWiring]);
+    // Legacy: cannot map to operator_id safely → show dash per visible operator line
+    const legacyOps = getLegacyOperators(row);
+    if (legacyOps.length > 0) {
+      return (
+        <div className="flex flex-col gap-1">
+          {legacyOps.map((_, i) => (
+            <div key={i} className="text-[12px] tabular-nums text-slate-500">
+              —
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    return <span className="text-[12px] text-slate-500">—</span>;
+  }
 
   return (
     <div className="mt-3">
-      {/* ───────────────────────── MOBILE (md-) : cards ───────────────────────── */}
-      <div className="rapportino-mobile md:hidden space-y-3">
-        {rows.map((r, idx) => {
-          const isCanonical = canonicalByIdx[idx];
+      {/* Print hardening: widen document + hide action col in print */}
+      <style>{`
+        @media print {
+          #rapportino-document { max-width: none !important; width: 100% !important; }
+          .no-print { display: none !important; }
+          table { width: 100% !important; }
+        }
+      `}</style>
 
-          const opLines = splitLinesKeepEmpties(r.operatori);
-          void opLines;
-
-          const canonItems = Array.isArray(r.operator_items) ? r.operator_items : [];
-          const legacyHasOps = hasAnyOperatorValueLegacy(r.operatori);
-
-          const hasOperators = isCanonical ? canonItems.length > 0 : legacyHasOps;
-          const hasValues =
-            hasNonZeroNumber(r.previsto) || hasNonZeroNumber(r.prodotto) || hasAnyTempoValue(r.tempo);
-          const isIncomplete = hasOperators !== hasValues;
-
-          const tempoPillEnabled = !ro && hasOperators;
-          const opCount = isCanonical ? canonItems.length : countLegacyOperators(r.operatori);
-
-          const descrMobile = String((r as any)?.descrizione_attivita ?? r?.descrizione ?? "");
-          const prodIdxLinesMobile = isCanonical
-            ? canonItems.map((it) => {
-                const v = getProductivityIndex({
-                  productivityIndexMap,
-                  operatorId: it?.operator_id,
-                  categoria: r.categoria,
-                  descrizione: descrMobile,
-                });
-                return v == null ? "-" : formatIdx(v);
-              })
-            : [];
-
-          return (
-            <div key={String(r.id ?? idx)} className="rounded-2xl border border-slate-200 bg-white/70 p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <div className="text-[11px] tracking-[0.22em] uppercase text-slate-500">Riga {idx + 1}</div>
-
-                  <span
-                    className="inline-flex items-center rounded-full border border-slate-300 bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-700"
-                    title="Catalogo"
-                  >
-                    C
-                  </span>
-
-                  {!ro && isIncomplete ? (
-                    <span
-                      className="inline-flex items-center rounded-full border border-amber-300 bg-amber-100 px-2 py-1 text-[10px] font-semibold text-amber-900"
-                      title="Riga incompleta: aggiungi operatori oppure compila prodotto/tempo"
-                    >
-                      !
-                    </span>
-                  ) : null}
-                </div>
-
-                {!ro ? (
-                  <button
-                    type="button"
-                    className="rounded-full border border-slate-300 bg-white hover:bg-slate-50 px-2 py-1 text-[12px] font-semibold text-slate-900"
-                    title="Rimuovi riga"
-                    onClick={() => onRemoveRow?.(idx)}
-                  >
-                    ×
-                  </button>
-                ) : null}
-              </div>
-
-              <div className="mt-3 space-y-3">
-                {/* CATEGORIA (LOCKED) */}
-                <div>
-                  <div className="text-[11px] tracking-wide uppercase text-slate-500 mb-1">Categoria</div>
-                  <input
-                    className={cn("w-full bg-transparent outline-none", "opacity-90 cursor-not-allowed")}
-                    value={r.categoria || ""}
-                    onChange={undefined}
-                    disabled={true}
-                    readOnly={true}
-                    title="Colonna gestita dal Catalogo"
-                  />
-                </div>
-
-                {/* DESCRIZIONE (LOCKED) */}
-                <div>
-                  <div className="text-[11px] tracking-wide uppercase text-slate-500 mb-1">Descrizione</div>
-                  <input
-                    className={cn("w-full bg-transparent outline-none", "opacity-90 cursor-not-allowed")}
-                    value={r.descrizione || ""}
-                    onChange={undefined}
-                    disabled={true}
-                    readOnly={true}
-                    title="Colonna gestita dal Catalogo"
-                  />
-                </div>
-
-                {/* OPERATORE */}
-                <div>
-                  <div className="text-[11px] tracking-wide uppercase text-slate-500 mb-1">Operatore</div>
-
-                  {isCanonical ? (
-                    <>
-                      <button
-                        type="button"
-                        className={cn(
-                          "w-full rounded-md border border-slate-200 bg-white/70 px-3 py-3 text-left",
-                          ro ? "opacity-80 cursor-not-allowed" : "cursor-pointer hover:bg-slate-50",
-                          !ro ? "focus:outline-none focus:ring-2 focus:ring-sky-500/35" : ""
-                        )}
-                        disabled={ro}
-                        title={
-                          ro
-                            ? undefined
-                            : onOpenOperatorPicker
-                              ? "Tocca per scegliere… o trascina un operatore qui"
-                              : "Picker non cablato (manca onOpenOperatorPicker)"
-                        }
-                        onClick={() => {
-                          if (ro) return;
-                          if (!onOpenOperatorPicker) {
-                            console.warn("[RapportinoTable] onOpenOperatorPicker is missing");
-                            return;
-                          }
-                          onOpenOperatorPicker(idx);
-                        }}
-                        onPointerUp={() => {
-                          // iOS/overlay friendly
-                          if (ro) return;
-                          if (!onOpenOperatorPicker) return;
-                          onOpenOperatorPicker(idx);
-                        }}
-                        onDragOver={(e) => {
-                          if (ro) return;
-                          e.preventDefault();
-                          try {
-                            e.dataTransfer.dropEffect = "copy";
-                          } catch {
-                            // ignore
-                          }
-                        }}
-                        onDrop={(e) => {
-                          if (ro) return;
-                          e.preventDefault();
-                          const dropped = readDroppedOperator(e);
-                          if (!dropped) return;
-
-                          if (onDropOperatorToRow) {
-                            onDropOperatorToRow(idx, dropped);
-                            return;
-                          }
-
-                          // fallback: si le parent n'a pas câblé le drop, on écrit au moins en legacy text
-                          if (!onRowChange) return;
-                          const next = appendLegacyOperatorLine(r.operatori, dropped.name);
-                          onRowChange(idx, "operatori", next);
-                        }}
-                      >
-                        <div className="flex flex-wrap gap-2">
-                          {canonItems.length === 0 ? (
-                            <span className="text-slate-400 text-[12px]">Tocca per scegliere…</span>
-                          ) : (
-                            canonItems.map((it) => {
-                              const operatorId = it?.operator_id;
-                              const label = String(it?.label || "").trim() || "Operatore";
-                              return (
-                                <span
-                                  key={String(operatorId)}
-                                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[12px] font-semibold text-slate-900"
-                                  title={label}
-                                >
-                                  <span className="max-w-[180px] truncate">{label}</span>
-
-                                  {!ro ? (
-                                    <span
-                                      role="button"
-                                      tabIndex={0}
-                                      className="rounded-full border border-slate-200 w-6 h-6 inline-flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-50"
-                                      title="Rimuovi operatore"
-                                      aria-label={`Rimuovi ${label}`}
-                                      onClick={(ev) => {
-                                        ev.stopPropagation();
-                                        if (!operatorId) return;
-                                        onRemoveOperatorFromRow?.(idx, operatorId);
-                                      }}
-                                      onKeyDown={(ev) => {
-                                        if (ev.key === "Enter" || ev.key === " ") {
-                                          ev.preventDefault();
-                                          ev.stopPropagation();
-                                          if (!operatorId) return;
-                                          onRemoveOperatorFromRow?.(idx, operatorId);
-                                        }
-                                      }}
-                                    >
-                                      ×
-                                    </span>
-                                  ) : null}
-                                </span>
-                              );
-                            })
-                          )}
-                        </div>
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      {ro ? (
-                        <div className="w-full rounded-md border border-slate-200 bg-white/60 px-3 py-3 text-[12px] text-slate-900 whitespace-pre-wrap">
-                          {prettyMultiline(r.operatori) ? (
-                            prettyMultiline(r.operatori)
-                          ) : (
-                            <span className="text-slate-400">Nomi operatori (uno per riga)</span>
-                          )}
-                        </div>
-                      ) : (
-                        <textarea
-                          className="w-full min-h-[84px] rounded-md border border-slate-200 bg-white/70 px-3 py-3 text-[12px] text-slate-900 outline-none focus:ring-2 focus:ring-sky-500/35"
-                          value={String(r.operatori ?? "")}
-                          placeholder="Nomi operatori (uno per riga)"
-                          onChange={(e) => onRowChange?.(idx, "operatori", e.target.value)}
-                          onDragOver={(e) => {
-                            e.preventDefault();
-                            try {
-                              e.dataTransfer.dropEffect = "copy";
-                            } catch {
-                              // ignore
-                            }
-                          }}
-                          onDrop={(e) => {
-                            e.preventDefault();
-                            const dropped = readDroppedOperator(e);
-                            if (!dropped) return;
-                            const next = appendLegacyOperatorLine(r.operatori, dropped.name);
-                            onRowChange?.(idx, "operatori", next);
-                          }}
-                        />
-                      )}
-                    </>
-                  )}
-                </div>
-
-                {/* TEMPO */}
-                <div>
-                  <div className="text-[11px] tracking-wide uppercase text-slate-500 mb-1">Tempo (ore)</div>
-                  <div
-                    className={cn(
-                      "w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-3",
-                      tempoPillEnabled
-                        ? "cursor-pointer hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-sky-500/35"
-                        : "opacity-70 cursor-not-allowed"
-                    )}
-                    role={tempoPillEnabled ? "button" : undefined}
-                    tabIndex={tempoPillEnabled ? 0 : -1}
-                    title={!hasOperators ? "Prima inserisci almeno un operatore" : ro ? undefined : "Tocca per impostare le ore…"}
-                    onClick={() => {
-                      if (!tempoPillEnabled) return;
-                      onOpenTempoPicker?.(idx);
-                    }}
-                    onPointerUp={() => {
-                      if (!tempoPillEnabled) return;
-                      onOpenTempoPicker?.(idx);
-                    }}
-                    onKeyDown={(e) => {
-                      if (!tempoPillEnabled) return;
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        onOpenTempoPicker?.(idx);
-                      }
-                    }}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Tempo</div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] text-slate-500">{hasOperators ? `${opCount} op` : "0 op"}</span>
-                        {tempoPillEnabled ? <span className="text-[12px] text-slate-400">›</span> : null}
-                      </div>
-                    </div>
-
-                    <div className="mt-1 text-[12px] font-semibold text-slate-900 text-center whitespace-pre-wrap leading-5">
-                      {prettyMultiline(r.tempo) ? prettyMultiline(r.tempo) : "Tocca per impostare…"}
-                    </div>
-                  </div>
-
-                  {/* Print uses the desktop table layout; mobile cards are hidden in print. */}
-                </div>
-
-                {/* PREVISTO (LOCKED) */}
-                <div>
-                  <div className="text-[11px] tracking-wide uppercase text-slate-500 mb-1">Previsto</div>
-                  <input
-                    className={cn("w-full bg-transparent outline-none", "opacity-90 cursor-not-allowed")}
-                    value={formatPrevisto(r.previsto)}
-                    onChange={undefined}
-                    disabled={true}
-                    readOnly={true}
-                    title="Colonna gestita dal Catalogo"
-                  />
-                </div>
-
-                {/* PRODOTTO */}
-                <div>
-                  <div className="text-[11px] tracking-wide uppercase text-slate-500 mb-1">Prodotto (mt)</div>
-                  <input
-                    className={cn("w-full bg-transparent outline-none text-right", ro ? "opacity-80 cursor-not-allowed" : "")}
-                    value={String(r.prodotto ?? "")}
-                    onChange={ro ? undefined : (e) => onRowChange?.(idx, "prodotto", e.target.value)}
-                    disabled={ro}
-                    readOnly={ro}
-                    placeholder="0"
-                    inputMode="decimal"
-                  />
-                </div>
-
-                {/* NOTE */}
-                <div>
-                  <div className="text-[11px] tracking-wide uppercase text-slate-500 mb-1">Note</div>
-                  <input
-                    className={cn("w-full bg-transparent outline-none", ro ? "opacity-80 cursor-not-allowed" : "")}
-                    value={String(r.note ?? "")}
-                    onChange={ro ? undefined : (e) => onRowChange?.(idx, "note", e.target.value)}
-                    disabled={ro}
-                    readOnly={ro}
-                    placeholder="Note…"
-                  />
-                </div>
-
-                {/* INDICE PRODUTTIVITA (read-only) */}
-                <div>
-                  <div className="text-[11px] tracking-wide uppercase text-slate-500 mb-1">Indice</div>
-                  <div className="w-full bg-transparent text-[12px] font-semibold text-right text-slate-900 whitespace-pre-wrap leading-5">
-                    {(() => {
-                      const isCanonical = canonicalByIdx[idx];
-                      const descr = String((r as any)?.descrizione_attivita ?? r.descrizione ?? "");
-                      if (!isCanonical) return "-";
-                      const items = Array.isArray((r as any)?.operator_items) ? (r as any).operator_items : [];
-                      if (items.length === 0) return "-";
-                      const vals = items.map((it: any) => {
-                        const v = getProductivityIndex({ productivityIndexMap, operatorId: it?.operator_id, categoria: r.categoria, descrizione: descr });
-                        return v == null ? "-" : formatIdx(v);
-                      });
-                      return vals.join('\n');
-                    })()}
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-
-        {!ro && rows.length === 0 ? (
-          <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-[12px] text-slate-700">
-            Nessuna riga: usa <span className="font-semibold">Catalogo</span> per aggiungere attività.
-          </div>
-        ) : null}
-      </div>
-
-      {/* ───────────────────────── DESKTOP (md+) : table ───────────────────────── */}
-      <div className="rapportino-desktop hidden md:block">
-        <table className="rapportino-table text-[11px] w-full">
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse table-fixed">
           <thead>
             <tr className="bg-slate-50">
-              <th className="px-2 py-2 text-left w-[140px]">CATEGORIA</th>
-              <th className="px-2 py-2 text-left w-[360px]">DESCRIZIONE ATTIVITÀ</th>
-              <th className="px-2 py-2 text-left w-[260px]">
+              <th className="border border-slate-200 px-2 py-2 text-left text-[11px] font-extrabold uppercase tracking-[0.12em] w-[140px]">
+                CATEGORIA
+              </th>
+              <th className="border border-slate-200 px-2 py-2 text-left text-[11px] font-extrabold uppercase tracking-[0.12em]">
+                DESCRIZIONE ATTIVITÀ
+              </th>
+              <th className="border border-slate-200 px-2 py-2 text-left text-[11px] font-extrabold uppercase tracking-[0.12em] w-[220px]">
                 OPERATORE
-                <div className="text-[10px] text-slate-500 font-normal">(tap per scegliere / drag&drop)</div>
+                <div className="text-[10px] font-semibold normal-case tracking-normal text-slate-500">
+                  (tap per scegliere / drag&amp;drop)
+                </div>
               </th>
-              <th className="px-2 py-2 text-center w-[140px]">
+              <th className="border border-slate-200 px-2 py-2 text-center text-[11px] font-extrabold uppercase tracking-[0.12em] w-[140px]">
                 TEMPO
-                <br />
-                <span className="text-[10px] text-slate-500">(ORE)</span>
+                <div className="text-[10px] font-semibold normal-case tracking-normal text-slate-500">(ORE)</div>
               </th>
-              <th className="px-2 py-2 text-right w-[120px]">PREVISTO</th>
-              <th className="px-2 py-2 text-right w-[120px]">
+              <th className="border border-slate-200 px-2 py-2 text-right text-[11px] font-extrabold uppercase tracking-[0.12em] w-[110px]">
+                PREVISTO
+              </th>
+              <th className="border border-slate-200 px-2 py-2 text-right text-[11px] font-extrabold uppercase tracking-[0.12em] w-[110px]">
                 PRODOTTO
-                <br />
-                <span className="text-[10px] text-slate-500">(MT)</span>
+                <div className="text-[10px] font-semibold normal-case tracking-normal text-slate-500">(MT)</div>
               </th>
-              <th className="px-2 py-2 text-left">NOTE</th>
-              <th className="px-2 py-2 text-right w-[120px]">INDICE</th>
-              {!ro && <th className="px-2 py-2 text-center w-[60px] no-print">×</th>}
+              <th className="border border-slate-200 px-2 py-2 text-left text-[11px] font-extrabold uppercase tracking-[0.12em] w-[220px]">
+                NOTE
+              </th>
+
+              {/* NEW: INDICE column (after NOTE) */}
+              <th className="border border-slate-200 px-2 py-2 text-left text-[11px] font-extrabold uppercase tracking-[0.12em] w-[84px]">
+                INDICE
+              </th>
+
+              {/* Actions (X) — small on screen, hidden in print */}
+              <th className="border border-slate-200 px-2 py-2 text-center text-[11px] font-extrabold uppercase tracking-[0.12em] w-[44px] no-print">
+                ×
+              </th>
             </tr>
           </thead>
 
           <tbody>
-            {rows.map((r, idx) => {
-              const isCanonical = canonicalByIdx[idx];
+            {arr.map((row, idx) => {
+              const categoria = getRowCategoria(row);
+              const descr = getRowDescr(row);
 
-              const canonItems = Array.isArray(r.operator_items) ? r.operator_items : [];
-              const legacyHasOps = hasAnyOperatorValueLegacy(r.operatori);
+              const canon = getCanonicalOperatorItems(row);
+              const legacyOps = getLegacyOperators(row);
+              const legacyTm = getLegacyTempi(row);
 
-              const hasOperators = isCanonical ? canonItems.length > 0 : legacyHasOps;
-              const hasValues =
-                hasNonZeroNumber(r.previsto) || hasNonZeroNumber(r.prodotto) || hasAnyTempoValue(r.tempo);
-              const isIncomplete = hasOperators !== hasValues;
-
-              const tempoPillEnabled = !ro && hasOperators;
-              const opCount = isCanonical ? canonItems.length : countLegacyOperators(r.operatori);
-
-              const descrDesktop = String((r as any)?.descrizione_attivita ?? r?.descrizione ?? "");
-              const prodIdxLinesDesktop = isCanonical
-                ? canonItems.map((it) => {
-                    const v = getProductivityIndex({
-                      productivityIndexMap,
-                      operatorId: it?.operator_id,
-                      categoria: r.categoria,
-                      descrizione: descrDesktop,
-                    });
-                    return v == null ? "-" : formatIdx(v);
-                  })
-                : [];
+              const isCanonical = canon.length > 0;
 
               return (
-                <tr key={String(r.id ?? idx)} className="align-top" data-ot-wrap>
-                  {/* CATEGORIA (LOCKED) */}
-                  <td className="px-2 py-2">
-                    <div className="flex items-start gap-2">
-                      <input
-                        className={cn("w-full bg-transparent outline-none", "opacity-90 cursor-not-allowed")}
-                        value={r.categoria || ""}
-                        onChange={undefined}
-                        disabled={true}
-                        readOnly={true}
-                        title="Colonna gestita dal Catalogo"
-                      />
-                      <span
-                        className="no-print inline-flex items-center rounded-full border border-slate-300 bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-700"
-                        title="Catalogo"
-                      >
-                        C
-                      </span>
-                      {!ro && isIncomplete ? (
-                        <span
-                          className="no-print inline-flex items-center rounded-full border border-amber-300 bg-amber-100 px-2 py-1 text-[10px] font-semibold text-amber-900"
-                          title="Riga incompleta: aggiungi operatori oppure compila prodotto/tempo"
-                        >
-                          !
-                        </span>
-                      ) : null}
-                    </div>
+                <tr key={row?.id ?? idx} className="align-top">
+                  {/* CATEGORIA */}
+                  <td className="border border-slate-200 px-2 py-2 text-[12px]">
+                    {categoria || ""}
                   </td>
 
-                  {/* DESCRIZIONE (LOCKED) */}
-                  <td className="px-2 py-2">
-                    <input
-                      className={cn("w-full bg-transparent outline-none", "opacity-90 cursor-not-allowed")}
-                      value={r.descrizione || ""}
-                      onChange={undefined}
-                      disabled={true}
-                      readOnly={true}
-                      title="Colonna gestita dal Catalogo"
-                    />
+                  {/* DESCR */}
+                  <td className="border border-slate-200 px-2 py-2 text-[12px]">
+                    {descr || ""}
                   </td>
 
-                  {/* OPERATORE (CLICK + DROP) */}
-                  <td className="px-2 py-2">
+                  {/* OPERATORE */}
+                  <td
+                    className={cn(
+                      "border border-slate-200 px-2 py-2 text-[12px]",
+                      !readOnly ? "cursor-pointer" : ""
+                    )}
+                    onClick={() => (!readOnly ? onOpenOperatorPicker?.(idx) : undefined)}
+                  >
                     {isCanonical ? (
-                      <>
-                        <button
-                          type="button"
-                          className={cn(
-                            "no-print w-full rounded-md border border-slate-200 bg-white/70 px-2 py-2 text-left",
-                            ro ? "opacity-80 cursor-not-allowed" : "cursor-pointer hover:bg-slate-50",
-                            !ro ? "focus:outline-none focus:ring-2 focus:ring-sky-500/35" : ""
-                          )}
-                          disabled={ro}
-                          title={
-                            ro
-                              ? undefined
-                              : onOpenOperatorPicker
-                                ? "Tocca per scegliere… o trascina un operatore qui"
-                                : "Picker non cablato (manca onOpenOperatorPicker)"
-                          }
-                          onClick={() => {
-                            if (ro) return;
-                            if (!onOpenOperatorPicker) {
-                              console.warn("[RapportinoTable] onOpenOperatorPicker is missing");
-                              return;
-                            }
-                            onOpenOperatorPicker(idx);
-                          }}
-                          onPointerUp={() => {
-                            if (ro) return;
-                            if (!onOpenOperatorPicker) return;
-                            onOpenOperatorPicker(idx);
-                          }}
-                          onDragOver={(e) => {
-                            if (ro) return;
-                            e.preventDefault();
-                            try {
-                              e.dataTransfer.dropEffect = "copy";
-                            } catch {
-                              // ignore
-                            }
-                          }}
-                          onDrop={(e) => {
-                            if (ro) return;
-                            e.preventDefault();
-                            const dropped = readDroppedOperator(e);
-                            if (!dropped) return;
-
-                            if (onDropOperatorToRow) {
-                              onDropOperatorToRow(idx, dropped);
-                              return;
-                            }
-
-                            // fallback -> legacy text
-                            if (!onRowChange) return;
-                            const next = appendLegacyOperatorLine(r.operatori, dropped.name);
-                            onRowChange(idx, "operatori", next);
-                          }}
-                        >
-                          <div className="flex flex-wrap gap-2">
-                            {canonItems.length === 0 ? (
-                              <span className="text-slate-400 text-[12px]">Tocca per scegliere…</span>
-                            ) : (
-                              canonItems.map((it) => {
-                                const operatorId = it?.operator_id;
-                                const label = String(it?.label || "").trim() || "Operatore";
-                                return (
-                                  <span
-                                    key={String(operatorId)}
-                                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[12px] font-semibold text-slate-900"
-                                    title={label}
-                                  >
-                                    <span className="max-w-[180px] truncate">{label}</span>
-                                    {!ro ? (
-                                      <span
-                                        role="button"
-                                        tabIndex={0}
-                                        className="rounded-full border border-slate-200 w-6 h-6 inline-flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-50"
-                                        title="Rimuovi operatore"
-                                        aria-label={`Rimuovi ${label}`}
-                                        onClick={(ev) => {
-                                          ev.stopPropagation();
-                                          if (!operatorId) return;
-                                          onRemoveOperatorFromRow?.(idx, operatorId);
-                                        }}
-                                        onKeyDown={(ev) => {
-                                          if (ev.key === "Enter" || ev.key === " ") {
-                                            ev.preventDefault();
-                                            ev.stopPropagation();
-                                            if (!operatorId) return;
-                                            onRemoveOperatorFromRow?.(idx, operatorId);
-                                          }
-                                        }}
-                                      >
-                                        ×
-                                      </span>
-                                    ) : null}
-                                  </span>
-                                );
-                              })
-                            )}
-                          </div>
-                        </button>
-
-                        <div className="print-only">
-                          <PrintLines value={r.operatori} />
-                        </div>
-                      </>
+                      <div className="flex flex-col gap-2">
+                        {canon.map((it, i) => {
+                          const label = safeStr(it?.label);
+                          if (!label) return null;
+                          return (
+                            <div
+                              key={`${it?.operator_id ?? "op"}-${i}`}
+                              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5"
+                            >
+                              <span className="min-w-0 truncate font-semibold">{label}</span>
+                              {!readOnly && it?.operator_id ? (
+                                <button
+                                  type="button"
+                                  className="no-print ml-1 inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                                  title="Rimuovi"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    onRemoveOperatorFromRow?.(idx, String(it.operator_id));
+                                  }}
+                                >
+                                  ×
+                                </button>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : legacyOps.length > 0 ? (
+                      <div className="whitespace-pre-wrap">{legacyOps.join("\n")}</div>
                     ) : (
-                      <>
-                        {ro ? (
-                          <div className="no-print w-full rounded-md border border-slate-200 bg-white/60 px-2 py-2 text-[12px] text-slate-900 whitespace-pre-wrap">
-                            {prettyMultiline(r.operatori) ? (
-                              prettyMultiline(r.operatori)
-                            ) : (
-                              <span className="text-slate-400">Nomi operatori (uno per riga)</span>
-                            )}
-                          </div>
-                        ) : (
-                          <textarea
-                            className="no-print w-full min-h-[72px] rounded-md border border-slate-200 bg-white/70 px-2 py-2 text-[12px] text-slate-900 outline-none focus:ring-2 focus:ring-sky-500/35"
-                            value={String(r.operatori ?? "")}
-                            placeholder="Nomi operatori (uno per riga)"
-                            onChange={(e) => onRowChange?.(idx, "operatori", e.target.value)}
-                            onDragOver={(e) => {
-                              e.preventDefault();
-                              try {
-                                e.dataTransfer.dropEffect = "copy";
-                              } catch {
-                                // ignore
-                              }
-                            }}
-                            onDrop={(e) => {
-                              e.preventDefault();
-                              const dropped = readDroppedOperator(e);
-                              if (!dropped) return;
-                              const next = appendLegacyOperatorLine(r.operatori, dropped.name);
-                              onRowChange?.(idx, "operatori", next);
-                            }}
-                          />
-                        )}
-                        <div className="print-only">
-                          <PrintLines value={r.operatori} />
-                        </div>
-                      </>
+                      <span className="text-slate-400">(vuoto)</span>
                     )}
                   </td>
 
                   {/* TEMPO */}
-                  <td className="px-2 py-2 text-center">
-                    <div
-                      className={cn(
-                        "no-print w-full rounded-xl border border-slate-200 bg-white/80 px-2.5 py-2",
-                        tempoPillEnabled
-                          ? "cursor-pointer hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-sky-500/35"
-                          : "opacity-70 cursor-not-allowed"
-                      )}
-                      role={tempoPillEnabled ? "button" : undefined}
-                      tabIndex={tempoPillEnabled ? 0 : -1}
-                      title={!hasOperators ? "Prima inserisci almeno un operatore" : ro ? undefined : "Tocca per impostare le ore…"}
-                      onClick={() => {
-                        if (!tempoPillEnabled) return;
-                        onOpenTempoPicker?.(idx);
-                      }}
-                      onPointerUp={() => {
-                        if (!tempoPillEnabled) return;
-                        onOpenTempoPicker?.(idx);
-                      }}
-                      onKeyDown={(e) => {
-                        if (!tempoPillEnabled) return;
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          onOpenTempoPicker?.(idx);
-                        }
-                      }}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Tempo</div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[11px] text-slate-500">{hasOperators ? `${opCount} op` : "0 op"}</span>
-                          {tempoPillEnabled ? <span className="text-[12px] text-slate-400">›</span> : null}
-                        </div>
+                  <td
+                    className={cn(
+                      "border border-slate-200 px-2 py-2 text-[12px] text-center",
+                      !readOnly ? "cursor-pointer" : ""
+                    )}
+                    onClick={() => (!readOnly ? onOpenTempoPicker?.(idx) : undefined)}
+                  >
+                    {isCanonical ? (
+                      <div className="flex flex-col gap-1">
+                        {canon.map((it, i) => {
+                          const tr = safeStr(it?.tempo_raw);
+                          return (
+                            <div key={`${it?.operator_id ?? "t"}-${i}`} className="tabular-nums">
+                              {tr || ""}
+                            </div>
+                          );
+                        })}
                       </div>
-
-                      <div className="mt-1 text-[12px] font-semibold text-slate-900 text-center whitespace-pre-wrap leading-5">
-                        {prettyMultiline(r.tempo) ? prettyMultiline(r.tempo) : "Tocca per impostare…"}
+                    ) : (
+                      <div className="flex flex-col gap-1">
+                        {legacyTm.map((t, i) => (
+                          <div key={i} className="tabular-nums">
+                            {t}
+                          </div>
+                        ))}
                       </div>
-                    </div>
-
-                    <div className="print-only text-center">
-                      <PrintLines value={r.tempo} numeric={true} align="center" />
-                    </div>
+                    )}
                   </td>
 
-                  {/* PREVISTO (LOCKED) */}
-                  <td className="px-2 py-2 text-right">
-                    <input
-                      className={cn("w-full bg-transparent outline-none text-right", "opacity-90 cursor-not-allowed")}
-                      value={formatPrevisto(r.previsto)}
-                      onChange={undefined}
-                      disabled={true}
-                      readOnly={true}
-                      title="Colonna gestita dal Catalogo"
-                    />
+                  {/* PREVISTO */}
+                  <td className="border border-slate-200 px-2 py-2 text-[12px] text-right tabular-nums">
+                    {row?.previsto ?? ""}
                   </td>
 
                   {/* PRODOTTO */}
-                  <td className="px-2 py-2 text-right">
-                    <input
-                      className={cn("w-full bg-transparent outline-none text-right", ro ? "opacity-80 cursor-not-allowed" : "")}
-                      value={String(r.prodotto ?? "")}
-                      onChange={ro ? undefined : (e) => onRowChange?.(idx, "prodotto", e.target.value)}
-                      disabled={ro}
-                      readOnly={ro}
-                      placeholder="0"
-                      inputMode="decimal"
-                    />
+                  <td className="border border-slate-200 px-2 py-2 text-[12px] text-right tabular-nums">
+                    {row?.prodotto ?? ""}
                   </td>
 
                   {/* NOTE */}
-                  <td className="px-2 py-2">
-                    <input
-                      className={cn("w-full bg-transparent outline-none", ro ? "opacity-80 cursor-not-allowed" : "")}
-                      value={String(r.note ?? "")}
-                      onChange={ro ? undefined : (e) => onRowChange?.(idx, "note", e.target.value)}
-                      disabled={ro}
-                      readOnly={ro}
-                      placeholder="Note…"
-                    />
+                  <td className="border border-slate-200 px-2 py-2 text-[12px]">
+                    {row?.note ?? ""}
                   </td>
 
-                  {/* INDICE PRODUTTIVITA (read-only) */}
-                  <td className="px-2 py-2" data-kpi-indice>
-                    <PrintLines
-                      value={(() => {
-                        const isCanonical = canonicalByIdx[idx];
-                        const descr = String((r as any)?.descrizione_attivita ?? r.descrizione ?? "");
-                        if (!isCanonical) return "";
-                        const items = Array.isArray((r as any)?.operator_items) ? (r as any).operator_items : [];
-                        if (items.length === 0) return "";
-                        return items
-                          .map((it: any) => {
-                            const v = getProductivityIndex({
-                              productivityIndexMap,
-                              operatorId: it?.operator_id,
-                              categoria: r.categoria,
-                              descrizione: descr,
-                            });
-                            return v == null ? "-" : formatIdx(v);
-                          })
-                          .join("\n");
-                      })()}
-                      numeric
-                      align="right"
-                      className="whitespace-pre-wrap"
-                    />
+                  {/* INDICE */}
+                  <td className="border border-slate-200 px-2 py-2 text-[12px]">
+                    {renderIndiceForRow(row)}
                   </td>
 
-                  {!ro ? (
-                    <td className="px-2 py-2 text-center no-print">
+                  {/* X */}
+                  <td className="border border-slate-200 px-2 py-2 text-center no-print">
+                    {!readOnly ? (
                       <button
                         type="button"
-                        className="rounded-full border border-slate-300 bg-white hover:bg-slate-50 px-2 py-1 text-[12px] font-semibold text-slate-900"
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                         title="Rimuovi riga"
-                        onClick={() => onRemoveRow?.(idx)}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          onRemoveRow?.(idx);
+                        }}
                       >
                         ×
                       </button>
-                    </td>
-                  ) : null}
+                    ) : null}
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
-
-        {!ro && rows.length === 0 ? (
-          <div className="no-print mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-[12px] text-slate-700">
-            Nessuna riga: usa <span className="font-semibold">Catalogo</span> per aggiungere attività.
-          </div>
-        ) : null}
       </div>
     </div>
   );

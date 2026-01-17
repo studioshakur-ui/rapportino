@@ -420,7 +420,7 @@ export default function RapportinoPage() {
     return arr.length > 0 && arr.length <= 250 ? arr : [];
   }, [visibleRows]);
 
-  const { familyRows: kpiFamilyRows } = useOperatorProductivityData({
+  const { familyRows: kpiFamilyRows } = ({
     profileId: profile?.id,
     scope: "CAPO",
     dateFrom: reportDate,
@@ -675,15 +675,16 @@ export default function RapportinoPage() {
     await handleSave("VALIDATED_CAPO");
   };
 
+   // Export: stampa via dialog browser (sans nouvel onglet)
   const handlePrint = async () => {
     const savedId = await handleSave(status);
     if (!savedId) return;
 
     try {
-      const url = `/print/rapportino?id=${encodeURIComponent(savedId)}`;
-      window.open(url, "_blank", "noopener,noreferrer");
+      // IMPORTANT: on reste sur la page courante, on déclenche juste le print dialog
+      window.print();
     } catch (e) {
-      console.warn("Open print route failed:", e);
+      console.warn("window.print failed:", e);
     }
   };
 
@@ -903,7 +904,8 @@ export default function RapportinoPage() {
               "shadow-[0_18px_45px_rgba(0,0,0,0.25)]",
               "w-full"
             )}
-            style={{ maxWidth: "min(1280px, 100%)" }}
+            style={{ maxWidth: "min(1720px, 100%)" }}
+
           >
             <RapportinoHeader
               costr={costr}

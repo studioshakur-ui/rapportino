@@ -1,13 +1,25 @@
-// src/inca/hooks/usePercorsoNodesAutocomplete.js
+// src/hooks/usePercorsoNodesAutocomplete.ts
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
-function normNode(s) {
+function normNode(s: unknown): string {
   return String(s || "")
     .trim()
     .replace(/\s+/g, " ")
     .toUpperCase();
 }
+
+export type PercorsoNodeOption = {
+  nodo: string;
+  occorrenze: number;
+};
+
+type Params = {
+  prefix: string;
+  limit?: number;
+  debounceMs?: number;
+  enabled?: boolean;
+};
 
 /**
  * Autocomplete sur les noeuds de percorso.
@@ -18,10 +30,10 @@ export function usePercorsoNodesAutocomplete({
   limit = 12,
   debounceMs = 180,
   enabled = true,
-}) {
-  const [options, setOptions] = useState([]);
+}: Params) {
+  const [options, setOptions] = useState<PercorsoNodeOption[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   const lastReqId = useRef(0);
 
@@ -52,7 +64,7 @@ export function usePercorsoNodesAutocomplete({
     setLoading(true);
     setError(null);
 
-    const t = setTimeout(async () => {
+    const t = window.setTimeout(async () => {
       try {
         const { data, error: e } = await supabase
           .from("inca_percorsi_nodes_v1")
@@ -68,8 +80,8 @@ export function usePercorsoNodesAutocomplete({
         const list = Array.isArray(data) ? data : [];
         setOptions(
           list
-            .map((r) => ({ nodo: normNode(r?.nodo), occorrenze: Number(r?.occorrenze || 0) }))
-            .filter((r) => r.nodo)
+            .map((r: any) => ({ nodo: normNode(r?.nodo), occorrenze: Number(r?.occorrenze || 0) }))
+            .filter((r: PercorsoNodeOption) => r.nodo)
         );
       } catch (err) {
         if (!alive || reqId !== lastReqId.current) return;
@@ -84,7 +96,7 @@ export function usePercorsoNodesAutocomplete({
 
     return () => {
       alive = false;
-      clearTimeout(t);
+      window.clearTimeout(t);
     };
   }, [normalizedPrefix, limit, debounceMs, enabled]);
 

@@ -1,4 +1,4 @@
-// /src/components/core-drive/rapportini/CoreDriveRapportiniV1.jsx
+// /src/components/core-drive/rapportini/CoreDriveRapportiniV1.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../../auth/AuthProvider";
 
@@ -7,39 +7,47 @@ import KpiTile from "../ui/KpiTile";
 import Segmented from "../ui/Segmented";
 import VirtualList from "../ui/VirtualList";
 
+import type { ArchiveRapportinoV1 } from "../../../services/rapportiniArchive.api";
 import { loadRapportiniArchiveV1 } from "../../../services/rapportiniArchive.api";
 
-function formatDate(value) {
+type ViewMode = "TABLE" | "TIMELINE";
+type FilterStatus = "ALL" | string;
+type ComparisonMode = "CAPO" | "COMMESSA";
+type ComparisonRange = "ALL" | "90" | "365";
+
+function formatDate(value: unknown): string {
   if (!value) return "";
-  const d = new Date(value);
+  const d = new Date(String(value));
   if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleDateString("it-IT");
 }
 
-function formatNumber(value) {
-  if (value == null || Number.isNaN(value)) return "0";
-  return new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 }).format(Number(value));
+function formatNumber(value: unknown): string {
+  if (value == null) return "0";
+  const n = Number(value);
+  if (Number.isNaN(n)) return "0";
+  return new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 }).format(n);
 }
 
-const STATUS_LABELS = {
+const STATUS_LABELS: Record<string, string> = {
   DRAFT: "Bozza",
   VALIDATED_CAPO: "Validata dal Capo",
   APPROVED_UFFICIO: "Approvata dall’Ufficio",
   RETURNED: "Rimandata dall’Ufficio",
 };
 
-const STATUS_BADGE = {
+const STATUS_BADGE: Record<string, string> = {
   DRAFT: "bg-slate-800 text-slate-200 border-slate-700",
   VALIDATED_CAPO: "bg-emerald-900/40 text-emerald-200 border-emerald-600/70",
   APPROVED_UFFICIO: "bg-sky-900/40 text-sky-200 border-sky-600/70",
   RETURNED: "bg-amber-900/40 text-amber-200 border-amber-600/70",
 };
 
-function buildCsv(rows, isCapoView) {
-  const headers = ["data", "commessa", "costr", "status", "totale_prodotto"];
+function buildCsv(rows: ArchiveRapportinoV1[], isCapoView: boolean): string {
+  const headers: string[] = ["data", "commessa", "costr", "status", "totale_prodotto"];
   if (!isCapoView) headers.splice(1, 0, "capo_name");
 
-  const escapeCell = (value) => {
+  const escapeCell = (value: unknown) => {
     const s = String(value ?? "");
     if (s.includes(";") || s.includes('"') || s.includes("\n")) return `"${s.replace(/"/g, '""')}"`;
     return s;
@@ -48,7 +56,13 @@ function buildCsv(rows, isCapoView) {
   const lines = [
     headers.join(";"),
     ...rows.map((r) => {
-      const base = [r.data || "", r.commessa || "", r.costr || "", r.status || "", String(r.totale_prodotto || 0)];
+      const base = [
+        r.data || "",
+        r.commessa || "",
+        r.costr || "",
+        r.status || "",
+        String((r.totale_prodotto as number | null | undefined) ?? 0),
+      ];
       if (!isCapoView) base.splice(1, 0, r.capo_name || "");
       return base.map(escapeCell).join(";");
     }),
@@ -57,7 +71,7 @@ function buildCsv(rows, isCapoView) {
   return lines.join("\n");
 }
 
-function downloadCsv(content, filename) {
+function downloadCsv(content: string, filename: string) {
   const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -69,38 +83,41 @@ function downloadCsv(content, filename) {
   URL.revokeObjectURL(url);
 }
 
-const VIEW_OPTIONS = [
+const VIEW_OPTIONS: Array<{ value: ViewMode; label: string }> = [
   { value: "TABLE", label: "Tabella" },
   { value: "TIMELINE", label: "Timeline" },
 ];
 
-export default function CoreDriveRapportiniV1() {
+type TimelineEntry = { date: string; rapportini: number; prodotto: number };
+type ComparisonEntry = { label: string; prodotto: number; rapportini: number };
+
+export default function CoreDriveRapportiniV1(): JSX.Element {
   const { profile } = useAuth();
 
-  const isCapoView = profile?.app_role === "CAPO" || profile?.role === "CAPO";
-  const capoId = profile?.id || null;
+  const isCapoView = profile?.app_role === "CAPO" || (profile as any)?.role === "CAPO";
+  const capoId: string | null = (profile as any)?.id || null;
 
-  const [loading, setLoading] = useState(true);
-  const [rapportini, setRapportini] = useState([]);
-  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [rapportini, setRapportini] = useState<ArchiveRapportinoV1[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
-  // Filtres
-  const [searchText, setSearchText] = useState("");
-  const [filterCapo, setFilterCapo] = useState("");
-  const [filterCommessa, setFilterCommessa] = useState("");
-  const [filterCostr, setFilterCostr] = useState("");
-  const [filterStatus, setFilterStatus] = useState("ALL");
-  const [filterFrom, setFilterFrom] = useState("");
-  const [filterTo, setFilterTo] = useState("");
+  // Filters
+  const [searchText, setSearchText] = useState<string>("");
+  const [filterCapo, setFilterCapo] = useState<string>("");
+  const [filterCommessa, setFilterCommessa] = useState<string>("");
+  const [filterCostr, setFilterCostr] = useState<string>("");
+  const [filterStatus, setFilterStatus] = useState<FilterStatus>("ALL");
+  const [filterFrom, setFilterFrom] = useState<string>("");
+  const [filterTo, setFilterTo] = useState<string>("");
 
-  const [viewMode, setViewMode] = useState("TABLE");
+  const [viewMode, setViewMode] = useState<ViewMode>("TABLE");
 
-  // Comparaison
-  const [comparisonMode, setComparisonMode] = useState(isCapoView ? "COMMESSA" : "CAPO");
-  const [comparisonRange, setComparisonRange] = useState("ALL");
+  // Comparison
+  const [comparisonMode, setComparisonMode] = useState<ComparisonMode>(isCapoView ? "COMMESSA" : "CAPO");
+  const [comparisonRange, setComparisonRange] = useState<ComparisonRange>("ALL");
 
-  // Détail
-  const [selected, setSelected] = useState(null);
+  // Detail
+  const [selected, setSelected] = useState<ArchiveRapportinoV1 | null>(null);
 
   useEffect(() => {
     if (!profile) return;
@@ -112,6 +129,7 @@ export default function CoreDriveRapportiniV1() {
         const data = await loadRapportiniArchiveV1({ capoId: isCapoView ? capoId : null, limit: 2000 });
         setRapportini(data || []);
       } catch (e) {
+        // eslint-disable-next-line no-console
         console.error(e);
         setError("Errore caricamento storico (rapportini v1).");
       } finally {
@@ -119,14 +137,14 @@ export default function CoreDriveRapportiniV1() {
       }
     };
 
-    load();
+    void load();
   }, [profile, isCapoView, capoId]);
 
   const facets = useMemo(() => {
-    const capi = new Set();
-    const commesse = new Set();
-    const costrSet = new Set();
-    const statusSet = new Set();
+    const capi = new Set<string>();
+    const commesse = new Set<string>();
+    const costrSet = new Set<string>();
+    const statusSet = new Set<string>();
 
     rapportini.forEach((r) => {
       if (r.capo_name) capi.add(r.capo_name);
@@ -168,20 +186,21 @@ export default function CoreDriveRapportiniV1() {
 
     if (filterFrom) {
       const fromDate = new Date(filterFrom);
-      result = result.filter((r) => r.data && new Date(r.data) >= fromDate);
+      result = result.filter((r) => r.data && new Date(String(r.data)) >= fromDate);
     }
 
     if (filterTo) {
       const toDate = new Date(filterTo);
-      result = result.filter((r) => r.data && new Date(r.data) <= toDate);
+      result = result.filter((r) => r.data && new Date(String(r.data)) <= toDate);
     }
 
     if (searchText.trim()) {
       const f = searchText.trim().toLowerCase();
-      result = result.filter((r) =>
-        (r.commessa || "").toLowerCase().includes(f) ||
-        (r.costr || "").toLowerCase().includes(f) ||
-        (r.note || "").toLowerCase().includes(f)
+      result = result.filter(
+        (r) =>
+          (r.commessa || "").toLowerCase().includes(f) ||
+          (r.costr || "").toLowerCase().includes(f) ||
+          (r.note || "").toLowerCase().includes(f),
       );
     }
 
@@ -189,16 +208,16 @@ export default function CoreDriveRapportiniV1() {
   }, [rapportini, isCapoView, filterCapo, filterCommessa, filterCostr, filterStatus, filterFrom, filterTo, searchText]);
 
   const summary = useMemo(() => {
-    if (!filtered.length) return { count: 0, totaleProdotto: 0, firstDate: null, lastDate: null };
+    if (!filtered.length) return { count: 0, totaleProdotto: 0, firstDate: null as Date | null, lastDate: null as Date | null };
 
     let totale = 0;
-    let minDate = null;
-    let maxDate = null;
+    let minDate: Date | null = null;
+    let maxDate: Date | null = null;
 
     filtered.forEach((r) => {
       totale += Number(r.totale_prodotto || 0);
       if (r.data) {
-        const d = new Date(r.data);
+        const d = new Date(String(r.data));
         if (!minDate || d < minDate) minDate = d;
         if (!maxDate || d > maxDate) maxDate = d;
       }
@@ -207,33 +226,33 @@ export default function CoreDriveRapportiniV1() {
     return { count: filtered.length, totaleProdotto: totale, firstDate: minDate, lastDate: maxDate };
   }, [filtered]);
 
-  const timelineData = useMemo(() => {
-    const map = new Map();
+  const timelineData = useMemo<TimelineEntry[]>(() => {
+    const map = new Map<string, TimelineEntry>();
     filtered.forEach((r) => {
       if (!r.data) return;
-      const key = r.data.slice(0, 10);
+      const key = String(r.data).slice(0, 10);
       if (!map.has(key)) map.set(key, { date: key, rapportini: 0, prodotto: 0 });
-      const e = map.get(key);
+      const e = map.get(key)!;
       e.rapportini += 1;
       e.prodotto += Number(r.totale_prodotto || 0);
     });
-    return Array.from(map.values()).sort((a, b) => new Date(a.date) - new Date(b.date));
+    return Array.from(map.values()).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [filtered]);
 
   const maxRapportiniTimeline = useMemo(
     () => timelineData.reduce((max, d) => Math.max(max, d.rapportini || 0), 0) || 0,
-    [timelineData]
+    [timelineData],
   );
   const maxProdottoTimeline = useMemo(
     () => timelineData.reduce((max, d) => Math.max(max, d.prodotto || 0), 0) || 0,
-    [timelineData]
+    [timelineData],
   );
 
-  const comparisonData = useMemo(() => {
+  const comparisonData = useMemo<ComparisonEntry[]>(() => {
     if (!filtered.length) return [];
 
     const now = new Date();
-    let fromLimit = null;
+    let fromLimit: Date | null = null;
     if (comparisonRange === "90") {
       fromLimit = new Date(now);
       fromLimit.setDate(fromLimit.getDate() - 90);
@@ -242,11 +261,11 @@ export default function CoreDriveRapportiniV1() {
       fromLimit.setDate(fromLimit.getDate() - 365);
     }
 
-    const map = new Map();
+    const map = new Map<string, ComparisonEntry>();
 
     filtered.forEach((r) => {
       if (fromLimit && r.data) {
-        const d = new Date(r.data);
+        const d = new Date(String(r.data));
         if (d < fromLimit) return;
       }
 
@@ -256,7 +275,7 @@ export default function CoreDriveRapportiniV1() {
           : (r.commessa || "Senza commessa");
 
       if (!map.has(key)) map.set(key, { label: key, prodotto: 0, rapportini: 0 });
-      const e = map.get(key);
+      const e = map.get(key)!;
       e.prodotto += Number(r.totale_prodotto || 0);
       e.rapportini += 1;
     });
@@ -266,7 +285,7 @@ export default function CoreDriveRapportiniV1() {
 
   const maxProdottoComparison = useMemo(
     () => comparisonData.reduce((max, d) => Math.max(max, d.prodotto || 0), 0) || 0,
-    [comparisonData]
+    [comparisonData],
   );
 
   const handleExportCsv = () => {
@@ -288,14 +307,13 @@ export default function CoreDriveRapportiniV1() {
 
   const handleOpenUfficioDetail = () => {
     if (!selected) return;
-    const rapportinoId = selected.rapportino_id || selected.id;
+    const rapportinoId = (selected.rapportino_id || selected.id) as string | null | undefined;
     if (!rapportinoId) return;
     window.open(`/ufficio/rapportini/${rapportinoId}`, "_blank");
   };
 
   return (
     <div className="space-y-5">
-      {/* KPI strip (wow) */}
       <section className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <KpiTile label="Rapportini" value={summary.count} hint="In vista" />
         <KpiTile label="Prodotto" value={formatNumber(summary.totaleProdotto)} hint="Somma filtrata" tone="ok" />
@@ -309,7 +327,6 @@ export default function CoreDriveRapportiniV1() {
         <KpiTile label="Export" value="CSV" hint="Per audit" />
       </section>
 
-      {/* Header compact + actions */}
       <section className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -339,7 +356,6 @@ export default function CoreDriveRapportiniV1() {
           </div>
         </div>
 
-        {/* Spotlight search */}
         <div className="mt-3 flex flex-col gap-2 lg:flex-row">
           <input
             type="text"
@@ -357,7 +373,6 @@ export default function CoreDriveRapportiniV1() {
           </button>
         </div>
 
-        {/* Facettes */}
         <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-[12px]">
           {!isCapoView && (
             <select
@@ -428,41 +443,26 @@ export default function CoreDriveRapportiniV1() {
         </div>
       </section>
 
-      {/* Split cockpit */}
       <section className="grid grid-cols-1 lg:grid-cols-[minmax(0,2.2fr)_minmax(0,1.2fr)] gap-4">
-        {/* LEFT */}
         <div className="space-y-3">
           <div className="rounded-2xl border border-slate-800 bg-slate-950/60 overflow-hidden">
             {loading ? (
-              <div className="flex h-52 items-center justify-center text-sm text-slate-400">
-                Caricamento storico…
-              </div>
+              <div className="flex h-52 items-center justify-center text-sm text-slate-400">Caricamento storico…</div>
             ) : error ? (
               <div className="p-4 text-sm text-rose-300">{error}</div>
             ) : !filtered.length ? (
               <div className="p-4 text-sm text-slate-400">Nessun dato per i filtri attuali.</div>
             ) : viewMode === "TABLE" ? (
-              <RapportiniVirtualTable
-                rows={filtered}
-                isCapoView={isCapoView}
-                onRowClick={setSelected}
-              />
+              <RapportiniVirtualTable rows={filtered} isCapoView={isCapoView} onRowClick={setSelected} />
             ) : (
-              <TimelineRapportini
-                data={timelineData}
-                maxRap={maxRapportiniTimeline}
-                maxProd={maxProdottoTimeline}
-              />
+              <TimelineRapportini data={timelineData} maxRap={maxRapportiniTimeline} maxProd={maxProdottoTimeline} />
             )}
           </div>
         </div>
 
-        {/* RIGHT */}
         <div className="space-y-3">
           <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 text-[12px]">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-1">
-              Confronto
-            </div>
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-1">Confronto</div>
 
             <div className="flex items-center justify-between gap-2">
               <div className="text-xs text-slate-300">
@@ -471,7 +471,7 @@ export default function CoreDriveRapportiniV1() {
               <div className="flex items-center gap-2">
                 <select
                   value={comparisonMode}
-                  onChange={(e) => setComparisonMode(e.target.value)}
+                  onChange={(e) => setComparisonMode(e.target.value as ComparisonMode)}
                   className="rounded-full border border-slate-700 bg-slate-950/80 px-2 py-0.5 text-[11px] text-slate-100"
                 >
                   <option value="CAPO">Per capo</option>
@@ -479,7 +479,7 @@ export default function CoreDriveRapportiniV1() {
                 </select>
                 <select
                   value={comparisonRange}
-                  onChange={(e) => setComparisonRange(e.target.value)}
+                  onChange={(e) => setComparisonRange(e.target.value as ComparisonRange)}
                   className="rounded-full border border-slate-700 bg-slate-950/80 px-2 py-0.5 text-[11px] text-slate-100"
                 >
                   <option value="ALL">Tutto</option>
@@ -493,9 +493,7 @@ export default function CoreDriveRapportiniV1() {
               {comparisonData.length ? (
                 comparisonData.slice(0, 8).map((row) => {
                   const width =
-                    maxProdottoComparison > 0
-                      ? Math.max(4, (row.prodotto / maxProdottoComparison) * 100)
-                      : 0;
+                    maxProdottoComparison > 0 ? Math.max(4, (row.prodotto / maxProdottoComparison) * 100) : 0;
 
                   return (
                     <div key={row.label} className="space-y-0.5">
@@ -504,25 +502,19 @@ export default function CoreDriveRapportiniV1() {
                         <span className="font-mono text-slate-400">{formatNumber(row.prodotto)}</span>
                       </div>
                       <div className="h-2 rounded-full bg-slate-900 border border-slate-800 overflow-hidden">
-                        <div
-                          style={{ width: `${width}%` }}
-                          className="h-full rounded-full bg-gradient-to-r from-sky-500 via-emerald-400 to-emerald-300"
-                        />
+                        <div style={{ width: `${width}%` }} className="h-full rounded-full bg-gradient-to-r from-sky-500 via-emerald-400 to-emerald-300" />
                       </div>
                     </div>
                   );
                 })
               ) : (
-                <div className="flex h-24 items-center justify-center text-[11px] text-slate-500">
-                  Dati insufficienti.
-                </div>
+                <div className="flex h-24 items-center justify-center text-[11px] text-slate-500">Dati insufficienti.</div>
               )}
             </div>
           </div>
         </div>
       </section>
 
-      {/* Drawer détail */}
       {selected && (
         <RapportinoDetailDrawer
           selected={selected}
@@ -535,9 +527,21 @@ export default function CoreDriveRapportiniV1() {
   );
 }
 
-function RapportiniVirtualTable({ rows, isCapoView, onRowClick }) {
+function RapportiniVirtualTable({
+  rows,
+  isCapoView,
+  onRowClick,
+}: {
+  rows: ArchiveRapportinoV1[];
+  isCapoView: boolean;
+  onRowClick?: (row: ArchiveRapportinoV1) => void;
+}): JSX.Element {
   const header = (
-    <div className={`grid ${isCapoView ? "grid-cols-[120px_1fr_110px_160px]" : "grid-cols-[120px_1fr_1fr_110px_160px]"} gap-2 px-4 py-2 border-b border-slate-800 text-[11px] text-slate-400 bg-slate-950/50`}>
+    <div
+      className={`grid ${
+        isCapoView ? "grid-cols-[120px_1fr_110px_160px]" : "grid-cols-[120px_1fr_1fr_110px_160px]"
+      } gap-2 px-4 py-2 border-b border-slate-800 text-[11px] text-slate-400 bg-slate-950/50`}
+    >
       <div>Data</div>
       {!isCapoView ? <div>Capo</div> : null}
       <div>Commessa</div>
@@ -550,14 +554,16 @@ function RapportiniVirtualTable({ rows, isCapoView, onRowClick }) {
     <div>
       {header}
       <VirtualList
-        rows={rows}
+        rows={rows as any}
         rowHeight={38}
         height={560}
-        renderRow={(r, idx) => (
+        renderRow={(r: ArchiveRapportinoV1, idx: number) => (
           <div
-            key={r.id || idx}
+            key={(r.id as string | undefined) || idx}
             onClick={() => onRowClick?.(r)}
-            className={`grid ${isCapoView ? "grid-cols-[120px_1fr_110px_160px]" : "grid-cols-[120px_1fr_1fr_110px_160px]"} gap-2 px-4 py-2 border-b border-slate-800/60 hover:bg-slate-900/40 cursor-pointer text-[12px]`}
+            className={`grid ${
+              isCapoView ? "grid-cols-[120px_1fr_110px_160px]" : "grid-cols-[120px_1fr_1fr_110px_160px]"
+            } gap-2 px-4 py-2 border-b border-slate-800/60 hover:bg-slate-900/40 cursor-pointer text-[12px]`}
           >
             <div className="text-slate-200">{formatDate(r.data)}</div>
             {!isCapoView ? <div className="text-slate-200 truncate">{r.capo_name || "—"}</div> : null}
@@ -567,20 +573,24 @@ function RapportiniVirtualTable({ rows, isCapoView, onRowClick }) {
           </div>
         )}
       />
-      <div className="px-4 py-2 text-[11px] text-slate-500">
-        Scroll fluido · {rows.length} righe (max 2000 caricate)
-      </div>
+      <div className="px-4 py-2 text-[11px] text-slate-500">Scroll fluido · {rows.length} righe (max 2000 caricate)</div>
     </div>
   );
 }
 
-function TimelineRapportini({ data, maxRap, maxProd }) {
+function TimelineRapportini({
+  data,
+  maxRap,
+  maxProd,
+}: {
+  data: TimelineEntry[];
+  maxRap: number;
+  maxProd: number;
+}): JSX.Element {
   return (
     <div className="h-72 w-full px-4 py-3 flex flex-col">
       {data.length === 0 ? (
-        <div className="flex h-full items-center justify-center text-[11px] text-slate-500">
-          Nessun dato timeline.
-        </div>
+        <div className="flex h-full items-center justify-center text-[11px] text-slate-500">Nessun dato timeline.</div>
       ) : (
         <>
           <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
@@ -606,15 +616,17 @@ function TimelineRapportini({ data, maxRap, maxProd }) {
                     <div className="pointer-events-none absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                       <div className="rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-[10px] text-slate-100 whitespace-nowrap shadow-lg">
                         <div>{formatDate(d.date)}</div>
-                        <div>Prod: <span className="font-mono">{formatNumber(d.prodotto)}</span></div>
-                        <div>Rap: <span className="font-mono">{d.rapportini}</span></div>
+                        <div>
+                          Prod: <span className="font-mono">{formatNumber(d.prodotto)}</span>
+                        </div>
+                        <div>
+                          Rap: <span className="font-mono">{d.rapportini}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="mt-1 text-[9px] text-slate-500 rotate-[-50deg] origin-top">
-                    {formatDate(d.date)}
-                  </div>
+                  <div className="mt-1 text-[9px] text-slate-500 rotate-[-50deg] origin-top">{formatDate(d.date)}</div>
                 </div>
               );
             })}
@@ -625,24 +637,28 @@ function TimelineRapportini({ data, maxRap, maxProd }) {
   );
 }
 
-function RapportinoDetailDrawer({ selected, isCapoView, onClose, onOpenUfficio }) {
+function RapportinoDetailDrawer({
+  selected,
+  isCapoView,
+  onClose,
+  onOpenUfficio,
+}: {
+  selected: ArchiveRapportinoV1;
+  isCapoView: boolean;
+  onClose: () => void;
+  onOpenUfficio: () => void;
+}): JSX.Element {
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-end bg-slate-950/60 backdrop-blur-sm">
       <div className="w-full max-w-md h-full bg-slate-950 border-l border-slate-800 shadow-[0_0_40px_rgba(15,23,42,1)] flex flex-col">
         <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
           <div className="min-w-0">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-              Dettaglio · Storico v1
-            </div>
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Dettaglio · Storico v1</div>
             <div className="truncate text-sm text-slate-100">
               {formatDate(selected.data)} · {selected.commessa || "Senza commessa"}
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-100 text-sm font-medium"
-          >
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-100 text-sm font-medium">
             ✕
           </button>
         </div>
@@ -662,10 +678,10 @@ function RapportinoDetailDrawer({ selected, isCapoView, onClose, onOpenUfficio }
                 <span
                   className={[
                     "inline-flex items-center px-2 py-0.5 rounded-full border text-[11px]",
-                    STATUS_BADGE[selected.status] || "bg-slate-800 text-slate-200 border-slate-700",
+                    STATUS_BADGE[selected.status || ""] || "bg-slate-800 text-slate-200 border-slate-700",
                   ].join(" ")}
                 >
-                  {STATUS_LABELS[selected.status] || selected.status || "—"}
+                  {STATUS_LABELS[selected.status || ""] || selected.status || "—"}
                 </span>
               </div>
             </div>
@@ -708,13 +724,11 @@ function RapportinoDetailDrawer({ selected, isCapoView, onClose, onOpenUfficio }
   );
 }
 
-function Field({ label, value, mono = false }) {
+function Field({ label, value, mono = false }: { label: string; value: string; mono?: boolean }): JSX.Element {
   return (
     <div>
       <div className="text-[11px] text-slate-500 uppercase tracking-[0.16em]">{label}</div>
-      <div className={["text-slate-100", mono ? "font-mono" : ""].join(" ")}>
-        {value}
-      </div>
+      <div className={["text-slate-100", mono ? "font-mono" : ""].join(" ")}>{value}</div>
     </div>
   );
 }

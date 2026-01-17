@@ -1,9 +1,18 @@
-// src/components/ui/Modal.jsx
+// src/ui/Modal.tsx
 import React, { useEffect } from "react";
 
-function cn(...p) {
+function cn(...p: Array<string | false | null | undefined>): string {
   return p.filter(Boolean).join(" ");
 }
+
+type ModalProps = {
+  open: boolean;
+  onClose?: () => void;
+  title: React.ReactNode;
+  subtitle?: React.ReactNode;
+  children?: React.ReactNode;
+  maxWidthClass?: string;
+};
 
 export default function Modal({
   open,
@@ -12,11 +21,11 @@ export default function Modal({
   subtitle,
   children,
   maxWidthClass = "max-w-4xl",
-}) {
+}: ModalProps): JSX.Element | null {
   useEffect(() => {
     if (!open) return;
 
-    const onKey = (e) => {
+    const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose?.();
     };
     window.addEventListener("keydown", onKey);
@@ -54,7 +63,7 @@ export default function Modal({
           maxWidthClass
         )}
       >
-        {/* Top glow to “allumer les lampes” */}
+        {/* Top glow */}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-24 rounded-t-3xl bg-gradient-to-b from-white/10 to-transparent" />
 
         <div className="flex items-start justify-between gap-4 p-5">

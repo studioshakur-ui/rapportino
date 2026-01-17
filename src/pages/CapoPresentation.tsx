@@ -1,4 +1,4 @@
-// src/pages/CapoPresentation.jsx
+// src/pages/CapoPresentation.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -10,18 +10,41 @@ import { formatHumanName } from "../utils/formatHuman";
 
 import { getBaseRows, parseNumeric } from "../rapportinoUtils";
 
-const CREW_LABELS = {
+const CREW_LABELS: Record<string, string> = {
   ELETTRICISTA: "Elettricista",
   CARPENTERIA: "Carpenteria",
   MONTAGGIO: "Montaggio",
 };
 
-export default function CapoPresentation() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+type RapportinoRecord = Record<string, unknown> & {
+  id: string;
+  crew_role?: string | null;
+  costr?: string | null;
+  commessa?: string | null;
+  report_date?: string | null;
+  data?: string | null;
+  capo_name?: string | null;
+  updated_at?: string | null;
+};
 
-  const [rapportino, setRapportino] = useState(null);
-  const [rows, setRows] = useState(() => getBaseRows("ELETTRICISTA"));
+type RapportinoRow = {
+  id?: string;
+  row_index: number;
+  categoria: string;
+  descrizione: string;
+  operatori: string;
+  tempo: string;
+  previsto: string;
+  prodotto: string;
+  note: string;
+};
+
+export default function CapoPresentation(): JSX.Element {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [rapportino, setRapportino] = useState<RapportinoRecord | null>(null);
+  const [rows, setRows] = useState<RapportinoRow[]>(() => getBaseRows("ELETTRICISTA"));
 
   useEffect(() => {
     let alive = true;
@@ -40,7 +63,8 @@ export default function CapoPresentation() {
           .limit(1)
           .maybeSingle();
 
-        if (rapError && rapError.code !== "PGRST116") throw rapError;
+        // PGRST116 = no rows (maybeSingle)
+        if (rapError && (rapError as any).code !== "PGRST116") throw rapError;
         if (!alive) return;
 
         if (!rap) {
@@ -49,33 +73,31 @@ export default function CapoPresentation() {
           return;
         }
 
-        setRapportino(rap);
+        setRapportino(rap as any);
 
         const { data: righe, error: rowsError } = await supabase
           .from("rapportino_rows")
           .select("*")
-          .eq("rapportino_id", rap.id)
+          .eq("rapportino_id", (rap as any).id)
           .order("row_index", { ascending: true });
 
         if (rowsError) throw rowsError;
         if (!alive) return;
 
-        if (!righe || righe.length === 0) {
-          setRows(getBaseRows(rap.crew_role || "ELETTRICISTA"));
+        if (!righe || (righe as any[]).length === 0) {
+          setRows(getBaseRows(((rap as any).crew_role as string) || "ELETTRICISTA"));
         } else {
-          const mapped = righe.map((r, idx) => ({
+          const mapped = (righe as any[]).map((r, idx) => ({
             id: r.id,
             row_index: r.row_index ?? idx,
             categoria: r.categoria ?? "",
             descrizione: r.descrizione ?? "",
             operatori: r.operatori ?? "",
             tempo: r.tempo ?? "",
-            previsto:
-              r.previsto !== null && r.previsto !== undefined ? String(r.previsto) : "",
-            prodotto:
-              r.prodotto !== null && r.prodotto !== undefined ? String(r.prodotto) : "",
+            previsto: r.previsto !== null && r.previsto !== undefined ? String(r.previsto) : "",
+            prodotto: r.prodotto !== null && r.prodotto !== undefined ? String(r.prodotto) : "",
             note: r.note ?? "",
-          }));
+          })) as RapportinoRow[];
           setRows(mapped);
         }
       } catch (e) {
@@ -94,8 +116,10 @@ export default function CapoPresentation() {
 
   const crewLabel = useMemo(() => {
     const r = rapportino?.crew_role;
-    return CREW_LABELS[r] || r || "Elettricista";
+    return (r && CREW_LABELS[r]) || (r as string) || "Elettricista";
   }, [rapportino?.crew_role]);
+
+  void crewLabel;
 
   const prodottoTotale = useMemo(() => {
     return rows.reduce((sum, r) => {
@@ -118,9 +142,7 @@ export default function CapoPresentation() {
               SOLO LETTURA
             </span>
           </div>
-          <div className="text-xl sm:text-2xl font-semibold text-slate-100">
-            Rapporto giornaliero sul terreno
-          </div>
+          <div className="text-xl sm:text-2xl font-semibold text-slate-100">Rapporto giornaliero sul terreno</div>
           <div className="text-[12px] sm:text-[13px] text-slate-400 max-w-3xl leading-relaxed">
             Vista di presentazione: mostra un rapportino reale senza modifiche, per capire il flusso e la qualità del dato.
           </div>
@@ -137,9 +159,7 @@ export default function CapoPresentation() {
       </div>
 
       {error && (
-        <div className="rounded-2xl border border-rose-900/60 bg-rose-950/20 px-4 py-3 text-sm text-rose-200">
-          {error}
-        </div>
+        <div className="rounded-2xl border border-rose-900/60 bg-rose-950/20 px-4 py-3 text-sm text-rose-200">{error}</div>
       )}
 
       <div className="rounded-3xl border border-slate-800 bg-[#050910] overflow-hidden">
@@ -149,10 +169,7 @@ export default function CapoPresentation() {
               <span className="text-[11px] uppercase tracking-[0.25em] text-slate-500">
                 CORE · MODULO RAPPORTINO (PRESENTAZIONE)
               </span>
-              <span className="text-sm font-semibold text-slate-100">
-  Rapporto giornaliero – esempio reale
-</span>
-
+              <span className="text-sm font-semibold text-slate-100">Rapporto giornaliero – esempio reale</span>
             </div>
             <div className="hidden sm:flex items-center gap-2 text-[11px]">
               <span className="px-3 py-1 rounded-full bg-slate-950/30 border border-slate-800 text-slate-200">
@@ -167,17 +184,18 @@ export default function CapoPresentation() {
               className="rapportino-document bg-white text-slate-900 border border-slate-200 shadow-[0_18px_45px_rgba(0,0,0,0.25)]"
             >
               <RapportinoHeader
-                costr={rapportino?.costr || ""}
-                commessa={rapportino?.commessa || ""}
-                reportDate={rapportino?.report_date || rapportino?.data || ""}
-                capoName={formatHumanName(rapportino?.capo_name || "Capo Squadra")}
+                costr={(rapportino?.costr as string) || ""}
+                commessa={(rapportino?.commessa as string) || ""}
+                reportDate={(rapportino?.report_date as string) || (rapportino?.data as string) || ""}
+                capoName={formatHumanName((rapportino?.capo_name as string) || "Capo Squadra")}
                 readOnly
               />
 
-              <RapportinoTable rows={rows} readOnly />
+              <RapportinoTable rows={rows as any} readOnly />
 
               <div className="mt-4 no-print rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
-                Nota: questa vista è in <span className="font-semibold">sola lettura</span> e non consente modifiche o validazioni.
+                Nota: questa vista è in <span className="font-semibold">sola lettura</span> e non consente modifiche o
+                validazioni.
               </div>
             </div>
           </div>

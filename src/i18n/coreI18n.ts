@@ -1,4 +1,4 @@
-// src/i18n/coreI18n.js
+// src/i18n/coreI18n.ts
 //
 // Compatibility layer (minimal-diff).
 // Legacy modules still import:
@@ -13,6 +13,8 @@ import { useI18n, LANGS, getInitialLang, setLangStorage } from "./I18nProvider";
 
 export { LANGS, getInitialLang, setLangStorage };
 
+export type Lang = (typeof LANGS)[number];
+
 /**
  * Legacy hook still used by Direzione pages.
  * Maps directly to the canonical provider.
@@ -22,10 +24,10 @@ export function useCoreI18n() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Legacy t(lang, key) export                                            */
+/* Legacy t(lang, key) export                                          */
 /* ------------------------------------------------------------------ */
 
-const LEGACY_DICT = {
+const LEGACY_DICT: Record<string, Record<string, string>> = {
   it: {
     LANG: "Lingua",
     LOGOUT: "Logout",
@@ -70,11 +72,11 @@ const LEGACY_DICT = {
   },
 };
 
-function safeStr(x) {
+function safeStr(x: unknown): string {
   return (x ?? "").toString();
 }
 
-function prettifyKey(key) {
+function prettifyKey(key: unknown): string {
   const s = safeStr(key).trim();
   if (!s) return "—";
   return s
@@ -87,8 +89,8 @@ function prettifyKey(key) {
  * Legacy function signature used by Admin/Direzione:
  * t(lang, "KEY") -> string
  */
-export function t(lang, key) {
-  const L = LANGS.includes(lang) ? lang : "it";
+export function t(lang: string, key: string): string {
+  const L = (LANGS as readonly string[]).includes(lang) ? lang : "it";
   const k = safeStr(key).trim();
   if (!k) return "—";
 

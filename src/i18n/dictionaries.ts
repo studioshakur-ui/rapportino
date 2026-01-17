@@ -2,7 +2,7 @@
 // Single source of truth for UI strings (IT default + FR/EN).
 // Merges legacy dicts and adds CAPO + KPI operator productivity strings.
 
-import { dict as loginDict } from "./dict";
+import { dict as loginDict, type Lang } from "./dict";
 
 // Legacy core dict (previously in coreI18n.js). Kept here to unify.
 const coreDict = {
@@ -460,3 +460,5 @@ export const dictionaries = {
   fr: mergeLang(coreDict.fr, loginDict.fr),
   en: mergeLang(coreDict.en, loginDict.en),
 };
+
+void (dictionaries satisfies Record<Lang, Record<string, string>>);

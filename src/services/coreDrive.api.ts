@@ -1,14 +1,67 @@
-// /src/services/coreDrive.api.js
+// /src/services/coreDrive.api.ts
 import { supabase } from "../lib/supabaseClient";
 
 const CORE_DRIVE_BUCKET = "core-drive";
 
-function safeTerm(input) {
+export type CoreFileCursor = {
+  created_at: string;
+  id: string;
+};
+
+export type CoreFileFilters = {
+  cantiere?: string;
+  categoria?: string;
+  commessa?: string;
+  origine?: string;
+  stato_doc?: string;
+  mimeGroup?: string;
+  text?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  includeDeleted?: boolean;
+};
+
+export type UploadCoreFileMeta = {
+  cantiere: string;
+  categoria: string;
+  commessa?: string | null;
+  origine?: string | null;
+  stato_doc?: string | null;
+  rapportino_id?: string | null;
+  inca_file_id?: string | null;
+  inca_cavo_id?: string | null;
+  operator_id?: string | null;
+  note?: string | null;
+};
+
+export type CoreFileRecord = {
+  id: string;
+  created_at: string;
+  filename: string;
+  mime_type: string | null;
+  size_bytes: number | null;
+  cantiere: string;
+  commessa: string | null;
+  categoria: string;
+  origine: string;
+  stato_doc: string;
+  storage_path: string;
+  storage_bucket: string;
+  note: string | null;
+  rapportino_id: string | null;
+  inca_file_id: string | null;
+  inca_cavo_id: string | null;
+  operator_id: string | null;
+  frozen_at: string | null;
+  deleted_at: string | null;
+};
+
+function safeTerm(input: unknown): string {
   const s = (input || "").toString().trim();
   return s.replace(/[,%]/g, " ").replace(/\s+/g, " ").trim();
 }
 
-function normalizeMimeGroup(mimeGroup) {
+function normalizeMimeGroup(mimeGroup: unknown): string {
   const g = (mimeGroup || "").toString().toUpperCase().trim();
   if (!g) return "";
   if (g === "PDF") return "PDF";
@@ -20,7 +73,7 @@ function normalizeMimeGroup(mimeGroup) {
 /**
  * Append-only registry: liste des events CORE Drive pour un fichier.
  */
-export async function listCoreDriveEvents({ fileId, limit = 200 }) {
+export async function listCoreDriveEvents({ fileId, limit = 200 }: { fileId: string; limit?: number }) {
   if (!fileId) return [];
   const { data, error } = await supabase
     .from("core_drive_events")
@@ -37,7 +90,7 @@ export async function listCoreDriveEvents({ fileId, limit = 200 }) {
  * RPC: enregistre un event UPLOAD (optionnel mais recommandé).
  * Ne casse pas le flux si la RPC échoue (on laisse au caller gérer).
  */
-export async function emitUploadEvent({ fileId, payload = {} }) {
+export async function emitUploadEvent({ fileId, payload = {} }: { fileId: string; payload?: Record<string, unknown> }) {
   if (!fileId) throw new Error("Missing fileId");
   const { data, error } = await supabase.rpc("core_drive_emit_upload_event", {
     p_file_id: fileId,
@@ -51,7 +104,7 @@ export async function emitUploadEvent({ fileId, payload = {} }) {
  * RPC: soft delete (DB only) + event append-only.
  * IMPORTANT: aucune suppression Storage.
  */
-export async function softDeleteCoreFile({ fileId, reason = null }) {
+export async function softDeleteCoreFile({ fileId, reason = null }: { fileId: string; reason?: string | null }) {
   if (!fileId) throw new Error("Missing fileId");
   const { data, error } = await supabase.rpc("core_drive_soft_delete_file", {
     p_file_id: fileId,
@@ -64,7 +117,7 @@ export async function softDeleteCoreFile({ fileId, reason = null }) {
 /**
  * RPC: freeze inviolable (DB) + event append-only.
  */
-export async function freezeCoreFile({ fileId, reason = null }) {
+export async function freezeCoreFile({ fileId, reason = null }: { fileId: string; reason?: string | null }) {
   if (!fileId) throw new Error("Missing fileId");
   const { data, error } = await supabase.rpc("core_drive_freeze_file", {
     p_file_id: fileId,
@@ -74,7 +127,7 @@ export async function freezeCoreFile({ fileId, reason = null }) {
   return data; // event_id
 }
 
-export async function uploadCoreFile({ file, meta }) {
+export async function uploadCoreFile({ file, meta }: { file: File; meta: UploadCoreFileMeta }): Promise<CoreFileRecord> {
   if (!file) throw new Error("Missing file");
   if (!meta?.cantiere) throw new Error("Missing meta.cantiere");
   if (!meta?.categoria) throw new Error("Missing meta.categoria");
@@ -91,9 +144,7 @@ export async function uploadCoreFile({ file, meta }) {
   const fileExt = parts.length > 1 ? parts.pop() : "";
   const safeExt = (fileExt || "").toLowerCase();
 
-  const fileName = safeExt
-    ? `${crypto.randomUUID()}.${safeExt}`
-    : `${crypto.randomUUID()}`;
+  const fileName = safeExt ? `${crypto.randomUUID()}.${safeExt}` : `${crypto.randomUUID()}`;
 
   const storagePath = `${meta.cantiere}/${meta.categoria}/${fileName}`;
 
@@ -161,22 +212,20 @@ export async function uploadCoreFile({ file, meta }) {
     console.warn("[CORE Drive] emit upload event failed:", e);
   }
 
-  return data;
+  return data as CoreFileRecord;
 }
 
-export async function listCoreFiles({ filters = {}, pageSize = 60, cursor = null }) {
-  const {
-    cantiere,
-    categoria,
-    commessa,
-    origine,
-    stato_doc,
-    mimeGroup,
-    text,
-    dateFrom,
-    dateTo,
-    includeDeleted,
-  } = filters || {};
+export async function listCoreFiles({
+  filters = {},
+  pageSize = 60,
+  cursor = null,
+}: {
+  filters?: CoreFileFilters;
+  pageSize?: number;
+  cursor?: CoreFileCursor | null;
+}): Promise<{ items: CoreFileRecord[]; nextCursor: CoreFileCursor | null; hasMore: boolean }> {
+  const { cantiere, categoria, commessa, origine, stato_doc, mimeGroup, text, dateFrom, dateTo, includeDeleted } =
+    filters || {};
 
   let query = supabase
     .from("core_files")
@@ -215,9 +264,7 @@ export async function listCoreFiles({ filters = {}, pageSize = 60, cursor = null
   const t = safeTerm(text);
   if (t) {
     const like = `%${t}%`;
-    query = query.or(
-      `filename.ilike.${like},note.ilike.${like},commessa.ilike.${like}`
-    );
+    query = query.or(`filename.ilike.${like},note.ilike.${like},commessa.ilike.${like}`);
   }
 
   // Pagination cursor (created_at desc, id desc)
@@ -230,23 +277,19 @@ export async function listCoreFiles({ filters = {}, pageSize = 60, cursor = null
   const { data, error } = await query;
   if (error) throw error;
 
-  const items = data || [];
+  const items = (data || []) as CoreFileRecord[];
   const nextCursor =
-    items.length > 0
-      ? { created_at: items[items.length - 1].created_at, id: items[items.length - 1].id }
-      : null;
+    items.length > 0 ? { created_at: items[items.length - 1].created_at, id: items[items.length - 1].id } : null;
 
   return { items, nextCursor, hasMore: items.length === pageSize };
 }
 
-export async function getSignedUrl(coreFile, expiresSeconds = 60 * 30) {
+export async function getSignedUrl(coreFile: Pick<CoreFileRecord, "storage_path" | "storage_bucket">, expiresSeconds: number = 60 * 30): Promise<string> {
   if (!coreFile?.storage_path) throw new Error("Missing storage_path");
 
   const bucket = coreFile?.storage_bucket || CORE_DRIVE_BUCKET;
 
-  const { data, error } = await supabase.storage
-    .from(bucket)
-    .createSignedUrl(coreFile.storage_path, expiresSeconds);
+  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(coreFile.storage_path, expiresSeconds);
 
   if (error) throw error;
   return data.signedUrl;
@@ -261,7 +304,15 @@ export async function getSignedUrl(coreFile, expiresSeconds = 60 * 30) {
  * Signature conservée pour compat UI : deleteCoreFile({ id, storage_path })
  * storage_path n'est plus utilisé (mais on le garde pour compat appelant).
  */
-export async function deleteCoreFile({ id, storage_path, reason = null }) {
+export async function deleteCoreFile({
+  id,
+  storage_path,
+  reason = null,
+}: {
+  id: string;
+  storage_path?: string;
+  reason?: string | null;
+}): Promise<boolean> {
   if (!id) throw new Error("Missing id");
   // storage_path conservé uniquement pour compat: on ne l'utilise pas.
   void storage_path;
