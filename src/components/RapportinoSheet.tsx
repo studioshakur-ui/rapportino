@@ -315,7 +315,7 @@ export default function RapportinoSheet(): JSX.Element {
   return (
     <div id="rapportino-document" className="min-h-screen bg-white text-black print:bg-white print:text-black">
       {/* Fixed footer signature (print-only). NOTE: visibility isolation is handled by index.css */}
-      <div className="core-print-footer print-only">CORE · © Shakur Engineering</div>
+      <div className="core-print-footer print-only">CORE © CNCS Systems</div>
 
       {/* Page box (A4 landscape inner area), scaled if needed to stay on 1 page */}
       <div className="core-print-page" ref={outerRef}>

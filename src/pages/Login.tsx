@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import type { AuthError } from "@supabase/supabase-js";
 
-import { supabase, resetSupabaseAuthStorage } from "../lib/supabaseClient";
+import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
 import { pageBg, headerPill, cardSurface, buttonPrimary } from "../ui/designSystem";
 
@@ -28,7 +28,7 @@ function normalizeError(err: unknown): string | null {
 export default function Login(): JSX.Element {
   const navigate = useNavigate();
 
-  const { session, profile, loading, authReady, error: authError, signOut, status } = useAuth();
+  const { session, profile, authReady, error: authError, signOut, status } = useAuth();
   const isDark = true;
 
   const [email, setEmail] = useState<string>("");
@@ -42,7 +42,7 @@ export default function Login(): JSX.Element {
     const r = String(profile?.app_role || "").toUpperCase();
     if (r === "ADMIN") return "/admin";
     if (r === "UFFICIO") return "/ufficio";
-    if (r === "DIREZIONE") return "/direction";
+    if (r === "DIREZIONE") return "/direzione";
     if (r === "MANAGER") return "/manager";
     return "/app";
   }, [profile]);
@@ -113,9 +113,7 @@ export default function Login(): JSX.Element {
         <div className="text-left mb-4">
           <div className={`${headerPill(isDark)} mb-2`}>SISTEMA CENTRALE DI CANTIERE</div>
           <h1 className="text-3xl font-semibold mb-1">Entra in CORE</h1>
-          <p className="text-[13px] text-slate-500 leading-relaxed">
-            Accesso interno. Ogni operazione è tracciata.
-          </p>
+          <p className="text-[13px] text-slate-500 leading-relaxed">Accesso interno. Ogni operazione è tracciata.</p>
         </div>
 
         <div className={cardSurface(isDark, "p-6")}>
@@ -139,75 +137,68 @@ export default function Login(): JSX.Element {
             </div>
           )}
 
-          {authReady && session && !profile && (
-            <div className="text-[12px] rounded-md px-3 py-2 mb-4 border text-slate-200 bg-slate-900/40 border-slate-700">
-              Sessione attiva… Caricamento profilo…
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-3">
             <div>
-              <label className="block text-[12px] mb-1 text-slate-300">Email aziendale</label>
+              <label className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Email</label>
               <input
-                type="email"
-                required
-                autoComplete="username"
                 className={inputClass}
+                autoComplete="email"
                 value={email}
-                onChange={(ev) => setEmail(ev.target.value)}
-                disabled={disableForm}
+                onChange={(e) => setEmail(e.target.value)}
                 placeholder="nome@azienda.it"
+                disabled={disableForm}
               />
             </div>
 
             <div>
-              <label className="block text-[12px] mb-1 text-slate-300">Password</label>
+              <label className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Password</label>
               <input
-                type="password"
-                required
-                autoComplete="current-password"
                 className={inputClass}
+                type="password"
+                autoComplete="current-password"
                 value={password}
-                onChange={(ev) => setPassword(ev.target.value)}
-                disabled={disableForm}
+                onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
+                disabled={disableForm}
               />
             </div>
 
             <button
               type="submit"
+              className={buttonPrimary(isDark, "w-full")}
               disabled={disableForm}
-              className={buttonPrimary(isDark, "w-full gap-2 mt-2 disabled:opacity-60 disabled:cursor-not-allowed")}
+              aria-busy={submitting}
             >
-              {submitting || loading ? "Verifica credenziali…" : "Accedi"}
+              {submitting ? "Accesso…" : "Accedi"}
             </button>
+
+            <div className="flex items-center justify-between pt-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await signOut({ reason: "manual_reset" });
+                  } catch {}
+                  // IMPORTANT: hard reset storages
+                  try {
+                    // eslint-disable-next-line no-restricted-globals
+                    localStorage.clear();
+                    // eslint-disable-next-line no-restricted-globals
+                    sessionStorage.clear();
+                  } catch {}
+                  // NOTE: we do not call resetSupabaseAuthStorage here anymore; AuthProvider does hard reset when needed.
+                  navigate("/login", { replace: true });
+                }}
+                className="text-[12px] text-slate-400 hover:text-slate-200"
+              >
+                Ripulisci sessione
+              </button>
+
+              <Link to="/" className="text-[12px] text-slate-400 hover:text-slate-200">
+                Torna al sito
+              </Link>
+            </div>
           </form>
-
-          <div className="mt-4 text-[11px] text-slate-500 flex justify-between items-center">
-            <span>CORE · Sistema centrale</span>
-            <Link to="/" className="underline underline-offset-2 hover:text-sky-400">
-              Esci dal sistema
-            </Link>
-          </div>
-
-          <div className="mt-2 text-[11px] text-slate-500 flex justify-between items-center">
-            <span className="opacity-80">Problemi di accesso?</span>
-            <button
-              type="button"
-              onClick={async () => {
-                // Canon: signOut clears supabase state + storage
-                try {
-                  await signOut({ reason: "manual_session_reset" });
-                } finally {
-                  resetSupabaseAuthStorage({ force: true });
-                  setLocalError("Sessione ripulita. Riprova ad accedere.");
-                }
-              }}
-              className="underline underline-offset-2 hover:text-sky-400"
-            >
-              Ripulisci sessione
-            </button>
-          </div>
         </div>
       </div>
     </div>

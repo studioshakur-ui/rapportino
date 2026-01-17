@@ -1,4 +1,4 @@
-// /src/DirectionShell.jsx
+// src/shells/DirectionShell.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useLocation, Routes, Route, Navigate } from "react-router-dom";
 
@@ -20,10 +20,12 @@ import CNCSTopbar from "../components/shell/CNCSTopbar";
 // NEW
 import Evoluzione from "../data/Evoluzione";
 
+type ThemeMode = "dark" | "light";
+
 /* =========================
    Theme init
    ========================= */
-function getInitialTheme() {
+function getInitialTheme(): ThemeMode {
   if (typeof window === "undefined") return "dark";
   try {
     const stored = window.localStorage.getItem("core-theme");
@@ -31,17 +33,23 @@ function getInitialTheme() {
     if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
       return "dark";
     }
-  } catch {}
+  } catch {
+    // ignore
+  }
   return "dark";
+}
+
+function joinClass(...parts: Array<string | false | null | undefined>): string {
+  return parts.filter(Boolean).join(" ");
 }
 
 /* =========================
    Ufficio View (within Direction)
    ========================= */
-function UfficioView({ isDark }) {
+function UfficioView({ isDark }: { isDark: boolean }): JSX.Element {
   const location = useLocation();
-  const isHere = (path) => location.pathname === path || location.pathname.startsWith(path + "/");
-  const j = (...p) => p.filter(Boolean).join(" ");
+
+  const isHere = (path: string) => location.pathname === path || location.pathname.startsWith(path + "/");
 
   const tabBase =
     "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] transition";
@@ -53,9 +61,9 @@ function UfficioView({ isDark }) {
     : "border-emerald-400 bg-emerald-50 text-emerald-800";
 
   const isTabRapportini =
-    isHere("/direction/ufficio-view") &&
-    !isHere("/direction/ufficio-view/inca") &&
-    !isHere("/direction/ufficio-view/core-drive");
+    isHere("/direzione/ufficio-view") &&
+    !isHere("/direzione/ufficio-view/inca") &&
+    !isHere("/direzione/ufficio-view/core-drive");
 
   return (
     <div className="space-y-4">
@@ -73,7 +81,7 @@ function UfficioView({ isDark }) {
         </div>
 
         <Link
-          to="/direction"
+          to="/direzione"
           className="rounded-full border border-slate-700 bg-slate-950/30 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-200 hover:bg-slate-900/40"
         >
           ← Torna a Direzione
@@ -81,22 +89,25 @@ function UfficioView({ isDark }) {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Link to="/direction/ufficio-view" className={j(tabBase, isTabRapportini ? tabOn : tabOff)}>
+        <Link
+          to="/direzione/ufficio-view"
+          className={joinClass(tabBase, isTabRapportini ? tabOn : tabOff)}
+        >
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
           Rapportini
         </Link>
 
         <Link
-          to="/direction/ufficio-view/inca"
-          className={j(tabBase, isHere("/direction/ufficio-view/inca") ? tabOn : tabOff)}
+          to="/direzione/ufficio-view/inca"
+          className={joinClass(tabBase, isHere("/direzione/ufficio-view/inca") ? tabOn : tabOff)}
         >
           <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
           INCA
         </Link>
 
         <Link
-          to="/direction/ufficio-view/core-drive"
-          className={j(tabBase, isHere("/direction/ufficio-view/core-drive") ? tabOn : tabOff)}
+          to="/direzione/ufficio-view/core-drive"
+          className={joinClass(tabBase, isHere("/direzione/ufficio-view/core-drive") ? tabOn : tabOff)}
         >
           <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
           CORE Drive
@@ -129,37 +140,44 @@ function UfficioView({ isDark }) {
 /* =========================
    Direction Shell
    ========================= */
-export default function DirectionShell() {
+export default function DirectionShell(): JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
   const { profile, signOut } = useAuth();
 
-  const [theme, setTheme] = useState(getInitialTheme());
+  const [theme, setTheme] = useState<ThemeMode>(getInitialTheme());
   const isDark = theme === "dark";
 
   // Sidebar state (same behaviour as Ufficio/App: collapsed + hover-peek)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
     try {
       const v = window.localStorage.getItem("core-sidebar-collapsed-direction");
       if (v === "1" || v === "0") return v === "1";
-    } catch {}
+    } catch {
+      // ignore
+    }
     return false;
   });
-  const [sidebarPeek, setSidebarPeek] = useState(false);
+  const [sidebarPeek, setSidebarPeek] = useState<boolean>(false);
 
   // Presentation modal state
-  const [showPresentationModal, setShowPresentationModal] = useState(false);
+  const [showPresentationModal, setShowPresentationModal] = useState<boolean>(false);
 
   useEffect(() => {
     try {
       window.localStorage.setItem("core-theme", theme);
-    } catch {}
+    } catch {
+      // ignore
+    }
   }, [theme]);
 
   useEffect(() => {
     try {
       window.localStorage.setItem("core-sidebar-collapsed-direction", sidebarCollapsed ? "1" : "0");
-    } catch {}
+    } catch {
+      // ignore
+    }
   }, [sidebarCollapsed]);
 
   // Show modal only once (unless dismissed)
@@ -170,7 +188,9 @@ export default function DirectionShell() {
 
       const lastSeen = window.localStorage.getItem("core-presentation-last-seen");
       if (!lastSeen) setShowPresentationModal(true);
-    } catch {}
+    } catch {
+      // ignore
+    }
   }, []);
 
   const handleLogout = async () => {
@@ -184,34 +204,38 @@ export default function DirectionShell() {
   const handleOpenPresentation = () => {
     try {
       window.localStorage.setItem("core-presentation-last-seen", String(Date.now()));
-    } catch {}
+    } catch {
+      // ignore
+    }
     setShowPresentationModal(false);
-    navigate("/direction/presentazione");
+    navigate("/direzione/presentazione");
   };
 
   const handleDismissPresentation = () => {
     try {
       window.localStorage.setItem("core-presentation-dismissed", "1");
-    } catch {}
+    } catch {
+      // ignore
+    }
     setShowPresentationModal(false);
   };
 
   const roleLabel = useMemo(() => {
-    const r = profile?.role || "";
-    return r ? String(r).toUpperCase() : "DIREZIONE";
-  }, [profile?.role]);
+    const r = String(profile?.app_role || "DIREZIONE");
+    return r ? r.toUpperCase() : "DIREZIONE";
+  }, [profile?.app_role]);
 
   const pathname = location.pathname || "";
-  const isInPresentation = pathname.startsWith("/direction/presentazione");
-  const isInCapoPresentation = pathname.startsWith("/direction/presentazione/capo");
-  const isInUfficioView = pathname.startsWith("/direction/ufficio-view");
+  const isInPresentation = pathname.startsWith("/direzione/presentazione");
+  const isInCapoPresentation = pathname.startsWith("/direzione/presentazione/capo");
+  const isInUfficioView = pathname.startsWith("/direzione/ufficio-view");
 
   const topTitle = useMemo(() => {
-    if (pathname.startsWith("/direction/evoluzione")) return "Suivi & Evoluzione";
-    if (pathname.startsWith("/direction/kpi-operatori")) return "KPI Operatori";
-    if (pathname.startsWith("/direction/presentazione")) return "Presentazione";
-    if (pathname.startsWith("/direction/ufficio-view")) return "Vista Ufficio";
-    if (pathname.startsWith("/direction/core-drive") || pathname.startsWith("/direction/archive")) return "CORE Drive";
+    if (pathname.startsWith("/direzione/evoluzione")) return "Suivi & Evoluzione";
+    if (pathname.startsWith("/direzione/kpi-operatori")) return "KPI Operatori";
+    if (pathname.startsWith("/direzione/presentazione")) return "Presentazione";
+    if (pathname.startsWith("/direzione/ufficio-view")) return "Vista Ufficio";
+    if (pathname.startsWith("/direzione/core-drive") || pathname.startsWith("/direzione/archive")) return "CORE Drive";
     return "Dashboard Direzione";
   }, [pathname]);
 
@@ -230,12 +254,12 @@ export default function DirectionShell() {
           setSidebarPeek={setSidebarPeek}
           storageKey="core-sidebar-collapsed-direction"
           navItems={[
-            { to: "/direction", label: "Dashboard", icon: "dashboard", colorClass: "text-sky-400", end: true },
-            { to: "/direction/kpi-operatori", label: "KPI Operatori", icon: "chart", colorClass: "text-emerald-400" },
-            { to: "/direction/presentazione", label: "Presentazione", icon: "presentation", colorClass: "text-violet-400" },
-            { to: "/direction/ufficio-view", label: "Vista Ufficio", icon: "ufficio", colorClass: "text-emerald-400" },
-            { to: "/direction/evoluzione", label: "Evoluzione", icon: "history", colorClass: "text-amber-400" },
-            { to: "/direction/core-drive", label: "CORE Drive", icon: "archive", colorClass: "text-amber-400" },
+            { to: "/direzione", label: "Dashboard", icon: "dashboard", colorClass: "text-sky-400", end: true },
+            { to: "/direzione/kpi-operatori", label: "KPI Operatori", icon: "chart", colorClass: "text-emerald-400" },
+            { to: "/direzione/presentazione", label: "Presentazione", icon: "presentation", colorClass: "text-violet-400" },
+            { to: "/direzione/ufficio-view", label: "Vista Ufficio", icon: "ufficio", colorClass: "text-emerald-400" },
+            { to: "/direzione/evoluzione", label: "Evoluzione", icon: "history", colorClass: "text-amber-400" },
+            { to: "/direzione/core-drive", label: "CORE Drive", icon: "archive", colorClass: "text-amber-400" },
           ]}
         />
 
@@ -250,7 +274,7 @@ export default function DirectionShell() {
               <>
                 {isInUfficioView ? (
                   <Link
-                    to="/direction"
+                    to="/direzione"
                     className="rounded-full border border-slate-800 bg-slate-950/20 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-200 hover:bg-slate-900/35"
                     title="Torna a Direzione"
                   >
@@ -276,14 +300,12 @@ export default function DirectionShell() {
           {isInPresentation ? (
             <div className="no-print mt-3 rounded-2xl border border-slate-800 bg-slate-950/20 px-3 py-2">
               <div className="flex items-center justify-between gap-3">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
-                  Presentazione
-                </div>
+                <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Presentazione</div>
 
                 <div className="flex items-center gap-2">
                   {!isInCapoPresentation ? (
                     <Link
-                      to="/direction/presentazione/capo"
+                      to="/direzione/presentazione/capo"
                       className="
                         relative rounded-full px-4 py-2
                         text-[11px] uppercase tracking-[0.22em] font-semibold
@@ -301,7 +323,7 @@ export default function DirectionShell() {
                     </Link>
                   ) : (
                     <Link
-                      to="/direction/presentazione"
+                      to="/direzione/presentazione"
                       className="rounded-full border border-slate-800 bg-slate-950/20 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-200 hover:bg-slate-900/35"
                       title="Torna a Presentazione"
                     >

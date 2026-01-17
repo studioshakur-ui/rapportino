@@ -1,6 +1,6 @@
 // src/routes.tsx
 import React from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 
 import RequireAuth from "./auth/RequireAuth";
 import RequireRole from "./auth/RequireRole";
@@ -62,6 +62,16 @@ import ArchivePage from "./pages/Archive";
 
 // EVOLUZIONE
 import Evoluzione from "./data/Evoluzione";
+
+function LegacyDirectionRedirect(): JSX.Element {
+  const loc = useLocation();
+
+  // Preserve the rest of the path + query/hash.
+  const nextPath = (loc.pathname || "").replace(/^\/direction(\/|$)/, "/direzione$1");
+  const next = `${nextPath}${loc.search || ""}${loc.hash || ""}`;
+
+  return <Navigate to={next} replace />;
+}
 
 export default function AppRoutes(): JSX.Element {
   return (
@@ -158,6 +168,9 @@ export default function AppRoutes(): JSX.Element {
         <Route path="core-drive" element={<ArchivePage />} />
         <Route path="archive" element={<Navigate to="../core-drive" replace />} />
       </Route>
+
+      {/* ===== LEGACY ALIAS: /direction -> /direzione ===== */}
+      <Route path="/direction/*" element={<LegacyDirectionRedirect />} />
 
       {/* ===== DIREZIONE ===== */}
       <Route

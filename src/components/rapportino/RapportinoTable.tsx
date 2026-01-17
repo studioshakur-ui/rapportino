@@ -37,6 +37,7 @@ type DroppedOperator = { id: string | null; name: string };
 
 type Props = {
   rows: RapportinoRow[];
+  productivityIndexMap?: Map<string, number>;
   onRowChange?: (rowIndex: number, field: keyof RapportinoRow | string, value: string) => void;
   onRemoveRow?: (rowIndex: number) => void;
   onRemoveOperatorFromRow?: (rowIndex: number, operatorId: string | number) => void;
@@ -129,6 +130,38 @@ function readDroppedOperator(e: React.DragEvent) {
   }
 }
 
+
+
+function normKpiKey(v: unknown): string {
+  return String(v ?? "").trim().toLowerCase();
+}
+
+function formatIdx(v: unknown): string {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "";
+  return (Math.round(n * 100) / 100).toFixed(2);
+}
+
+function getProductivityIndex({
+  productivityIndexMap,
+  operatorId,
+  categoria,
+  descrizione,
+}: {
+  productivityIndexMap?: Map<string, number>;
+  operatorId: unknown;
+  categoria: unknown;
+  descrizione: unknown;
+}): number | null {
+  if (!productivityIndexMap) return null;
+  const op = String(operatorId ?? "").trim();
+  if (!op) return null;
+  const cat = normKpiKey(categoria);
+  const desc = normKpiKey(descrizione);
+  const key = `${op}||${cat}||${desc}`;
+  const v = productivityIndexMap.get(key);
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
 function appendLegacyOperatorLine(existing: unknown, name: string) {
   const cur = String(existing ?? "").replace(/\r/g, "");
   const lines = cur.length ? cur.split("\n") : [];
@@ -141,6 +174,7 @@ function appendLegacyOperatorLine(existing: unknown, name: string) {
 
 export default function RapportinoTable({
   rows,
+  productivityIndexMap,
   onRowChange,
   onRemoveRow,
   onRemoveOperatorFromRow,
@@ -194,6 +228,19 @@ export default function RapportinoTable({
 
           const tempoPillEnabled = !ro && hasOperators;
           const opCount = isCanonical ? canonItems.length : countLegacyOperators(r.operatori);
+
+          const descrMobile = String((r as any)?.descrizione_attivita ?? r?.descrizione ?? "");
+          const prodIdxLinesMobile = isCanonical
+            ? canonItems.map((it) => {
+                const v = getProductivityIndex({
+                  productivityIndexMap,
+                  operatorId: it?.operator_id,
+                  categoria: r.categoria,
+                  descrizione: descrMobile,
+                });
+                return v == null ? "-" : formatIdx(v);
+              })
+            : [];
 
           return (
             <div key={String(r.id ?? idx)} className="rounded-2xl border border-slate-200 bg-white/70 p-3">
@@ -485,6 +532,25 @@ export default function RapportinoTable({
                     placeholder="Note…"
                   />
                 </div>
+
+                {/* INDICE PRODUTTIVITA (read-only) */}
+                <div>
+                  <div className="text-[11px] tracking-wide uppercase text-slate-500 mb-1">Indice</div>
+                  <div className="w-full bg-transparent text-[12px] font-semibold text-right text-slate-900 whitespace-pre-wrap leading-5">
+                    {(() => {
+                      const isCanonical = canonicalByIdx[idx];
+                      const descr = String((r as any)?.descrizione_attivita ?? r.descrizione ?? "");
+                      if (!isCanonical) return "-";
+                      const items = Array.isArray((r as any)?.operator_items) ? (r as any).operator_items : [];
+                      if (items.length === 0) return "-";
+                      const vals = items.map((it: any) => {
+                        const v = getProductivityIndex({ productivityIndexMap, operatorId: it?.operator_id, categoria: r.categoria, descrizione: descr });
+                        return v == null ? "-" : formatIdx(v);
+                      });
+                      return vals.join('\n');
+                    })()}
+                  </div>
+                </div>
               </div>
             </div>
           );
@@ -520,6 +586,7 @@ export default function RapportinoTable({
                 <span className="text-[10px] text-slate-500">(MT)</span>
               </th>
               <th className="px-2 py-2 text-left">NOTE</th>
+              <th className="px-2 py-2 text-right w-[120px]">INDICE</th>
               {!ro && <th className="px-2 py-2 text-center w-[60px] no-print">×</th>}
             </tr>
           </thead>
@@ -538,6 +605,19 @@ export default function RapportinoTable({
 
               const tempoPillEnabled = !ro && hasOperators;
               const opCount = isCanonical ? canonItems.length : countLegacyOperators(r.operatori);
+
+              const descrDesktop = String((r as any)?.descrizione_attivita ?? r?.descrizione ?? "");
+              const prodIdxLinesDesktop = isCanonical
+                ? canonItems.map((it) => {
+                    const v = getProductivityIndex({
+                      productivityIndexMap,
+                      operatorId: it?.operator_id,
+                      categoria: r.categoria,
+                      descrizione: descrDesktop,
+                    });
+                    return v == null ? "-" : formatIdx(v);
+                  })
+                : [];
 
               return (
                 <tr key={String(r.id ?? idx)} className="align-top" data-ot-wrap>
@@ -808,6 +888,33 @@ export default function RapportinoTable({
                       disabled={ro}
                       readOnly={ro}
                       placeholder="Note…"
+                    />
+                  </td>
+
+                  {/* INDICE PRODUTTIVITA (read-only) */}
+                  <td className="px-2 py-2" data-kpi-indice>
+                    <PrintLines
+                      value={(() => {
+                        const isCanonical = canonicalByIdx[idx];
+                        const descr = String((r as any)?.descrizione_attivita ?? r.descrizione ?? "");
+                        if (!isCanonical) return "";
+                        const items = Array.isArray((r as any)?.operator_items) ? (r as any).operator_items : [];
+                        if (items.length === 0) return "";
+                        return items
+                          .map((it: any) => {
+                            const v = getProductivityIndex({
+                              productivityIndexMap,
+                              operatorId: it?.operator_id,
+                              categoria: r.categoria,
+                              descrizione: descr,
+                            });
+                            return v == null ? "-" : formatIdx(v);
+                          })
+                          .join("\n");
+                      })()}
+                      numeric
+                      align="right"
+                      className="whitespace-pre-wrap"
                     />
                   </td>
 

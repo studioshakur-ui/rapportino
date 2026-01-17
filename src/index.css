@@ -3,6 +3,38 @@
 @tailwind utilities;
 
 /* =========================
+   CORE AI Design Tokens (V1)
+   - Industrial dark + discreet gold accent
+   - Safe: does not affect print isolation rules
+   ========================= */
+:root {
+  --bg-900: #0E0F12;
+  --bg-800: #14161B;
+  --bg-700: #1B1E24;
+
+  --line-600: #262A33;
+
+  --text-100: #F5F6F7;
+  --text-300: #9AA0A6;
+  --text-500: #6B7280;
+
+  /* Gold accent (use sparingly) */
+  --gold-200: #E6D6A8;
+  --gold-500: #C8A24D;
+  --gold-600: #9E7C2F;
+
+  /* Status colors */
+  --ok-500: #2FBF71;
+  --warn-500: #F59E0B;
+  --err-500: #EF4444;
+  --info-500: #60A5FA;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+}
+
+/* =========================
    Helpers print / screen
    ========================= */
 .no-print { display: block; }

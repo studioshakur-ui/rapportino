@@ -1,19 +1,28 @@
-// /src/components/core-drive/coreDriveViews.js
+// src/components/core-drive/coreDriveViews.ts
 // CORE Drive “Lens” system (CORE 1.0)
 // - Un seul CORE Drive, présent dans tous les shells
 // - Chaque shell applique une vue (scope + capacités + UX) sans dupliquer les pages
 
-function safeUpper(v) {
+
+export type CurrentShip = { yard?: string | null; code?: string | null } | null | undefined;
+
+export type ResolveCoreDriveViewInput = {
+  pathname?: string | null;
+  appRole?: string | null;
+  currentShip?: CurrentShip;
+};
+
+function safeUpper(v: unknown): string {
   return String(v || "").trim().toUpperCase();
 }
 
-function startsWithPath(pathname, base) {
+function startsWithPath(pathname: unknown, base: unknown): boolean {
   const p = String(pathname || "");
   const b = String(base || "");
   return p === b || p.startsWith(b + "/");
 }
 
-function firstNonEmpty(...vals) {
+function firstNonEmpty(...vals: unknown[]): string {
   for (const v of vals) {
     const s = String(v ?? "").trim();
     if (s) return s;
@@ -21,7 +30,7 @@ function firstNonEmpty(...vals) {
   return "";
 }
 
-export function resolveCoreDriveView({ pathname, appRole, currentShip }) {
+export function resolveCoreDriveView({ pathname, appRole, currentShip }: ResolveCoreDriveViewInput): any {
   const role = safeUpper(appRole);
   const p = String(pathname || "");
 
@@ -29,8 +38,8 @@ export function resolveCoreDriveView({ pathname, appRole, currentShip }) {
   const isUfficioShell = startsWithPath(p, "/ufficio");
   const isManagerShell = startsWithPath(p, "/manager");
   const isAdminShell = startsWithPath(p, "/admin");
-  const isDirectionShell = startsWithPath(p, "/direction");
-  const isDirectionUfficioView = startsWithPath(p, "/direction/ufficio-view");
+  const isDirectionShell = startsWithPath(p, "/direzione");
+  const isDirectionUfficioView = startsWithPath(p, "/direzione/ufficio-view");
 
   // CAPO: scope strict sur la nave courante
   if (isCapoShell) {

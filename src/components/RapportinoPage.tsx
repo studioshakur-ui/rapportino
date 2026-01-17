@@ -30,6 +30,8 @@ import {
 } from "./rapportino/page/rapportinoHelpers";
 
 import { useReturnedInbox } from "./rapportino/page/useReturnedInbox";
+import { useOperatorProductivityData } from "../features/kpi/components/operatorProd/hooks/useOperatorProductivityData";
+
 import { useRapportinoData } from "./rapportino/page/useRapportinoData";
 import {
   addRowFromCatalog,
@@ -215,8 +217,6 @@ function hasAnyMeaningfulContent({ costr, commessa, rows }) {
 }
 
 function buildAutoSaveSignature({ profileId, crewRole, reportDate, costr, commessa, rows, status }) {
-  // Keep signature stable + cheap: do not include huge transient fields.
-  // We include enough to detect meaningful changes.
   const arr = Array.isArray(rows) ? rows : [];
   const compactRows = arr.map((r) => ({
     categoria: safeStr(r?.categoria),
@@ -294,13 +294,8 @@ export default function RapportinoPage() {
 
   const {
     rapportinoId,
-    setRapportinoId: (nextId: any) => {
-          const v = nextId == null ? null : String(nextId);
-          savedRapportinoId = v;
-          // @ts-ignore
-          setRapportinoId(v);
-        },
-        setRapportinoCrewRole,
+    setRapportinoId,
+    setRapportinoCrewRole,
     costr,
     setCostr,
     commessa,
@@ -348,6 +343,124 @@ export default function RapportinoPage() {
     });
   }, [rows]);
 
+  // ------------------------------------------------------------
+  // Capo Intelligence (souvenir): compute worked hours per operator_id
+  // and persist a lightweight summary for the operators panel.
+  // No backend, no DB, no KPI: purely UX.
+  // ------------------------------------------------------------
+  function computeOperatorHoursById(rowsArg) {
+    const out = {};
+    const arr = Array.isArray(rowsArg) ? rowsArg : [];
+
+    for (const r of arr) {
+      const items = Array.isArray(r?.operator_items) ? r.operator_items : [];
+      if (!items.length) continue;
+
+      for (const it of items) {
+        const opId = it?.operator_id == null ? "" : String(it.operator_id).trim();
+        if (!opId) continue;
+
+        const tempoHoursRaw = it?.tempo_hours;
+        const tempoRaw = String(it?.tempo_raw ?? "").trim();
+
+        const h =
+          typeof tempoHoursRaw === "number" && Number.isFinite(tempoHoursRaw)
+            ? tempoHoursRaw
+            : tempoRaw
+            ? parseNumeric(tempoRaw)
+            : 0;
+
+        if (!Number.isFinite(h) || h <= 0) continue;
+        out[opId] = (Number(out[opId] ?? 0) || 0) + h;
+      }
+    }
+
+    // Normalize: round to 0.1h for stable UX
+    Object.keys(out).forEach((k) => {
+      const v = Number(out[k]);
+      out[k] = Math.round(v * 10) / 10;
+    });
+
+    return out;
+  }
+
+  useEffect(() => {
+    try {
+      if (!shipId || !reportDate) return;
+      const byOperatorId = computeOperatorHoursById(visibleRows);
+      const key = `core-rapportino-hours::${String(shipId)}::${String(reportDate)}`;
+      const payload = {
+        shipId: String(shipId),
+        reportDate: String(reportDate),
+        updatedAt: Date.now(),
+        byOperatorId,
+      };
+      window.localStorage.setItem(key, JSON.stringify(payload));
+      window.dispatchEvent(new Event("core:rapportino-hours-updated"));
+    } catch {
+      // Never block the Capo workflow.
+    }
+  }, [shipId, reportDate, visibleRows]);
+
+  // ------------------------------------------------------------
+  // Productivity index lookup (already exists in KPI views)
+  // Requirement: expose productivity index per row, per operator, per activity.
+  // We only read KPI views; no recomputation inside rapportino.
+  // ------------------------------------------------------------
+  const operatorIdsInReport = useMemo(() => {
+    const set = new Set();
+    (visibleRows || []).forEach((r) => {
+      const items = Array.isArray(r?.operator_items) ? r.operator_items : [];
+      items.forEach((it) => {
+        const id = it?.operator_id;
+        if (id != null && String(id).trim()) set.add(String(id));
+      });
+    });
+    const arr = Array.from(set.values());
+    return arr.length > 0 && arr.length <= 250 ? arr : [];
+  }, [visibleRows]);
+
+  const { familyRows: kpiFamilyRows } = useOperatorProductivityData({
+    profileId: profile?.id,
+    scope: "CAPO",
+    dateFrom: reportDate,
+    dateTo: reportDate,
+    showCostrCommessaFilters: false,
+    costrFilter: costr || null,
+    commessaFilter: commessa || null,
+    selectedIds: operatorIdsInReport,
+    search: "",
+  });
+
+  const productivityIndexMap = useMemo(() => {
+    const m = new Map();
+    const rr = Array.isArray(kpiFamilyRows) ? kpiFamilyRows : [];
+
+    function normKey(s) {
+      return String(s || "").trim().toLowerCase();
+    }
+
+    rr.forEach((r) => {
+      const day = r?.report_date ? String(r.report_date) : null;
+      if (day && String(day) !== String(reportDate)) return;
+
+      const opId = r?.operator_id ? String(r.operator_id) : null;
+      if (!opId) return;
+
+      const cat = normKey(r?.categoria);
+      const desc = normKey(r?.descrizione);
+      if (!cat && !desc) return;
+
+      const idx = r?.productivity_index;
+      if (idx == null || !Number.isFinite(Number(idx))) return;
+
+      const key = `${opId}||${cat}||${desc}`;
+      if (!m.has(key)) m.set(key, Number(idx));
+    });
+
+    return m;
+  }, [kpiFamilyRows, reportDate]);
+
   const prodottoTotale = useMemo(() => computeProdottoTotale(visibleRows, parseNumeric), [visibleRows]);
   const statusLabel = STATUS_LABELS[status] || status;
 
@@ -369,7 +482,7 @@ export default function RapportinoPage() {
     toastTimerRef.current = setTimeout(() => {
       setToast(null);
       toastTimerRef.current = null;
-    }, t?.type === "error" ? 4000 : 2400);
+    }, (t?.type === "error" ? 4000 : 2400));
   };
 
   useEffect(() => {
@@ -399,23 +512,13 @@ export default function RapportinoPage() {
     setOpRowIndex(rowIndex);
     setOpOpen(true);
   };
-  const closeOperatorPicker = () => {
-    setOpOpen(false);
-    setOpRowIndex(null);
-  };
 
   const openTempoPickerForRow = (rowIndex) => {
     setTmRowIndex(rowIndex);
     setTmOpen(true);
   };
-  const closeTempoPicker = () => {
-    setTmOpen(false);
-    setTmRowIndex(null);
-  };
 
   const handleRowChange = (index, field, value, targetForHeight) => {
-    // IMPORTANT: visibleRows est filtré, mais rows est la source de vérité.
-    // Ici on modifie par index de visibleRows: on mappe via l'id si possible, sinon via index brut.
     setRows((prev) => {
       const prevArr = Array.isArray(prev) ? prev : [];
       const vr = visibleRows[index];
@@ -438,7 +541,6 @@ export default function RapportinoPage() {
   };
 
   const handleRemoveRow = (rowIndex) => {
-    // rowIndex on visibleRows => map to source rows via id
     const vr = visibleRows[rowIndex];
     const key = vr?.id ? String(vr.id) : null;
 
@@ -454,7 +556,6 @@ export default function RapportinoPage() {
 
   const handleRemoveOperatorFromRow = async (rowIndex, operatorId) => {
     try {
-      // rowIndex on visibleRows => map to source by id
       const vr = visibleRows[rowIndex];
       const key = vr?.id ? String(vr.id) : null;
 
@@ -495,7 +596,6 @@ export default function RapportinoPage() {
   const handleSave = async (forcedStatus): Promise<string | null> => {
     if (!profile?.id) return null;
 
-    // HARD RULE: if validating and PRODOTTO is NULL/empty => NOTE is mandatory.
     if (forcedStatus === "VALIDATED_CAPO") {
       const invalid = (Array.isArray(visibleRows) ? visibleRows : [])
         .map((r, i) => ({
@@ -542,7 +642,7 @@ export default function RapportinoPage() {
         costr,
         commessa,
         prodottoTotale,
-        rows: visibleRows, // save uniquement lignes avec description
+        rows: visibleRows,
         rapportinoId,
         setRapportinoId: (id) => {
           try {
@@ -575,7 +675,6 @@ export default function RapportinoPage() {
     await handleSave("VALIDATED_CAPO");
   };
 
-  // Export: ouverture de la feuille rapport (stampa) en route dédiée 1-page
   const handlePrint = async () => {
     const savedId = await handleSave(status);
     if (!savedId) return;
@@ -598,7 +697,6 @@ export default function RapportinoPage() {
   const autoSaveEnabled = true;
 
   const autoSaveSig = useMemo(() => {
-    // We autosave what the user is effectively working on (visibleRows)
     return buildAutoSaveSignature({
       profileId: profile?.id,
       crewRole: normalizedCrewRole,
@@ -618,10 +716,8 @@ export default function RapportinoPage() {
     if (saving) return;
     if (autoSaveInFlightRef.current) return;
 
-    // Do not autosave if the rapport is completely empty
     if (!hasAnyMeaningfulContent({ costr, commessa, rows: visibleRows })) return;
 
-    // If nothing changed since last autosave/manual save, skip
     if (autoSaveSig === lastSavedSigRef.current) return;
 
     if (autoSaveTimerRef.current) {
@@ -633,14 +729,12 @@ export default function RapportinoPage() {
       try {
         autoSaveInFlightRef.current = true;
 
-        // NOTE: autosave keeps current status (DRAFT/RETURNED) and does NOT validate.
         const ok = await handleSave(undefined);
         if (ok) {
           lastSavedSigRef.current = autoSaveSig;
           pushToast({ type: "info", message: "Auto-salvato." });
         }
       } catch (e) {
-        // Keep autosave errors non-blocking but visible
         console.warn("[AutoSave] failed:", e);
         pushToast({ type: "error", message: "Auto-save fallito.", detail: e?.message || String(e) });
       } finally {
@@ -667,12 +761,8 @@ export default function RapportinoPage() {
     visibleRows,
   ]);
 
-  // When manual save succeeds, mark current signature as saved (avoid immediate autosave loop)
   useEffect(() => {
-    // If rapportinoId exists, we consider last loaded state as saved baseline.
-    // But we still want autosave if user changes afterwards.
     if (!rapportinoId) return;
-    // Don't overwrite if user is actively editing; keep only if signature is empty
     if (!lastSavedSigRef.current) lastSavedSigRef.current = autoSaveSig;
   }, [rapportinoId, autoSaveSig]);
 
@@ -844,6 +934,7 @@ export default function RapportinoPage() {
             {/* TABLE */}
             <RapportinoTable
               rows={visibleRows}
+              productivityIndexMap={productivityIndexMap}
               onRowChange={(idx, field, value, target) => {
                 if (field === "tempo") {
                   handleTempoChangeLegacy({ setRows }, idx, value);
@@ -871,7 +962,12 @@ export default function RapportinoPage() {
             {/* INCA BLOCK */}
             {showIncaBlock && incaOpen ? (
               <div className="mt-4">
-                <RapportinoIncaCaviSection rapportinoId={rapportinoId} reportDate={reportDate} costr={costr} commessa={commessa} />
+                <RapportinoIncaCaviSection
+                  rapportinoId={rapportinoId}
+                  reportDate={reportDate}
+                  costr={costr}
+                  commessa={commessa}
+                />
               </div>
             ) : null}
 
