@@ -127,55 +127,82 @@ export default function UfficioRapportiniList(): JSX.Element {
       setLoading(true);
       setError(null);
 
-      const baseSelect = [
-        "id",
-        "report_date",
-        "capo_id",
-        "capo_display_name",
-        "crew_role",
-        "costr",
-        "commessa",
-        "status",
-        "created_at",
-        "updated_at",
-        // versioning (defensive)
-        "supersedes_rapportino_id",
-        "superseded_by_rapportino_id",
-      ].join(",");
-
-      async function runQuery(selectStr: string) {
-        return await supabase
-          .from("rapportini")
-          .select(selectStr)
-          .order("report_date", { ascending: false })
-          .limit(500);
-      }
+      /**
+       * Canon sources (ordre de préférence):
+       * - public.ufficio_rapportini_list_v1 (vue dédiée, contient aussi les champs de rettifica/versioning)
+       * - public.rapportini_with_capo_v1 (vue canonique, enrichit capo_display_name)
+       * - public.rapportini (legacy)
+       */
+      const candidates: Array<{ table: string; select: string }> = [
+        {
+          table: "ufficio_rapportini_list_v1",
+          select: [
+            "id",
+            "report_date",
+            "status",
+            "capo_id",
+            "crew_role",
+            "commessa",
+            "created_at",
+            "updated_at",
+            "supersedes_rapportino_id",
+            "superseded_by_rapportino_id",
+            "correction_reason",
+            "correction_created_by",
+            "correction_created_at",
+            "capo_display_name",
+          ].join(","),
+        },
+        {
+          table: "rapportini_with_capo_v1",
+          select: [
+            "id",
+            "report_date",
+            "status",
+            "capo_id",
+            "capo_name",
+            "crew_role",
+            "commessa",
+            "created_at",
+            "updated_at",
+            "capo_display_name",
+          ].join(","),
+        },
+        {
+          table: "rapportini",
+          select: [
+            "id",
+            "report_date",
+            "status",
+            "capo_id",
+            "capo_name",
+            "crew_role",
+            "commessa",
+            "created_at",
+            "updated_at",
+          ].join(","),
+        },
+      ];
 
       let data: any[] | null = null;
       let err: any = null;
+      let usedTable: string | null = null;
 
-      const r1 = await runQuery(baseSelect);
-      data = r1.data;
-      err = r1.error;
+      for (const c of candidates) {
+        const res = await supabase
+          .from(c.table)
+          .select(c.select)
+          .order("report_date", { ascending: false })
+          .limit(500);
 
-      // Fallback si colonnes versioning pas encore présentes
-      if (err) {
-        const minimalSelect = [
-          "id",
-          "report_date",
-          "capo_id",
-          "capo_display_name",
-          "crew_role",
-          "costr",
-          "commessa",
-          "status",
-          "created_at",
-          "updated_at",
-        ].join(",");
+        if (!res.error) {
+          data = res.data;
+          err = null;
+          usedTable = c.table;
+          break;
+        }
 
-        const r2 = await runQuery(minimalSelect);
-        data = r2.data;
-        err = r2.error;
+        err = res.error;
       }
 
       if (err) {
@@ -187,7 +214,16 @@ export default function UfficioRapportiniList(): JSX.Element {
         return;
       }
 
-      const list = data || [];
+      const list = (data || []).map((r) => {
+        // Normalisation (legacy safety)
+        const capoDisplay = r?.capo_display_name ?? r?.capo_name ?? null;
+        return { ...r, capo_display_name: capoDisplay };
+      });
+
+      if (usedTable !== "ufficio_rapportini_list_v1") {
+        console.info("[UFFICIO LIST] Loaded from:", usedTable);
+      }
+
       setRapportini(list);
 
       const crewRoleByRapId = new Map<string, string>();

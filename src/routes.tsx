@@ -12,7 +12,9 @@ import ForcePasswordChange from "./pages/ForcePasswordChange";
 
 // SHELLS
 import AppShell from "./shells/AppShell";
-import UfficioShell from "./shells/UfficioShell.tsx";
+// NOTE: dans ton ZIP actuel c'est UfficioShell.jsx, donc on garde l'import sans extension.
+// Si tu migres en TSX, tu peux repasser en "./shells/UfficioShell.tsx".
+import UfficioShell from "./shells/UfficioShell";
 import DirectionShell from "./shells/DirectionShell";
 import ManagerShell from "./shells/ManagerShell";
 // IMPORTANT: explicit extension to avoid resolving the legacy AdminShell.jsx
@@ -164,13 +166,13 @@ export default function AppRoutes(): JSX.Element {
       >
         <Route index element={<UfficioRapportiniList />} />
 
-        {/* Canonique: detail via /ufficio/rapportini/:id (cohérent avec le composant detail actuel) */}
+        {/* Canonique: detail via /ufficio/rapportini/:id */}
         <Route path="rapportini/:id" element={<UfficioRapportinoDetail />} />
 
-        {/* Alias legacy (si certains liens utilisent le singulier) */}
+        {/* Alias legacy: singulier */}
         <Route path="rapportino/:id" element={<UfficioRapportinoDetail />} />
 
-        {/* INCA */}
+        {/* INCA (canon + alias) */}
         <Route path="inca" element={<UfficioIncaHub />} />
         <Route path="inca-hub" element={<UfficioIncaHub />} />
 
@@ -211,7 +213,7 @@ export default function AppRoutes(): JSX.Element {
       >
         <Route index element={<ManagerDashboard />} />
 
-        {/* Canonical routes (existing) */}
+        {/* Canonical routes */}
         <Route path="assignments" element={<ManagerAssignments />} />
         <Route path="capi-cantieri" element={<ManagerCapoShipPlanning isDark={true} />} />
         <Route path="core-drive" element={<ArchivePage />} />

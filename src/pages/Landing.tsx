@@ -6,6 +6,7 @@ import { headerPill, themeIconBg, buttonPrimary } from "../ui/designSystem";
 import { CoreWordmark } from "../components/landing/CoreWordmark";
 import { ElectricFlowPanel } from "../components/landing/ElectricFlowPanel";
 import { ControlLayerSection } from "../components/landing/SectionControlLayer";
+import { GlobalCursorLight } from "../components/landing/GlobalCursorLight";
 
 type Lang = "it" | "fr" | "en";
 
@@ -187,16 +188,12 @@ function safeGetInitialLang(): Lang {
   return "it";
 }
 
-function clamp(n: number, a: number, b: number): number {
-  return Math.max(a, Math.min(b, n));
-}
-
 export default function Landing(): JSX.Element {
-  const rootRef = useRef<HTMLDivElement | null>(null);
-
   useEffect(() => {
     document.documentElement.classList.add("dark");
   }, []);
+
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   const [lang, setLang] = useState<Lang>(() => safeGetInitialLang());
   const t = COPY[lang];
@@ -217,89 +214,11 @@ export default function Landing(): JSX.Element {
     return `mailto:info@core.local?subject=${subject}&body=${body}`;
   }, []);
 
-  // Global cursor-follow spotlight (Option A): single, subtle, system-grade.
-  // No React re-render on pointermove (RAF + CSS variables).
-  useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-
-    const docEl = document.documentElement;
-
-    let mx = window.innerWidth * 0.18;
-    let my = window.innerHeight * 0.22;
-    let raf = 0;
-    let targets: HTMLElement[] = [];
-
-    const refreshTargets = () => {
-      targets = Array.from(root.querySelectorAll<HTMLElement>("[data-core-prox-target]"));
-    };
-
-    const computeProx = (el: HTMLElement, x: number, y: number): number => {
-      const r = el.getBoundingClientRect();
-      const cx = r.left + r.width / 2;
-      const cy = r.top + r.height / 2;
-      const dx = x - cx;
-      const dy = y - cy;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      const custom = el.dataset.coreProxRadius;
-      const radius = custom ? Math.max(1, Number(custom)) : Math.max(r.width, r.height) * 0.78;
-      const p = 1 - clamp(dist / radius, 0, 1);
-      return clamp(p, 0, 1);
-    };
-
-    const tick = () => {
-      raf = 0;
-
-      // Update pointer position.
-      docEl.style.setProperty("--core-mx", `${Math.round(mx)}px`);
-      docEl.style.setProperty("--core-my", `${Math.round(my)}px`);
-
-      // Compute proximity gain (focus around intelligent zones).
-      let gain = 0;
-      let aiProx = 0;
-
-      for (const el of targets) {
-        const p = computeProx(el, mx, my);
-        gain = Math.max(gain, p);
-        if (el.dataset.coreProxTarget === "ai") aiProx = Math.max(aiProx, p);
-      }
-
-      docEl.style.setProperty("--core-gain", gain.toFixed(3));
-      docEl.style.setProperty("--core-ai-prox", aiProx.toFixed(3));
-    };
-
-    const schedule = () => {
-      if (raf) return;
-      raf = window.requestAnimationFrame(tick);
-    };
-
-    const onMove = (e: PointerEvent) => {
-      mx = e.clientX;
-      my = e.clientY;
-      schedule();
-    };
-
-    refreshTargets();
-    schedule();
-
-    window.addEventListener("pointermove", onMove, { passive: true });
-    window.addEventListener("resize", refreshTargets, { passive: true });
-    window.addEventListener("scroll", refreshTargets, { passive: true });
-
-    return () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("resize", refreshTargets);
-      window.removeEventListener("scroll", refreshTargets);
-      if (raf) window.cancelAnimationFrame(raf);
-    };
-  }, []);
-
   return (
-    <div ref={rootRef} className="min-h-screen bg-slate-950 text-slate-100">
+    <div ref={rootRef} className="relative min-h-screen bg-slate-950 text-slate-100">
       {/* BACKDROP (clean, no seasonal modes) */}
       <div
-        className="pointer-events-none fixed inset-0"
+        className="pointer-events-none fixed inset-0 z-0"
         style={{
           backgroundImage: `
             radial-gradient(1200px 620px at 14% 18%, rgba(56,189,248,0.08), transparent 62%),
@@ -310,24 +229,12 @@ export default function Landing(): JSX.Element {
         }}
       />
 
-      {/* GLOBAL SPOTLIGHT (Option A) */}
-      <div
-        className="pointer-events-none fixed inset-0"
-        style={{
-          // A single, subtle light that follows the cursor; slightly stronger near key “intelligent” zones.
-          // Uses CSS vars updated via RAF; no React re-render.
-          backgroundImage: `
-            radial-gradient(720px 520px at var(--core-mx, 18vw) var(--core-my, 22vh), rgba(56,189,248, calc(0.045 + var(--core-gain, 0) * 0.07)), transparent 62%),
-            radial-gradient(560px 420px at calc(var(--core-mx, 18vw) + 120px) calc(var(--core-my, 22vh) + 80px), rgba(226,232,240, calc(0.018 + var(--core-gain, 0) * 0.03)), transparent 68%)
-          `,
-          mixBlendMode: "screen",
-          opacity: 0.95,
-        }}
-      />
+      {/* GLOBAL CURSOR LIGHT (subtle, site-wide on the landing) */}
+      <GlobalCursorLight target={rootRef} />
 
       {/* GRAIN (very subtle) */}
       <div
-        className="pointer-events-none fixed inset-0 opacity-[0.045]"
+        className="pointer-events-none fixed inset-0 z-[12] opacity-[0.045]"
         style={{
           backgroundImage: `
             repeating-linear-gradient(
@@ -393,7 +300,7 @@ export default function Landing(): JSX.Element {
       <main className="relative z-10">
         <div className="mx-auto max-w-7xl px-6 py-16 md:py-20">
           {/* HERO */}
-          <section className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+          <section className="grid grid-cols-1 lg:grid-cols-12 gap-12 xl:gap-14 items-start">
             <div className="lg:col-span-5 space-y-9">
               <div className="space-y-4">
                 <div className="text-[12px] uppercase tracking-[0.30em] text-slate-500">{t.eyebrow}</div>
@@ -432,13 +339,13 @@ export default function Landing(): JSX.Element {
               </div>
             </div>
 
-            <div className="lg:col-span-7" data-core-prox-target="panel">
+            <div className="lg:col-span-7">
               <ElectricFlowPanel t={t} />
             </div>
           </section>
 
           {/* SECTION 2 (under hero) */}
-          <div className="pt-14 md:pt-16" data-core-prox-target="control">
+          <div className="pt-14 md:pt-16">
             <ControlLayerSection t={t} />
           </div>
 

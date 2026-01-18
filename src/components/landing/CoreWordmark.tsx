@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 
 type Props = {
   title: string; // "CORE"
@@ -10,22 +10,78 @@ function clamp(n: number, a: number, b: number): number {
 
 export function CoreWordmark({ title }: Props): JSX.Element {
   const wrapRef = useRef<HTMLDivElement | null>(null);
-  const [hover, setHover] = useState(false);
-  const [pos, setPos] = useState<{ x: number; y: number }>({ x: 0.5, y: 0.5 });
+  const badgeWrapRef = useRef<HTMLSpanElement | null>(null);
+  const badgeCoreRef = useRef<HTMLSpanElement | null>(null);
 
+  // Proximity + spotlight without re-render: listens to the Landing event bus.
   useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
+    const badge = badgeCoreRef.current;
+    const wrap = badgeWrapRef.current;
+    if (!badge || !wrap) return;
 
-    const onMove = (e: PointerEvent) => {
-      const r = el.getBoundingClientRect();
-      const x = clamp((e.clientX - r.left) / r.width, 0, 1);
-      const y = clamp((e.clientY - r.top) / r.height, 0, 1);
-      setPos({ x, y });
+    let rafId = 0;
+    let lastX = window.innerWidth * 0.5;
+    let lastY = window.innerHeight * 0.35;
+    let hover = false;
+
+    const schedule = () => {
+      if (rafId) return;
+      rafId = window.requestAnimationFrame(() => {
+        rafId = 0;
+        const r = badge.getBoundingClientRect();
+        const cx = r.left + r.width * 0.5;
+        const cy = r.top + r.height * 0.5;
+        const dx = lastX - cx;
+        const dy = lastY - cy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        // Approach response: starts reacting well before hover.
+        const reach = 180; // px
+        const prox = 1 - clamp(dist / reach, 0, 1);
+        const active = Math.max(hover ? 1 : 0, Math.pow(prox, 1.35));
+
+        // Spotlight stays small and calm.
+        const nx = clamp((lastX - r.left) / Math.max(1, r.width), 0, 1);
+        const ny = clamp((lastY - r.top) / Math.max(1, r.height), 0, 1);
+
+        badge.style.setProperty("--ai-spot-x", `${Math.round(nx * 100)}%`);
+        badge.style.setProperty("--ai-spot-y", `${Math.round(ny * 100)}%`);
+        badge.style.setProperty("--ai-spot-a", `${(0.08 + active * 0.18).toFixed(3)}`);
+        badge.style.setProperty("--ai-glow-a", `${(0.42 + active * 0.48).toFixed(3)}`);
+        badge.style.setProperty("--ai-dash-a", `${(0.70 + active * 0.28).toFixed(3)}`);
+        badge.style.setProperty("--ai-shadow-a", `${(0.10 + active * 0.22).toFixed(3)}`);
+      });
     };
 
-    el.addEventListener("pointermove", onMove, { passive: true });
-    return () => el.removeEventListener("pointermove", onMove);
+    const onPointer = (e: Event) => {
+      const ce = e as CustomEvent<{ x: number; y: number }>;
+      if (!ce?.detail) return;
+      lastX = ce.detail.x;
+      lastY = ce.detail.y;
+      schedule();
+    };
+
+    const onEnter = () => {
+      hover = true;
+      schedule();
+    };
+    const onLeave = () => {
+      hover = false;
+      schedule();
+    };
+
+    window.addEventListener("core:pointer", onPointer as EventListener);
+    wrap.addEventListener("pointerenter", onEnter);
+    wrap.addEventListener("pointerleave", onLeave);
+    // Initial paint
+    schedule();
+
+    return () => {
+      window.removeEventListener("core:pointer", onPointer as EventListener);
+      wrap.removeEventListener("pointerenter", onEnter);
+      wrap.removeEventListener("pointerleave", onLeave);
+      if (rafId) window.cancelAnimationFrame(rafId);
+    };
   }, []);
 
   const reduceMotion = useMemo(() => {
@@ -42,11 +98,9 @@ export function CoreWordmark({ title }: Props): JSX.Element {
 
       {/* AI badge: smaller, circle brighter, electric slow */}
       <span
+        ref={badgeWrapRef}
         className="relative inline-flex items-center justify-center"
         style={{ transform: "translateY(10px)" }}
-        onPointerEnter={() => setHover(true)}
-        onPointerLeave={() => setHover(false)}
-        data-core-prox-target="ai"
         aria-label="AI"
         title="AI"
       >
@@ -66,53 +120,35 @@ export function CoreWordmark({ title }: Props): JSX.Element {
         `}</style>
 
         <span
+          ref={badgeCoreRef}
           className="relative inline-flex items-center justify-center rounded-full"
           style={{
-            width: 30,
-            height: 30,
+            width: 26,
+            height: 26,
             background: "rgba(2,6,23,0.55)",
             border: "1px solid rgba(148,163,184,0.22)",
-            boxShadow: hover
-              ? "0 22px 64px rgba(56,189,248,0.20), inset 0 1px 0 rgba(255,255,255,0.06)"
-              : "0 18px 56px rgba(2,6,23,0.65), inset 0 1px 0 rgba(255,255,255,0.05)",
+            boxShadow: `0 22px 64px rgba(56,189,248,var(--ai-shadow-a,0.12)), inset 0 1px 0 rgba(255,255,255,0.06)`,
             overflow: "hidden",
+            transform: "translateZ(0)",
           }}
         >
-          {/* proximity glow: reacts even before hover (driven by --core-ai-prox) */}
-          <span
-            aria-hidden="true"
-            className="absolute"
-            style={{
-              inset: -18,
-              backgroundImage:
-                "radial-gradient(90px 90px at 50% 50%, rgba(56,189,248, calc(0.06 + var(--core-ai-prox, 0) * 0.18)), transparent 62%)",
-              opacity: hover ? 0.95 : 1,
-              mixBlendMode: "screen",
-              filter: "blur(10px)",
-            }}
-          />
-          {/* small spotlight follows pointer (kept tight, premium) */}
+          {/* small spotlight follows pointer */}
           <span
             aria-hidden="true"
             className="absolute inset-0"
             style={{
-              backgroundImage: `radial-gradient(54px 54px at ${Math.round(pos.x * 100)}% ${Math.round(
-                pos.y * 100
-              )}%, rgba(56,189,248,${hover ? 0.22 : 0.10}), transparent 56%)`,
+              backgroundImage: `radial-gradient(44px 44px at var(--ai-spot-x, 50%) var(--ai-spot-y, 50%), rgba(56,189,248,var(--ai-spot-a,0.12)), transparent 62%)`,
               opacity: 1,
               mixBlendMode: "screen",
             }}
           />
 
-          <span
-            className="relative z-10 text-[11px] font-semibold tracking-[0.22em]"
-            style={{ color: "rgba(56,189,248,0.92)" }}
-          >
+          <span className="relative z-10 text-[10px] font-semibold tracking-[0.24em]" style={{ color: "rgba(56,189,248,0.92)" }}>
             AI
           </span>
 
           {/* Circle + electric dash */}
-          <svg className="absolute inset-0" viewBox="0 0 36 36" width="30" height="30" aria-hidden="true">
+          <svg className="absolute inset-0" viewBox="0 0 36 36" width="26" height="26" aria-hidden="true">
             <defs>
               <linearGradient id="coreAiGrad" x1="0" y1="0" x2="1" y2="0">
                 <stop offset="0%" stopColor="rgba(56,189,248,0.22)" />
@@ -127,7 +163,7 @@ export function CoreWordmark({ title }: Props): JSX.Element {
             </defs>
 
             {/* base ring */}
-            <circle cx="18" cy="18" r="14.5" fill="none" stroke="rgba(148,163,184,0.20)" strokeWidth="1.6" />
+            <circle cx="18" cy="18" r="14.5" fill="none" stroke="rgba(148,163,184,0.22)" strokeWidth="1.6" />
 
             {/* glow ring */}
             <circle
@@ -135,10 +171,10 @@ export function CoreWordmark({ title }: Props): JSX.Element {
               cy="18"
               r="14.5"
               fill="none"
-              stroke="rgba(56,189,248,0.12)"
-              strokeWidth="5.8"
+              stroke="rgba(56,189,248,0.14)"
+              strokeWidth="6.2"
               style={{
-                opacity: hover ? 0.9 : "calc(0.50 + var(--core-ai-prox, 0) * 0.32)",
+                opacity: "var(--ai-glow-a, 0.55)",
                 animation: reduceMotion ? "none" : "coreAiPulse 8.5s ease-in-out infinite",
               }}
             />
@@ -155,7 +191,7 @@ export function CoreWordmark({ title }: Props): JSX.Element {
               strokeDashoffset="0"
               style={{
                 animation: reduceMotion ? "none" : "coreAiDash 9.5s linear infinite",
-                opacity: hover ? 1 : "calc(0.80 + var(--core-ai-prox, 0) * 0.18)",
+                opacity: "var(--ai-dash-a, 0.85)",
               }}
             />
 
@@ -171,7 +207,7 @@ export function CoreWordmark({ title }: Props): JSX.Element {
               strokeDashoffset="0"
               style={{
                 animation: reduceMotion ? "none" : "coreAiOrbitArc 12.5s linear infinite",
-                opacity: hover ? 0.9 : "calc(0.42 + var(--core-ai-prox, 0) * 0.30)",
+                opacity: 0.55,
               }}
             />
           </svg>

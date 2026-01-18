@@ -47,12 +47,13 @@ export function ElectricFlowPanel({ t }: Props): JSX.Element {
     return () => el.removeEventListener("pointermove", onMove);
   }, []);
 
-  const W = 760;
-  const H = 200;
+  // Larger canvas for readability (hero panel was reported as too small / illegible).
+  const W = 900;
+  const H = 260;
 
-  const leftPad = 58;
-  const rightPad = 58;
-  const y = 104;
+  const leftPad = 70;
+  const rightPad = 70;
+  const y = 138;
 
   const x0 = leftPad;
   const x3 = W - rightPad;
@@ -165,7 +166,7 @@ export function ElectricFlowPanel({ t }: Props): JSX.Element {
 
       <div
         ref={panelRef}
-        className="corePanel p-6 md:p-7"
+        className="corePanel p-7 md:p-8"
         style={{
           // pointer to percent for gradients
           ["--mx" as never]: `${Math.round(p.x * 100)}%`,
@@ -176,8 +177,8 @@ export function ElectricFlowPanel({ t }: Props): JSX.Element {
         <div className="coreEdgeLight" aria-hidden="true" />
         <div className="coreEdgeRing" aria-hidden="true" />
 
-        <div className="flex items-center justify-between gap-4 mb-5 relative z-10">
-          <div className="min-w-0 text-[11px] uppercase tracking-[0.28em] text-slate-500">{t.spec}</div>
+        <div className="flex items-center justify-between gap-4 mb-6 relative z-10">
+          <div className="min-w-0 text-[12px] uppercase tracking-[0.28em] text-slate-500">{t.spec}</div>
 
           <div className="shrink-0 inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/55 px-3 py-1.5">
             <span className="text-[11px] uppercase tracking-[0.20em] text-slate-400">CORE 1.0</span>
@@ -185,7 +186,7 @@ export function ElectricFlowPanel({ t }: Props): JSX.Element {
           </div>
         </div>
 
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[190px] md:h-[210px] relative z-10" aria-hidden="true">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[240px] md:h-[290px] relative z-10" aria-hidden="true">
           <defs>
             <linearGradient id="railGrad" x1="0" y1="0" x2="1" y2="0">
               <stop offset="0%" stopColor="rgba(148,163,184,0.18)" />
@@ -208,7 +209,7 @@ export function ElectricFlowPanel({ t }: Props): JSX.Element {
           </defs>
 
           {/* Rail */}
-          <path d={d} fill="none" stroke="url(#railGrad)" strokeWidth="3" strokeLinecap="round" opacity="0.95" />
+          <path d={d} fill="none" stroke="url(#railGrad)" strokeWidth="3.2" strokeLinecap="round" opacity="0.95" />
           <path d={d} fill="none" stroke="rgba(56,189,248,0.06)" strokeWidth="12" strokeLinecap="round" opacity="0.62" />
 
           {/* Current dash (C1 base) */}
@@ -216,7 +217,7 @@ export function ElectricFlowPanel({ t }: Props): JSX.Element {
             d={d}
             fill="none"
             stroke="url(#currentGrad)"
-            strokeWidth="4"
+            strokeWidth="4.2"
             strokeLinecap="round"
             strokeDasharray="34 52"
             strokeDashoffset="0"
@@ -231,7 +232,7 @@ export function ElectricFlowPanel({ t }: Props): JSX.Element {
             d={d}
             fill="none"
             stroke="rgba(226,232,240,0.88)"
-            strokeWidth="4"
+            strokeWidth="4.2"
             strokeLinecap="round"
             strokeDasharray="3 180"
             strokeDashoffset="0"
@@ -246,7 +247,7 @@ export function ElectricFlowPanel({ t }: Props): JSX.Element {
             d={d}
             fill="none"
             stroke="url(#surgeGrad)"
-            strokeWidth="7"
+            strokeWidth="7.5"
             strokeLinecap="round"
             strokeDasharray="120 860"
             strokeDashoffset="0"
@@ -269,22 +270,22 @@ export function ElectricFlowPanel({ t }: Props): JSX.Element {
 function Node({ x, y, label, sub }: { x: number; y: number; label: string; sub: string }): JSX.Element {
   return (
     <>
-      <circle cx={x} cy={y} r="9.5" fill="rgba(2,6,23,0.92)" stroke="rgba(56,189,248,0.72)" strokeWidth="2" />
-      <circle cx={x} cy={y} r="5" fill="rgba(2,6,23,0.98)" stroke="rgba(226,232,240,0.22)" strokeWidth="1" />
+      <circle cx={x} cy={y} r="11" fill="rgba(2,6,23,0.92)" stroke="rgba(56,189,248,0.72)" strokeWidth="2.2" />
+      <circle cx={x} cy={y} r="5.6" fill="rgba(2,6,23,0.98)" stroke="rgba(226,232,240,0.22)" strokeWidth="1" />
       <circle cx={x} cy={y} r="2.6" fill="rgba(226,232,240,0.92)" />
-      <circle cx={x} cy={y} r="6.5" fill="rgba(56,189,248,0.06)" />
+      <circle cx={x} cy={y} r="8" fill="rgba(56,189,248,0.06)" />
 
       <text
         x={x}
         y={y + 30}
         textAnchor="middle"
-        fontSize="12"
+        fontSize="13"
         fill="rgba(226,232,240,0.95)"
         style={{ fontWeight: 700, letterSpacing: "0.10em" }}
       >
         {label}
       </text>
-      <text x={x} y={y + 48} textAnchor="middle" fontSize="11" fill="rgba(148,163,184,0.92)">
+      <text x={x} y={y + 52} textAnchor="middle" fontSize="12" fill="rgba(148,163,184,0.92)">
         {sub}
       </text>
     </>
