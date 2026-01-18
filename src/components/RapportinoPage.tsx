@@ -1,7 +1,9 @@
-// /src/components/RapportinoPage.tsx
+// src/components/RapportinoPage.tsx
 // @ts-nocheck
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams, useOutletContext, useLocation } from "react-router-dom";
+
+import React, { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate, useOutletContext, useParams } from "react-router-dom";
+
 import { useAuth } from "../auth/AuthProvider";
 import { formatDisplayName } from "../utils/formatHuman";
 
@@ -14,7 +16,7 @@ import CatalogModal from "./rapportino/modals/CatalogModal";
 import OperatorPickerModal from "./rapportino/modals/OperatorPickerModal";
 import TempoPickerModal from "./rapportino/modals/TempoPickerModal";
 
-import { getTodayISO, parseNumeric, adjustOperatorTempoHeights } from "../rapportinoUtils";
+import { adjustOperatorTempoHeights, getTodayISO, parseNumeric } from "../rapportinoUtils";
 
 import {
   CREW_LABELS,
@@ -30,8 +32,6 @@ import {
 } from "./rapportino/page/rapportinoHelpers";
 
 import { useReturnedInbox } from "./rapportino/page/useReturnedInbox";
-import { useOperatorProductivityData } from "../features/kpi/components/operatorProd/hooks/useOperatorProductivityData";
-
 import { useRapportinoData } from "./rapportino/page/useRapportinoData";
 import {
   addRowFromCatalog,
@@ -43,53 +43,18 @@ import {
   toggleOperatorInRow,
 } from "./rapportino/page/useRapportinoActions";
 
-/**
- * Toast overlay (non intrusif)
- */
-function ToastOverlay({ toast, onClose }) {
-  const t = toast;
-  if (!t?.message) return null;
-
-  const tone =
-    t.type === "error"
-      ? "border-rose-400/30 bg-rose-500/10 text-rose-100"
-      : t.type === "success"
-      ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-100"
-      : "border-slate-700/50 bg-slate-950/60 text-slate-100";
-
-  return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-5 z-[60] flex justify-center px-3 no-print">
-      <div
-        className={[
-          "pointer-events-auto",
-          "max-w-[min(720px,96vw)] w-full sm:w-auto",
-          "rounded-2xl border shadow-[0_18px_60px_rgba(0,0,0,0.45)]",
-          "backdrop-blur",
-          "px-3 py-2.5",
-          tone,
-        ].join(" ")}
-        role="status"
-        aria-live="polite"
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-[12px] font-semibold leading-5 truncate">{t.message}</div>
-            {t.detail ? <div className="mt-0.5 text-[11px] text-slate-300 whitespace-pre-wrap">{t.detail}</div> : null}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full border border-slate-700/60 bg-slate-950/40 px-2.5 py-1 text-[11px] font-semibold text-slate-100 hover:bg-slate-900/35"
-            aria-label="Chiudi"
-            title="Chiudi"
-          >
-            ×
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+import ToastOverlay from "./rapportino/page/ToastOverlay";
+import { useToast } from "./rapportino/page/useToast";
+import {
+  buildAutoSaveSignature,
+  getDateFromSearch,
+  hasAnyMeaningfulContent,
+  isValidIsoDateParam,
+  setDateInSearch,
+} from "./rapportino/page/rapportinoPageUtils";
+import { useRapportinoAutoSave } from "./rapportino/page/useRapportinoAutoSave";
+import { useCapoHoursMemory } from "./rapportino/page/useCapoHoursMemory";
+import { useProductivityIndexMap } from "./rapportino/page/useProductivityIndexMap";
 
 /**
  * Build tempo picker items for a row:
@@ -126,16 +91,12 @@ function incaBtnClass(disabled) {
     "select-none",
   ];
 
-  if (disabled) {
-    return cn(...base, "border-slate-300 bg-slate-100 text-slate-400 cursor-not-allowed");
-  }
-
+  if (disabled) return cn(...base, "border-slate-300 bg-slate-100 text-slate-400 cursor-not-allowed");
   return cn(...base, "border-slate-300/60 text-slate-50", "focus:outline-none focus:ring-2 focus:ring-sky-500/25");
 }
 
 function incaBtnStyle(disabled) {
   if (disabled) return undefined;
-  // sombre et discret: pas de glow, pas de gradient agressif
   return {
     backgroundImage: [
       "linear-gradient(180deg, rgba(2,6,23,0.92) 0%, rgba(15,23,42,0.92) 100%)",
@@ -144,117 +105,14 @@ function incaBtnStyle(disabled) {
   };
 }
 
-// ────────────────────────────────────────────────────────────────
-// URL Date helpers: ?date=YYYY-MM-DD (canonical "working date")
-// ────────────────────────────────────────────────────────────────
-function isValidIsoDateParam(v) {
-  const s = String(v || "").trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
-
-  const [yy, mm, dd] = s.split("-").map((x) => Number(x));
-  if (!Number.isFinite(yy) || !Number.isFinite(mm) || !Number.isFinite(dd)) return false;
-  if (mm < 1 || mm > 12) return false;
-  if (dd < 1 || dd > 31) return false;
-
-  // stricter: reject impossible dates like 2026-02-31
-  const dt = new Date(Date.UTC(yy, mm - 1, dd));
-  return dt.getUTCFullYear() === yy && dt.getUTCMonth() === mm - 1 && dt.getUTCDate() === dd;
-}
-
-function getDateFromSearch(search) {
-  try {
-    const sp = new URLSearchParams(String(search || ""));
-    const d = sp.get("date");
-    if (isValidIsoDateParam(d)) return String(d);
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-function setDateInSearch(search, nextDate) {
-  const sp = new URLSearchParams(String(search || ""));
-  if (nextDate && isValidIsoDateParam(nextDate)) {
-    sp.set("date", String(nextDate));
-  } else {
-    sp.delete("date");
-  }
-  const qs = sp.toString();
-  return qs ? `?${qs}` : "";
-}
-
-function safeStr(v) {
-  return String(v ?? "").trim();
-}
-
-function hasAnyMeaningfulContent({ costr, commessa, rows }) {
-  if (safeStr(costr) || safeStr(commessa)) return true;
-
-  const arr = Array.isArray(rows) ? rows : [];
-  return arr.some((r) => {
-    const descr = safeStr(r?.descrizione_attivita ?? r?.descrizione);
-    const cat = safeStr(r?.categoria);
-    const note = safeStr(r?.note);
-    const opLegacy = safeStr(r?.operatori);
-    const tempoLegacy = safeStr(r?.tempo);
-    const previsto = r?.previsto;
-    const prodotto = r?.prodotto;
-
-    const canon = Array.isArray(r?.operator_items) ? r.operator_items : [];
-    const hasCanonOps = canon.some((it) => safeStr(it?.label) || safeStr(it?.tempo_raw));
-
-    return (
-      descr ||
-      cat ||
-      note ||
-      opLegacy ||
-      tempoLegacy ||
-      hasCanonOps ||
-      (previsto !== null && previsto !== undefined && safeStr(previsto) !== "") ||
-      (prodotto !== null && prodotto !== undefined && safeStr(prodotto) !== "")
-    );
-  });
-}
-
-function buildAutoSaveSignature({ profileId, crewRole, reportDate, costr, commessa, rows, status }) {
-  const arr = Array.isArray(rows) ? rows : [];
-  const compactRows = arr.map((r) => ({
-    categoria: safeStr(r?.categoria),
-    descrizione: safeStr(r?.descrizione_attivita ?? r?.descrizione),
-    operatori: safeStr(r?.operatori),
-    tempo: safeStr(r?.tempo),
-    previsto: r?.previsto ?? null,
-    prodotto: r?.prodotto ?? null,
-    note: safeStr(r?.note),
-    activity_id: r?.activity_id ? String(r.activity_id) : null,
-    operator_items: Array.isArray(r?.operator_items)
-      ? r.operator_items.map((it) => ({
-          operator_id: it?.operator_id ? String(it.operator_id) : "",
-          label: safeStr(it?.label),
-          tempo_raw: safeStr(it?.tempo_raw),
-          tempo_hours: it?.tempo_hours ?? null,
-          line_index: typeof it?.line_index === "number" ? it.line_index : null,
-        }))
-      : [],
-  }));
-
-  return JSON.stringify({
-    profileId: profileId ? String(profileId) : "",
-    crewRole: crewRole ? String(crewRole) : "",
-    reportDate: reportDate ? String(reportDate) : "",
-    status: status ? String(status) : "",
-    costr: safeStr(costr),
-    commessa: safeStr(commessa),
-    rows: compactRows,
-  });
-}
-
 export default function RapportinoPage() {
   const { shipId } = useParams();
   const { profile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   useOutletContext() || {};
+
+  const { toast, pushToast, clearToast } = useToast();
 
   const [crewRole, setCrewRole] = useState(() => readRoleFromLocalStorage());
   const normalizedCrewRole = normalizeCrewRole(crewRole);
@@ -265,7 +123,7 @@ export default function RapportinoPage() {
     const fromUrl = getDateFromSearch(location.search);
     return fromUrl || getTodayISO();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // read once for init
+  }, []);
 
   const [reportDate, setReportDate] = useState(initialReportDate);
 
@@ -279,15 +137,8 @@ export default function RapportinoPage() {
   const setReportDateAndUrl = (nextDate) => {
     const next = isValidIsoDateParam(nextDate) ? String(nextDate) : getTodayISO();
     setReportDate(next);
-
     const nextSearch = setDateInSearch(location.search, next);
-    navigate(
-      {
-        pathname: location.pathname,
-        search: nextSearch,
-      },
-      { replace: true }
-    );
+    navigate({ pathname: location.pathname, search: nextSearch }, { replace: true });
   };
 
   const capoName = useMemo(() => formatDisplayName(profile, "Capo Squadra"), [profile]);
@@ -343,123 +194,17 @@ export default function RapportinoPage() {
     });
   }, [rows]);
 
-  // ------------------------------------------------------------
-  // Capo Intelligence (souvenir): compute worked hours per operator_id
-  // and persist a lightweight summary for the operators panel.
-  // No backend, no DB, no KPI: purely UX.
-  // ------------------------------------------------------------
-  function computeOperatorHoursById(rowsArg) {
-    const out = {};
-    const arr = Array.isArray(rowsArg) ? rowsArg : [];
+  // UX-only memory for the operators panel (hours + presence)
+  useCapoHoursMemory({ shipId, reportDate, rows: visibleRows });
 
-    for (const r of arr) {
-      const items = Array.isArray(r?.operator_items) ? r.operator_items : [];
-      if (!items.length) continue;
-
-      for (const it of items) {
-        const opId = it?.operator_id == null ? "" : String(it.operator_id).trim();
-        if (!opId) continue;
-
-        const tempoHoursRaw = it?.tempo_hours;
-        const tempoRaw = String(it?.tempo_raw ?? "").trim();
-
-        const h =
-          typeof tempoHoursRaw === "number" && Number.isFinite(tempoHoursRaw)
-            ? tempoHoursRaw
-            : tempoRaw
-            ? parseNumeric(tempoRaw)
-            : 0;
-
-        if (!Number.isFinite(h) || h <= 0) continue;
-        out[opId] = (Number(out[opId] ?? 0) || 0) + h;
-      }
-    }
-
-    // Normalize: round to 0.1h for stable UX
-    Object.keys(out).forEach((k) => {
-      const v = Number(out[k]);
-      out[k] = Math.round(v * 10) / 10;
-    });
-
-    return out;
-  }
-
-  useEffect(() => {
-    try {
-      if (!shipId || !reportDate) return;
-      const byOperatorId = computeOperatorHoursById(visibleRows);
-      const key = `core-rapportino-hours::${String(shipId)}::${String(reportDate)}`;
-      const payload = {
-        shipId: String(shipId),
-        reportDate: String(reportDate),
-        updatedAt: Date.now(),
-        byOperatorId,
-      };
-      window.localStorage.setItem(key, JSON.stringify(payload));
-      window.dispatchEvent(new Event("core:rapportino-hours-updated"));
-    } catch {
-      // Never block the Capo workflow.
-    }
-  }, [shipId, reportDate, visibleRows]);
-
-  // ------------------------------------------------------------
-  // Productivity index lookup (already exists in KPI views)
-  // Requirement: expose productivity index per row, per operator, per activity.
-  // We only read KPI views; no recomputation inside rapportino.
-  // ------------------------------------------------------------
-  const operatorIdsInReport = useMemo(() => {
-    const set = new Set();
-    (visibleRows || []).forEach((r) => {
-      const items = Array.isArray(r?.operator_items) ? r.operator_items : [];
-      items.forEach((it) => {
-        const id = it?.operator_id;
-        if (id != null && String(id).trim()) set.add(String(id));
-      });
-    });
-    const arr = Array.from(set.values());
-    return arr.length > 0 && arr.length <= 250 ? arr : [];
-  }, [visibleRows]);
-
-  const { familyRows: kpiFamilyRows } = ({
+  // Productivity index map (KPI views already compute it)
+  const productivityIndexMap = useProductivityIndexMap({
     profileId: profile?.id,
-    scope: "CAPO",
-    dateFrom: reportDate,
-    dateTo: reportDate,
-    showCostrCommessaFilters: false,
-    costrFilter: costr || null,
-    commessaFilter: commessa || null,
-    selectedIds: operatorIdsInReport,
-    search: "",
+    reportDate,
+    costr,
+    commessa,
+    visibleRows,
   });
-
-  const productivityIndexMap = useMemo(() => {
-    const m = new Map();
-    const rr = Array.isArray(kpiFamilyRows) ? kpiFamilyRows : [];
-
-    function normKey(s) {
-      return String(s || "").trim().toLowerCase();
-    }
-
-    rr.forEach((r) => {
-      const day = r?.report_date ? String(r.report_date) : null;
-      if (day && String(day) !== String(reportDate)) return;
-
-      const opId = r?.operator_id ? String(r.operator_id) : null;
-      if (!opId) return;
-
-      const cat = normKey(r?.categoria);
-      const desc = normKey(r?.descrizione);
-      if (!cat && !desc) return;
-
-      const idx = r?.productivity_index;
-      if (idx == null || !Number.isFinite(Number(idx))) return;
-
-      const key = `${opId}||${cat}||${desc}`;
-      if (!m.has(key)) m.set(key, Number(idx));
-    });
-
-    return m;
-  }, [kpiFamilyRows, reportDate]);
 
   const prodottoTotale = useMemo(() => computeProdottoTotale(visibleRows, parseNumeric), [visibleRows]);
   const statusLabel = STATUS_LABELS[status] || status;
@@ -468,28 +213,6 @@ export default function RapportinoPage() {
     profileId: profile?.id,
     crewRole: normalizedCrewRole,
   });
-
-  // Toast
-  const [toast, setToast] = useState(null);
-  const toastTimerRef = useRef(null);
-
-  const pushToast = (t) => {
-    if (toastTimerRef.current) {
-      clearTimeout(toastTimerRef.current);
-      toastTimerRef.current = null;
-    }
-    setToast(t);
-    toastTimerRef.current = setTimeout(() => {
-      setToast(null);
-      toastTimerRef.current = null;
-    }, (t?.type === "error" ? 4000 : 2400));
-  };
-
-  useEffect(() => {
-    return () => {
-      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    };
-  }, []);
 
   const [saving, setSaving] = useState(false);
   const [uiError, setUiError] = useState(null);
@@ -519,6 +242,8 @@ export default function RapportinoPage() {
   };
 
   const handleRowChange = (index, field, value, targetForHeight) => {
+    // IMPORTANT: visibleRows est filtré, mais rows est la source de vérité.
+    // Ici on modifie par index de visibleRows: on mappe via l'id si possible, sinon via index brut.
     setRows((prev) => {
       const prevArr = Array.isArray(prev) ? prev : [];
       const vr = visibleRows[index];
@@ -535,12 +260,11 @@ export default function RapportinoPage() {
       return copy;
     });
 
-    if (field === "tempo" && targetForHeight) {
-      adjustOperatorTempoHeights(targetForHeight);
-    }
+    if (field === "tempo" && targetForHeight) adjustOperatorTempoHeights(targetForHeight);
   };
 
   const handleRemoveRow = (rowIndex) => {
+    // rowIndex on visibleRows => map to source rows via id
     const vr = visibleRows[rowIndex];
     const key = vr?.id ? String(vr.id) : null;
 
@@ -556,6 +280,7 @@ export default function RapportinoPage() {
 
   const handleRemoveOperatorFromRow = async (rowIndex, operatorId) => {
     try {
+      // rowIndex on visibleRows => map to source by id
       const vr = visibleRows[rowIndex];
       const key = vr?.id ? String(vr.id) : null;
 
@@ -585,17 +310,14 @@ export default function RapportinoPage() {
       console.error("[Rapportino] remove operator error:", e);
       setUiError("Errore durante la rimozione dell'operatore.");
       setUiErrorDetails(e?.message || String(e));
-      pushToast({
-        type: "error",
-        message: "Errore durante la rimozione dell'operatore.",
-        detail: e?.message || String(e),
-      });
+      pushToast({ type: "error", message: "Errore durante la rimozione dell'operatore.", detail: e?.message || String(e) });
     }
   };
 
   const handleSave = async (forcedStatus): Promise<string | null> => {
     if (!profile?.id) return null;
 
+    // HARD RULE: if validating and PRODOTTO is NULL/empty => NOTE is mandatory.
     if (forcedStatus === "VALIDATED_CAPO") {
       const invalid = (Array.isArray(visibleRows) ? visibleRows : [])
         .map((r, i) => ({
@@ -625,7 +347,7 @@ export default function RapportinoPage() {
       }
     }
 
-    let savedRapportinoId: string | null = rapportinoId ? String(rapportinoId) : null;
+    let savedId: string | null = rapportinoId ? String(rapportinoId) : null;
 
     setSaving(true);
     setUiError(null);
@@ -642,12 +364,14 @@ export default function RapportinoPage() {
         costr,
         commessa,
         prodottoTotale,
-        rows: visibleRows,
+        rows: visibleRows, // save uniquement lignes avec description
         rapportinoId,
         setRapportinoId: (id) => {
           try {
-            savedRapportinoId = id ? String(id) : savedRapportinoId;
-          } catch {}
+            savedId = id ? String(id) : savedId;
+          } catch {
+            // ignore
+          }
           setRapportinoId(id);
         },
         setRapportinoCrewRole,
@@ -655,16 +379,13 @@ export default function RapportinoPage() {
         loadReturnedInbox,
         setSuccessMessage: (msg) => pushToast({ type: "success", message: msg || "Salvataggio riuscito." }),
       });
-      return savedRapportinoId;
+
+      return savedId;
     } catch (err) {
       console.error("Errore salvataggio rapportino:", err);
       setUiError("Errore durante il salvataggio del rapportino.");
       setUiErrorDetails(err?.message || String(err));
-      pushToast({
-        type: "error",
-        message: "Errore durante il salvataggio del rapportino.",
-        detail: err?.message || String(err),
-      });
+      pushToast({ type: "error", message: "Errore durante il salvataggio del rapportino.", detail: err?.message || String(err) });
       return null;
     } finally {
       setSaving(false);
@@ -675,13 +396,11 @@ export default function RapportinoPage() {
     await handleSave("VALIDATED_CAPO");
   };
 
-   // Export: stampa via dialog browser (sans nouvel onglet)
+  // Print: NO new tab. We save first, then open browser print dialog.
   const handlePrint = async () => {
     const savedId = await handleSave(status);
     if (!savedId) return;
-
     try {
-      // IMPORTANT: on reste sur la page courante, on déclenche juste le print dialog
       window.print();
     } catch (e) {
       console.warn("window.print failed:", e);
@@ -691,12 +410,7 @@ export default function RapportinoPage() {
   // ────────────────────────────────────────────────────────────────
   // AUTO-SAVE (debounced)
   // ────────────────────────────────────────────────────────────────
-  const autoSaveTimerRef = useRef(null);
-  const autoSaveInFlightRef = useRef(false);
-  const lastSavedSigRef = useRef("");
-
   const autoSaveEnabled = true;
-
   const autoSaveSig = useMemo(() => {
     return buildAutoSaveSignature({
       profileId: profile?.id,
@@ -709,75 +423,32 @@ export default function RapportinoPage() {
     });
   }, [profile?.id, normalizedCrewRole, reportDate, costr, commessa, visibleRows, status]);
 
-  useEffect(() => {
-    if (!autoSaveEnabled) return;
-    if (!canEdit) return;
-    if (!profile?.id) return;
-    if (initialLoading || loading) return;
-    if (saving) return;
-    if (autoSaveInFlightRef.current) return;
+  const hasContent = useMemo(() => {
+    return hasAnyMeaningfulContent({ costr, commessa, rows: visibleRows });
+  }, [costr, commessa, visibleRows]);
 
-    if (!hasAnyMeaningfulContent({ costr, commessa, rows: visibleRows })) return;
-
-    if (autoSaveSig === lastSavedSigRef.current) return;
-
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current);
-      autoSaveTimerRef.current = null;
-    }
-
-    autoSaveTimerRef.current = setTimeout(async () => {
-      try {
-        autoSaveInFlightRef.current = true;
-
-        const ok = await handleSave(undefined);
-        if (ok) {
-          lastSavedSigRef.current = autoSaveSig;
-          pushToast({ type: "info", message: "Auto-salvato." });
-        }
-      } catch (e) {
-        console.warn("[AutoSave] failed:", e);
-        pushToast({ type: "error", message: "Auto-save fallito.", detail: e?.message || String(e) });
-      } finally {
-        autoSaveInFlightRef.current = false;
-      }
-    }, 1200);
-
-    return () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-        autoSaveTimerRef.current = null;
-      }
-    };
-  }, [
-    autoSaveEnabled,
+  const { markSaved } = useRapportinoAutoSave({
+    enabled: autoSaveEnabled,
     canEdit,
-    profile?.id,
-    initialLoading,
-    loading,
-    saving,
-    autoSaveSig,
-    costr,
-    commessa,
-    visibleRows,
-  ]);
+    profileId: profile?.id ? String(profile.id) : null,
+    initialLoading: !!initialLoading,
+    loading: !!loading,
+    saving: !!saving,
+    hasContent,
+    signature: autoSaveSig,
+    onSave: () => handleSave(undefined),
+    onSaved: () => pushToast({ type: "info", message: "Auto-salvato." }),
+    onError: (e) => pushToast({ type: "error", message: "Auto-save fallito.", detail: e?.message || String(e) }),
+  });
 
+  // When manual save succeeds, mark signature as saved (avoid immediate autosave loop)
   useEffect(() => {
     if (!rapportinoId) return;
-    if (!lastSavedSigRef.current) lastSavedSigRef.current = autoSaveSig;
-  }, [rapportinoId, autoSaveSig]);
+    markSaved(autoSaveSig);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rapportinoId]);
 
-  useEffect(() => {
-    return () => {
-      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    };
-  }, []);
-
-  // ────────────────────────────────────────────────────────────────
-
-  if (initialLoading || loading) {
-    return <LoadingScreen message="Caricamento del rapportino in corso." />;
-  }
+  if (initialLoading || loading) return <LoadingScreen message="Caricamento del rapportino in corso." />;
 
   if (showError) {
     return (
@@ -785,9 +456,7 @@ export default function RapportinoPage() {
         <div className="max-w-lg w-full bg-white rounded-lg border p-5">
           <div className="font-semibold text-red-700">{error}</div>
           {errorDetails && (
-            <pre className="mt-3 text-xs bg-slate-50 text-slate-800 p-2 rounded border whitespace-pre-wrap">
-              {errorDetails}
-            </pre>
+            <pre className="mt-3 text-xs bg-slate-50 text-slate-800 p-2 rounded border whitespace-pre-wrap">{errorDetails}</pre>
           )}
           <button className="mt-4 px-3 py-2 rounded bg-slate-900 text-white" onClick={() => navigate(-1)}>
             Torna indietro
@@ -840,7 +509,7 @@ export default function RapportinoPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-900/80">
-      <ToastOverlay toast={toast} onClose={() => setToast(null)} />
+      <ToastOverlay toast={toast} onClose={clearToast} />
 
       <main className="flex-1 px-2 md:px-4 py-4 md:py-6">
         {/* Banner RETURNED */}
@@ -904,8 +573,7 @@ export default function RapportinoPage() {
               "shadow-[0_18px_45px_rgba(0,0,0,0.25)]",
               "w-full"
             )}
-            style={{ maxWidth: "min(1720px, 100%)" }}
-
+            style={{ maxWidth: "min(1800px, 100%)" }}
           >
             <RapportinoHeader
               costr={costr}
@@ -964,12 +632,7 @@ export default function RapportinoPage() {
             {/* INCA BLOCK */}
             {showIncaBlock && incaOpen ? (
               <div className="mt-4">
-                <RapportinoIncaCaviSection
-                  rapportinoId={rapportinoId}
-                  reportDate={reportDate}
-                  costr={costr}
-                  commessa={commessa}
-                />
+                <RapportinoIncaCaviSection rapportinoId={rapportinoId} reportDate={reportDate} costr={costr} commessa={commessa} />
               </div>
             ) : null}
 
@@ -999,7 +662,7 @@ export default function RapportinoPage() {
                     type="button"
                     onClick={handlePrint}
                     className="px-3 py-2 rounded-xl border border-sky-700 bg-sky-600/90 text-white hover:bg-sky-700"
-                    title="Export / Print (solo foglio rapportino)"
+                    title="Stampa / Export (senza aprire un altro tab)"
                   >
                     Export / Print
                   </button>
