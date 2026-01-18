@@ -56,6 +56,12 @@
   background: #fff;
 }
 
+/* Rapportino CAPO page: work surface should use full width (no PDF-centered effect) */
+#rapportino-document.rapportino-document {
+  width: 100%;
+  margin: 0;
+}
+
 /* =========================
    Table layout (CRITICAL)
    ========================= */
@@ -109,33 +115,37 @@
 .rapportino-table td:nth-child(1) { width: 120px; }   /* CATEGORIA */
 
 .rapportino-table th:nth-child(2),
-.rapportino-table td:nth-child(2) { width: 220px; }   /* DESCRIZIONE */
+.rapportino-table td:nth-child(2) { width: 300px; }   /* DESCRIZIONE */
 
 .rapportino-table th:nth-child(3),
-.rapportino-table td:nth-child(3) { width: 170px; }   /* OPERATORE */
+.rapportino-table td:nth-child(3) { width: 240px; }   /* OPERATORE */
 
 .rapportino-table th:nth-child(4),
 .rapportino-table td:nth-child(4) { width: 110px; }   /* TEMPO */
 
 .rapportino-table th:nth-child(5),
-.rapportino-table td:nth-child(5) { width: 100px; }   /* PREVISTO */
+.rapportino-table td:nth-child(5) { width: 90px; }   /* PREVISTO */
 
 .rapportino-table th:nth-child(6),
-.rapportino-table td:nth-child(6) { width: 110px; }   /* PRODOTTO */
+.rapportino-table td:nth-child(6) { width: 90px; }   /* PRODOTTO */
 
 /* NOTE = dernière colonne + large */
 .rapportino-table th:nth-child(7),
 .rapportino-table td:nth-child(7) {
   width: auto;
-  min-width: 320px;
+  min-width: 0;
 }
 
 /* =========================
-   DELETE COLUMN (X) — REMOVED
+   COLUMN HELPERS — SCREEN
+   (avoid nth-child drift when editable columns change)
    ========================= */
-.rapportino-table th:nth-child(8),
-.rapportino-table td:nth-child(8) {
-  display: none !important;
+.rapportino-table .rapportino-col-indice {
+  width: 80px;
+}
+
+.rapportino-table .rapportino-col-actions {
+  width: 44px;
 }
 
 /* =========================
@@ -214,10 +224,14 @@
     border-color: #cbd5e1 !important;
   }
 
-  /* Sécurité: X jamais imprimé */
-  .rapportino-table th:nth-child(8),
-  .rapportino-table td:nth-child(8) {
+  /* Sécurité: colonne actions (X) jamais imprimée */
+  .rapportino-table .rapportino-col-actions {
     display: none !important;
+  }
+
+  /* PRINT helpers */
+  .rapportino-table .rapportino-col-indice {
+    width: 70px !important;
   }
 
   /* PRINT widths */

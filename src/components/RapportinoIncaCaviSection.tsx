@@ -1,5 +1,6 @@
-// src/components/RapportinoIncaCaviSection.jsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+// @ts-nocheck
+// src/components/RapportinoIncaCaviSection.tsx
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 /**
@@ -236,6 +237,16 @@ export default function RapportinoIncaCaviSection({
   const [linkToast, setLinkToast] = useState("");
   const [linkPage, setLinkPage] = useState(0);
   const [linkHasMore, setLinkHasMore] = useState(false);
+  // Link modal (command palette + bulk add)
+  const [linkMode, setLinkMode] = useState("SEARCH"); // SEARCH | BULK
+  const [linkSelectedIdx, setLinkSelectedIdx] = useState(0);
+  const linkInputRef = useRef(null);
+  const [linkFileIds, setLinkFileIds] = useState(null); // resolved inca_files ids for COSTR/commessa
+  const [linkFileIdsLoading, setLinkFileIdsLoading] = useState(false);
+
+  const [bulkText, setBulkText] = useState("");
+  const [bulkRunning, setBulkRunning] = useState(false);
+  const [bulkReport, setBulkReport] = useState(null);
 
   const linkSearchTimerRef = useRef(null);
 
@@ -313,6 +324,10 @@ export default function RapportinoIncaCaviSection({
     setLinkErr("");
     setLinkToast("");
     setLinkOpen(true);
+    setLinkMode("SEARCH");
+    setLinkSelectedIdx(0);
+    setBulkText("");
+    setBulkReport(null);
     setLinkQ("");
     setLinkPage(0);
     setLinkList([]);
@@ -327,10 +342,118 @@ export default function RapportinoIncaCaviSection({
     setLinkLoading(false);
     setLinkPage(0);
     setLinkHasMore(false);
+    setLinkSelectedIdx(0);
+    setLinkMode("SEARCH");
+    setBulkText("");
+    setBulkReport(null);
+    setLinkFileIds(null);
+    setLinkFileIdsLoading(false);
     if (linkSearchTimerRef.current) clearTimeout(linkSearchTimerRef.current);
   };
 
+  // Resolve inca_files ids for the current COSTR/commessa when opening the modal.
+  useEffect(() => {
+    if (!linkOpen) return;
+
+    let alive = true;
+    async function loadFileIds() {
+      setLinkFileIdsLoading(true);
+      setLinkFileIds(null);
+
+      try {
+        const commTrim = String(commessa || "").trim();
+        if (!costr || !commTrim) {
+          if (alive) setLinkFileIds([]);
+          return;
+        }
+
+        // Preferred: exact match on commessa.
+        const exact = await supabase
+          .from("inca_files")
+          .select("id")
+          .eq("costr", costr)
+          .eq("commessa", commTrim)
+          .limit(5000);
+
+        if (exact.error) throw exact.error;
+        let ids = (exact.data || []).map((x) => x.id).filter(Boolean);
+
+        // Fallback: ilike in case legacy commessa formatting differs.
+        if (ids.length === 0) {
+          const like = await supabase
+            .from("inca_files")
+            .select("id")
+            .eq("costr", costr)
+            .ilike("commessa", commTrim)
+            .limit(5000);
+          if (like.error) throw like.error;
+          ids = (like.data || []).map((x) => x.id).filter(Boolean);
+        }
+
+        if (alive) setLinkFileIds(ids);
+      } catch (e) {
+        console.error("[RapportinoIncaCaviSection] link file id resolve error:", e);
+        if (alive) {
+          setLinkFileIds([]);
+          setLinkErr("Impossibile risolvere i file INCA per COSTR/commessa.");
+        }
+      } finally {
+        if (alive) setLinkFileIdsLoading(false);
+      }
+    }
+
+    loadFileIds();
+    return () => {
+      alive = false;
+    };
+  }, [linkOpen, costr, commessa]);
+
+  // Focus the search input on open (SEARCH mode).
+  useEffect(() => {
+    if (!linkOpen) return;
+    if (linkMode !== "SEARCH") return;
+    const t = setTimeout(() => {
+      try {
+        linkInputRef.current?.focus?.();
+      } catch {
+        // noop
+      }
+    }, 0);
+    return () => clearTimeout(t);
+  }, [linkOpen, linkMode]);
+
+  // Reset selection when query/results change.
+  useEffect(() => {
+    if (!linkOpen) return;
+    if (linkMode !== "SEARCH") return;
+    setLinkSelectedIdx(0);
+  }, [linkOpen, linkMode, linkQ, linkList.length]);
+
   const buildCaviQuery = ({ qText, page }) => {
+    // Fast path: resolve INCA file ids once, then filter inca_cavi by inca_file_id (no join per keystroke).
+    const s = (qText || "").trim();
+    if (Array.isArray(linkFileIds)) {
+      if (linkFileIds.length === 0) {
+        // No files for COSTR/commessa => no results by definition.
+        return supabase
+          .from("inca_cavi")
+          .select("id,codice,metri_teo,situazione,inca_file_id")
+          .eq("inca_file_id", "__none__");
+      }
+
+      let q = supabase
+        .from("inca_cavi")
+        .select("id,codice,metri_teo,situazione,inca_file_id")
+        .in("inca_file_id", linkFileIds)
+        .order("codice", { ascending: true })
+        .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+
+      if (s) q = q.ilike("codice", `%${s}%`);
+      return q;
+    }
+
+    // Fallback (legacy): join inca_files, but prefer exact commessa when possible.
+    const commTrim = String(commessa || "").trim();
     let q = supabase
       .from("inca_cavi")
       .select(
@@ -346,11 +469,11 @@ export default function RapportinoIncaCaviSection({
         `
       )
       .eq("inca_files.costr", costr)
-      .ilike("inca_files.commessa", String(commessa || "").trim())
+      .eq("inca_files.commessa", commTrim)
       .order("codice", { ascending: true })
       .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
 
-    const s = (qText || "").trim();
+    // If exact match yields no files in the project, caller will still show no results; keep this deterministic.
     if (s) q = q.ilike("codice", `%${s}%`);
     return q;
   };
@@ -535,6 +658,18 @@ export default function RapportinoIncaCaviSection({
       return;
     }
 
+    // If we resolved inca_files ids and there are none, there is nothing to show.
+    if (Array.isArray(linkFileIds) && linkFileIds.length === 0) {
+      setLinkErr("Nessun file INCA trovato per COSTR/commessa.");
+      setLinkList([]);
+      setLinkHasMore(false);
+      return;
+    }
+    if (linkFileIdsLoading) {
+      // Wait for ids; the debounce will re-trigger when ready.
+      return;
+    }
+
     setLinkLoading(true);
     setLinkErr("");
 
@@ -568,6 +703,7 @@ export default function RapportinoIncaCaviSection({
   // Debounce search (modal)
   useEffect(() => {
     if (!linkOpen) return;
+    if (linkMode !== "SEARCH") return;
 
     if (linkSearchTimerRef.current) clearTimeout(linkSearchTimerRef.current);
 
@@ -579,11 +715,12 @@ export default function RapportinoIncaCaviSection({
       if (linkSearchTimerRef.current) clearTimeout(linkSearchTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [linkQ, linkOpen, costr, commessa, linkedIdsSet]);
+  }, [linkQ, linkOpen, costr, commessa, linkedIdsSet, linkFileIds, linkFileIdsLoading, linkMode]);
 
   // First open
   useEffect(() => {
     if (!linkOpen) return;
+    if (linkMode !== "SEARCH") return;
     fetchLinkPage({ page: 0, append: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [linkOpen]);
@@ -1324,42 +1461,103 @@ export default function RapportinoIncaCaviSection({
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">
-                  Collega cavo <span className="text-slate-600">·</span>{" "}
-                  <span className="text-slate-200">INCA</span>
+                  Picker cavi <span className="text-slate-600">·</span> <span className="text-slate-200">INCA</span>
                 </div>
                 <div className="mt-1 text-[14px] font-semibold text-slate-50">
-                  Cerca e collega un cavo alla lista del rapportino
+                  Collega cavi al rapportino
                 </div>
                 <div className="mt-1 text-[12px] text-slate-400">
-                  Mostra solo cavi di COSTR/commessa e non già collegati.
+                  {costr && commessa ? (
+                    <>
+                      Contesto: <span className="text-slate-200 font-semibold">COSTR {costr} / {commessa}</span>
+                    </>
+                  ) : (
+                    <>Contesto: <span className="text-slate-500">—</span></>
+                  )}
+                  {rapportinoId ? (
+                    <>
+                      <span className="text-slate-600"> · </span>
+                      Rapportino <span className="text-slate-200 font-semibold">OK</span>
+                    </>
+                  ) : null}
                 </div>
               </div>
 
-              <button type="button" onClick={closeLinkModal} className={ghostBtnClass()}>
-                Chiudi
-              </button>
+              <div className="flex items-center gap-2">
+                <div className="inline-flex items-center rounded-full border border-slate-800 bg-slate-950/60 p-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLinkMode("SEARCH");
+                      setLinkErr("");
+                      setLinkToast("");
+                    }}
+                    className={[
+                      "rounded-full px-3 py-2 text-[12px] font-semibold",
+                      linkMode === "SEARCH" ? "bg-slate-50/10 text-slate-50" : "text-slate-300 hover:bg-slate-900/40",
+                    ].join(" ")}
+                    title="Ricerca"
+                  >
+                    Ricerca
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLinkMode("BULK");
+                      setLinkErr("");
+                      setLinkToast("");
+                      setBulkReport(null);
+                    }}
+                    className={[
+                      "rounded-full px-3 py-2 text-[12px] font-semibold",
+                      linkMode === "BULK" ? "bg-slate-50/10 text-slate-50" : "text-slate-300 hover:bg-slate-900/40",
+                    ].join(" ")}
+                    title="Aggiunta massiva"
+                  >
+                    Lista
+                  </button>
+                </div>
+
+                <button type="button" onClick={closeLinkModal} className={ghostBtnClass()}>
+                  Chiudi
+                </button>
+              </div>
             </div>
 
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-12 gap-3">
-              <div className="md:col-span-4 rounded-2xl border border-slate-800 bg-slate-950/70 px-3 py-2.5">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">Contesto</div>
-                <div className="mt-1 text-[13px] text-slate-50 font-semibold">
-                  {costr && commessa ? `COSTR ${costr} / ${commessa}` : "—"}
-                </div>
-                <div className="mt-1 text-[12px] text-slate-400">
-                  Rapportino:{" "}
-                  <span className="font-semibold text-slate-200">{rapportinoId ? "OK" : "—"}</span>
-                </div>
-              </div>
-
-              <div className="md:col-span-8">
+            {/* SEARCH MODE */}
+            {linkMode === "SEARCH" ? (
+              <div className="mt-4">
                 <input
+                  ref={linkInputRef}
                   value={linkQ}
                   onChange={(e) => {
                     setLinkQ(e.target.value);
                     setLinkPage(0);
                   }}
-                  placeholder="Cerca codice INCA… (es. MARCA CAVO)"
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setLinkSelectedIdx((i) => Math.min(i + 1, Math.max(linkList.length - 1, 0)));
+                      return;
+                    }
+                    if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setLinkSelectedIdx((i) => Math.max(i - 1, 0));
+                      return;
+                    }
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      const q = String(linkQ || "").trim().toLowerCase();
+                      if (!linkList || linkList.length === 0) return;
+
+                      // Exact match wins
+                      const exact = linkList.find((x) => String(x.codice || "").trim().toLowerCase() === q);
+                      const chosen = exact || linkList[Math.min(Math.max(linkSelectedIdx, 0), linkList.length - 1)];
+                      if (chosen) handleLinkCavo(chosen);
+                    }
+                  }}
+                  placeholder="Digita o incolla un codice INCA… (Invio = collega)"
                   className={[
                     "w-full rounded-2xl border",
                     "border-slate-800 bg-slate-950/70",
@@ -1368,109 +1566,306 @@ export default function RapportinoIncaCaviSection({
                     "outline-none focus:ring-2 focus:ring-sky-500/35",
                   ].join(" ")}
                 />
-                <div className="mt-2 flex items-center gap-2">
+
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {linkFileIdsLoading ? <span className="text-[12px] text-slate-400">Risoluzione file INCA…</span> : null}
                   {linkLoading ? <span className="text-[12px] text-slate-400">Caricamento…</span> : null}
                   {linkToast ? <span className="text-[12px] text-emerald-200">{linkToast}</span> : null}
                   {linkErr ? <span className="text-[12px] text-rose-200">{linkErr}</span> : null}
                   {!linkLoading && !linkErr ? (
                     <span className="text-[12px] text-slate-500">
-                      {linkList.length} risultati (pagina {linkPage + 1})
+                      {linkList.length} risultati (pagina {linkPage + 1}) · ↑↓ per navigare · Invio per collegare
                     </span>
                   ) : null}
                 </div>
-              </div>
-            </div>
 
-            <div className="mt-4 overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/60">
-              <div className="px-3 py-2 border-b border-slate-800 bg-slate-950/70">
-                <div className="grid grid-cols-12 gap-2 text-[11px] text-slate-400">
-                  <div className="col-span-7 text-slate-200">Codice</div>
-                  <div className="col-span-2 text-slate-200">Lung.</div>
-                  <div className="col-span-2 text-slate-200">Stato</div>
-                  <div className="col-span-1 text-right text-slate-200">+</div>
-                </div>
-              </div>
-
-              <div className="max-h-[52vh] overflow-auto">
-                {linkLoading && linkList.length === 0 ? (
-                  <div className="px-3 py-6 text-[13px] text-slate-400">Caricamento lista…</div>
-                ) : linkList.length === 0 ? (
-                  <div className="px-3 py-6 text-[13px] text-slate-400">
-                    Nessun risultato (o tutti già collegati).
-                  </div>
-                ) : (
-                  linkList.map((c) => (
-                    <div
-                      key={c.id}
-                      className="px-3 py-2 border-b border-slate-800 last:border-b-0 hover:bg-slate-900/25"
-                    >
-                      <div className="grid grid-cols-12 gap-2 items-center">
-                        <div className="col-span-7 min-w-0">
-                          <div className="text-[13px] font-semibold text-slate-50 truncate">
-                            {c.codice || "—"}
-                          </div>
-                          <div className="mt-0.5 text-[12px] text-slate-400">
-                            ID: <span className="text-slate-500">{c.id}</span>
-                          </div>
-                        </div>
-
-                        <div className="col-span-2">
-                          <div className="text-[13px] text-slate-100 tabular-nums">
-                            {safeNum(c.metri_teo).toFixed(2)}
-                          </div>
-                        </div>
-
-                        <div className="col-span-2">
-                          <span className={pillClass(c.situazioneKey)} title="Stato (INCA)">
-                            <span className={badgeLetterClass(c.situazioneKey)}>{c.situazioneKey}</span>
-                            <span className="whitespace-nowrap">{SITUAZIONI_LABEL[c.situazioneKey] || "—"}</span>
-                          </span>
-                        </div>
-
-                        <div className="col-span-1 text-right">
+                <div className="mt-4 overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/60">
+                  <div className="max-h-[56vh] overflow-auto">
+                    {linkLoading && linkList.length === 0 ? (
+                      <div className="px-3 py-6 text-[13px] text-slate-400">Caricamento lista…</div>
+                    ) : linkList.length === 0 ? (
+                      <div className="px-3 py-6 text-[13px] text-slate-400">
+                        Nessun risultato (o tutti già collegati).
+                      </div>
+                    ) : (
+                      linkList.map((c, idx) => {
+                        const selected = idx === Math.min(Math.max(linkSelectedIdx, 0), linkList.length - 1);
+                        return (
                           <button
+                            key={c.id}
                             type="button"
-                            disabled={linkLoading}
+                            onMouseEnter={() => setLinkSelectedIdx(idx)}
                             onClick={() => handleLinkCavo(c)}
                             className={[
-                              "inline-flex items-center justify-center rounded-full border px-3 py-2",
-                              "text-[12px] font-semibold",
-                              "border-sky-400/55 text-slate-50 bg-slate-950/60 hover:bg-slate-900/50",
-                              "disabled:opacity-50 disabled:cursor-not-allowed",
-                              "focus:outline-none focus:ring-2 focus:ring-sky-500/35",
+                              "w-full text-left px-3 py-2 border-b border-slate-800 last:border-b-0",
+                              "hover:bg-slate-900/25 focus:outline-none",
+                              selected ? "bg-slate-50/10" : "bg-transparent",
                             ].join(" ")}
-                            title="Collega"
+                            title="Clic o Invio per collegare"
                           >
-                            +
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="text-[13px] font-semibold text-slate-50 truncate">
+                                  {c.codice || "—"}
+                                </div>
+                                <div className="mt-0.5 text-[12px] text-slate-400 flex items-center gap-2">
+                                  <span className="tabular-nums">{safeNum(c.metri_teo).toFixed(2)} m</span>
+                                  <span className="text-slate-600">·</span>
+                                  <span className="inline-flex items-center gap-2">
+                                    <span className={badgeLetterClass(c.situazioneKey)}>{c.situazioneKey}</span>
+                                    <span className="text-slate-300">{SITUAZIONI_LABEL[c.situazioneKey] || "—"}</span>
+                                  </span>
+                                </div>
+                              </div>
 
-              <div className="px-3 py-3 border-t border-slate-800 bg-slate-950/70 flex items-center justify-between">
-                <div className="text-[12px] text-slate-500">
-                  Mostrati: <span className="text-slate-200 font-semibold">{linkList.length}</span>
+                              <span
+                                className={[
+                                  "inline-flex items-center justify-center rounded-full border px-3 py-2",
+                                  "text-[12px] font-semibold",
+                                  "border-sky-400/55 text-slate-50 bg-slate-950/60",
+                                ].join(" ")}
+                              >
+                                Invio
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  <div className="px-3 py-3 border-t border-slate-800 bg-slate-950/70 flex items-center justify-between">
+                    <div className="text-[12px] text-slate-500">
+                      Mostrati: <span className="text-slate-200 font-semibold">{linkList.length}</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={!linkHasMore || linkLoading}
+                      onClick={() => fetchLinkPage({ page: linkPage + 1, append: true })}
+                      className={ghostBtnClass()}
+                      title="Carica altri"
+                    >
+                      Carica altri
+                    </button>
+                  </div>
                 </div>
 
-                <button
-                  type="button"
-                  disabled={!linkHasMore || linkLoading}
-                  onClick={() => fetchLinkPage({ page: linkPage + 1, append: true })}
-                  className={ghostBtnClass()}
-                  title="Carica altri"
-                >
-                  Carica altri
-                </button>
+                <div className="mt-3 text-[12px] text-slate-500">
+                  Suggerimento: incolla un codice completo e premi Invio per collegare subito.
+                </div>
               </div>
-            </div>
+            ) : null}
+
+            {/* BULK MODE */}
+            {linkMode === "BULK" ? (
+              <div className="mt-4">
+                <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
+                  <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">Aggiunta massiva</div>
+                  <div className="mt-1 text-[12px] text-slate-400">
+                    Incolla una lista di codici INCA (uno per riga). Verranno collegati quelli trovati e non già presenti.
+                  </div>
+
+                  <textarea
+                    value={bulkText}
+                    onChange={(e) => setBulkText(e.target.value)}
+                    placeholder="Esempio:\nCAVO-000123\nCAVO-000124\nCAVO-000130"
+                    className={[
+                      "mt-3 w-full min-h-[180px] rounded-2xl border",
+                      "border-slate-800 bg-slate-950/60",
+                      "px-3 py-3 text-[13px] text-slate-50",
+                      "placeholder:text-slate-500",
+                      "outline-none focus:ring-2 focus:ring-sky-500/35",
+                    ].join(" ")}
+                  />
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={bulkRunning}
+                      onClick={async () => {
+                        if (!rapportinoId) {
+                          setBulkReport({ added: 0, skipped: 0, duplicates: 0, missing: [] });
+                          setLinkErr("Rapportino non valido.");
+                          return;
+                        }
+
+                        setLinkErr("");
+                        setLinkToast("");
+                        setBulkReport(null);
+                        setBulkRunning(true);
+
+                        try {
+                          const raw = String(bulkText || "").replace(/\r/g, "");
+                          const items = raw
+                            .split(/[\n,;]+/)
+                            .map((x) => String(x || "").trim())
+                            .filter(Boolean);
+
+                          const uniqCodes = Array.from(new Set(items));
+
+                          if (uniqCodes.length === 0) {
+                            setBulkReport({ added: 0, skipped: 0, duplicates: 0, missing: [] });
+                            return;
+                          }
+
+                          if (linkFileIdsLoading) {
+                            setLinkErr("Attendi la risoluzione dei file INCA…");
+                            return;
+                          }
+
+                          // If we have no file ids, fallback join is too expensive for bulk; require file ids.
+                          if (!Array.isArray(linkFileIds) || linkFileIds.length === 0) {
+                            setLinkErr("Nessun file INCA trovato per COSTR/commessa (bulk)." );
+                            setBulkReport({ added: 0, skipped: 0, duplicates: 0, missing: uniqCodes });
+                            return;
+                          }
+
+                          // Fetch matching cavi in chunks (by codice)
+                          const found = [];
+                          const foundByCode = new Map();
+
+                          const chunkSize = 100;
+                          for (let i = 0; i < uniqCodes.length; i += chunkSize) {
+                            const chunk = uniqCodes.slice(i, i + chunkSize);
+                            const { data, error } = await supabase
+                              .from("inca_cavi")
+                              .select("id,codice,metri_teo,situazione")
+                              .in("inca_file_id", linkFileIds)
+                              .in("codice", chunk);
+
+                            if (error) throw error;
+                            const arr = Array.isArray(data) ? data : [];
+
+                            for (const r of arr) {
+                              const code = String(r.codice || "").trim();
+                              if (!code) continue;
+                              if (foundByCode.has(code.toLowerCase())) continue;
+
+                              const mapped = {
+                                id: r.id,
+                                codice: code,
+                                metri_teo: safeNum(r.metri_teo),
+                                situazioneKey: normalizeSituazioneKey(r.situazione),
+                              };
+
+                              foundByCode.set(code.toLowerCase(), mapped);
+                              found.push(mapped);
+                            }
+                          }
+
+                          const missing = uniqCodes.filter((c) => !foundByCode.has(String(c).toLowerCase()));
+
+                          // Prepare insert payloads; skip already linked ids.
+                          const toLink = found.filter((c) => !linkedIdsSet.has(c.id));
+
+                          let added = 0;
+                          let duplicates = 0;
+                          let skipped = found.length - toLink.length;
+
+                          // Insert in chunks; fallback to per-row on duplicate errors.
+                          const insertChunkSize = 25;
+                          for (let i = 0; i < toLink.length; i += insertChunkSize) {
+                            const slice = toLink.slice(i, i + insertChunkSize);
+                            const payloads = slice.map((cavo) => ({
+                              rapportino_id: rapportinoId,
+                              inca_cavo_id: cavo.id,
+                              codice_cache: cavo.codice || null,
+                              metri_posati: 0,
+                              note: null,
+                              step_type: "POSA",
+                              progress_percent: 100,
+                              progress_side: "DA",
+                            }));
+
+                            const { error } = await supabase.from("rapportino_inca_cavi").insert(payloads);
+
+                            if (!error) {
+                              added += payloads.length;
+                              continue;
+                            }
+
+                            if (!isUniqueViolation(error)) throw error;
+
+                            // Fallback per row if chunk hits duplicate.
+                            for (const pl of payloads) {
+                              const { error: e } = await supabase.from("rapportino_inca_cavi").insert(pl);
+                              if (!e) {
+                                added += 1;
+                              } else if (isUniqueViolation(e)) {
+                                duplicates += 1;
+                              } else {
+                                throw e;
+                              }
+                            }
+                          }
+
+                          setBulkReport({ added, skipped, duplicates, missing });
+
+                          // Refresh once.
+                          await fetchData();
+                          await fetchSnapshot();
+
+                          // Also prune current search list if open.
+                          setLinkList((prev) => prev.filter((x) => !toLink.some((y) => y.id === x.id)));
+                          setLinkToast("Aggiunta completata.");
+                        } catch (e) {
+                          console.error("[RapportinoIncaCaviSection] bulk link error:", e);
+                          setLinkErr("Errore durante l'aggiunta massiva.");
+                        } finally {
+                          setBulkRunning(false);
+                        }
+                      }}
+                      className={primaryBtnClass()}
+                      title="Aggiungi"
+                    >
+                      {bulkRunning ? "Aggiungo…" : "Aggiungi"}
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={bulkRunning}
+                      onClick={() => {
+                        setBulkText("");
+                        setBulkReport(null);
+                      }}
+                      className={ghostBtnClass()}
+                      title="Svuota"
+                    >
+                      Svuota
+                    </button>
+
+                    {linkFileIdsLoading ? <span className="text-[12px] text-slate-400">Risoluzione file INCA…</span> : null}
+                    {linkErr ? <span className="text-[12px] text-rose-200">{linkErr}</span> : null}
+                    {linkToast ? <span className="text-[12px] text-emerald-200">{linkToast}</span> : null}
+                  </div>
+
+                  {bulkReport ? (
+                    <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/60 px-3 py-2">
+                      <div className="text-[12px] text-slate-200 font-semibold">Risultato</div>
+                      <div className="mt-1 text-[12px] text-slate-400">
+                        Aggiunti: <span className="text-slate-50 font-semibold">{bulkReport.added}</span>
+                        <span className="text-slate-600"> · </span>
+                        Già presenti (skipped): <span className="text-slate-50 font-semibold">{bulkReport.skipped}</span>
+                        <span className="text-slate-600"> · </span>
+                        Duplicati (race): <span className="text-slate-50 font-semibold">{bulkReport.duplicates}</span>
+                      </div>
+                      {bulkReport.missing && bulkReport.missing.length ? (
+                        <div className="mt-2 text-[12px] text-slate-400">
+                          Non trovati ({bulkReport.missing.length}):
+                          <div className="mt-1 max-h-[120px] overflow-auto rounded-xl border border-slate-800 bg-slate-950/40 p-2 text-slate-300">
+                            {bulkReport.missing.join("\n")}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
 
             <div className="mt-3 text-[12px] text-slate-500">
-              Nota: il collegamento crea una riga su{" "}
-              <span className="text-slate-300 font-semibold">rapportino_inca_cavi</span>. INCA globale resta su{" "}
-              <span className="text-slate-300 font-semibold">inca_cavi</span>.
+              Nota: il collegamento crea una riga su <span className="text-slate-300 font-semibold">rapportino_inca_cavi</span>. INCA globale resta su <span className="text-slate-300 font-semibold">inca_cavi</span>.
             </div>
           </div>
         </div>

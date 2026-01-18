@@ -815,7 +815,7 @@ export default function RapportinoPage() {
           </div>
         )}
 
-        <div className="flex justify-center">
+        <div className="w-full">
           <div
             id="rapportino-document"
             className={cn(
@@ -823,7 +823,6 @@ export default function RapportinoPage() {
               "shadow-[0_18px_45px_rgba(0,0,0,0.25)]",
               "w-full"
             )}
-            style={{ maxWidth: "min(1680px, 96vw)" }}
           >
             <RapportinoHeader
               costr={costr}

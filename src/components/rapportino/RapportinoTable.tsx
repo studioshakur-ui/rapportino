@@ -149,8 +149,8 @@ export default function RapportinoTable({
                 <div className="text-[10px] font-normal text-slate-500">(MT)</div>
               </th>
               <th className="px-2 py-2 text-left">NOTE</th>
-              <th className="px-2 py-2 text-center w-[80px]">INDICE</th>
-              {!ro ? <th className="px-2 py-2 text-center w-[44px]">×</th> : null}
+              <th className="px-2 py-2 text-center w-[80px] rapportino-col-indice">INDICE</th>
+              {!ro ? <th className="px-2 py-2 text-center w-[44px] no-print rapportino-col-actions">×</th> : null}
             </tr>
           </thead>
 
@@ -164,9 +164,9 @@ export default function RapportinoTable({
               const hasOperators = isCanonical ? canonItems.length > 0 : legacyHasOps;
               const hasValues = hasNonZeroNumber(r.previsto) || hasNonZeroNumber(r.prodotto) || hasAnyTempoValue(r.tempo);
               const isIncomplete = hasOperators !== hasValues;
-
               const catKey = norm((r as any)?.categoria);
-              const descKey = norm((r as any)?.descrizione);
+              const descText = String((r as any)?.descrizione_attivita ?? (r as any)?.descrizione ?? "");
+              const descKey = norm(descText);
 
               const indiceText = (() => {
                 const m = productivityIndexMap;
@@ -213,7 +213,7 @@ export default function RapportinoTable({
                   <td className="px-2 py-2">
                     <input
                       className={cn("w-full bg-transparent outline-none", "opacity-90 cursor-not-allowed")}
-                      value={r.descrizione || ""}
+                      value={(r.descrizione_attivita ?? r.descrizione) || ""}
                       onChange={undefined}
                       disabled={true}
                       readOnly={true}
@@ -433,7 +433,7 @@ export default function RapportinoTable({
                   </td>
 
                   {/* INDICE */}
-                  <td className="px-2 py-2 text-center">
+                  <td className="px-2 py-2 text-center rapportino-col-indice">
                     <div className="print-only text-center">
                       <PrintLines value={indiceText} numeric={true} align="center" />
                     </div>
@@ -444,7 +444,7 @@ export default function RapportinoTable({
                   </td>
 
                   {!ro ? (
-                    <td className="px-2 py-2 text-center no-print">
+                    <td className="px-2 py-2 text-center no-print rapportino-col-actions">
                       <button
                         type="button"
                         className="rounded-full border border-slate-300 bg-white hover:bg-slate-50 px-2 py-1 text-[12px] font-semibold text-slate-900"
