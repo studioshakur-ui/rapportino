@@ -12,7 +12,7 @@ import ForcePasswordChange from "./pages/ForcePasswordChange";
 
 // SHELLS
 import AppShell from "./shells/AppShell";
-import UfficioShell from "./shells/UfficioShell";
+import UfficioShell from "./shells/UfficioShell.tsx";
 import DirectionShell from "./shells/DirectionShell";
 import ManagerShell from "./shells/ManagerShell";
 // IMPORTANT: explicit extension to avoid resolving the legacy AdminShell.jsx
@@ -163,8 +163,18 @@ export default function AppRoutes(): JSX.Element {
         }
       >
         <Route index element={<UfficioRapportiniList />} />
-        <Route path="rapportino/:rapportinoId" element={<UfficioRapportinoDetail />} />
+
+        {/* Canonique: detail via /ufficio/rapportini/:id (cohérent avec le composant detail actuel) */}
+        <Route path="rapportini/:id" element={<UfficioRapportinoDetail />} />
+
+        {/* Alias legacy (si certains liens utilisent le singulier) */}
+        <Route path="rapportino/:id" element={<UfficioRapportinoDetail />} />
+
+        {/* INCA */}
         <Route path="inca" element={<UfficioIncaHub />} />
+        <Route path="inca-hub" element={<UfficioIncaHub />} />
+
+        {/* CORE DRIVE */}
         <Route path="core-drive" element={<ArchivePage />} />
         <Route path="archive" element={<Navigate to="../core-drive" replace />} />
       </Route>

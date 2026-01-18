@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { headerPill, themeIconBg, buttonPrimary } from "../ui/designSystem";
@@ -187,7 +187,13 @@ function safeGetInitialLang(): Lang {
   return "it";
 }
 
+function clamp(n: number, a: number, b: number): number {
+  return Math.max(a, Math.min(b, n));
+}
+
 export default function Landing(): JSX.Element {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
     document.documentElement.classList.add("dark");
   }, []);
@@ -211,8 +217,86 @@ export default function Landing(): JSX.Element {
     return `mailto:info@core.local?subject=${subject}&body=${body}`;
   }, []);
 
+  // Global cursor-follow spotlight (Option A): single, subtle, system-grade.
+  // No React re-render on pointermove (RAF + CSS variables).
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+
+    const docEl = document.documentElement;
+
+    let mx = window.innerWidth * 0.18;
+    let my = window.innerHeight * 0.22;
+    let raf = 0;
+    let targets: HTMLElement[] = [];
+
+    const refreshTargets = () => {
+      targets = Array.from(root.querySelectorAll<HTMLElement>("[data-core-prox-target]"));
+    };
+
+    const computeProx = (el: HTMLElement, x: number, y: number): number => {
+      const r = el.getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      const dx = x - cx;
+      const dy = y - cy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      const custom = el.dataset.coreProxRadius;
+      const radius = custom ? Math.max(1, Number(custom)) : Math.max(r.width, r.height) * 0.78;
+      const p = 1 - clamp(dist / radius, 0, 1);
+      return clamp(p, 0, 1);
+    };
+
+    const tick = () => {
+      raf = 0;
+
+      // Update pointer position.
+      docEl.style.setProperty("--core-mx", `${Math.round(mx)}px`);
+      docEl.style.setProperty("--core-my", `${Math.round(my)}px`);
+
+      // Compute proximity gain (focus around intelligent zones).
+      let gain = 0;
+      let aiProx = 0;
+
+      for (const el of targets) {
+        const p = computeProx(el, mx, my);
+        gain = Math.max(gain, p);
+        if (el.dataset.coreProxTarget === "ai") aiProx = Math.max(aiProx, p);
+      }
+
+      docEl.style.setProperty("--core-gain", gain.toFixed(3));
+      docEl.style.setProperty("--core-ai-prox", aiProx.toFixed(3));
+    };
+
+    const schedule = () => {
+      if (raf) return;
+      raf = window.requestAnimationFrame(tick);
+    };
+
+    const onMove = (e: PointerEvent) => {
+      mx = e.clientX;
+      my = e.clientY;
+      schedule();
+    };
+
+    refreshTargets();
+    schedule();
+
+    window.addEventListener("pointermove", onMove, { passive: true });
+    window.addEventListener("resize", refreshTargets, { passive: true });
+    window.addEventListener("scroll", refreshTargets, { passive: true });
+
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("resize", refreshTargets);
+      window.removeEventListener("scroll", refreshTargets);
+      if (raf) window.cancelAnimationFrame(raf);
+    };
+  }, []);
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div ref={rootRef} className="min-h-screen bg-slate-950 text-slate-100">
       {/* BACKDROP (clean, no seasonal modes) */}
       <div
         className="pointer-events-none fixed inset-0"
@@ -223,6 +307,21 @@ export default function Landing(): JSX.Element {
             radial-gradient(900px 520px at 48% 86%, rgba(139,92,246,0.035), transparent 66%),
             linear-gradient(to bottom, rgba(2,6,23,0.0), rgba(2,6,23,0.48))
           `,
+        }}
+      />
+
+      {/* GLOBAL SPOTLIGHT (Option A) */}
+      <div
+        className="pointer-events-none fixed inset-0"
+        style={{
+          // A single, subtle light that follows the cursor; slightly stronger near key “intelligent” zones.
+          // Uses CSS vars updated via RAF; no React re-render.
+          backgroundImage: `
+            radial-gradient(720px 520px at var(--core-mx, 18vw) var(--core-my, 22vh), rgba(56,189,248, calc(0.045 + var(--core-gain, 0) * 0.07)), transparent 62%),
+            radial-gradient(560px 420px at calc(var(--core-mx, 18vw) + 120px) calc(var(--core-my, 22vh) + 80px), rgba(226,232,240, calc(0.018 + var(--core-gain, 0) * 0.03)), transparent 68%)
+          `,
+          mixBlendMode: "screen",
+          opacity: 0.95,
         }}
       />
 
@@ -295,7 +394,7 @@ export default function Landing(): JSX.Element {
         <div className="mx-auto max-w-7xl px-6 py-16 md:py-20">
           {/* HERO */}
           <section className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
-            <div className="lg:col-span-6 space-y-9">
+            <div className="lg:col-span-5 space-y-9">
               <div className="space-y-4">
                 <div className="text-[12px] uppercase tracking-[0.30em] text-slate-500">{t.eyebrow}</div>
 
@@ -333,13 +432,13 @@ export default function Landing(): JSX.Element {
               </div>
             </div>
 
-            <div className="lg:col-span-6">
+            <div className="lg:col-span-7" data-core-prox-target="panel">
               <ElectricFlowPanel t={t} />
             </div>
           </section>
 
           {/* SECTION 2 (under hero) */}
-          <div className="pt-14 md:pt-16">
+          <div className="pt-14 md:pt-16" data-core-prox-target="control">
             <ControlLayerSection t={t} />
           </div>
 

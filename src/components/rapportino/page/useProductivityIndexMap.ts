@@ -1,9 +1,31 @@
-// src/components/rapportino/page/useProductivityIndexMap.ts
+// /src/components/rapportino/page/useProductivityIndexMap.ts
+// Read-only mapping: (operator_id, categoria, descrizione) -> productivity_index
+// Source of truth: KPI views (computed server-side). No recalculation in UI.
+
 import { useMemo } from "react";
+
 import { useOperatorProductivityData } from "../../../features/kpi/components/operatorProd/hooks/useOperatorProductivityData";
+
+type AnyRow = Record<string, any>;
 
 function normKey(v: unknown): string {
   return String(v ?? "").trim().toLowerCase();
+}
+
+function extractOperatorIdsFromRows(rows: AnyRow[]): string[] {
+  const set = new Set<string>();
+  const arr = Array.isArray(rows) ? rows : [];
+  for (const r of arr) {
+    const items = Array.isArray(r?.operator_items) ? r.operator_items : [];
+    for (const it of items) {
+      const id = it?.operator_id;
+      const s = id == null ? "" : String(id).trim();
+      if (s) set.add(s);
+    }
+  }
+  const out = Array.from(set.values());
+  // garde-fou (éviter requêtes énormes)
+  return out.length > 0 && out.length <= 250 ? out : [];
 }
 
 export function useProductivityIndexMap({
@@ -11,26 +33,15 @@ export function useProductivityIndexMap({
   reportDate,
   costr,
   commessa,
-  visibleRows,
+  rows,
 }: {
   profileId: string | undefined;
   reportDate: string;
-  costr: string | null | undefined;
-  commessa: string | null | undefined;
-  visibleRows: any[];
+  costr: string;
+  commessa: string;
+  rows: AnyRow[];
 }): Map<string, number> {
-  const operatorIdsInReport = useMemo(() => {
-    const set = new Set<string>();
-    (Array.isArray(visibleRows) ? visibleRows : []).forEach((r) => {
-      const items = Array.isArray(r?.operator_items) ? r.operator_items : [];
-      items.forEach((it: any) => {
-        const id = it?.operator_id;
-        if (id != null && String(id).trim()) set.add(String(id));
-      });
-    });
-    const arr = Array.from(set.values());
-    return arr.length > 0 && arr.length <= 250 ? arr : [];
-  }, [visibleRows]);
+  const operatorIds = useMemo(() => extractOperatorIdsFromRows(rows), [rows]);
 
   const { familyRows } = useOperatorProductivityData({
     profileId,
@@ -40,32 +51,32 @@ export function useProductivityIndexMap({
     showCostrCommessaFilters: false,
     costrFilter: costr || null,
     commessaFilter: commessa || null,
-    selectedIds: operatorIdsInReport,
+    selectedIds: operatorIds,
     search: "",
   });
 
-  return useMemo(() => {
+  const map = useMemo(() => {
     const m = new Map<string, number>();
-    const rows = Array.isArray(familyRows) ? familyRows : [];
+    const arr = Array.isArray(familyRows) ? familyRows : [];
 
-    rows.forEach((r: any) => {
-      const day = r?.report_date ? String(r.report_date) : null;
-      if (day && String(day) !== String(reportDate)) return;
-
-      const opId = r?.operator_id ? String(r.operator_id) : null;
-      if (!opId) return;
+    for (const r of arr) {
+      const opId = r?.operator_id ? String(r.operator_id).trim() : "";
+      if (!opId) continue;
 
       const cat = normKey(r?.categoria);
       const desc = normKey(r?.descrizione);
-      if (!cat && !desc) return;
+      if (!cat && !desc) continue;
 
-      const idx = r?.productivity_index;
-      if (idx == null || !Number.isFinite(Number(idx))) return;
+      const idxRaw = r?.productivity_index;
+      const idx = Number(idxRaw);
+      if (!Number.isFinite(idx)) continue;
 
       const key = `${opId}||${cat}||${desc}`;
-      if (!m.has(key)) m.set(key, Number(idx));
-    });
+      if (!m.has(key)) m.set(key, idx);
+    }
 
     return m;
-  }, [familyRows, reportDate]);
+  }, [familyRows]);
+
+  return map;
 }

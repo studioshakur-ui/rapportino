@@ -1,4 +1,5 @@
-// src/pages/ManagerAssignments.jsx
+// src/pages/ManagerAssignments.tsx
+// @ts-nocheck
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
@@ -45,6 +46,24 @@ function fmtDateYYYYMMDD(d) {
   const dd = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${dd}`;
 }
+function parseDateLocal(yyyyMmDd) {
+  const s = safeText(yyyyMmDd);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date();
+  const [yy, mm, dd] = s.split("-").map((x) => Number(x));
+  if (!Number.isFinite(yy) || !Number.isFinite(mm) || !Number.isFinite(dd)) return new Date();
+  return new Date(yy, mm - 1, dd);
+}
+
+function weekMondayFromAnchor(yyyyMmDd) {
+  const d = parseDateLocal(yyyyMmDd);
+  const day = d.getDay();
+  const isoDay = (day + 6) % 7; // Mon=0..Sun=6
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - isoDay);
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+}
+
 
 function safeText(v) {
   return (v == null ? "" : String(v)).trim();
@@ -332,13 +351,15 @@ export default function ManagerAssignments({ isDark = true }) {
   };
 
   /** Get or create plan (DAY/WEEK) */
-  const getOrCreatePlan = async () => {
+  const getOrCreatePlan = async (opts = {}) => {
     if (!me?.id) {
       setErr("Profilo non disponibile.");
       return null;
     }
 
-    const pType = effectivePeriod;
+    const pType = normalizePeriodType(opts?.periodType ?? opts?.period_type ?? periodType);
+    const dDay = safeText(opts?.dayDate ?? opts?.plan_date ?? dayDate);
+    const anchorStr = safeText(opts?.weekDateAnchor ?? opts?.week_date_anchor ?? weekDateAnchor) || fmtDateYYYYMMDD(new Date());
 
     setLoadingPlan(true);
     setErr("");
@@ -348,15 +369,14 @@ export default function ManagerAssignments({ isDark = true }) {
       let res = null;
 
       if (pType === "DAY") {
-        const d = safeText(dayDate);
-        if (!d) throw new Error("Data non valida.");
+        if (!dDay) throw new Error("Data non valida.");
 
         res = await supabase
           .from("manager_plans")
           .select("*")
           .eq("manager_id", me.id)
           .eq("period_type", "DAY")
-          .eq("plan_date", d)
+          .eq("plan_date", dDay)
           .maybeSingle();
 
         if (res.error && res.error.code !== "PGRST116") throw res.error;
@@ -367,7 +387,7 @@ export default function ManagerAssignments({ isDark = true }) {
             .insert({
               manager_id: me.id,
               period_type: "DAY",
-              plan_date: d,
+              plan_date: dDay,
               status: "DRAFT",
               note: null,
               created_by: me.id,
@@ -382,11 +402,11 @@ export default function ManagerAssignments({ isDark = true }) {
             action: "PLAN_CREATE",
             target_type: "manager_plans",
             target_id: ins.data?.id,
-            payload: { period_type: "DAY", plan_date: d },
+            payload: { period_type: "DAY", plan_date: dDay },
           });
         }
       } else {
-        const anchor = new Date(safeText(weekDateAnchor) || fmtDateYYYYMMDD(new Date()));
+        const anchor = weekMondayFromAnchor(anchorStr);
         const { year, week } = isoWeekYear(anchor);
 
         res = await supabase
@@ -435,7 +455,7 @@ export default function ManagerAssignments({ isDark = true }) {
     } catch (e) {
       console.error("[ManagerAssignments] getOrCreatePlan error:", e);
       setPlan(null);
-      setErr("Impossibile caricare/creare il piano (RLS o dati).");
+      setErr("Impossibile caricare/creare il piano (RLS o dati). ");
       return null;
     } finally {
       setLoadingPlan(false);
@@ -575,10 +595,57 @@ export default function ManagerAssignments({ isDark = true }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plan?.id, capi]);
 
-  const handleLoadPlan = async () => {
-    const p = await getOrCreatePlan();
+  const handleLoadPlan = async (opts = {}) => {
+    const p = await getOrCreatePlan(opts);
     if (p?.id) {
       await loadSlotsAndMembers(p);
+    }
+  };
+
+  const jumpToDayFromWeek = async (isoDay) => {
+    const d = safeText(isoDay);
+    if (!d) return;
+    setPeriodType("DAY");
+    setDayDate(d);
+    await handleLoadPlan({ periodType: "DAY", dayDate: d });
+  };
+
+  const weekDays = useMemo(() => {
+    if (effectivePeriod !== "WEEK") return [];
+    const monday = weekMondayFromAnchor(weekDateAnchor || fmtDateYYYYMMDD(new Date()));
+    const labels = ["Lun", "Mar", "Mer", "Gio", "Ven"];
+    return labels.map((lab, i) => {
+      const dt = new Date(monday);
+      dt.setDate(monday.getDate() + i);
+      return { label: lab, date: fmtDateYYYYMMDD(dt) };
+    });
+  }, [effectivePeriod, weekDateAnchor]);
+
+  const applyWeekToDays = async (overwrite = false) => {
+    if (!plan?.id || effectivePeriod !== "WEEK") return;
+    setBusy(true);
+    setErr("");
+    try {
+      const { data, error } = await supabase.rpc("manager_apply_week_to_days_v1", {
+        p_week_plan_id: plan.id,
+        p_overwrite: !!overwrite,
+      });
+      if (error) throw error;
+
+      await audit({
+        plan_id: plan.id,
+        action: "WEEK_APPLY_TO_DAYS",
+        target_type: "manager_plans",
+        target_id: plan.id,
+        payload: { overwrite: !!overwrite, result: data || null },
+      });
+
+      setToastSoft(overwrite ? "Settimana applicata (sovrascritto)." : "Settimana applicata Lun–Ven.");
+    } catch (e) {
+      console.error("[ManagerAssignments] applyWeekToDays error:", e);
+      setErr("Impossibile applicare la settimana ai giorni.");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -939,6 +1006,37 @@ export default function ManagerAssignments({ isDark = true }) {
     setErr("");
 
     try {
+      // WEEK: status must propagate to Mon-Fri DAY plans (CAPO consumes DAY plans)
+      if (effectivePeriod === "WEEK") {
+        const { data: rpcData, error: rpcErr } = await supabase.rpc("manager_set_week_status_v1", {
+          p_week_plan_id: plan.id,
+          p_next_status: ns,
+          p_overwrite: false,
+        });
+        if (rpcErr) throw rpcErr;
+
+        const { data: refreshed, error: rErr } = await supabase
+          .from("manager_plans")
+          .select("*")
+          .eq("id", plan.id)
+          .single();
+        if (rErr) throw rErr;
+
+        setPlan(refreshed);
+
+        await audit({
+          plan_id: plan.id,
+          action: ns === "PUBLISHED" ? "PLAN_PUBLISH" : ns === "FROZEN" ? "PLAN_FREEZE" : "PLAN_DRAFT",
+          target_type: "manager_plans",
+          target_id: plan.id,
+          payload: { from: status, to: ns, week_result: rpcData || null },
+        });
+
+        setToastSoft(ns === "FROZEN" ? "Settimana congelata (e giorni Lun-Ven)." : ns === "PUBLISHED" ? "Settimana pubblicata (e giorni Lun-Ven)." : "Bozza.");
+        return;
+      }
+
+      // DAY: existing behavior
       const patch = {
         status: ns,
         updated_at: new Date().toISOString(),
@@ -1058,11 +1156,29 @@ export default function ManagerAssignments({ isDark = true }) {
                     ISO:{" "}
                     <span className="text-slate-200 font-semibold">
                       {(() => {
-                        const d = new Date(weekDateAnchor);
+                        const d = parseDateLocal(weekDateAnchor);
                         const { year, week } = isoWeekYear(d);
                         return `${year}-W${week}`;
                       })()}
                     </span>
+                  </div>
+
+                  <div className="mt-3">
+                    <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Vai al giorno (Lun–Ven)</div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {weekDays.map((wd) => (
+                        <button
+                          key={wd.date}
+                          type="button"
+                          className={btnGhost()}
+                          disabled={busy || loadingPlan}
+                          onClick={() => jumpToDayFromWeek(wd.date)}
+                          title="Apri il piano giorno per questa data"
+                        >
+                          {wd.label} <span className="text-slate-400">{wd.date}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
@@ -1074,6 +1190,18 @@ export default function ManagerAssignments({ isDark = true }) {
                 <button type="button" className={btnGhost()} disabled={!plan?.id || busy} onClick={() => loadSlotsAndMembers(plan)}>
                   Slots
                 </button>
+
+                {effectivePeriod === "WEEK" ? (
+                  <button
+                    type="button"
+                    className={btnGhost()}
+                    disabled={!plan?.id || busy || loadingPlan}
+                    onClick={() => applyWeekToDays(false)}
+                    title="Copia le squadre della settimana su Lun–Ven (senza sovrascrivere i giorni gia compilati)"
+                  >
+                    Applica Lun–Ven
+                  </button>
+                ) : null}
               </div>
 
               <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/60 px-3 py-2">

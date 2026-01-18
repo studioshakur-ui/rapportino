@@ -46,6 +46,7 @@ export function CoreWordmark({ title }: Props): JSX.Element {
         style={{ transform: "translateY(10px)" }}
         onPointerEnter={() => setHover(true)}
         onPointerLeave={() => setHover(false)}
+        data-core-prox-target="ai"
         aria-label="AI"
         title="AI"
       >
@@ -77,14 +78,27 @@ export function CoreWordmark({ title }: Props): JSX.Element {
             overflow: "hidden",
           }}
         >
-          {/* small spotlight follows pointer */}
+          {/* proximity glow: reacts even before hover (driven by --core-ai-prox) */}
+          <span
+            aria-hidden="true"
+            className="absolute"
+            style={{
+              inset: -18,
+              backgroundImage:
+                "radial-gradient(90px 90px at 50% 50%, rgba(56,189,248, calc(0.06 + var(--core-ai-prox, 0) * 0.18)), transparent 62%)",
+              opacity: hover ? 0.95 : 1,
+              mixBlendMode: "screen",
+              filter: "blur(10px)",
+            }}
+          />
+          {/* small spotlight follows pointer (kept tight, premium) */}
           <span
             aria-hidden="true"
             className="absolute inset-0"
             style={{
-              backgroundImage: `radial-gradient(70px 70px at ${Math.round(pos.x * 100)}% ${Math.round(
+              backgroundImage: `radial-gradient(54px 54px at ${Math.round(pos.x * 100)}% ${Math.round(
                 pos.y * 100
-              )}%, rgba(56,189,248,${hover ? 0.22 : 0.12}), transparent 55%)`,
+              )}%, rgba(56,189,248,${hover ? 0.22 : 0.10}), transparent 56%)`,
               opacity: 1,
               mixBlendMode: "screen",
             }}
@@ -98,13 +112,7 @@ export function CoreWordmark({ title }: Props): JSX.Element {
           </span>
 
           {/* Circle + electric dash */}
-          <svg
-            className="absolute inset-0"
-            viewBox="0 0 36 36"
-            width="30"
-            height="30"
-            aria-hidden="true"
-          >
+          <svg className="absolute inset-0" viewBox="0 0 36 36" width="30" height="30" aria-hidden="true">
             <defs>
               <linearGradient id="coreAiGrad" x1="0" y1="0" x2="1" y2="0">
                 <stop offset="0%" stopColor="rgba(56,189,248,0.22)" />
@@ -119,14 +127,7 @@ export function CoreWordmark({ title }: Props): JSX.Element {
             </defs>
 
             {/* base ring */}
-            <circle
-              cx="18"
-              cy="18"
-              r="14.5"
-              fill="none"
-              stroke="rgba(148,163,184,0.20)"
-              strokeWidth="1.6"
-            />
+            <circle cx="18" cy="18" r="14.5" fill="none" stroke="rgba(148,163,184,0.20)" strokeWidth="1.6" />
 
             {/* glow ring */}
             <circle
@@ -137,7 +138,7 @@ export function CoreWordmark({ title }: Props): JSX.Element {
               stroke="rgba(56,189,248,0.12)"
               strokeWidth="5.8"
               style={{
-                opacity: hover ? 0.9 : 0.55,
+                opacity: hover ? 0.9 : "calc(0.50 + var(--core-ai-prox, 0) * 0.32)",
                 animation: reduceMotion ? "none" : "coreAiPulse 8.5s ease-in-out infinite",
               }}
             />
@@ -154,7 +155,7 @@ export function CoreWordmark({ title }: Props): JSX.Element {
               strokeDashoffset="0"
               style={{
                 animation: reduceMotion ? "none" : "coreAiDash 9.5s linear infinite",
-                opacity: hover ? 1 : 0.85,
+                opacity: hover ? 1 : "calc(0.80 + var(--core-ai-prox, 0) * 0.18)",
               }}
             />
 
@@ -170,7 +171,7 @@ export function CoreWordmark({ title }: Props): JSX.Element {
               strokeDashoffset="0"
               style={{
                 animation: reduceMotion ? "none" : "coreAiOrbitArc 12.5s linear infinite",
-                opacity: hover ? 0.9 : 0.55,
+                opacity: hover ? 0.9 : "calc(0.42 + var(--core-ai-prox, 0) * 0.30)",
               }}
             />
           </svg>

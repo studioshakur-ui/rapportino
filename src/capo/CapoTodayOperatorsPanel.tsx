@@ -186,7 +186,7 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
     setErr("");
 
     try {
-      const { data, error } = await supabase.from("capo_my_team_v1").select("*");
+      const { data, error } = await supabase.rpc("capo_my_team_for_date_v1", { p_plan_date: reportDate });
       if (error) throw error;
 
       const raw = Array.isArray(data) ? data : [];

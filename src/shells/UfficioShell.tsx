@@ -1,12 +1,15 @@
-// src/UfficioShell.jsx
+// src/shells/UfficioShell.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+
 import { useAuth } from "../auth/AuthProvider";
 import ConnectionIndicator from "../components/ConnectionIndicator";
 import CNCSSidebar from "../components/shell/CNCSSidebar";
 import CNCSTopbar from "../components/shell/CNCSTopbar";
 
-function getInitialTheme() {
+type ThemeMode = "dark" | "light";
+
+function getInitialTheme(): ThemeMode {
   if (typeof window === "undefined") return "dark";
   try {
     const stored = window.localStorage.getItem("core-theme");
@@ -14,48 +17,54 @@ function getInitialTheme() {
     if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
       return "dark";
     }
-  } catch {}
+  } catch {
+    // ignore
+  }
   return "dark";
 }
 
-export default function UfficioShell() {
+export default function UfficioShell(): JSX.Element {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [theme, setTheme] = useState(getInitialTheme);
+  const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
   const isDark = theme === "dark";
 
   useEffect(() => {
     try {
       window.localStorage.setItem("core-theme", theme);
-    } catch {}
+    } catch {
+      // ignore
+    }
   }, [theme]);
 
   const toggleTheme = () => setTheme((c) => (c === "dark" ? "light" : "dark"));
 
-  const [sidebarPeek, setSidebarPeek] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+  const [sidebarPeek, setSidebarPeek] = useState<boolean>(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     try {
       const v = window.localStorage.getItem("core-sidebar-collapsed-ufficio");
       if (v === "1" || v === "0") return v === "1";
-    } catch {}
+    } catch {
+      // ignore
+    }
     return true;
   });
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(
-        "core-sidebar-collapsed-ufficio",
-        sidebarCollapsed ? "1" : "0"
-      );
-    } catch {}
+      window.localStorage.setItem("core-sidebar-collapsed-ufficio", sidebarCollapsed ? "1" : "0");
+    } catch {
+      // ignore
+    }
   }, [sidebarCollapsed]);
 
   const handleLogout = async () => {
     try {
       await signOut();
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error("Errore logout ufficio:", err);
     } finally {
       navigate("/login");
@@ -68,7 +77,7 @@ export default function UfficioShell() {
 
   const pathname = location.pathname || "";
   const isNavemaster = pathname.startsWith("/ufficio/navemaster");
-  const isInca = pathname.startsWith("/ufficio/inca");
+  const isInca = pathname.startsWith("/ufficio/inca") || pathname.startsWith("/ufficio/inca-hub");
   const isEvoluzione = pathname.startsWith("/ufficio/evoluzione");
   const isCoreDrive =
     pathname.startsWith("/ufficio/core-drive") || pathname.startsWith("/ufficio/archive");
@@ -117,7 +126,8 @@ export default function UfficioShell() {
             // CANONIQUE
             { to: "/ufficio/navemaster", label: "NAVEMASTER", icon: "ship", colorClass: "text-emerald-400" },
 
-            { to: "/ufficio/inca-hub", label: "INCA", icon: "inca", colorClass: "text-sky-400" },
+            // CANONIQUE: /ufficio/inca (alias /ufficio/inca-hub géré côté routes)
+            { to: "/ufficio/inca", label: "INCA", icon: "inca", colorClass: "text-sky-400" },
 
             // NEW
             { to: "/ufficio/evoluzione", label: "Evoluzione", icon: "history", colorClass: "text-amber-400" },
