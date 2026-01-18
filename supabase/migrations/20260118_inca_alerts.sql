@@ -1,8 +1,7 @@
-// supabase/migrations/20260118_inca_alerts.ts
-// NOTE: This file contains SQL as a TS string to respect the "TS only" rule.
-// Copy/paste the SQL into a Supabase .sql migration if you prefer.
+-- 20260118_inca_alerts.sql
+-- INCA alerts/events + summaries (V1)
+-- NOTE: pure SQL, runnable by supabase db push/reset
 
-export const INCA_ALERTS_SQL = `
 -- =========================
 -- INCA Imports (event log)
 -- =========================
@@ -49,7 +48,7 @@ create table if not exists public.inca_cavi_snapshot (
   metri_teo numeric null,
   metri_dis numeric null,
   flag_changed_in_source boolean not null default false,
-  row_hash text null, -- optional
+  row_hash text null,
   created_at timestamptz not null default now(),
   primary key (import_id, codice)
 );
@@ -58,12 +57,13 @@ create index if not exists inca_cavi_snapshot_import_id_idx on public.inca_cavi_
 create index if not exists inca_cavi_snapshot_file_codice_idx on public.inca_cavi_snapshot (inca_file_id, codice);
 
 -- =========================
--- Change events (alerts)
+-- Change events enums
 -- =========================
 do $$ begin
   if not exists (select 1 from pg_type where typname = 'inca_change_severity') then
     create type public.inca_change_severity as enum ('INFO','WARN','BLOCK');
   end if;
+
   if not exists (select 1 from pg_type where typname = 'inca_change_type') then
     create type public.inca_change_type as enum (
       'NEW_CABLE',
@@ -83,6 +83,9 @@ do $$ begin
   end if;
 end $$;
 
+-- =========================
+-- Change events table
+-- =========================
 create table if not exists public.inca_change_events (
   id uuid primary key default gen_random_uuid(),
   from_import_id uuid null references public.inca_imports(id) on delete set null,
@@ -91,7 +94,7 @@ create table if not exists public.inca_change_events (
   codice text not null,
   change_type public.inca_change_type not null,
   severity public.inca_change_severity not null,
-  field text null, -- e.g. situazione, metri_dis, metri_teo
+  field text null,
   old_value jsonb null,
   new_value jsonb null,
   payload jsonb null,
@@ -103,7 +106,7 @@ create index if not exists inca_change_events_codice_idx on public.inca_change_e
 create index if not exists inca_change_events_severity_idx on public.inca_change_events (severity);
 
 -- =========================
--- Import summary (optional)
+-- Import summary (for badge)
 -- =========================
 create table if not exists public.inca_import_summaries (
   import_id uuid primary key references public.inca_imports(id) on delete cascade,
@@ -125,4 +128,41 @@ create table if not exists public.inca_import_summaries (
   created_at timestamptz not null default now()
 );
 
-`;
+-- =========================
+-- RPCs to increment counters (optional, used by Edge)
+-- =========================
+create or replace function public.inca_increment_rework(p_inca_file_id uuid, p_codes text[])
+returns void
+language plpgsql
+as $$
+begin
+  update public.inca_cavi
+  set rework_count = rework_count + 1,
+      last_rework_at = now()
+  where inca_file_id = p_inca_file_id
+    and codice = any(p_codes);
+end $$;
+
+create or replace function public.inca_increment_eliminated(p_inca_file_id uuid, p_codes text[])
+returns void
+language plpgsql
+as $$
+begin
+  update public.inca_cavi
+  set eliminated_count = eliminated_count + 1,
+      last_eliminated_at = now()
+  where inca_file_id = p_inca_file_id
+    and codice = any(p_codes);
+end $$;
+
+create or replace function public.inca_increment_reinstated(p_inca_file_id uuid, p_codes text[])
+returns void
+language plpgsql
+as $$
+begin
+  update public.inca_cavi
+  set reinstated_count = reinstated_count + 1,
+      last_reinstated_at = now()
+  where inca_file_id = p_inca_file_id
+    and codice = any(p_codes);
+end $$;

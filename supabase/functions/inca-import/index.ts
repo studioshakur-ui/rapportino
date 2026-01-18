@@ -24,7 +24,7 @@ type ParsedCable = {
   descrizione_a: string | null;
   metri_teo: number | null;
   metri_dis: number | null;
-  situazione: string | null; // P/T/R/B/E or null (NP)
+  situazione: string | null; // L/P/T/R/B/E or null (legacy NP)
 };
 
 function json(status: number, body: unknown) {
@@ -58,10 +58,11 @@ function safeNumber(v: unknown): number | null {
 
 function normalizeSituazione(raw: unknown): { value: string | null; nonStandard?: string } {
   const s0 = String(raw ?? "").trim().toUpperCase();
-  if (!s0) return { value: null };
+  // Canon: empty cell means "L" (Libero / cavo disponibile)
+  if (!s0) return { value: "L" };
 
   const s = s0[0];
-  if (["P", "T", "R", "B", "E"].includes(s)) return { value: s };
+  if (["L", "P", "T", "R", "B", "E"].includes(s)) return { value: s };
 
   if (s0.includes("POS")) return { value: "P" };
   if (s0.includes("DA") && s0.includes("POS")) return { value: "T" };
@@ -69,7 +70,7 @@ function normalizeSituazione(raw: unknown): { value: string | null; nonStandard?
   if (s0.includes("BLO")) return { value: "B" };
   if (s0.includes("ESEG")) return { value: "E" };
 
-  return { value: null, nonStandard: s0 };
+  return { value: "L", nonStandard: s0 };
 }
 
 function buildGroupKey(costr: string, commessa: string, projectCode: string) {
@@ -107,31 +108,96 @@ function buildRowCanonical(row: Record<string, unknown>): Record<string, unknown
 function parseXlsxCables(arrayBuffer: ArrayBuffer) {
   const u8 = new Uint8Array(arrayBuffer);
   const wb = XLSX.read(u8, { type: "array" });
-  const first = wb.SheetNames?.[0];
-  if (!first) throw new Error("XLSX: nessun foglio trovato.");
-  const sheet = wb.Sheets[first];
+  // Canon: prefer sheet named "DATI" (case-insensitive), otherwise fallback to first sheet.
+  const sheetNames = wb.SheetNames || [];
+  if (sheetNames.length === 0) throw new Error("XLSX: nessun foglio trovato.");
+
+  const datiName = sheetNames.find((n) => String(n).trim().toUpperCase() === "DATI") ?? null;
+  const chosenName = datiName || sheetNames[0];
+  const sheet = wb.Sheets[chosenName];
   if (!sheet) throw new Error("XLSX: foglio non disponibile.");
 
-  const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+  // Robust header detection: do NOT assume headers are on row 1.
+  // We scan the first N rows and select the row that best matches the expected INCA headers.
+  const aoa = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+    header: 1,
     defval: null,
     raw: true,
+    blankrows: false,
   });
 
-  const rows = Array.isArray(rawRows) ? rawRows : [];
+  const maxScanRows = Math.min(50, aoa.length);
+  let bestIdx = -1;
+  let bestScore = -1;
+
+  const headerKeyScore = (k: string): number => {
+    // Strong identifiers
+    if (k === "CODICE" || k === "MARCA_CAVO" || k === "MARCA" || k === "MARCA_PEZZO" || k === "CODICE_CAVO") return 6;
+    if (k === "STATO" || k === "STATO_CANTIERE" || k === "SITUAZIONE" || k === "STATO_INCA") return 6;
+    // Helpful signals
+    if (k.startsWith("LUNGHEZZA")) return 2;
+    if (k === "TIPO" || k === "TIPO_CAVO" || k === "SEZIONE") return 1;
+    if (k.startsWith("APP") || k.startsWith("APPARATO")) return 1;
+    return 0;
+  };
+
+  for (let i = 0; i < maxScanRows; i++) {
+    const row = aoa[i] || [];
+    let score = 0;
+    let hasCode = false;
+    let hasStatus = false;
+
+    for (const cell of row) {
+      const key = canonKey(cell);
+      const s = headerKeyScore(key);
+      score += s;
+      if (
+        s >= 6 &&
+        (key === "CODICE" || key === "MARCA_CAVO" || key === "MARCA" || key === "MARCA_PEZZO" || key === "CODICE_CAVO")
+      )
+        hasCode = true;
+      if (s >= 6 && (key === "STATO" || key === "STATO_CANTIERE" || key === "SITUAZIONE" || key === "STATO_INCA"))
+        hasStatus = true;
+    }
+
+    // Require at least CODE + STATUS to avoid false positives.
+    if (hasCode && hasStatus && score > bestScore) {
+      bestScore = score;
+      bestIdx = i;
+    }
+  }
+
+  if (bestIdx < 0) {
+    throw new Error(
+      "XLSX: impossibile rilevare la riga intestazioni. Attesi header tipo: CODICE / MARCA CAVO e STATO / STATO CANTIERE.",
+    );
+  }
+
+  const headerRow = aoa[bestIdx] || [];
+  const headers = headerRow.map((h, idx) => {
+    const k = canonKey(h);
+    return k ? k : `COL_${idx + 1}`;
+  });
+
+  const rows: Record<string, unknown>[] = [];
+  for (let r = bestIdx + 1; r < aoa.length; r++) {
+    const line = aoa[r] || [];
+    // skip completely empty rows
+    const hasAny = line.some((v) => String(v ?? "").trim() !== "");
+    if (!hasAny) continue;
+    const obj: Record<string, unknown> = {};
+    for (let c = 0; c < headers.length; c++) {
+      obj[headers[c]] = line[c] ?? null;
+    }
+    rows.push(obj);
+  }
   const parsed: ParsedCable[] = [];
   const nonStandardStatuses = new Set<string>();
 
   for (const r of rows) {
     const row = buildRowCanonical(r);
 
-    const codiceRaw = pickFirst(row, [
-      "MARCA_CAVO",
-      "MARCA",
-      "MARCA_PEZZO",
-      "CODICE",
-      "CODICE_CAVO",
-      "CAVO",
-    ]);
+    const codiceRaw = pickFirst(row, ["MARCA_CAVO", "MARCA", "MARCA_PEZZO", "CODICE", "CODICE_CAVO", "CAVO"]);
     const codice = normText(codiceRaw);
     if (!codice) continue;
 
@@ -139,7 +205,7 @@ function parseXlsxCables(arrayBuffer: ArrayBuffer) {
     const marcaCavo = normText(pickFirst(row, ["MARCA_CAVO", "MARCA"])) || null;
 
     const descrizione = normText(pickFirst(row, ["DESCRIZIONE", "DESCR"])) || null;
-    const tipo = normText(pickFirst(row, ["TIPO", "TYPE"])) || null;
+    const tipo = normText(pickFirst(row, ["TIPO", "TYPE", "TIPO_CAVO"])) || null;
     const sezione = normText(pickFirst(row, ["SEZIONE", "SEC", "SECTION"])) || null;
     const impianto = normText(pickFirst(row, ["IMPIANTO", "PLANT"])) || null;
 
@@ -147,31 +213,19 @@ function parseXlsxCables(arrayBuffer: ArrayBuffer) {
     const zonaA = normText(pickFirst(row, ["ZONA_A", "ZONA_TO", "ZONA_A_"])) || null;
 
     const apparatoDa =
-      normText(pickFirst(row, ["APPARATO_DA", "APPARATO_D", "FROM_APPARATO", "APPARATO_FROM"])) || null;
+      normText(pickFirst(row, ["APPARATO_DA", "APPARATO_D", "FROM_APPARATO", "APPARATO_FROM", "APP_PARTENZA"])) || null;
     const apparatoA =
-      normText(pickFirst(row, ["APPARATO_A", "APPARATO_TO", "TO_APPARATO", "APPARATO_TO_"])) || null;
+      normText(pickFirst(row, ["APPARATO_A", "APPARATO_TO", "TO_APPARATO", "APPARATO_TO_", "APP_ARRIVO"])) || null;
 
     const descrDa = normText(pickFirst(row, ["DESCRIZIONE_DA", "DESCR_DA", "DESCRIZIONE_FROM"])) || null;
     const descrA = normText(pickFirst(row, ["DESCRIZIONE_A", "DESCR_A", "DESCRIZIONE_TO"])) || null;
 
     const metriTeo = safeNumber(
-      pickFirst(row, [
-        "LUNGHEZZA_DI_DISEGNO",
-        "LUNGHEZZA_DISEGNO",
-        "LUNGHEZZA_DISEGNO",
-        "METRI_TEO",
-        "METRI_TEORICI",
-      ]),
+      pickFirst(row, ["LUNGHEZZA_DI_DISEGNO", "LUNGHEZZA_DISEGNO", "METRI_TEO", "METRI_TEORICI", "LUNGHEZZA_DISEGNO_"]),
     );
 
     const metriDis = safeNumber(
-      pickFirst(row, [
-        "LUNGHEZZA_DI_POSA",
-        "LUNGHEZZA_POSA",
-        "LUNGHEZZA_POSATA",
-        "METRI_DIS",
-        "METRI_POSATI",
-      ]),
+      pickFirst(row, ["LUNGHEZZA_DI_POSA", "LUNGHEZZA_POSA", "LUNGHEZZA_POSATA", "METRI_DIS", "METRI_POSATI"]),
     );
 
     const statoRaw = pickFirst(row, ["STATO_CANTIERE", "SITUAZIONE", "STATO", "STATO_INCA"]);
@@ -199,7 +253,8 @@ function parseXlsxCables(arrayBuffer: ArrayBuffer) {
   }
 
   return {
-    sheetName: first,
+    sheetName: chosenName,
+    headerRowIndex0: bestIdx,
     totalRows: rows.length,
     cables: parsed,
     nonStandardStatuses: [...nonStandardStatuses],
@@ -207,12 +262,19 @@ function parseXlsxCables(arrayBuffer: ArrayBuffer) {
 }
 
 function computeCounts(cables: ParsedCable[]) {
-  const counts: Record<string, number> = { P: 0, T: 0, R: 0, B: 0, E: 0, NP: 0 };
+  // Canon: we store atomic states L/R/T/B/P/E.
+  // NP is a derived view: NP = L + R + T + B.
+  const counts: Record<string, number> = { L: 0, R: 0, T: 0, B: 0, P: 0, E: 0, NP: 0 };
   for (const c of cables) {
-    const s = (c.situazione || "").trim();
-    if (s === "P" || s === "T" || s === "R" || s === "B" || s === "E") counts[s] += 1;
-    else counts.NP += 1;
+    const s = String(c.situazione ?? "").trim().toUpperCase();
+    if (s === "L" || s === "R" || s === "T" || s === "B" || s === "P" || s === "E") {
+      counts[s] += 1;
+    } else {
+      // Defensive fallback: treat unknown as L (available), and surface nonStandardStatuses separately.
+      counts.L += 1;
+    }
   }
+  counts.NP = counts.L + counts.R + counts.T + counts.B;
   return counts;
 }
 
@@ -329,15 +391,7 @@ serve(
     const groupKey = buildGroupKey(costr, commessa, projectCode);
     const sorted = [...parsed.cables].sort((a, b) => a.codice.localeCompare(b.codice));
     const canonLines = sorted.map((c) =>
-      [
-        c.codice,
-        c.codice_inca || "",
-        c.metri_teo ?? "",
-        c.metri_dis ?? "",
-        c.situazione || "",
-        c.tipo || "",
-        c.sezione || "",
-      ].join("|")
+      [c.codice, c.codice_inca || "", c.metri_teo ?? "", c.metri_dis ?? "", c.situazione || "", c.tipo || "", c.sezione || ""].join("|"),
     );
     const contentHash = await sha256Hex(canonLines.join("\n"));
 
@@ -384,7 +438,9 @@ serve(
     if (previousFileId) {
       const { data: prevRows, error: prevErr } = await admin
         .from("inca_cavi")
-        .select("codice,codice_inca,marca_cavo,descrizione,tipo,sezione,impianto,zona_da,zona_a,apparato_da,apparato_a,descrizione_da,descrizione_a,metri_teo,metri_dis,situazione")
+        .select(
+          "codice,codice_inca,marca_cavo,descrizione,tipo,sezione,impianto,zona_da,zona_a,apparato_da,apparato_a,descrizione_da,descrizione_a,metri_teo,metri_dis,situazione",
+        )
         .eq("inca_file_id", previousFileId);
 
       if (!prevErr && Array.isArray(prevRows)) {
@@ -424,13 +480,12 @@ serve(
           fileName,
           sizeBytes: ab.byteLength,
           sheetName: parsed.sheetName,
+          headerRowIndex0: parsed.headerRowIndex0,
           totalRows: parsed.totalRows,
         },
         groupKey,
         contentHash,
-        previous: previousFileId
-          ? { incaFileId: previousFileId, contentHash: previousContentHash, isDuplicate }
-          : null,
+        previous: previousFileId ? { incaFileId: previousFileId, contentHash: previousContentHash, isDuplicate } : null,
         diff: diff
           ? {
               previousIncaFileId: diff.previousIncaFileId,
@@ -470,11 +525,7 @@ serve(
         const chunk = entries.slice(i, i + 500);
         const codes = chunk.map(([codice]) => codice);
 
-        const { data: rows, error: selErr } = await admin
-          .from("inca_cavi")
-          .select("id,codice")
-          .eq("inca_file_id", targetIncaFileId)
-          .in("codice", codes);
+        const { data: rows, error: selErr } = await admin.from("inca_cavi").select("id,codice").eq("inca_file_id", targetIncaFileId).in("codice", codes);
 
         if (selErr) throw selErr;
         if (!rows || rows.length === 0) continue;
@@ -499,7 +550,7 @@ serve(
         mode,
         targetIncaFileId,
         updated,
-        received: { fileName, sizeBytes: ab.byteLength, sheetName: parsed.sheetName, totalRows: parsed.totalRows },
+        received: { fileName, sizeBytes: ab.byteLength, sheetName: parsed.sheetName, headerRowIndex0: parsed.headerRowIndex0, totalRows: parsed.totalRows },
         debug: { note: "ENRICH_TIPO completed." },
       });
     }
@@ -518,119 +569,71 @@ serve(
         file_path: null,
         group_key: groupKey,
         content_hash: contentHash,
-        previous_inca_file_id: previousFileId,
-      })
-      .select("*")
-      .single();
-
-    if (fileErr) {
-      console.error("[inca-import] inca_files insert error", fileErr);
-      return json(500, { ok: false, error: "DB error: inca_files insert", extra: fileErr });
-    }
-
-    const newIncaFileId = fileRow.id;
-
-    const cables = parsed.cables;
-    for (let i = 0; i < cables.length; i += 1000) {
-      const chunk = cables.slice(i, i + 1000);
-      const payload = chunk.map((c) => ({
-        inca_file_id: newIncaFileId,
-        costr,
-        commessa,
-        codice: c.codice,
-        codice_inca: c.codice_inca,
-        marca_cavo: c.marca_cavo,
-        descrizione: c.descrizione,
-        tipo: c.tipo,
-        sezione: c.sezione,
-        impianto: c.impianto,
-        zona_da: c.zona_da,
-        zona_a: c.zona_a,
-        apparato_da: c.apparato_da,
-        apparato_a: c.apparato_a,
-        descrizione_da: c.descrizione_da,
-        descrizione_a: c.descrizione_a,
-        metri_teo: c.metri_teo,
-        metri_dis: c.metri_dis,
-        situazione: c.situazione,
-        stato_inca: c.situazione,
-        stato_cantiere: c.situazione,
-      }));
-
-      const { error: cErr } = await admin.from("inca_cavi").insert(payload);
-      if (cErr) {
-        console.error("[inca-import] inca_cavi insert error", cErr);
-        return json(500, { ok: false, error: "DB error: inca_cavi insert", extra: cErr });
-      }
-    }
-
-    const diffPayload = diff
-      ? { added: diff.added, removed: diff.removed, changed: diff.changed }
-      : null;
-
-    const summaryPayload = {
-      total: cables.length,
-      counts,
-      duplicate: isDuplicate,
-    };
-
-    const { data: runRow, error: runErr } = await admin
-      .from("inca_import_runs")
-      .insert({
-        group_key: groupKey,
-        costr,
-        commessa,
-        project_code: projectCode || null,
-        mode,
-        created_by: user.id,
-        previous_inca_file_id: previousFileId,
-        new_inca_file_id: newIncaFileId,
-        content_hash: contentHash,
-        summary: summaryPayload,
-        diff: diffPayload,
       })
       .select("id")
       .single();
 
-    if (runErr) {
-      console.error("[inca-import] inca_import_runs insert error", runErr);
-    } else {
-      const runId = runRow?.id;
-      if (runId) {
-        const { error: updErr } = await admin
-          .from("inca_files")
-          .update({ import_run_id: runId })
-          .eq("id", newIncaFileId);
-        if (updErr) console.error("[inca-import] inca_files update import_run_id error", updErr);
-      }
+    if (fileErr || !fileRow?.id) throw fileErr || new Error("Insert inca_files failed");
+    const incaFileId = String(fileRow.id);
+
+    // Insert cables
+    const payload = parsed.cables.map((c) => ({
+      inca_file_id: incaFileId,
+      costr,
+      commessa,
+      codice: c.codice,
+      codice_inca: c.codice_inca,
+      marca_cavo: c.marca_cavo,
+      descrizione: c.descrizione,
+      tipo: c.tipo,
+      sezione: c.sezione,
+      impianto: c.impianto,
+      zona_da: c.zona_da,
+      zona_a: c.zona_a,
+      apparato_da: c.apparato_da,
+      apparato_a: c.apparato_a,
+      descrizione_da: c.descrizione_da,
+      descrizione_a: c.descrizione_a,
+      metri_teo: c.metri_teo,
+      metri_dis: c.metri_dis,
+      situazione: c.situazione,
+    }));
+
+    for (let i = 0; i < payload.length; i += 1000) {
+      const chunk = payload.slice(i, i + 1000);
+      const { error: insErr } = await admin.from("inca_cavi").insert(chunk);
+      if (insErr) throw insErr;
     }
+
+    // Log import run (existing mechanism)
+    const { error: runErr } = await admin.from("inca_import_runs").insert({
+      inca_file_id: incaFileId,
+      group_key: groupKey,
+      costr,
+      commessa,
+      project_code: projectCode || null,
+      uploaded_by: user.id,
+      mode: "COMMIT",
+      content_hash: contentHash,
+      previous_inca_file_id: previousFileId,
+      is_duplicate: isDuplicate,
+      diff_json: diff ? diff : null,
+      counts_json: counts,
+      debug_json: { sheetName: parsed.sheetName, headerRowIndex0: parsed.headerRowIndex0, totalRows: parsed.totalRows, nonStandardStatuses: parsed.nonStandardStatuses },
+      note,
+    });
+    if (runErr) console.warn("inca_import_runs insert failed:", runErr.message);
 
     return json(200, {
       ok: true,
       mode,
-      incaFile: {
-        id: newIncaFileId,
-        costr: fileRow.costr,
-        commessa: fileRow.commessa,
-        project_code: fileRow.project_code,
-        file_name: fileRow.file_name,
-        uploaded_at: fileRow.uploaded_at,
-        group_key: fileRow.group_key,
-        content_hash: fileRow.content_hash,
-        previous_inca_file_id: fileRow.previous_inca_file_id,
-        import_run_id: fileRow.import_run_id,
-      },
-      total: cables.length,
+      incaFileId,
+      total: parsed.cables.length,
       counts,
-      received: {
-        fileName,
-        sizeBytes: ab.byteLength,
-        sheetName: parsed.sheetName,
-        totalRows: parsed.totalRows,
-      },
-      previous: previousFileId
-        ? { incaFileId: previousFileId, contentHash: previousContentHash, isDuplicate }
-        : null,
+      received: { fileName, sizeBytes: ab.byteLength, sheetName: parsed.sheetName, headerRowIndex0: parsed.headerRowIndex0, totalRows: parsed.totalRows },
+      groupKey,
+      contentHash,
+      previous: previousFileId ? { incaFileId: previousFileId, contentHash: previousContentHash, isDuplicate } : null,
       diff: diff
         ? {
             previousIncaFileId: diff.previousIncaFileId,
@@ -639,10 +642,7 @@ serve(
             changedCount: diff.changed.length,
           }
         : null,
-      debug: {
-        nonStandardStatuses: parsed.nonStandardStatuses,
-        note: "COMMIT completed.",
-      },
+      debug: { nonStandardStatuses: parsed.nonStandardStatuses, note: "COMMIT completed." },
     });
   }),
 );
