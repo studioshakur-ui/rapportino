@@ -4,9 +4,10 @@ import { parseNumeric } from "../../../rapportinoUtils";
 
 type Row = any;
 
-function computeOperatorHoursById(rows: Row[]): Record<string, number> {
+function computeHoursAndLeader(rows: Row[]): { byOperatorId: Record<string, number>; leaderOperatorId: string | null } {
   const out: Record<string, number> = {};
   const arr = Array.isArray(rows) ? rows : [];
+  let leaderOperatorId: string | null = null;
 
   function add(opId: unknown, hours: unknown) {
     const k = String(opId || "").trim();
@@ -22,6 +23,11 @@ function computeOperatorHoursById(rows: Row[]): Record<string, number> {
 
     for (const it of items) {
       const opId = it?.operator_id;
+      // Leader rule (explicit): the very first operator appearing in the report is the leader.
+      if (!leaderOperatorId) {
+        const k = String(opId || "").trim();
+        if (k) leaderOperatorId = k;
+      }
       const h =
         it?.tempo_hours != null && Number.isFinite(Number(it?.tempo_hours))
           ? Number(it.tempo_hours)
@@ -38,7 +44,7 @@ function computeOperatorHoursById(rows: Row[]): Record<string, number> {
     out[k] = Math.round(v * 10) / 10;
   });
 
-  return out;
+  return { byOperatorId: out, leaderOperatorId };
 }
 
 export function useCapoHoursMemory({
@@ -54,13 +60,14 @@ export function useCapoHoursMemory({
     if (!shipId || !reportDate) return;
 
     try {
-      const byOperatorId = computeOperatorHoursById(rows);
+      const { byOperatorId, leaderOperatorId } = computeHoursAndLeader(rows);
       const key = `core-rapportino-hours::${String(shipId)}::${String(reportDate)}`;
       const payload = {
         shipId: String(shipId),
         reportDate: String(reportDate),
         updatedAt: Date.now(),
         byOperatorId,
+        leaderOperatorId,
       };
 
       window.localStorage.setItem(key, JSON.stringify(payload));

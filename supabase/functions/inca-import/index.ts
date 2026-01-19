@@ -38,6 +38,14 @@ function normText(v: unknown): string {
   return String(v ?? "").trim();
 }
 
+function asUuidOrNull(v: unknown): string | null {
+  const s = String(v ?? "").trim();
+  if (!s) return null;
+  // Accept RFC4122-ish UUIDs (v1-v5). Intentionally permissive.
+  if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(s)) return null;
+  return s;
+}
+
 function canonKey(header: unknown): string {
   const s = String(header ?? "").trim().toUpperCase();
   const noMarks = s.normalize("NFD").replace(/[̀-ͯ]/g, "");
@@ -374,6 +382,7 @@ serve(
     const commessa = normText(form.get("commessa"));
     const projectCode = normText(form.get("projectCode"));
     const note = normText(form.get("note")) || null;
+    const shipIdFromBody = asUuidOrNull(form.get("shipId"));
 
     if (!costr || !commessa) return json(400, { ok: false, error: "costr/commessa mancanti" });
 
@@ -556,9 +565,34 @@ serve(
     }
 
     // COMMIT
+
+    // ship_id is mandatory in the current schema. If the client doesn't send it yet,
+    // we try to infer it from the latest existing XLSX snapshot for the same (costr, commessa).
+    // If inference fails, we hard-stop to avoid creating orphan INCA snapshots.
+    let shipId: string | null = shipIdFromBody;
+    if (!shipId) {
+      const { data: prevShip, error: prevShipErr } = await admin
+        .from("inca_files")
+        .select("ship_id,uploaded_at")
+        .eq("costr", costr)
+        .eq("commessa", commessa)
+        .eq("file_type", "XLSX")
+        .order("uploaded_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!prevShipErr && prevShip?.ship_id) shipId = String(prevShip.ship_id);
+    }
+    if (!shipId) {
+      return json(400, {
+        ok: false,
+        error: "shipId mancante: invia shipId nel form-data (UUID) oppure importa prima almeno un file con shipId valido per questa commessa.",
+      });
+    }
+
     const { data: fileRow, error: fileErr } = await admin
       .from("inca_files")
       .insert({
+        ship_id: shipId,
         costr,
         commessa,
         project_code: projectCode || null,
@@ -605,6 +639,60 @@ serve(
       if (insErr) throw insErr;
     }
 
+    // --- Harmonize with the newer INCA observability model ---
+    // 1) Create an import event (public.inca_imports)
+    // 2) Stamp imported cables with last_import_id + last_seen_in_import_at
+    // 3) Mark missing_in_latest_import for cables not present in the current XLSX
+    let importId: string | null = null;
+    try {
+      const { data: imp, error: impErr } = await admin
+        .from("inca_imports")
+        .insert({
+          inca_file_id: incaFileId,
+          file_name: fileName,
+          source: "EXCEL_INCA",
+          checksum_sha256: contentHash,
+          created_by: user.id,
+          note,
+        })
+        .select("id")
+        .single();
+
+      if (!impErr && imp?.id) importId = String(imp.id);
+      if (impErr) console.warn("inca_imports insert failed:", impErr.message);
+    } catch (e) {
+      console.warn("inca_imports insert threw:", (e as Error).message);
+    }
+
+    // First, pessimistically mark everything as missing in the latest import.
+    // Then flip back the rows that were actually present in the XLSX.
+    const nowIso = new Date().toISOString();
+    {
+      const { error: missAllErr } = await admin
+        .from("inca_cavi")
+        .update({ missing_in_latest_import: true })
+        .eq("inca_file_id", incaFileId);
+      if (missAllErr) console.warn("inca_cavi mark-missing failed:", missAllErr.message);
+    }
+
+    const importedCodes = parsed.cables.map((c) => c.codice).filter(Boolean);
+    for (let i = 0; i < importedCodes.length; i += 500) {
+      const codesChunk = importedCodes.slice(i, i + 500);
+      const { error: stampErr } = await admin
+        .from("inca_cavi")
+        .update({
+          last_import_id: importId,
+          last_seen_in_import_at: nowIso,
+          missing_in_latest_import: false,
+          // We keep the field explicit but conservative: changes are handled by the dedicated diff pipeline.
+          flag_changed_in_source: false,
+        })
+        .eq("inca_file_id", incaFileId)
+        .in("codice", codesChunk);
+
+      if (stampErr) console.warn("inca_cavi stamp-import failed:", stampErr.message);
+    }
+
     // Log import run (existing mechanism)
     const { error: runErr } = await admin.from("inca_import_runs").insert({
       inca_file_id: incaFileId,
@@ -628,6 +716,7 @@ serve(
       ok: true,
       mode,
       incaFileId,
+      importId,
       total: parsed.cables.length,
       counts,
       received: { fileName, sizeBytes: ab.byteLength, sheetName: parsed.sheetName, headerRowIndex0: parsed.headerRowIndex0, totalRows: parsed.totalRows },

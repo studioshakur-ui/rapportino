@@ -27,16 +27,17 @@ function localIsoDate(): string {
 
 export default function CapoSimpleEntry(): JSX.Element {
   const nav = useNavigate();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [err, setErr] = useState<string>("");
   const [ships, setShips] = useState<ShipAssignment[]>([]);
+  const [retryNonce, setRetryNonce] = useState<number>(0);
 
   const today = useMemo(() => localIsoDate(), []);
 
   useEffect(() => {
     let mounted = true;
 
-    async function load() {
+    async function load(): Promise<void> {
       setLoading(true);
       setErr("");
 
@@ -72,7 +73,7 @@ export default function CapoSimpleEntry(): JSX.Element {
     return () => {
       mounted = false;
     };
-  }, [today, nav]);
+  }, [today, nav, retryNonce]);
 
   if (loading) {
     return (
@@ -93,7 +94,12 @@ export default function CapoSimpleEntry(): JSX.Element {
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => window.location.reload()}
+            onClick={() => {
+              // No hard refresh: just re-run the loader.
+              setLoading(true);
+              setErr("");
+              setRetryNonce((n) => n + 1);
+            }}
             className="rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-[12px] font-semibold text-slate-100"
           >
             Riprova
@@ -135,55 +141,37 @@ export default function CapoSimpleEntry(): JSX.Element {
     );
   }
 
-  // 2 ships max by rule, show simple selector
   return (
-    <div className="p-4 space-y-3">
-      <div className="rounded-2xl border border-slate-800 bg-slate-950 p-5 text-slate-100 space-y-1">
+    <div className="p-4">
+      <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
         <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">
           CAPO · OGGI ({today})
         </div>
-        <div className="text-[16px] font-semibold">Seleziona il cantiere</div>
-        <div className="text-[12px] text-slate-400">
-          Hai 2 assegnazioni. Scegli 1 ship per aprire il rapportino.
+        <div className="mt-2 text-[14px] font-semibold text-slate-100">
+          Seleziona cantiere
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 gap-3">
-        {ships.slice(0, 2).map((s) => (
-          <button
-            key={s.ship_id}
-            type="button"
-            onClick={() => nav(`/app/ship/${s.ship_id}/rapportino/role`)}
-            className={cn(
-              "w-full text-left rounded-2xl border border-slate-800 bg-slate-950/60 p-4",
-              "hover:bg-slate-900/40 active:scale-[0.99] transition"
-            )}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-[13px] font-semibold text-slate-50 truncate">
-                  {s.ship_code || "—"} · {s.ship_name || "Ship"}
-                </div>
-                <div className="mt-1 text-[12px] text-slate-400">
-                  COSTR {s.costr || "—"} · COMMESSA {s.commessa || "—"}
-                </div>
-              </div>
-              <span className="shrink-0 inline-flex items-center rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-[11px] font-semibold text-slate-200">
-                #{s.position ?? "?"}
-              </span>
-            </div>
-          </button>
-        ))}
-      </div>
+        <div className="mt-3 grid grid-cols-1 gap-2">
+          {ships.map((s) => {
+            const title = `${s.ship_code || ""}${s.ship_name ? ` · ${s.ship_name}` : ""}`.trim();
+            const subtitle = `${s.costr || "—"} · ${s.commessa || "—"}`;
 
-      <div className="pt-1">
-        <button
-          type="button"
-          onClick={() => nav("/app/ship-selector")}
-          className="rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-[12px] font-semibold text-slate-100"
-        >
-          Apri selettore cantieri
-        </button>
+            return (
+              <button
+                key={s.ship_id}
+                type="button"
+                onClick={() => nav(`/app/ship/${s.ship_id}/rapportino/role`)}
+                className={cn(
+                  "rounded-2xl border border-slate-800 bg-slate-950/40 p-4 text-left hover:bg-slate-950/60",
+                  "transition"
+                )}
+              >
+                <div className="text-[13px] font-semibold text-slate-100">{title || "Cantiere"}</div>
+                <div className="mt-1 text-[12px] text-slate-400">{subtitle}</div>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

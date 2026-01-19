@@ -93,7 +93,7 @@ function guessOperatorPosition(row: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function pillBase(): string {
+function pillBase(isSelected: boolean): string {
   return [
     "w-full rounded-xl border px-3 py-2",
     "text-[12px] font-semibold",
@@ -101,6 +101,7 @@ function pillBase(): string {
     "focus:outline-none focus:ring-2 focus:ring-sky-500/35",
     "cursor-grab active:cursor-grabbing",
     "select-none",
+    isSelected ? "ring-2 ring-sky-500/30" : "",
   ].join(" ");
 }
 
@@ -132,10 +133,22 @@ function formatHoursBadge(h: number | null): string {
   return `${n}h`;
 }
 
-function statusFromHours(hours: number | null, targetHours: number): "ABSENT" | "INCOMPLETE" | "COMPLETE" {
+function statusFromHours(
+  hours: number | null,
+  targetHours: number
+): "ABSENT" | "INCOMPLETE" | "COMPLETE" | "OVER" {
   if (hours == null || hours <= 0) return "ABSENT";
   if (hours < targetHours) return "INCOMPLETE";
+  if (hours > targetHours) return "OVER";
   return "COMPLETE";
+}
+
+function statusBadgeLabel(st: "ABSENT" | "INCOMPLETE" | "COMPLETE" | "OVER"): string {
+  // Short, language-agnostic codes (export-friendly)
+  if (st === "COMPLETE") return "OK";
+  if (st === "INCOMPLETE") return "PARZ";
+  if (st === "OVER") return "OVER";
+  return "ABS";
 }
 
 export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorDragStart }: Props): JSX.Element {
@@ -150,6 +163,10 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
   const [err, setErr] = useState("");
   const [q, setQ] = useState("");
   const [items, setItems] = useState<TeamItem[]>([]);
+
+  // Manual sidebar: selecting an operator never changes the report.
+  // It only shows the operator's current hours/status in a stable way.
+  const [selected, setSelected] = useState<{ id: string | null; name: string } | null>(null);
 
   const [hoursById, setHoursById] = useState<Record<string, number>>({});
 
@@ -359,14 +376,11 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
                   ? "border-emerald-400/25 bg-emerald-500/10"
                   : st === "INCOMPLETE"
                   ? "border-amber-400/25 bg-amber-500/10"
+                  : st === "OVER"
+                  ? "border-rose-400/25 bg-rose-500/10"
                   : "border-sky-400/25 bg-sky-500/10";
 
-              const dot =
-                st === "COMPLETE"
-                  ? "bg-emerald-400/80"
-                  : st === "INCOMPLETE"
-                  ? "bg-amber-400/80"
-                  : "bg-sky-400/80";
+              const isSelected = (selected?.id && it.id && String(selected.id) === String(it.id)) || (!selected?.id && selected?.name === it.name);
 
               return (
                 <div
@@ -374,8 +388,14 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
                   draggable
                   role="button"
                   tabIndex={0}
+                  onClick={() => setSelected({ id: it.id, name: it.name })}
                   onDragStart={(e) => {
                     try {
+                      // Compatibility: RapportinoTable.readDroppedOperator expects application/json or text/plain.
+                      e.dataTransfer.setData("application/json", JSON.stringify({ id: it.id, name: it.name }));
+                      e.dataTransfer.setData("text/plain", it.name);
+
+                      // Keep legacy/internal types for older handlers.
                       e.dataTransfer.setData("text/core-operator-name", it.name);
                       if (it.id) e.dataTransfer.setData("text/core-operator-id", String(it.id));
                       e.dataTransfer.effectAllowed = "copy";
@@ -385,30 +405,84 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
                   onKeyDown={(e) => {
                     if (e.key === "Enter") e.preventDefault();
                   }}
-                  className={cn(pillBase(), tone)}
+                  className={cn(pillBase(isSelected), tone)}
                   title={t("CAPO_TODAY_DRAG_HINT")}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate">{it.name}</span>
-                    <span className="inline-flex items-center gap-2 shrink-0">
-                      <span className={cn("h-2 w-2 rounded-full", dot)} />
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[12px] font-extrabold leading-4 whitespace-normal break-words">
+                        {it.name}
+                      </div>
+                      <div className="mt-1 flex items-center gap-2">
+                        <span
+                          className={cn(
+                            "rounded-full border px-2 py-0.5",
+                            "text-[10px] font-extrabold tracking-[0.14em]",
+                            "uppercase",
+                            "border-slate-800 bg-slate-950/40 text-slate-100"
+                          )}
+                          title="Stato calcolato solo dalle ore inserite nel rapportino"
+                        >
+                          {statusBadgeLabel(st)}
+                        </span>
+                        {isSelected ? (
+                          <span className="text-[10px] font-semibold text-slate-200">Selezionato</span>
+                        ) : (
+                          <span className="text-[10px] text-slate-400">Clicca per vedere le ore</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="shrink-0 flex flex-col items-end gap-1">
                       <span
                         className={cn(
                           "rounded-full border px-2 py-0.5",
-                          "text-[11px] font-bold",
+                          "text-[11px] font-extrabold",
                           "border-slate-800 bg-slate-950/40 text-slate-100"
                         )}
                         title={it.id ? `Ore dal rapportino: ${formatHoursBadge(hours)}` : "Ore non disponibili (legacy)"}
                       >
                         {formatHoursBadge(hours)}
                       </span>
-                    </span>
+                    </div>
                   </div>
                 </div>
               );
             })
           )}
         </div>
+
+        {selected ? (
+          <div className="mt-3 rounded-xl border border-slate-800 bg-slate-950/30 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Operatore selezionato</div>
+                <div className="mt-1 text-[12px] font-extrabold text-slate-100 whitespace-normal break-words">
+                  {selected.name}
+                </div>
+                <div className="mt-1 text-[12px] text-slate-300">
+                  Ore: <span className="font-extrabold text-slate-100">{formatHoursBadge(selected.id ? (hoursById[String(selected.id)] ?? null) : null)}</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelected(null)}
+                className={cn(
+                  "rounded-full border px-2.5 py-1",
+                  "text-[11px] font-semibold",
+                  "border-slate-800 bg-slate-950/40 text-slate-100 hover:bg-slate-900/35",
+                  "focus:outline-none focus:ring-2 focus:ring-sky-500/35"
+                )}
+                title="Fermer"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="mt-2 text-[11px] text-slate-400">Suggerimento: trascina la pill su una riga del rapport per aggiungerlo.</div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

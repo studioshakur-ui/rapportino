@@ -48,6 +48,7 @@ export default function CapoEntryRouter(): JSX.Element {
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<"simple" | "rich">("simple");
   const [error, setError] = useState<string>("");
+  const [retryNonce, setRetryNonce] = useState<number>(0);
 
   const today = useMemo(() => localIsoDate(), []);
 
@@ -129,7 +130,7 @@ export default function CapoEntryRouter(): JSX.Element {
     return () => {
       mounted = false;
     };
-  }, [nav, today, profile]);
+  }, [nav, today, profile, retryNonce]);
 
   if (loading) {
     return (
@@ -150,7 +151,12 @@ export default function CapoEntryRouter(): JSX.Element {
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => window.location.reload()}
+            onClick={() => {
+              // No hard refresh: just re-run the loader.
+              setLoading(true);
+              setError("");
+              setRetryNonce((n) => n + 1);
+            }}
             className="rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-[12px] font-semibold text-slate-100"
           >
             Riprova

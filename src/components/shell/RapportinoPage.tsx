@@ -346,9 +346,8 @@ export default function RapportinoPage() {
     });
   }, [rows]);
 
-  // CAPO sidebar UX only (no business logic): keep a lightweight, deterministic hours summary
-  // in localStorage so the operator pills can always show the current total hours.
-  // Never blocks the flow; never affects DB writes.
+  // CAPO sidebar UX: persist a lightweight summary (hours + leader) so the operators panel can
+  // color-code and update live while the report is being filled.
   useCapoHoursMemory({ shipId, reportDate, rows: visibleRows });
 
   // Read-only: indice di produttività (per operatore, per attività) via KPI views.

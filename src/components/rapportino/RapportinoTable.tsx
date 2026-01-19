@@ -265,13 +265,19 @@ export default function RapportinoTable({
                             {canonItems.length === 0 ? (
                               <span className="text-slate-400 text-[12px]">Tocca per scegliere…</span>
                             ) : (
-                              canonItems.map((it) => {
+                              canonItems.map((it, j) => {
                                 const operatorId = it?.operator_id;
                                 const label = String(it?.label || "").trim() || "Operatore";
+                                const isLeader = idx === 0 && j === 0;
                                 return (
                                   <span
                                     key={String(operatorId)}
-                                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[12px] font-semibold text-slate-900"
+                                    className={cn(
+                                      "inline-flex items-center gap-2 rounded-full border bg-white px-2.5 py-1 text-[12px] font-semibold",
+                                      isLeader
+                                        ? "border-fuchsia-400/40 bg-fuchsia-50 text-slate-950 font-extrabold"
+                                        : "border-slate-200 text-slate-900"
+                                    )}
                                     title={label}
                                   >
                                     <span className="max-w-[180px] truncate">{label}</span>

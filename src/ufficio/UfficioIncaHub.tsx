@@ -1,45 +1,98 @@
-// src/ufficio/UfficioIncaHub.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 import LoadingScreen from "../components/LoadingScreen";
 import IncaCockpitModal from "../features/inca/IncaCockpitModal";
 import IncaImportModal from "../features/inca/IncaImportModal";
+import { usePersistedSearchParam } from "../utils/usePersistedSearchParam";
 
-export default function UfficioIncaHub() {
-  const [files, setFiles] = useState([]);
-  const [loadingFiles, setLoadingFiles] = useState(true);
-  const [error, setError] = useState(null);
+type IncaFileRow = {
+  id: string;
+  costr: string | null;
+  commessa: string | null;
+  project_code: string | null;
+  file_name: string | null;
+  file_type: string | null;
+  uploaded_at: string | null;
+};
 
-  const [selectedFileId, setSelectedFileId] = useState("");
-  const [cockpitOpen, setCockpitOpen] = useState(false);
+export default function UfficioIncaHub(): JSX.Element {
+  const [files, setFiles] = useState<IncaFileRow[]>([]);
+  const [loadingFiles, setLoadingFiles] = useState<boolean>(true);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const [importOpen, setImportOpen] = useState(false);
+  // Persist selection across module navigation + refresh, and keep URL stable.
+  const [selectedFileId, setSelectedFileId] = usePersistedSearchParam(
+    "incaFileId",
+    "core.ufficio.inca.selectedFileId",
+    { defaultValue: "", replace: true }
+  );
 
+  const [cockpitOpen, setCockpitOpen] = useState<boolean>(false);
+  const [importOpen, setImportOpen] = useState<boolean>(false);
+
+  const loadFiles = useCallback(async (): Promise<IncaFileRow[]> => {
+    const { data, error: e } = await supabase
+      .from("inca_files")
+      .select("id,costr,commessa,project_code,file_name,file_type,uploaded_at")
+      .order("uploaded_at", { ascending: false });
+
+    if (e) throw e;
+    return (data || []) as IncaFileRow[];
+  }, []);
+
+  const ensureValidSelection = useCallback(
+    (list: IncaFileRow[], preferredId: string): string => {
+      const pid = (preferredId || "").trim();
+      if (pid && list.some((f) => f.id === pid)) return pid;
+      return list.length > 0 ? list[0].id : "";
+    },
+    []
+  );
+
+  const refreshFiles = useCallback(
+    async (opts?: { forceSelectId?: string }): Promise<void> => {
+      setRefreshing(true);
+      setError(null);
+
+      try {
+        const list = await loadFiles();
+        setFiles(list);
+
+        const nextId = ensureValidSelection(list, opts?.forceSelectId ?? selectedFileId);
+        if (nextId !== selectedFileId) setSelectedFileId(nextId);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error("[UfficioIncaHub] refreshFiles error:", err);
+        setError("Impossibile caricare i file INCA.");
+        setFiles([]);
+      } finally {
+        setRefreshing(false);
+      }
+    },
+    [ensureValidSelection, loadFiles, selectedFileId, setSelectedFileId]
+  );
+
+  // Initial load: mount-only (NO selectedFileId dependency)
   useEffect(() => {
     let alive = true;
 
-    async function loadFiles() {
+    async function boot(): Promise<void> {
       setLoadingFiles(true);
       setError(null);
 
       try {
-        const { data, error: e } = await supabase
-          .from("inca_files")
-          .select("*")
-          .order("uploaded_at", { ascending: false });
-
-        if (e) throw e;
+        const list = await loadFiles();
         if (!alive) return;
 
-        const list = data || [];
         setFiles(list);
 
-        if (!selectedFileId && list.length > 0) {
-          setSelectedFileId(list[0].id);
-        }
+        const nextId = ensureValidSelection(list, selectedFileId);
+        if (nextId !== selectedFileId) setSelectedFileId(nextId);
       } catch (err) {
-        console.error("[UfficioIncaHub] loadFiles error:", err);
+        // eslint-disable-next-line no-console
+        console.error("[UfficioIncaHub] boot error:", err);
         if (!alive) return;
         setError("Impossibile caricare i file INCA.");
         setFiles([]);
@@ -48,15 +101,18 @@ export default function UfficioIncaHub() {
       }
     }
 
-    loadFiles();
+    boot();
 
     return () => {
       alive = false;
     };
-  }, [selectedFileId]);
+    // IMPORTANT: loadFiles + ensureValidSelection are stable callbacks.
+    // selectedFileId is read once for initial selection; it will NOT cause refetch loops.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadFiles, ensureValidSelection, setSelectedFileId]);
 
-  const selectedFile = useMemo(() => {
-    return (files || []).find((f) => f.id === selectedFileId) || null;
+  const selectedFile = useMemo<IncaFileRow | null>(() => {
+    return files.find((f) => f.id === selectedFileId) || null;
   }, [files, selectedFileId]);
 
   const headerCostr = (selectedFile?.costr || "").trim();
@@ -186,10 +242,16 @@ export default function UfficioIncaHub() {
 
           <button
             type="button"
-            onClick={() => window.location.reload()}
-            className="rounded-xl border border-slate-700 bg-slate-900/40 px-3 py-2 text-[12px] text-slate-200 hover:bg-slate-900/60"
+            onClick={() => refreshFiles()}
+            disabled={refreshing}
+            className={[
+              "rounded-xl border px-3 py-2 text-[12px]",
+              refreshing
+                ? "border-slate-800 bg-slate-950/40 text-slate-500 cursor-not-allowed"
+                : "border-slate-700 bg-slate-900/40 text-slate-200 hover:bg-slate-900/60",
+            ].join(" ")}
           >
-            Aggiorna
+            {refreshing ? "Aggiornamento…" : "Aggiorna"}
           </button>
         </div>
 
@@ -207,7 +269,7 @@ export default function UfficioIncaHub() {
             </thead>
 
             <tbody>
-              {(files || []).map((f) => {
+              {files.map((f) => {
                 const active = f.id === selectedFileId;
 
                 return (
@@ -244,10 +306,7 @@ export default function UfficioIncaHub() {
 
               {files.length === 0 && (
                 <tr>
-                  <td
-                    colSpan={6}
-                    className="px-4 py-10 text-center text-[12px] text-slate-500"
-                  >
+                  <td colSpan={6} className="px-4 py-10 text-center text-[12px] text-slate-500">
                     Nessun file INCA trovato.
                   </td>
                 </tr>
@@ -282,11 +341,12 @@ export default function UfficioIncaHub() {
         onClose={() => setImportOpen(false)}
         defaultCostr={headerCostr || ""}
         defaultCommessa={headerCommessa || ""}
-        onImported={(data) => {
-          const newId = data?.inca_file_id || data?.inca_file?.id || null;
+        onImported={async (data: any) => {
+          const newId: string | null = data?.inca_file_id || data?.inca_file?.id || null;
           setImportOpen(false);
-          if (newId) setSelectedFileId(newId);
-          window.location.reload();
+
+          // No hard reload. Refresh data and keep the new selection.
+          await refreshFiles({ forceSelectId: newId || undefined });
         }}
       />
 
