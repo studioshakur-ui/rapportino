@@ -12,7 +12,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
 
-import { useCoreI18n } from "../i18n/CoreI18n";
+import { useCoreI18n } from "../i18n/coreI18n";
 import LangSwitcher from "./shell/LangSwitcher";
 import Modal from "../ui/Modal";
 import KpiCard from "./ui/KpiCard";
