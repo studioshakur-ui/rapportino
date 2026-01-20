@@ -9,7 +9,8 @@ import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Unauthorized from "./pages/Unauthorized";
 import ForcePasswordChange from "./pages/ForcePasswordChange";
-
+// IMPORTANT: explicit extension to avoid resolving legacy .jsx
+import CapoRoleSelector from "./pages/CapoRoleSelector.tsx";
 // SHELLS
 import AppShell from "./shells/AppShell";
 // NOTE: dans ton ZIP actuel c'est UfficioShell.jsx, donc on garde l'import sans extension.
@@ -26,6 +27,7 @@ import ShipSelector from "./pages/ShipSelector";
 import CapoOperatorKpi from "./features/kpi/pages/CapoOperatorKpi";
 import CapoMegaKpiStesura from "./features/kpi/pages/CapoMegaKpiStesura";
 import CapoModuleSelector from "./pages/CapoModuleSelector";
+import CapoTeamOrganizerPage from "./pages/CapoTeamOrganizerPage";
 import CapoRoleSelector from "./pages/CapoRoleSelector";
 import IncaCapoCockpit from "./capo/IncaCapoCockpit";
 
@@ -144,6 +146,8 @@ export default function AppRoutes(): JSX.Element {
         <Route path="kpi-operatori" element={<CapoOperatorKpi isDark={true} />} />
         <Route path="ship/:shipId/kpi-stesura" element={<CapoMegaKpiStesura isDark={true} />} />
         <Route path="ship/:shipId" element={<CapoModuleSelector />} />
+
+        <Route path="ship/:shipId/teams" element={<CapoTeamOrganizerPage />} />
 
         <Route path="ship/:shipId/rapportino/role" element={<CapoRoleSelector />} />
         <Route path="ship/:shipId/rapportino" element={<RapportinoPage />} />

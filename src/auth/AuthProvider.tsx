@@ -92,8 +92,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
   const [error, setError] = useState<unknown>(null);
   const [rehydrating, setRehydrating] = useState<boolean>(false);
 
-  const uid = session?.user?.id ?? null;
-
   const aliveRef = useRef(true);
   useEffect(() => {
     aliveRef.current = true;
@@ -101,6 +99,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
       aliveRef.current = false;
     };
   }, []);
+
+  // UX: prevent UI flicker on short tab switches (do not show "rehydrating" instantly)
+  const rehydrateFlagTimerRef = useRef<number | null>(null);
+  const beginRehydrateFlag = useCallback((delayMs: number = 150) => {
+    if (rehydrateFlagTimerRef.current !== null) {
+      window.clearTimeout(rehydrateFlagTimerRef.current);
+      rehydrateFlagTimerRef.current = null;
+    }
+    rehydrateFlagTimerRef.current = window.setTimeout(() => {
+      rehydrateFlagTimerRef.current = null;
+      if (aliveRef.current) setRehydrating(true);
+    }, delayMs);
+  }, []);
+
+  const endRehydrateFlag = useCallback(() => {
+    if (rehydrateFlagTimerRef.current !== null) {
+      window.clearTimeout(rehydrateFlagTimerRef.current);
+      rehydrateFlagTimerRef.current = null;
+    }
+    if (aliveRef.current) setRehydrating(false);
+  }, []);
+
+  const uid = session?.user?.id ?? null;
 
   // ✅ Used to keep UI stable for a few minutes on tab switch
   const lastGoodAuthAtRef = useRef<number>(0);
@@ -128,7 +149,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
   const hydrateProfile = useCallback(
     async (s: Session) => {
       try {
-        setRehydrating(true);
+        beginRehydrateFlag();
 
         // IMPORTANT: prevent infinite pending
         const p = await withTimeout(loadProfile(s), 5000, "loadProfile");
@@ -151,10 +172,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
         setError(e);
         setStatus("AUTH_ERROR");
       } finally {
-        if (aliveRef.current) setRehydrating(false);
+        endRehydrateFlag();
       }
     },
-    [hardResetToUnauthed, markGoodAuthNow]
+    [beginRehydrateFlag, endRehydrateFlag, hardResetToUnauthed, markGoodAuthNow]
   );
 
   const setAuthedFast = useCallback(
@@ -177,7 +198,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
   const softRehydrate = useCallback(async () => {
     if (!aliveRef.current) return;
 
-    setRehydrating(true);
+    beginRehydrateFlag();
 
     try {
       const { data, error: sessionError } = await withTimeout(
@@ -259,7 +280,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
       setProfile(null);
       setError(e);
     } finally {
-      if (aliveRef.current) setRehydrating(false);
+      endRehydrateFlag();
     }
   }, [hardResetToUnauthed, hydrateProfile, setAuthedFast, setUnauthed, withinGraceWindow]);
 

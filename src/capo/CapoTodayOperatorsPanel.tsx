@@ -125,18 +125,34 @@ function readHoursSummary(shipId: string | null, reportDate: string): Record<str
   }
 }
 
+function readPlannedHours(shipId: string | null, reportDate: string): Record<string, number> {
+  if (!shipId) return {};
+  const key = `core-rapportino-planned-hours::${shipId}::${reportDate}`;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return {};
+    const obj = JSON.parse(raw);
+    const by = obj?.byOperatorId;
+    if (!by || typeof by !== "object") return {};
+    const out: Record<string, number> = {};
+    Object.keys(by).forEach((k) => {
+      const n = Number((by as any)[k]);
+      if (Number.isFinite(n) && n > 0) out[String(k)] = Math.round(n * 10) / 10;
+    });
+    return out;
+  } catch {
+    return {};
+  }
+}
+
 function formatHoursBadge(h: number | null): string {
   if (h == null) return "-";
   const n = Math.round(h * 10) / 10;
-  // Show integer when possible
   if (Math.abs(n - Math.round(n)) < 1e-9) return `${Math.round(n)}h`;
   return `${n}h`;
 }
 
-function statusFromHours(
-  hours: number | null,
-  targetHours: number
-): "ABSENT" | "INCOMPLETE" | "COMPLETE" | "OVER" {
+function statusFromHours(hours: number | null, targetHours: number): "ABSENT" | "INCOMPLETE" | "COMPLETE" | "OVER" {
   if (hours == null || hours <= 0) return "ABSENT";
   if (hours < targetHours) return "INCOMPLETE";
   if (hours > targetHours) return "OVER";
@@ -144,7 +160,6 @@ function statusFromHours(
 }
 
 function statusBadgeLabel(st: "ABSENT" | "INCOMPLETE" | "COMPLETE" | "OVER"): string {
-  // Short, language-agnostic codes (export-friendly)
   if (st === "COMPLETE") return "OK";
   if (st === "INCOMPLETE") return "PARZ";
   if (st === "OVER") return "OVER";
@@ -164,32 +179,38 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
   const [q, setQ] = useState("");
   const [items, setItems] = useState<TeamItem[]>([]);
 
-  // Manual sidebar: selecting an operator never changes the report.
-  // It only shows the operator's current hours/status in a stable way.
   const [selected, setSelected] = useState<{ id: string | null; name: string } | null>(null);
 
   const [hoursById, setHoursById] = useState<Record<string, number>>({});
+  const [plannedById, setPlannedById] = useState<Record<string, number>>({});
 
   const isCollapsed = mode === "collapsed";
-  const TARGET_HOURS = 8;
+  const DEFAULT_TARGET_HOURS = 8;
 
   const refreshHours = useCallback(() => {
     setHoursById(readHoursSummary(shipId ?? null, reportDate));
   }, [shipId, reportDate]);
 
-  // Listen to updates from RapportinoPage (same tab)
+  const refreshPlanned = useCallback(() => {
+    setPlannedById(readPlannedHours(shipId ?? null, reportDate));
+  }, [shipId, reportDate]);
+
   useEffect(() => {
     refreshHours();
+    refreshPlanned();
     function onEvt() {
       refreshHours();
+      refreshPlanned();
     }
     window.addEventListener("core:rapportino-hours-updated", onEvt as EventListener);
+    window.addEventListener("core:rapportino-planned-hours-updated", onEvt as EventListener);
     window.addEventListener("storage", onEvt as EventListener);
     return () => {
       window.removeEventListener("core:rapportino-hours-updated", onEvt as EventListener);
+      window.removeEventListener("core:rapportino-planned-hours-updated", onEvt as EventListener);
       window.removeEventListener("storage", onEvt as EventListener);
     };
-  }, [refreshHours]);
+  }, [refreshHours, refreshPlanned]);
 
   const load = useCallback(async () => {
     if (!authReady || !uid) {
@@ -238,65 +259,46 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
       const dedup: TeamItem[] = [];
 
       for (const it of mapped) {
-        if (it.id) {
-          const k = String(it.id);
-          if (seenIds.has(k)) continue;
-          seenIds.add(k);
-          dedup.push(it);
-          continue;
+        const idKey = it.id ? String(it.id) : "";
+        const nameKey = String(it.name || "").trim().toLowerCase();
+        if (idKey) {
+          if (seenIds.has(idKey)) continue;
+          seenIds.add(idKey);
+        } else {
+          if (seenNames.has(nameKey)) continue;
+          seenNames.add(nameKey);
         }
-        const nk = (it.name || "").toLowerCase();
-        if (!nk) continue;
-        if (seenNames.has(nk)) continue;
-        seenNames.add(nk);
         dedup.push(it);
       }
 
       setItems(dedup);
-    } catch (e) {
-      console.error("[CapoTodayOperatorsPanel] load error:", e);
-      setErr(t("CAPO_TODAY_LOAD_ERROR"));
+    } catch (e: any) {
+      setErr(String(e?.message || e || "Errore"));
       setItems([]);
     } finally {
       setLoading(false);
     }
-  }, [authReady, uid, t]);
+  }, [authReady, uid, reportDate]);
 
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      if (!alive) return;
-      await load();
-    })();
-    return () => {
-      alive = false;
-    };
+    load();
   }, [load]);
 
   const filtered = useMemo(() => {
-    const qq = (q || "").trim().toLowerCase();
+    const qq = String(q || "").trim().toLowerCase();
     if (!qq) return items;
-    return items.filter((x) => (x.name || "").toLowerCase().includes(qq));
+    return items.filter((it) => String(it.name || "").toLowerCase().includes(qq));
   }, [items, q]);
 
-  const count = items.length;
+  const count = filtered.length;
 
   if (isCollapsed) {
     return (
-      <div className="flex flex-col items-center gap-2">
-        <div
-          className={cn("w-full rounded-2xl border p-2", "border-slate-800 bg-slate-950/20")}
-          title={t("CAPO_TODAY_TITLE")}
-        >
-          <div className="flex items-center justify-center">
-            <div className="relative">
-              <div className="h-10 w-10 rounded-xl border border-slate-800 bg-slate-950/40 flex items-center justify-center text-slate-200">
-                O
-              </div>
-              <div className="absolute -top-1.5 -right-1.5 rounded-full border border-slate-800 bg-slate-950 px-1.5 py-0.5 text-[10px] font-bold text-slate-100">
-                {loading ? "..." : count}
-              </div>
-            </div>
+      <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{t("CAPO_TODAY_OPERATORS")}</div>
+          <div className="rounded-full border border-slate-800 bg-slate-950/40 px-2.5 py-1 text-[11px] font-semibold text-slate-100">
+            {loading ? "..." : count}
           </div>
         </div>
       </div>
@@ -304,11 +306,11 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
   }
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-950/20 p-3">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{t("CAPO_TODAY_TITLE")}</div>
-          <div className="mt-1 text-[12px] text-slate-300">{t("CAPO_TODAY_SUB")}</div>
+    <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{t("CAPO_TODAY_OPERATORS")}</div>
+          <div className="mt-1 text-[12px] text-slate-400">{t("CAPO_TODAY_HINT")}</div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -316,7 +318,7 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
             type="button"
             onClick={load}
             className={cn(
-              "rounded-full border px-2.5 py-1 text-[11px] font-semibold",
+              "rounded-xl border px-3 py-2 text-[12px] font-semibold",
               "border-slate-800 bg-slate-950/40 text-slate-100 hover:bg-slate-900/35",
               "focus:outline-none focus:ring-2 focus:ring-sky-500/35"
             )}
@@ -369,7 +371,11 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
           ) : (
             filtered.map((it) => {
               const hours = it.id ? (hoursById[String(it.id)] ?? null) : null;
-              const st = statusFromHours(hours, TARGET_HOURS);
+              const targetHoursRaw = it.id ? plannedById[String(it.id)] : undefined;
+              const targetHours =
+                Number.isFinite(Number(targetHoursRaw)) && Number(targetHoursRaw) > 0 ? Number(targetHoursRaw) : DEFAULT_TARGET_HOURS;
+
+              const st = statusFromHours(hours, targetHours);
 
               const tone =
                 st === "COMPLETE"
@@ -380,7 +386,8 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
                   ? "border-rose-400/25 bg-rose-500/10"
                   : "border-sky-400/25 bg-sky-500/10";
 
-              const isSelected = (selected?.id && it.id && String(selected.id) === String(it.id)) || (!selected?.id && selected?.name === it.name);
+              const isSelected =
+                (selected?.id && it.id && String(selected.id) === String(it.id)) || (!selected?.id && selected?.name === it.name);
 
               return (
                 <div
@@ -391,11 +398,8 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
                   onClick={() => setSelected({ id: it.id, name: it.name })}
                   onDragStart={(e) => {
                     try {
-                      // Compatibility: RapportinoTable.readDroppedOperator expects application/json or text/plain.
                       e.dataTransfer.setData("application/json", JSON.stringify({ id: it.id, name: it.name }));
                       e.dataTransfer.setData("text/plain", it.name);
-
-                      // Keep legacy/internal types for older handlers.
                       e.dataTransfer.setData("text/core-operator-name", it.name);
                       if (it.id) e.dataTransfer.setData("text/core-operator-id", String(it.id));
                       e.dataTransfer.effectAllowed = "copy";
@@ -410,9 +414,7 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <div className="text-[12px] font-extrabold leading-4 whitespace-normal break-words">
-                        {it.name}
-                      </div>
+                      <div className="text-[12px] font-extrabold leading-4 whitespace-normal break-words">{it.name}</div>
                       <div className="mt-1 flex items-center gap-2">
                         <span
                           className={cn(
@@ -421,7 +423,7 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
                             "uppercase",
                             "border-slate-800 bg-slate-950/40 text-slate-100"
                           )}
-                          title="Stato calcolato solo dalle ore inserite nel rapportino"
+                          title="Stato calcolato da ore rapportino vs ore pianificate (se disponibili)"
                         >
                           {statusBadgeLabel(st)}
                         </span>
@@ -440,9 +442,13 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
                           "text-[11px] font-extrabold",
                           "border-slate-800 bg-slate-950/40 text-slate-100"
                         )}
-                        title={it.id ? `Ore dal rapportino: ${formatHoursBadge(hours)}` : "Ore non disponibili (legacy)"}
+                        title={
+                          it.id
+                            ? `Ore dal rapportino: ${formatHoursBadge(hours)} · Pianificate: ${formatHoursBadge(targetHours)}`
+                            : "Ore non disponibili (legacy)"
+                        }
                       >
-                        {formatHoursBadge(hours)}
+                        {`${formatHoursBadge(hours)}/${formatHoursBadge(targetHours)}`}
                       </span>
                     </div>
                   </div>
@@ -461,7 +467,20 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
                   {selected.name}
                 </div>
                 <div className="mt-1 text-[12px] text-slate-300">
-                  Ore: <span className="font-extrabold text-slate-100">{formatHoursBadge(selected.id ? (hoursById[String(selected.id)] ?? null) : null)}</span>
+                  Ore:{" "}
+                  <span className="font-extrabold text-slate-100">
+                    {formatHoursBadge(selected.id ? (hoursById[String(selected.id)] ?? null) : null)}
+                  </span>{" "}
+                  <span className="text-slate-500">/</span>{" "}
+                  <span className="font-extrabold text-slate-100">
+                    {formatHoursBadge(
+                      selected.id
+                        ? Number.isFinite(Number(plannedById[String(selected.id)])) && Number(plannedById[String(selected.id)]) > 0
+                          ? Number(plannedById[String(selected.id)])
+                          : DEFAULT_TARGET_HOURS
+                        : DEFAULT_TARGET_HOURS
+                    )}
+                  </span>
                 </div>
               </div>
 
@@ -480,7 +499,9 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
               </button>
             </div>
 
-            <div className="mt-2 text-[11px] text-slate-400">Suggerimento: trascina la pill su una riga del rapport per aggiungerlo.</div>
+            <div className="mt-2 text-[11px] text-slate-400">
+              Suggerimento: trascina la pill su una riga del rapport per aggiungerlo.
+            </div>
           </div>
         ) : null}
       </div>
