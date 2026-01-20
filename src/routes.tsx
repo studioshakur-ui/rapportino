@@ -9,7 +9,8 @@ import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Unauthorized from "./pages/Unauthorized";
 import ForcePasswordChange from "./pages/ForcePasswordChange";
-
+// IMPORTANT: explicit extension to avoid resolving legacy .jsx
+import CapoRoleSelector from "./pages/CapoRoleSelector.tsx";
 // SHELLS
 import AppShell from "./shells/AppShell";
 // NOTE: dans ton ZIP actuel c'est UfficioShell.jsx, donc on garde l'import sans extension.
