@@ -1,38 +1,55 @@
 // src/i18n/CoreI18n.ts
-// Canonical i18n entrypoint for CORE.
+//
+// CORE canonical i18n entrypoint.
+//
+// In this repo, the real implementation is in:
+// - I18nProvider.tsx (react context + useI18n)
+// - dictionaries.ts (main dictionaries for app strings)
+// - dict.ts (login-specific dictionary)
 //
 // IMPORTANT:
-// - Netlify runs on Linux (case-sensitive FS). Avoid CoreI18n/coreI18n circular re-exports.
-// - This file is the single source of truth. `coreI18n.ts` is only a compatibility shim.
+// - Netlify (Linux) is case-sensitive.
+// - Avoid ANY circular re-export between CoreI18n.ts and coreI18n.ts.
 
-import type { Lang } from "./I18nProvider";
-import { I18nProvider, LANGS, getInitialLang, setLangStorage, useI18n } from "./I18nProvider";
-import { dictionaries } from "./dictionaries";
+export type { Lang } from "./I18nProvider";
 
-export type { Lang };
+export {
+  I18nProvider,
+  LANGS,
+  getInitialLang,
+  setLangStorage,
+  useI18n,
+} from "./I18nProvider";
 
-export { I18nProvider, LANGS, getInitialLang, setLangStorage, useI18n };
+// Back-compat hook name expected by Direzione/KPI components
+// (must return the same shape as useI18n()).
+export { useI18n as useCoreI18n } from "./I18nProvider";
 
-// Back-compat hook name used across Direzione/KPI components.
-export const useCoreI18n = useI18n;
+// Re-export dictionaries for places that need direct access (rare, but sometimes useful)
+export { dictionaries } from "./dictionaries";
+
+// Re-export login dictionary (if some pages import it through CoreI18n)
+export { dict as loginDict } from "./dict";
+export type { LoginKey } from "./dict";
 
 /**
- * Back-compat stateless translator used by some Admin pages.
+ * Stateless translator helper.
+ * Useful in non-react contexts (rare) or legacy admin pages.
  *
- * Contract:
- * - t(lang, key, fallback?) -> string
- * - lang can be 'it' | 'fr' | 'en' or any string (defaults to 'it')
+ * Notes:
+ * - It uses dictionaries.ts as source of truth.
+ * - It falls back to Italian if key missing in target language.
  */
 export function t(lang: Lang | string, key: string, fallback = "—"): string {
-  const l = (LANGS as readonly string[]).includes(String(lang)) ? (String(lang) as Lang) : ("it" as Lang);
+  const safeLang = (["it", "fr", "en"] as const).includes(lang as any) ? (lang as Lang) : ("it" as Lang);
   const k = String(key || "").trim();
   if (!k) return fallback;
 
-  const v = (dictionaries as Record<Lang, Record<string, string>>)?.[l]?.[k];
-  if (typeof v === "string" && v.trim()) return v;
+  const fromLang = dictionaries?.[safeLang]?.[k];
+  if (typeof fromLang === "string" && fromLang.trim()) return fromLang;
 
-  const vIt = (dictionaries as Record<Lang, Record<string, string>>)?.it?.[k];
-  if (typeof vIt === "string" && vIt.trim()) return vIt;
+  const fromIt = dictionaries?.it?.[k];
+  if (typeof fromIt === "string" && fromIt.trim()) return fromIt;
 
   return fallback;
 }
