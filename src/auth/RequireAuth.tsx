@@ -26,10 +26,18 @@ export default function RequireAuth({ children }: { children: React.ReactNode })
 
   // ✅ Grace UX: don't hard redirect while rehydrating
   if (rehydrating) {
+    // IMPORTANT: Never unmount the app UI during a tab-switch / wake rehydrate.
+    // Otherwise React state resets (forms, filters, selected operators, scroll, etc.).
     return (
-      <div className="w-full h-screen flex items-center justify-center text-slate-300">
-        Riconnessione…
-      </div>
+      <>
+        {children}
+        <div
+          aria-live="polite"
+          className="fixed bottom-3 right-3 z-50 pointer-events-none rounded-xl border border-slate-700/60 bg-slate-950/70 px-3 py-2 text-[12px] text-slate-200 shadow-lg"
+        >
+          Riconnessione…
+        </div>
+      </>
     );
   }
 
