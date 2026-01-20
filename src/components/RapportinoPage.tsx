@@ -830,6 +830,7 @@ export default function RapportinoPage() {
               "w-full"
             )}
           >
+            <div className="core-print-signature print-only">Copyright © 2026 CNCS — CORE</div>
             <RapportinoHeader
               costr={costr}
               commessa={commessa}

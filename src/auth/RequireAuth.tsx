@@ -1,7 +1,6 @@
 // src/auth/RequireAuth.tsx
 import React, { useCallback } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-
 import { useAuth } from "./AuthProvider";
 
 export default function RequireAuth({ children }: { children: React.ReactNode }): JSX.Element {
@@ -24,21 +23,9 @@ export default function RequireAuth({ children }: { children: React.ReactNode })
     );
   }
 
-  // ✅ Grace UX: don't hard redirect while rehydrating
+  // ✅ Zéro perturbation sur tab-switch/focus
   if (rehydrating) {
-    // IMPORTANT: Never unmount the app UI during a tab-switch / wake rehydrate.
-    // Otherwise React state resets (forms, filters, selected operators, scroll, etc.).
-    return (
-      <>
-        {children}
-        <div
-          aria-live="polite"
-          className="fixed bottom-3 right-3 z-50 pointer-events-none rounded-xl border border-slate-700/60 bg-slate-950/70 px-3 py-2 text-[12px] text-slate-200 shadow-lg"
-        >
-          Riconnessione…
-        </div>
-      </>
-    );
+    return <>{children}</>;
   }
 
   if (status === "UNAUTHENTICATED") {

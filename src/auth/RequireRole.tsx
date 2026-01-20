@@ -5,10 +5,6 @@ import { useAuth } from "./AuthProvider";
 import LoadingScreen from "../components/LoadingScreen";
 
 type RequireRoleProps = {
-  /**
-   * Canonique: utiliser "allowed".
-   * On garde "allow" pour rétro-compatibilité.
-   */
   allowed?: string[];
   allow?: string[];
   children: ReactNode;
@@ -25,20 +21,21 @@ export default function RequireRole({ allow, allowed, children }: RequireRolePro
 
   const ready = typeof authReady === "boolean" ? authReady : Boolean(isReady);
 
+  // Boot initial uniquement
   if (!ready || loading) {
     return <LoadingScreen message="Inizializzazione sicurezza CORE…" />;
   }
 
-  // ✅ Grace UX: on tab return, avoid unauthorized while rehydrating
+  // ✅ IMPORTANT: Sur tab-switch/focus, on ne casse jamais l’UI.
+  // Rehydrate doit être invisible.
   if (rehydrating) {
-    return <LoadingScreen message="Riconnessione…" />;
+    return <>{children}</>;
   }
 
   if (!session) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
-  // Enforce password change globally, but avoid redirect loop
   const isForcePwdRoute = location.pathname.startsWith("/force-password-change");
   const p = profile as unknown as ProfileLike | null;
 
@@ -48,19 +45,17 @@ export default function RequireRole({ allow, allowed, children }: RequireRolePro
 
   const roles: string[] = Array.isArray(allowed) ? allowed : Array.isArray(allow) ? allow : [];
 
-  // If no role constraint => allow
   if (roles.length === 0) {
     return <>{children}</>;
   }
 
-  // ✅ KEY FIX: if profile isn't loaded yet, do NOT redirect to unauthorized
+  // Ici on garde le loader uniquement sur premier chargement “vrai”
   if (!p) {
     return <LoadingScreen message="Caricamento profilo…" />;
   }
 
   const appRole = p.app_role ?? null;
 
-  // Now profile exists. If app_role missing => true unauthorized (data issue)
   if (!appRole) {
     return <Navigate to="/unauthorized" replace />;
   }

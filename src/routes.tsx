@@ -1,5 +1,4 @@
 // src/routes.tsx
-import React from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 
 import RequireAuth from "./auth/RequireAuth";
@@ -9,17 +8,13 @@ import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Unauthorized from "./pages/Unauthorized";
 import ForcePasswordChange from "./pages/ForcePasswordChange";
-// IMPORTANT: explicit extension to avoid resolving legacy .jsx
-import CapoRoleSelector from "./pages/CapoRoleSelector.tsx";
+
 // SHELLS
 import AppShell from "./shells/AppShell";
-// NOTE: dans ton ZIP actuel c'est UfficioShell.jsx, donc on garde l'import sans extension.
-// Si tu migres en TSX, tu peux repasser en "./shells/UfficioShell.tsx".
 import UfficioShell from "./shells/UfficioShell";
 import DirectionShell from "./shells/DirectionShell";
 import ManagerShell from "./shells/ManagerShell";
-// IMPORTANT: explicit extension to avoid resolving the legacy AdminShell.jsx
-import AdminShell from "./admin/AdminShell.tsx";
+import AdminShell from "./admin/AdminShell";
 
 // CAPO
 import RapportinoPage from "./components/RapportinoPage";
@@ -28,7 +23,7 @@ import CapoOperatorKpi from "./features/kpi/pages/CapoOperatorKpi";
 import CapoMegaKpiStesura from "./features/kpi/pages/CapoMegaKpiStesura";
 import CapoModuleSelector from "./pages/CapoModuleSelector";
 import CapoTeamOrganizerPage from "./pages/CapoTeamOrganizerPage";
-import CapoRoleSelector from "./pages/CapoRoleSelector";
+import CapoRoleSelector from "./capo/CapoRoleSelector";
 import IncaCapoCockpit from "./capo/IncaCapoCockpit";
 
 // CAPO SIMPLE (new)
@@ -36,7 +31,7 @@ import CapoEntryRouter from "./capo/simple/CapoEntryRouter";
 import CapoPresencePage from "./capo/simple/CapoPresencePage";
 
 // PRINT (1 page)
-import RapportinoSheet from "./components/RapportinoSheet.tsx";
+import RapportinoSheet from "./components/RapportinoSheet";
 
 // ADMIN
 import AdminUsersPage from "./admin/AdminUsersPage";
@@ -45,15 +40,14 @@ import AdminCatalogoPage from "./admin/AdminCatalogoPage";
 import AdminPlanningPage from "./admin/AdminPlanningPage";
 import AdminAssignmentsPage from "./admin/AdminAssignmentsPage";
 import AdminAuditPage from "./admin/AdminAuditPage";
-// IMPORTANT: explicit extension to avoid resolving the legacy AdminPerimetersPage.jsx
-import AdminPerimetersPage from "./admin/AdminPerimetersPage.tsx";
+import AdminPerimetersPage from "./admin/AdminPerimetersPage";
 
 // UFFICIO
 import UfficioRapportiniList from "./ufficio/UfficioRapportiniList";
 import UfficioRapportinoDetail from "./ufficio/UfficioRapportinoDetail";
 import UfficioIncaHub from "./ufficio/UfficioIncaHub";
 
-// DIRECTION
+// DIREZIONE
 import DirectionDashboard from "./components/DirectionDashboard";
 
 // MANAGER

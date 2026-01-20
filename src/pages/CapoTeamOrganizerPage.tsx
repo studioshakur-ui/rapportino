@@ -1,5 +1,5 @@
 // src/pages/CapoTeamOrganizerPage.tsx
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { useShip } from "../context/ShipContext";
@@ -50,6 +50,8 @@ type OperatorRow = {
   nome?: string | null;
   cognome?: string | null;
 };
+
+type SaveBadgeState = "IDLE" | "SAVING" | "SAVED" | "ERROR";
 
 function safeStr(x: unknown): string {
   if (x === null || x === undefined) return "";
@@ -113,6 +115,96 @@ export default function CapoTeamOrganizerPage(): JSX.Element {
   const [operatorResults, setOperatorResults] = useState<OperatorRow[]>([]);
   const [operatorsById, setOperatorsById] = useState<Map<string, OperatorRow>>(new Map());
 
+  /**
+   * Saving badges (per team & per member) to make autosave explicit.
+   * Keys:
+   *  - team:<teamId>
+   *  - member:<memberId>
+   */
+  const [saveBadgeByKey, setSaveBadgeByKey] = useState<Record<string, SaveBadgeState>>({});
+
+  const setBadge = useCallback((key: string, v: SaveBadgeState) => {
+    setSaveBadgeByKey((prev) => {
+      if (prev[key] === v) return prev;
+      return { ...prev, [key]: v };
+    });
+  }, []);
+
+  /**
+   * Debounce scheduler with flush-on-blur and flush-on-unmount.
+   * We store latest job per key, so typing does NOT trigger reload and does NOT lose focus.
+   */
+  type DebouncedJob = {
+    t: ReturnType<typeof setTimeout> | null;
+    run: () => Promise<void>;
+  };
+
+  const jobsRef = useRef<Record<string, DebouncedJob>>({});
+
+  const scheduleDebounced = useCallback(
+    (key: string, run: () => Promise<void>, delayMs = 600) => {
+      const existing = jobsRef.current[key];
+      if (existing?.t) clearTimeout(existing.t);
+
+      setBadge(key, "SAVING");
+
+      const t = setTimeout(() => {
+        // Execute the latest run()
+        void run()
+          .then(() => {
+            setBadge(key, "SAVED");
+            // auto-clear badge back to IDLE after a short time (keeps UI clean)
+            setTimeout(() => setBadge(key, "IDLE"), 900);
+          })
+          .catch(() => {
+            setBadge(key, "ERROR");
+          })
+          .finally(() => {
+            const cur = jobsRef.current[key];
+            if (cur) jobsRef.current[key] = { ...cur, t: null };
+          });
+      }, delayMs);
+
+      jobsRef.current[key] = { t, run };
+    },
+    [setBadge]
+  );
+
+  const flushDebounced = useCallback(
+    (key: string) => {
+      const job = jobsRef.current[key];
+      if (!job) return;
+      if (job.t) {
+        clearTimeout(job.t);
+        jobsRef.current[key] = { ...job, t: null };
+      }
+
+      setBadge(key, "SAVING");
+      void job
+        .run()
+        .then(() => {
+          setBadge(key, "SAVED");
+          setTimeout(() => setBadge(key, "IDLE"), 900);
+        })
+        .catch(() => {
+          setBadge(key, "ERROR");
+        });
+    },
+    [setBadge]
+  );
+
+  const flushAllDebounced = useCallback(() => {
+    const keys = Object.keys(jobsRef.current);
+    for (const k of keys) flushDebounced(k);
+  }, [flushDebounced]);
+
+  useEffect(() => {
+    return () => {
+      // On route change/unmount: flush pending writes to avoid losing last edits.
+      flushAllDebounced();
+    };
+  }, [flushAllDebounced]);
+
   const resolvedShip = useMemo(() => {
     if (!shipId) return null;
     const sid = String(shipId);
@@ -167,6 +259,29 @@ export default function CapoTeamOrganizerPage(): JSX.Element {
   useEffect(() => {
     load();
   }, [load]);
+
+  /**
+   * Local patch helpers (NO reload; preserve focus/scroll)
+   */
+  const patchTeamLocal = useCallback(
+    (teamId: string, patch: Partial<Pick<TeamRow, "name" | "deck" | "zona" | "activity_code" | "note">>) => {
+      setPayload((prev) => ({
+        ...prev,
+        teams: (prev.teams || []).map((t) => (t.id === teamId ? { ...t, ...patch } : t)),
+      }));
+    },
+    []
+  );
+
+  const patchMemberLocalMinutes = useCallback((memberId: string, plannedMinutes: number) => {
+    setPayload((prev) => ({
+      ...prev,
+      teams: (prev.teams || []).map((t) => ({
+        ...t,
+        members: (t.members || []).map((m) => (m.id === memberId ? { ...m, planned_minutes: plannedMinutes } : m)),
+      })),
+    }));
+  }, []);
 
   const ensureDayAndDefaults = useCallback(async (): Promise<string> => {
     if (!shipId) throw new Error("missing shipId");
@@ -244,20 +359,34 @@ export default function CapoTeamOrganizerPage(): JSX.Element {
     }
   }, [ensureDayAndDefaults, load, payload.day?.id, payload.teams]);
 
-  const updateTeamMeta = useCallback(
-    async (teamId: string, patch: Partial<Pick<TeamRow, "name" | "deck" | "zona" | "activity_code" | "note">>) => {
-      setError(null);
-      try {
-        const { error } = await supabase.from("capo_teams").update(patch).eq("id", teamId);
-        if (error) throw error;
-        await load();
-      } catch (e: any) {
-        console.error("[CapoTeamOrganizer] updateTeamMeta error:", e);
-        setError("Impossibile aggiornare la squadra.");
-      }
+  /**
+   * =========================
+   * TEAM META (debounced)
+   * =========================
+   * IMPORTANT: no load() here. We patch local state and debounce DB write.
+   */
+  const commitTeamMeta = useCallback(
+    async (
+      teamId: string,
+      patch: Partial<Pick<TeamRow, "name" | "deck" | "zona" | "activity_code" | "note">>
+    ) => {
+      const { error } = await supabase.from("capo_teams").update(patch).eq("id", teamId);
+      if (error) throw error;
     },
-    [load]
+    []
   );
+
+  /**
+   * =========================
+   * MEMBER MINUTES (debounced)
+   * =========================
+   * IMPORTANT: no load() here. We patch local state and debounce DB write.
+   */
+  const commitMemberMinutes = useCallback(async (memberId: string, minutes: number) => {
+    const planned = Number.isFinite(minutes) ? Math.max(0, Math.min(24 * 60, minutes)) : 0;
+    const { error } = await supabase.from("capo_team_members").update({ planned_minutes: planned }).eq("id", memberId);
+    if (error) throw error;
+  }, []);
 
   const removeTeam = useCallback(
     async (teamId: string) => {
@@ -294,22 +423,6 @@ export default function CapoTeamOrganizerPage(): JSX.Element {
       }
     },
     [load, payload.teams]
-  );
-
-  const updateMemberMinutes = useCallback(
-    async (memberId: string, minutes: number) => {
-      setError(null);
-      try {
-        const planned = Number.isFinite(minutes) ? Math.max(0, Math.min(24 * 60, minutes)) : 0;
-        const { error } = await supabase.from("capo_team_members").update({ planned_minutes: planned }).eq("id", memberId);
-        if (error) throw error;
-        await load();
-      } catch (e: any) {
-        console.error("[CapoTeamOrganizer] updateMemberMinutes error:", e);
-        setError("Impossibile aggiornare le ore.");
-      }
-    },
-    [load]
   );
 
   const removeMember = useCallback(
@@ -375,7 +488,7 @@ export default function CapoTeamOrganizerPage(): JSX.Element {
   }, [payload.teams]);
 
   const shipLabel = useMemo(() => {
-    const s = resolvedShip;
+    const s = resolvedShip as any;
     if (s?.name) return s.name;
     if (s?.code) return String(s.code);
     return shipId ? String(shipId) : "Nave";
@@ -390,6 +503,17 @@ export default function CapoTeamOrganizerPage(): JSX.Element {
   };
 
   const isEmpty = !payload.day;
+
+  const badgeForKey = useCallback(
+    (key: string): { label: string; tone: "slate" | "emerald" | "violet" | "rose" } => {
+      const s = saveBadgeByKey[key] ?? "IDLE";
+      if (s === "SAVING") return { label: "Saving", tone: "violet" };
+      if (s === "SAVED") return { label: "Saved", tone: "emerald" };
+      if (s === "ERROR") return { label: "Error", tone: "rose" };
+      return { label: "", tone: "slate" };
+    },
+    [saveBadgeByKey]
+  );
 
   return (
     <div className="p-4 sm:p-6 space-y-4">
@@ -547,6 +671,9 @@ export default function CapoTeamOrganizerPage(): JSX.Element {
                   : [];
                 const total = members.reduce((acc, m) => acc + (Number(m.planned_minutes) || 0), 0);
 
+                const teamKey = `team:${team.id}`;
+                const teamBadge = badgeForKey(teamKey);
+
                 return (
                   <div key={team.id} className="rounded-2xl border border-slate-800/60 bg-slate-950/40 p-4">
                     <div className="flex items-start justify-between gap-3">
@@ -555,33 +682,60 @@ export default function CapoTeamOrganizerPage(): JSX.Element {
                           <input
                             type="text"
                             value={team.name}
-                            onChange={(e) => updateTeamMeta(team.id, { name: e.target.value })}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              patchTeamLocal(team.id, { name: v });
+                              scheduleDebounced(teamKey, async () => commitTeamMeta(team.id, { name: v }), 600);
+                            }}
+                            onBlur={() => flushDebounced(teamKey)}
                             className="w-full max-w-[320px] rounded-xl border border-slate-700/60 bg-slate-950/40 px-3 py-2 text-sm text-slate-100"
                           />
+
                           <span className={corePills(true, "slate", "text-[10px] px-2 py-0.5")}>
                             {minutesToHoursLabel(total)}
                           </span>
+
+                          {teamBadge.label ? (
+                            <span className={corePills(true, teamBadge.tone, "text-[10px] px-2 py-0.5")}>
+                              {teamBadge.label}
+                            </span>
+                          ) : null}
                         </div>
 
                         <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
                           <input
                             type="text"
                             value={team.deck ?? ""}
-                            onChange={(e) => updateTeamMeta(team.id, { deck: e.target.value || null })}
+                            onChange={(e) => {
+                              const v = e.target.value || null;
+                              patchTeamLocal(team.id, { deck: v });
+                              scheduleDebounced(teamKey, async () => commitTeamMeta(team.id, { deck: v }), 600);
+                            }}
+                            onBlur={() => flushDebounced(teamKey)}
                             placeholder="Ponte"
                             className="rounded-xl border border-slate-800/60 bg-slate-950/40 px-3 py-2 text-xs text-slate-200 placeholder:text-slate-600"
                           />
                           <input
                             type="text"
                             value={team.zona ?? ""}
-                            onChange={(e) => updateTeamMeta(team.id, { zona: e.target.value || null })}
+                            onChange={(e) => {
+                              const v = e.target.value || null;
+                              patchTeamLocal(team.id, { zona: v });
+                              scheduleDebounced(teamKey, async () => commitTeamMeta(team.id, { zona: v }), 600);
+                            }}
+                            onBlur={() => flushDebounced(teamKey)}
                             placeholder="Zona"
                             className="rounded-xl border border-slate-800/60 bg-slate-950/40 px-3 py-2 text-xs text-slate-200 placeholder:text-slate-600"
                           />
                           <input
                             type="text"
                             value={team.activity_code ?? ""}
-                            onChange={(e) => updateTeamMeta(team.id, { activity_code: e.target.value || null })}
+                            onChange={(e) => {
+                              const v = e.target.value || null;
+                              patchTeamLocal(team.id, { activity_code: v });
+                              scheduleDebounced(teamKey, async () => commitTeamMeta(team.id, { activity_code: v }), 600);
+                            }}
+                            onBlur={() => flushDebounced(teamKey)}
                             placeholder="Attivita (codice)"
                             className="rounded-xl border border-slate-800/60 bg-slate-950/40 px-3 py-2 text-xs text-slate-200 placeholder:text-slate-600"
                           />
@@ -607,6 +761,10 @@ export default function CapoTeamOrganizerPage(): JSX.Element {
                       {members.map((m) => {
                         const op = operatorsById.get(String(m.operator_id));
                         const label = buildOperatorLabel(op, String(m.operator_id));
+
+                        const memberKey = `member:${m.id}`;
+                        const memberBadge = badgeForKey(memberKey);
+
                         return (
                           <div
                             key={m.id}
@@ -627,13 +785,29 @@ export default function CapoTeamOrganizerPage(): JSX.Element {
                                 onChange={(e) => {
                                   const hours = Number(e.target.value);
                                   const mins = Number.isFinite(hours) ? Math.round(hours * 60) : 0;
-                                  updateMemberMinutes(m.id, mins);
+
+                                  patchMemberLocalMinutes(m.id, mins);
+
+                                  scheduleDebounced(
+                                    memberKey,
+                                    async () => commitMemberMinutes(m.id, mins),
+                                    600
+                                  );
                                 }}
+                                onBlur={() => flushDebounced(memberKey)}
                                 className="w-[96px] rounded-xl border border-slate-700/60 bg-slate-950/40 px-3 py-2 text-xs text-slate-100"
                               />
+
                               <span className={corePills(true, "slate", "text-[10px] px-2 py-0.5")}>
                                 {minutesToHoursLabel(Number(m.planned_minutes) || 0)}
                               </span>
+
+                              {memberBadge.label ? (
+                                <span className={corePills(true, memberBadge.tone, "text-[10px] px-2 py-0.5")}>
+                                  {memberBadge.label}
+                                </span>
+                              ) : null}
+
                               <button
                                 type="button"
                                 onClick={() => removeMember(m.id)}

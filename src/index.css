@@ -174,10 +174,10 @@
    PRINT — A4 LANDSCAPE (1 page)
    ========================= */
 @media print {
-  /* Reserve a little more bottom margin for the fixed footer */
+  /* Print layout (A4 landscape). Signature is page-bound (no fixed footer). */
   @page {
     size: A4 landscape;
-    margin: 8mm 8mm 14mm 8mm;
+    margin: 8mm;
   }
 
   html, body {
@@ -206,6 +206,10 @@
     margin: 0 !important;
     padding: 0 !important;
     background: #fff !important;
+  
+    min-height: 0 !important;
+    height: 100% !important;
+    overflow: hidden !important;
   }
 
   .rapportino-document {
@@ -262,11 +266,14 @@
     outline: none !important;
   }
 
+  /* Avoid phantom extra page caused by 100vh in print */
+  .min-h-screen { min-height: 0 !important; }
+
   /* A4 landscape inner box (minus margins) */
   .core-print-page {
-    /* approximate inner printable area: 297x210 minus margins (8+8 horizontal, 8+14 vertical) */
+    /* approximate inner printable area: 297x210 minus margins (8mm all sides) */
     width: 281mm;
-    height: 188mm;
+    height: 194mm;
     margin: 0 auto;
     overflow: hidden;
     position: relative;
@@ -277,15 +284,15 @@
     transform: scale(var(--core-print-scale, 1));
   }
 
-  .core-print-footer {
-    position: fixed;
-    left: 0;
-    right: 0;
+  .core-print-signature {
+    position: absolute;
+    right: 6mm;
     bottom: 4mm;
-    text-align: center;
     font-size: 9px;
     letter-spacing: 0.22em;
-    color: #64748b;
     text-transform: uppercase;
+    color: rgba(0,0,0,0.45);
+    user-select: none;
+    pointer-events: none;
   }
 }

@@ -1,9 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 import LoadingScreen from "../components/LoadingScreen";
 import IncaCockpitModal from "../features/inca/IncaCockpitModal";
-import IncaImportModal from "../features/inca/IncaImportModal";
+// IMPORTANT: explicit extension to avoid resolving legacy IncaImportModal.jsx
+import IncaImportModal from "../features/inca/IncaImportModal.tsx";
+import { clearIncaImportDraft, readIncaImportDraft } from "../features/inca/incaImportDraft";
 import { usePersistedSearchParam } from "../utils/usePersistedSearchParam";
 
 type IncaFileRow = {
@@ -31,6 +33,25 @@ export default function UfficioIncaHub(): JSX.Element {
 
   const [cockpitOpen, setCockpitOpen] = useState<boolean>(false);
   const [importOpen, setImportOpen] = useState<boolean>(false);
+
+  // iOS/Safari can kill the webview when opening the native file picker.
+  // We resume the import modal from a sessionStorage draft if it was open.
+  const didResumeImportRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    if (didResumeImportRef.current) return;
+    didResumeImportRef.current = true;
+
+    const d = readIncaImportDraft();
+    if (d?.open) {
+      setImportOpen(true);
+    }
+  }, []);
+
+  const handleImportClose = useCallback(() => {
+    clearIncaImportDraft();
+    setImportOpen(false);
+  }, []);
 
   const loadFiles = useCallback(async (): Promise<IncaFileRow[]> => {
     const { data, error: e } = await supabase
@@ -106,8 +127,6 @@ export default function UfficioIncaHub(): JSX.Element {
     return () => {
       alive = false;
     };
-    // IMPORTANT: loadFiles + ensureValidSelection are stable callbacks.
-    // selectedFileId is read once for initial selection; it will NOT cause refetch loops.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadFiles, ensureValidSelection, setSelectedFileId]);
 
@@ -338,11 +357,12 @@ export default function UfficioIncaHub(): JSX.Element {
 
       <IncaImportModal
         open={importOpen}
-        onClose={() => setImportOpen(false)}
+        onClose={handleImportClose}
         defaultCostr={headerCostr || ""}
         defaultCommessa={headerCommessa || ""}
         onImported={async (data: any) => {
           const newId: string | null = data?.inca_file_id || data?.inca_file?.id || null;
+          clearIncaImportDraft();
           setImportOpen(false);
 
           // No hard reload. Refresh data and keep the new selection.
