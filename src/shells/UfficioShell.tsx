@@ -6,6 +6,7 @@ import { useAuth } from "../auth/AuthProvider";
 import ConnectionIndicator from "../components/ConnectionIndicator";
 import CNCSSidebar from "../components/shell/CNCSSidebar";
 import CNCSTopbar from "../components/shell/CNCSTopbar";
+import KeepAliveOutlet from "../utils/KeepAliveOutlet";
 
 type ThemeMode = "dark" | "light";
 
@@ -196,7 +197,8 @@ export default function UfficioShell(): JSX.Element {
 
           <div className="max-w-6xl mx-auto space-y-4 pt-4">
             <div className="border rounded-2xl overflow-hidden border-slate-800 bg-[#050910]">
-              <Outlet />
+            <KeepAliveOutlet scopeKey="ufficio" />
+
             </div>
           </div>
         </main>

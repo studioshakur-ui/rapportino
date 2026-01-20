@@ -9,6 +9,7 @@ import ArchivePage from "../pages/Archive";
 import CorePresentationPopup from "../components/CorePresentationPopup";
 import CorePresentation from "../pages/CorePresentation";
 import CapoPresentation from "../pages/CapoPresentation";
+import KeepAliveOutlet from "../utils/KeepAliveOutlet";
 
 import UfficioRapportiniList from "../ufficio/UfficioRapportiniList";
 import UfficioRapportinoDetail from "../ufficio/UfficioRapportinoDetail";

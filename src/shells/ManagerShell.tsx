@@ -7,6 +7,7 @@ import ConnectionIndicator from "../components/ConnectionIndicator";
 import CNCSSidebar from "../components/shell/CNCSSidebar";
 import CNCSTopbar from "../components/shell/CNCSTopbar";
 import LangSwitcher from "../components/shell/LangSwitcher";
+import KeepAliveOutlet from "../utils/KeepAliveOutlet";
 
 import { useI18n } from "../i18n/I18nProvider";
 import { formatDisplayName } from "../utils/formatHuman";
@@ -152,7 +153,8 @@ export default function ManagerShell() {
 
           <div className="max-w-6xl mx-auto pt-4">
             <div className="border rounded-2xl border-slate-800 bg-[#050910]">
-              <Outlet context={{ lang }} />
+              <KeepAliveOutlet scopeKey="manager" context={{ lang }} />
+
             </div>
           </div>
         </main>

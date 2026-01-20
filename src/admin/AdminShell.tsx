@@ -1,6 +1,7 @@
 // src/admin/AdminShell.tsx
 import React, { useMemo, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
+import KeepAliveOutlet from "../utils/KeepAliveOutlet";
 
 type Lang = "it" | "fr" | "en";
 
@@ -148,7 +149,8 @@ export default function AdminShell(): JSX.Element {
               </div>
 
               <div className="p-4">
-                <Outlet context={outletCtx} />
+               <KeepAliveOutlet scopeKey="admin" context={outletCtx} />
+
               </div>
             </div>
           </main>

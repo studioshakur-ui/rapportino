@@ -5,6 +5,7 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { useShip } from "../context/ShipContext";
 import { supabase } from "../lib/supabaseClient";
+import KeepAliveOutlet from "../utils/KeepAliveOutlet";
 
 import IdleSessionManager from "../auth/IdleSessionManager";
 import ConnectionIndicator from "../components/ConnectionIndicator";
@@ -382,7 +383,8 @@ export default function AppShell(): JSX.Element {
             {/* CONTENT */}
             <div className="flex-1 min-h-0 overflow-auto">
               <div className={`${contentWrapClass} px-3 sm:px-4 pb-6`}>
-                <Outlet context={{ opDropToken } as OutletCtx} />
+               <KeepAliveOutlet scopeKey="app" context={{ opDropToken } as OutletCtx} />
+
               </div>
             </div>
           </main>
