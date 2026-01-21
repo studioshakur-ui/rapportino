@@ -116,6 +116,13 @@ export default function CapoTeamOrganizerPage(): JSX.Element {
   const [operatorsById, setOperatorsById] = useState<Map<string, OperatorRow>>(new Map());
 
   /**
+   * ✅ iOS hard safety: ignore header actions for a short period after mount.
+   * This defeats "tap-through" landing on the Indietro button.
+   */
+  const mountedAtRef = useRef<number>(Date.now());
+  const headerArmed = (): boolean => Date.now() - mountedAtRef.current > 900;
+
+  /**
    * Saving badges (per team & per member) to make autosave explicit.
    * Keys:
    *  - team:<teamId>
@@ -149,11 +156,9 @@ export default function CapoTeamOrganizerPage(): JSX.Element {
       setBadge(key, "SAVING");
 
       const t = setTimeout(() => {
-        // Execute the latest run()
         void run()
           .then(() => {
             setBadge(key, "SAVED");
-            // auto-clear badge back to IDLE after a short time (keeps UI clean)
             setTimeout(() => setBadge(key, "IDLE"), 900);
           })
           .catch(() => {
@@ -200,7 +205,6 @@ export default function CapoTeamOrganizerPage(): JSX.Element {
 
   useEffect(() => {
     return () => {
-      // On route change/unmount: flush pending writes to avoid losing last edits.
       flushAllDebounced();
     };
   }, [flushAllDebounced]);
@@ -218,7 +222,6 @@ export default function CapoTeamOrganizerPage(): JSX.Element {
 
   useEffect(() => {
     if (!resolvedShip) return;
-    // Keep ShipContext aligned (KPI, other modules depend on it)
     setCurrentShip(resolvedShip);
   }, [resolvedShip, setCurrentShip]);
 
@@ -230,7 +233,6 @@ export default function CapoTeamOrganizerPage(): JSX.Element {
       const res = await rpcGetTeamDay(String(shipId), planDate);
       setPayload(res);
 
-      // Best-effort: resolve operator labels for members
       const ids = Array.from(
         new Set(
           (res.teams || [])
@@ -289,7 +291,6 @@ export default function CapoTeamOrganizerPage(): JSX.Element {
 
     setSaving(true);
     try {
-      // 1) Upsert day (canonical owner = uid)
       const { data: dayRows, error: dayErr } = await supabase
         .from("capo_team_days")
         .upsert(
@@ -307,7 +308,6 @@ export default function CapoTeamOrganizerPage(): JSX.Element {
       const dayId = String((dayRows as any)?.[0]?.id || "");
       if (!dayId) throw new Error("day_id_not_returned");
 
-      // 2) If no teams, create defaults A/B
       const { data: teamCheck, error: teamCheckErr } = await supabase
         .from("capo_teams")
         .select("id")
@@ -359,12 +359,6 @@ export default function CapoTeamOrganizerPage(): JSX.Element {
     }
   }, [ensureDayAndDefaults, load, payload.day?.id, payload.teams]);
 
-  /**
-   * =========================
-   * TEAM META (debounced)
-   * =========================
-   * IMPORTANT: no load() here. We patch local state and debounce DB write.
-   */
   const commitTeamMeta = useCallback(
     async (
       teamId: string,
@@ -376,12 +370,6 @@ export default function CapoTeamOrganizerPage(): JSX.Element {
     []
   );
 
-  /**
-   * =========================
-   * MEMBER MINUTES (debounced)
-   * =========================
-   * IMPORTANT: no load() here. We patch local state and debounce DB write.
-   */
   const commitMemberMinutes = useCallback(async (memberId: string, minutes: number) => {
     const planned = Number.isFinite(minutes) ? Math.max(0, Math.min(24 * 60, minutes)) : 0;
     const { error } = await supabase.from("capo_team_members").update({ planned_minutes: planned }).eq("id", memberId);
@@ -449,7 +437,6 @@ export default function CapoTeamOrganizerPage(): JSX.Element {
 
     setOperatorLoading(true);
     try {
-      // Best-effort OR across common fields
       const { data, error } = await supabase
         .from("operators")
         .select("id, name, nome, cognome")
@@ -459,7 +446,6 @@ export default function CapoTeamOrganizerPage(): JSX.Element {
       const list = (Array.isArray(data) ? data : []) as OperatorRow[];
       setOperatorResults(list);
 
-      // merge into local cache
       setOperatorsById((prev) => {
         const next = new Map(prev);
         for (const op of list) next.set(String(op.id), op);
@@ -495,10 +481,12 @@ export default function CapoTeamOrganizerPage(): JSX.Element {
   }, [resolvedShip, shipId]);
 
   const goBack = (): void => {
+    if (!headerArmed()) return;
     navigate(`/app/ship/${shipId}`);
   };
 
   const goRapportino = (): void => {
+    if (!headerArmed()) return;
     navigate(`/app/ship/${shipId}/rapportino/role`, { state: { planDate } });
   };
 
@@ -598,231 +586,198 @@ export default function CapoTeamOrganizerPage(): JSX.Element {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           {/* Left: operator search */}
-          <div className="lg:col-span-4 rounded-2xl border border-slate-800/60 bg-slate-950/40 p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm font-semibold text-slate-100">Operatori</div>
-                <div className="text-xs text-slate-500">Cerca e aggiungi nelle squadre.</div>
+          <div className="lg:col-span-5 space-y-3">
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <div>
+                  <div className="text-sm font-semibold text-slate-100">Operatori</div>
+                  <div className="text-xs text-slate-500">Cerca e aggiungi nelle squadre.</div>
+                </div>
+                <span className={corePills(true, "slate", "text-[10px] px-2 py-0.5")}>Picker</span>
               </div>
-              <span className={corePills(true, "slate", "text-[10px] px-2 py-0.5")}>Picker</span>
-            </div>
 
-            <input
-              type="text"
-              value={operatorSearch}
-              onChange={(e) => setOperatorSearch(e.target.value)}
-              placeholder="Cerca (min 2 caratteri)…"
-              className="w-full rounded-xl border border-slate-700/60 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600"
-            />
+              <input
+                value={operatorSearch}
+                onChange={(e) => setOperatorSearch(e.target.value)}
+                placeholder="Cerca (min 2 caratteri)…"
+                className="w-full rounded-xl border border-slate-700/60 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600"
+              />
 
-            {operatorLoading ? <div className="text-xs text-slate-500">Ricerca…</div> : null}
+              <div className="mt-3 space-y-2">
+                {operatorLoading ? <div className="text-xs text-slate-500">Ricerca…</div> : null}
+                {!operatorLoading && operatorSearch.trim().length < 2 ? (
+                  <div className="text-xs text-slate-600">Scrivi almeno 2 caratteri per cercare.</div>
+                ) : null}
 
-            <div className="space-y-2 max-h-[420px] overflow-auto pr-1">
-              {operatorResults.map((op) => {
-                const label = buildOperatorLabel(op, String(op.id));
-                return (
+                {operatorResults.map((op) => (
                   <div
                     key={String(op.id)}
-                    className="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/40 px-3 py-2"
+                    className="flex items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-950/30 px-3 py-2"
                   >
-                    <div className="min-w-0">
-                      <div className="text-sm text-slate-100 truncate">{label}</div>
-                      <div className="text-[11px] text-slate-500 truncate">{String(op.id)}</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {payload.teams.slice(0, 2).map((t) => (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={() => addMember(t.id, String(op.id))}
-                          disabled={!payload.day || saving}
-                          className="rounded-lg border border-slate-700/60 bg-slate-950/40 hover:bg-slate-950/65 px-2 py-1 text-[11px] text-slate-200 disabled:opacity-50"
-                        >
-                          + {t.name}
-                        </button>
-                      ))}
-                    </div>
+                    <div className="text-sm text-slate-100">{buildOperatorLabel(op, String(op.id))}</div>
+                    <span className="text-[11px] font-mono text-slate-600">{String(op.id)}</span>
                   </div>
-                );
-              })}
-              {!operatorLoading && operatorSearch.trim().length >= 2 && operatorResults.length === 0 ? (
-                <div className="text-xs text-slate-500">Nessun operatore trovato.</div>
-              ) : null}
-              {operatorSearch.trim().length < 2 ? (
-                <div className="text-xs text-slate-500">Scrivi almeno 2 caratteri per cercare.</div>
-              ) : null}
+                ))}
+              </div>
             </div>
           </div>
 
-          {/* Center: teams */}
-          <div className="lg:col-span-8 space-y-4">
-            {payload.teams.length === 0 ? (
-              <div className="rounded-2xl border border-slate-800/60 bg-slate-950/40 p-4 text-sm text-slate-400">
-                Nessuna squadra per questa data.
-              </div>
-            ) : null}
-
-            {payload.teams
-              .slice()
-              .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
-              .map((team) => {
-                const members = Array.isArray(team.members)
-                  ? team.members.slice().sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
-                  : [];
-                const total = members.reduce((acc, m) => acc + (Number(m.planned_minutes) || 0), 0);
-
-                const teamKey = `team:${team.id}`;
-                const teamBadge = badgeForKey(teamKey);
-
-                return (
-                  <div key={team.id} className="rounded-2xl border border-slate-800/60 bg-slate-950/40 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={team.name}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              patchTeamLocal(team.id, { name: v });
-                              scheduleDebounced(teamKey, async () => commitTeamMeta(team.id, { name: v }), 600);
-                            }}
-                            onBlur={() => flushDebounced(teamKey)}
-                            className="w-full max-w-[320px] rounded-xl border border-slate-700/60 bg-slate-950/40 px-3 py-2 text-sm text-slate-100"
-                          />
-
-                          <span className={corePills(true, "slate", "text-[10px] px-2 py-0.5")}>
-                            {minutesToHoursLabel(total)}
-                          </span>
-
-                          {teamBadge.label ? (
-                            <span className={corePills(true, teamBadge.tone, "text-[10px] px-2 py-0.5")}>
-                              {teamBadge.label}
-                            </span>
-                          ) : null}
-                        </div>
-
-                        <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                          <input
-                            type="text"
-                            value={team.deck ?? ""}
-                            onChange={(e) => {
-                              const v = e.target.value || null;
-                              patchTeamLocal(team.id, { deck: v });
-                              scheduleDebounced(teamKey, async () => commitTeamMeta(team.id, { deck: v }), 600);
-                            }}
-                            onBlur={() => flushDebounced(teamKey)}
-                            placeholder="Ponte"
-                            className="rounded-xl border border-slate-800/60 bg-slate-950/40 px-3 py-2 text-xs text-slate-200 placeholder:text-slate-600"
-                          />
-                          <input
-                            type="text"
-                            value={team.zona ?? ""}
-                            onChange={(e) => {
-                              const v = e.target.value || null;
-                              patchTeamLocal(team.id, { zona: v });
-                              scheduleDebounced(teamKey, async () => commitTeamMeta(team.id, { zona: v }), 600);
-                            }}
-                            onBlur={() => flushDebounced(teamKey)}
-                            placeholder="Zona"
-                            className="rounded-xl border border-slate-800/60 bg-slate-950/40 px-3 py-2 text-xs text-slate-200 placeholder:text-slate-600"
-                          />
-                          <input
-                            type="text"
-                            value={team.activity_code ?? ""}
-                            onChange={(e) => {
-                              const v = e.target.value || null;
-                              patchTeamLocal(team.id, { activity_code: v });
-                              scheduleDebounced(teamKey, async () => commitTeamMeta(team.id, { activity_code: v }), 600);
-                            }}
-                            onBlur={() => flushDebounced(teamKey)}
-                            placeholder="Attivita (codice)"
-                            className="rounded-xl border border-slate-800/60 bg-slate-950/40 px-3 py-2 text-xs text-slate-200 placeholder:text-slate-600"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col items-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => removeTeam(team.id)}
-                          className="rounded-xl border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/15 px-3 py-2 text-xs text-rose-200"
-                        >
-                          Elimina
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 space-y-2">
-                      {members.length === 0 ? (
-                        <div className="text-xs text-slate-500">Nessun operatore in questa squadra.</div>
+          {/* Right: teams */}
+          <div className="lg:col-span-7 space-y-3">
+            {(payload.teams || []).map((team) => {
+              const teamBadge = badgeForKey(`team:${team.id}`);
+              return (
+                <div key={team.id} className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={team.name}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          patchTeamLocal(team.id, { name: v });
+                          scheduleDebounced(`team:${team.id}`, async () => commitTeamMeta(team.id, { name: v }));
+                        }}
+                        onBlur={() => flushDebounced(`team:${team.id}`)}
+                        className="w-[180px] rounded-xl border border-slate-700/60 bg-slate-950/40 px-3 py-2 text-sm text-slate-100"
+                      />
+                      <span className={corePills(true, "slate", "text-[10px] px-2 py-0.5")}>
+                        {minutesToHoursLabel(
+                          (team.members || []).reduce((a, m) => a + (Number(m.planned_minutes) || 0), 0)
+                        )}
+                      </span>
+                      {teamBadge.label ? (
+                        <span className={corePills(true, teamBadge.tone, "text-[10px] px-2 py-0.5")}>
+                          {teamBadge.label}
+                        </span>
                       ) : null}
-
-                      {members.map((m) => {
-                        const op = operatorsById.get(String(m.operator_id));
-                        const label = buildOperatorLabel(op, String(m.operator_id));
-
-                        const memberKey = `member:${m.id}`;
-                        const memberBadge = badgeForKey(memberKey);
-
-                        return (
-                          <div
-                            key={m.id}
-                            className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/40 px-3 py-2"
-                          >
-                            <div className="min-w-0">
-                              <div className="text-sm text-slate-100 truncate">{label}</div>
-                              <div className="text-[11px] text-slate-500 truncate">{String(m.operator_id)}</div>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="number"
-                                min={0}
-                                max={24}
-                                step={0.5}
-                                value={(Number(m.planned_minutes) || 0) / 60}
-                                onChange={(e) => {
-                                  const hours = Number(e.target.value);
-                                  const mins = Number.isFinite(hours) ? Math.round(hours * 60) : 0;
-
-                                  patchMemberLocalMinutes(m.id, mins);
-
-                                  scheduleDebounced(
-                                    memberKey,
-                                    async () => commitMemberMinutes(m.id, mins),
-                                    600
-                                  );
-                                }}
-                                onBlur={() => flushDebounced(memberKey)}
-                                className="w-[96px] rounded-xl border border-slate-700/60 bg-slate-950/40 px-3 py-2 text-xs text-slate-100"
-                              />
-
-                              <span className={corePills(true, "slate", "text-[10px] px-2 py-0.5")}>
-                                {minutesToHoursLabel(Number(m.planned_minutes) || 0)}
-                              </span>
-
-                              {memberBadge.label ? (
-                                <span className={corePills(true, memberBadge.tone, "text-[10px] px-2 py-0.5")}>
-                                  {memberBadge.label}
-                                </span>
-                              ) : null}
-
-                              <button
-                                type="button"
-                                onClick={() => removeMember(m.id)}
-                                className="rounded-xl border border-slate-700/60 bg-slate-950/40 hover:bg-slate-950/65 px-3 py-2 text-xs text-slate-200"
-                              >
-                                Rimuovi
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() => void removeTeam(team.id)}
+                      className="rounded-xl border border-rose-500/35 bg-rose-500/10 hover:bg-rose-500/15 px-3 py-2 text-sm text-rose-100"
+                    >
+                      Elimina
+                    </button>
                   </div>
-                );
-              })}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input
+                      value={team.deck ?? ""}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        patchTeamLocal(team.id, { deck: v });
+                        scheduleDebounced(`team:${team.id}`, async () => commitTeamMeta(team.id, { deck: v }));
+                      }}
+                      onBlur={() => flushDebounced(`team:${team.id}`)}
+                      placeholder="Ponte"
+                      className="rounded-xl border border-slate-700/60 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600"
+                    />
+                    <input
+                      value={team.zona ?? ""}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        patchTeamLocal(team.id, { zona: v });
+                        scheduleDebounced(`team:${team.id}`, async () => commitTeamMeta(team.id, { zona: v }));
+                      }}
+                      onBlur={() => flushDebounced(`team:${team.id}`)}
+                      placeholder="Zona"
+                      className="rounded-xl border border-slate-700/60 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input
+                      value={team.activity_code ?? ""}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        patchTeamLocal(team.id, { activity_code: v });
+                        scheduleDebounced(`team:${team.id}`, async () => commitTeamMeta(team.id, { activity_code: v }));
+                      }}
+                      onBlur={() => flushDebounced(`team:${team.id}`)}
+                      placeholder="Attività"
+                      className="rounded-xl border border-slate-700/60 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600"
+                    />
+                    <input
+                      value={team.note ?? ""}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        patchTeamLocal(team.id, { note: v });
+                        scheduleDebounced(`team:${team.id}`, async () => commitTeamMeta(team.id, { note: v }));
+                      }}
+                      onBlur={() => flushDebounced(`team:${team.id}`)}
+                      placeholder="Note"
+                      className="rounded-xl border border-slate-700/60 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    {(team.members || []).map((m) => {
+                      const memberBadge = badgeForKey(`member:${m.id}`);
+                      const op = operatorsById.get(String(m.operator_id));
+                      const label = buildOperatorLabel(op, String(m.operator_id));
+                      return (
+                        <div
+                          key={m.id}
+                          className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-950/30 px-3 py-2"
+                        >
+                          <div className="min-w-0">
+                            <div className="text-sm text-slate-100 truncate">{label}</div>
+                            <div className="text-[11px] font-mono text-slate-600">{String(m.operator_id)}</div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              min={0}
+                              max={24 * 60}
+                              value={Number(m.planned_minutes) || 0}
+                              onChange={(e) => {
+                                const v = Number(e.target.value) || 0;
+                                patchMemberLocalMinutes(m.id, v);
+                                scheduleDebounced(`member:${m.id}`, async () => commitMemberMinutes(m.id, v));
+                              }}
+                              onBlur={() => flushDebounced(`member:${m.id}`)}
+                              className="w-[90px] rounded-xl border border-slate-700/60 bg-slate-950/40 px-3 py-2 text-sm text-slate-100"
+                            />
+                            <span className={corePills(true, "slate", "text-[10px] px-2 py-0.5")}>
+                              {minutesToHoursLabel(Number(m.planned_minutes) || 0)}
+                            </span>
+                            {memberBadge.label ? (
+                              <span className={corePills(true, memberBadge.tone, "text-[10px] px-2 py-0.5")}>
+                                {memberBadge.label}
+                              </span>
+                            ) : null}
+                            <button
+                              type="button"
+                              onClick={() => void removeMember(m.id)}
+                              className="rounded-xl border border-rose-500/35 bg-rose-500/10 hover:bg-rose-500/15 px-3 py-2 text-sm text-rose-100"
+                            >
+                              Rimuovi
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1">
+                    <div className="text-xs text-slate-500">Seleziona un operatore sopra, poi aggiungilo qui.</div>
+                    <div className="flex-1" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const first = operatorResults?.[0];
+                        if (first?.id) void addMember(team.id, String(first.id));
+                      }}
+                      className="rounded-xl border border-slate-700/60 bg-slate-950/40 hover:bg-slate-950/65 px-3 py-2 text-sm text-slate-100"
+                    >
+                      Aggiungi (primo risultato)
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
