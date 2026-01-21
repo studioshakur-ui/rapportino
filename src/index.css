@@ -3,302 +3,107 @@
 @tailwind utilities;
 
 /* =========================
-   CORE AI Design Tokens (V1)
-   - Industrial dark + discreet gold accent
-   - Safe: does not affect print isolation rules
+   CORE BASE
    ========================= */
-:root {
-  --bg-900: #0E0F12;
-  --bg-800: #14161B;
-  --bg-700: #1B1E24;
-
-  --line-600: #262A33;
-
-  --text-100: #F5F6F7;
-  --text-300: #9AA0A6;
-  --text-500: #6B7280;
-
-  /* Gold accent (use sparingly) */
-  --gold-200: #E6D6A8;
-  --gold-500: #C8A24D;
-  --gold-600: #9E7C2F;
-
-  /* Status colors */
-  --ok-500: #2FBF71;
-  --warn-500: #F59E0B;
-  --err-500: #EF4444;
-  --info-500: #60A5FA;
-
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+html, body {
+  margin: 0;
+  padding: 0;
 }
 
 /* =========================
-   Helpers print / screen
+   PRINT RESET GLOBAL (CRITIQUE)
    ========================= */
-.no-print { display: block; }
-.print-only { display: none; }
-
 @media print {
-  .no-print { display: none !important; }
-  .print-only { display: block !important; }
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+
+  /* 🔥 NEUTRALISATION DES WRAPPERS ÉCRAN */
+  .app-shell,
+  .page-shell,
+  .page-container,
+  .layout-root,
+  .surface,
+  .card,
+  .panel,
+  .dark,
+  .bg-dark,
+  .bg-black {
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Supprime toute “carte” ou cadre */
+  * {
+    box-shadow: none !important;
+  }
 }
 
 /* =========================
-   Rapportino document
+   RAPPORTINO DOCUMENT
    ========================= */
-.rapportino-document {
-  width: min(1100px, 100%);
-  margin: 0 auto;
-  padding: 16px;
-  border-radius: 12px;
-  background: #fff;
-}
-
-/* Rapportino CAPO page: work surface should use full width (no PDF-centered effect) */
-#rapportino-document.rapportino-document {
+#rapportino-document {
+  background: #ffffff;
+  color: #000000;
   width: 100%;
   margin: 0;
+  padding: 0;
 }
 
 /* =========================
-   Table layout (CRITICAL)
+   TABLE RAPPORTINO
    ========================= */
 .rapportino-table {
   width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  table-layout: fixed;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  overflow: hidden;
+  border-collapse: collapse;
 }
 
 .rapportino-table th,
 .rapportino-table td {
-  border-right: 1px solid #e5e7eb;
-  border-bottom: 1px solid #e5e7eb;
+  border: 1px solid #cbd5e1;
+  padding: 6px;
   vertical-align: top;
+  font-size: 11px;
 }
 
-.rapportino-table th:last-child,
-.rapportino-table td:last-child {
-  border-right: none;
-}
-
-.rapportino-table tr:last-child td {
-  border-bottom: none;
+.rapportino-table th {
+  font-weight: 600;
 }
 
 /* =========================
-   Textareas auto-height
+   SIGNATURE CORE (DISCRÈTE)
    ========================= */
-.rapportino-textarea {
-  resize: none;
-  overflow: hidden;
-  min-height: 22px;
-  line-height: 1.25;
+.core-print-signature {
+  position: fixed;
+  bottom: 6mm;
+  right: 8mm;
+  font-size: 9px;
+  color: rgba(0, 0, 0, 0.35);
+  letter-spacing: 0.12em;
+  user-select: none;
+  pointer-events: none;
 }
 
-/* Print multiline */
-.rapportino-print-text {
-  white-space: pre-wrap;
-  word-break: break-word;
-  line-height: 1.25;
-}
-
-/* =========================
-   COLUMN WIDTHS — SCREEN
-   ========================= */
-.rapportino-table th:nth-child(1),
-.rapportino-table td:nth-child(1) { width: 120px; }   /* CATEGORIA */
-
-.rapportino-table th:nth-child(2),
-.rapportino-table td:nth-child(2) { width: 300px; }   /* DESCRIZIONE */
-
-.rapportino-table th:nth-child(3),
-.rapportino-table td:nth-child(3) { width: 240px; }   /* OPERATORE */
-
-.rapportino-table th:nth-child(4),
-.rapportino-table td:nth-child(4) { width: 110px; }   /* TEMPO */
-
-.rapportino-table th:nth-child(5),
-.rapportino-table td:nth-child(5) { width: 90px; }   /* PREVISTO */
-
-.rapportino-table th:nth-child(6),
-.rapportino-table td:nth-child(6) { width: 90px; }   /* PRODOTTO */
-
-/* NOTE = dernière colonne + large */
-.rapportino-table th:nth-child(7),
-.rapportino-table td:nth-child(7) {
-  width: auto;
-  min-width: 0;
+/* Légèrement visible à l’écran, neutre */
+@media screen {
+  .core-print-signature {
+    color: rgba(0, 0, 0, 0.15);
+  }
 }
 
 /* =========================
-   COLUMN HELPERS — SCREEN
-   (avoid nth-child drift when editable columns change)
-   ========================= */
-.rapportino-table .rapportino-col-indice {
-  width: 80px;
-}
-
-.rapportino-table .rapportino-col-actions {
-  width: 44px;
-}
-
-/* =========================
-   CORE PRINT: 1 page + signature
-   ========================= */
-.core-print-wrap {
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.core-print-ml {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-.core-print-ml-line {
-  line-height: 1.25;
-}
-
-.core-print-ml-nowrap .core-print-ml-line {
-  white-space: nowrap;
-}
-
-/* =========================
-   PRINT — A4 LANDSCAPE (1 page)
+   PAGE FORMAT
    ========================= */
 @media print {
-  /* Print layout (A4 landscape). Signature is page-bound (no fixed footer). */
   @page {
     size: A4 landscape;
-    margin: 8mm;
-  }
-
-  html, body {
-    background: #fff !important;
-    color: #000 !important;
-    height: auto !important;
-    overflow: visible !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-
-  /*
-    PRINT ISOLATION (CRITICAL)
-    ------------------------
-    Isolate print ONLY on the dedicated print route.
-    We toggle this via document.body.classList in RapportinoSheet.
-    This prevents accidental "blank" prints when the same id exists on editor/presentation routes.
-  */
-  body.core-print-rapportino * {
-    visibility: hidden !important;
-  }
-
-  body.core-print-rapportino #rapportino-document,
-  body.core-print-rapportino #rapportino-document * {
-    visibility: visible !important;
-  }
-
-  body.core-print-rapportino #rapportino-document {
-    position: absolute;
-    inset: 0;
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    background: #fff !important;
-
-    min-height: 0 !important;
-    height: 100% !important;
-    overflow: hidden !important;
-  }
-
-  .rapportino-document {
-    border: none !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-  }
-
-  .rapportino-table {
-    border: 1px solid #cbd5e1 !important;
-    border-radius: 8px !important;
-  }
-
-  .rapportino-table th,
-  .rapportino-table td {
-    border-color: #cbd5e1 !important;
-  }
-
-  /* Sécurité: colonne actions (X) jamais imprimée */
-  .rapportino-table .rapportino-col-actions {
-    display: none !important;
-  }
-
-  /* PRINT helpers */
-  .rapportino-table .rapportino-col-indice {
-    width: 70px !important;
-  }
-
-  /* PRINT widths */
-  .rapportino-table th:nth-child(2),
-  .rapportino-table td:nth-child(2) { width: 200px !important; }
-
-  .rapportino-table th:nth-child(3),
-  .rapportino-table td:nth-child(3) { width: 150px !important; }
-
-  .rapportino-table th:nth-child(4),
-  .rapportino-table td:nth-child(4) { width: 95px !important; }
-
-  .rapportino-table th:nth-child(5),
-  .rapportino-table td:nth-child(5) { width: 85px !important; }
-
-  .rapportino-table th:nth-child(6),
-  .rapportino-table td:nth-child(6) { width: 90px !important; }
-
-  /* NOTE récupère tout l’espace restant */
-  .rapportino-table th:nth-child(7),
-  .rapportino-table td:nth-child(7) {
-    width: auto !important;
-    min-width: 0 !important;
-  }
-
-  button, input, textarea, select {
-    box-shadow: none !important;
-    outline: none !important;
-  }
-
-  /* Avoid phantom extra page caused by 100vh in print */
-  .min-h-screen { min-height: 0 !important; }
-
-  /* A4 landscape inner box (minus margins) */
-  .core-print-page {
-    /* approximate inner printable area: 297x210 minus margins (8mm all sides) */
-    width: 281mm;
-    height: 194mm;
-    margin: 0 auto;
-    overflow: hidden;
-    position: relative;
-  }
-
-  .core-print-scale {
-    transform-origin: top left;
-    transform: scale(var(--core-print-scale, 1));
-  }
-
-  .core-print-signature {
-    position: absolute;
-    right: 6mm;
-    bottom: 4mm;
-    font-size: 9px;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: rgba(0,0,0,0.45);
-    user-select: none;
-    pointer-events: none;
+    margin: 10mm;
   }
 }
