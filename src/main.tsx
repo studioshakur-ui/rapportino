@@ -1,48 +1,68 @@
-// src/main.tsx
-import React from "react";
-import ReactDOM from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
 
-import AppRoutes from "./routes";
-import { AuthProvider } from "./auth/AuthProvider";
-import { ShipProvider } from "./context/ShipContext";
-import { I18nProvider } from "./i18n/I18nProvider";
+# AppShell cache hardening:
+# - index.html: no-store pour éviter index stale → mauvais chunks
+# - assets: immutable long cache (Vite hashed)
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-store, no-cache, must-revalidate, max-age=0"
 
-import "./index.css";
-import "./styles/inca-percorso-search.css";
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 30_000,
-      gcTime: 5 * 60_000,
-      retry: 1,
-      refetchOnWindowFocus: false,
-    },
-    mutations: {
-      retry: 0,
-    },
-  },
-});
+[[redirects]]
+  from = "/env*"
+  to = "/404.html"
+  status = 404
+  force = true
 
-const rootEl = document.getElementById("root");
-if (!rootEl) {
-  throw new Error("Root element #root not found");
-}
+[[redirects]]
+  from = "/config*"
+  to = "/404.html"
+  status = 404
+  force = true
 
-ReactDOM.createRoot(rootEl).render(
-  <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <I18nProvider>
-          <ShipProvider>
-            <BrowserRouter>
-              <AppRoutes />
-            </BrowserRouter>
-          </ShipProvider>
-        </I18nProvider>
-      </AuthProvider>
-    </QueryClientProvider>
-  </React.StrictMode>
-);
+[[redirects]]
+  from = "/webpack*"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/next.config.js"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/gatsby-config.js"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/svelte.config.js"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/src/*"
+  to = "/404.html"
+  status = 404
+  force = true
+
+# SPA fallback (doit rester en dernier)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
