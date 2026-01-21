@@ -1,6 +1,6 @@
 // src/shells/AppShell.tsx
 import React, { useEffect, useMemo, useState } from "react";
-import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthProvider";
 import { useShip } from "../context/ShipContext";
@@ -172,6 +172,24 @@ export default function AppShell(): JSX.Element {
     setMobileNavOpen(false);
   }, [pathname]);
 
+  /* ───────────────────────── iOS Ghost-tap protection ─────────────────────────
+   *
+   * Symptom:
+   * - tap a module card -> route changes -> new screen appears -> immediately navigates back
+   *
+   * Cause (very common on iOS Safari):
+   * - "tap-through" / ghost click delivered to the new screen after navigation
+   *
+   * Fix:
+   * - freeze pointer events very briefly on every route change
+   */
+  const [navFreeze, setNavFreeze] = useState<boolean>(false);
+  useEffect(() => {
+    setNavFreeze(true);
+    const tmr = window.setTimeout(() => setNavFreeze(false), 240);
+    return () => window.clearTimeout(tmr);
+  }, [pathname]);
+
   /* ───────────────────────── Logout ───────────────────────── */
 
   const handleLogout = async (): Promise<void> => {
@@ -211,9 +229,6 @@ export default function AppShell(): JSX.Element {
 
   /**
    * Sidebar NAV (CAPO)
-   * Requested:
-   *  - KPI button in sidebar
-   *  - INCA Capo button in sidebar
    */
   const navItems = [
     {
@@ -248,7 +263,6 @@ export default function AppShell(): JSX.Element {
       {/* ───────────── Idle / Session security ───────────── */}
       <IdleSessionManager
         enabled
-        // ✅ Scope storage per user to avoid cross-account contamination on shared machines
         storageScopeKey={session?.user?.id ?? "anon"}
         warnAfterMs={25 * 60 * 1000}
         logoutAfterMs={30 * 60 * 1000}
@@ -382,9 +396,19 @@ export default function AppShell(): JSX.Element {
 
             {/* CONTENT */}
             <div className="flex-1 min-h-0 overflow-auto">
-              <div className={`${contentWrapClass} px-3 sm:px-4 pb-6`}>
-               <KeepAliveOutlet scopeKey="app" context={{ opDropToken } as OutletCtx} />
-
+              <div
+                className={`${contentWrapClass} px-3 sm:px-4 pb-6`}
+                style={
+                  navFreeze
+                    ? {
+                        pointerEvents: "none",
+                        // prevent iOS ghost tap propagation
+                        touchAction: "manipulation",
+                      }
+                    : { touchAction: "manipulation" }
+                }
+              >
+                <KeepAliveOutlet scopeKey="app" context={{ opDropToken } as OutletCtx} />
               </div>
             </div>
           </main>
