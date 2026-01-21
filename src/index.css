@@ -10,44 +10,158 @@ html, body {
   padding: 0;
 }
 
+/* Helpers */
+.print-only { display: none !important; }
+
 /* =========================
-   PRINT RESET GLOBAL (CRITIQUE)
+   PRINT PREVIEW MODE (SCREEN)
+   (si tu l’utilises via html/body.print-preview)
+   ========================= */
+html.print-preview,
+body.print-preview {
+  overflow: hidden !important;
+}
+
+html.print-preview #rapportino-document {
+  position: fixed !important;
+  top: 86px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  width: min(1200px, calc(100vw - 24px)) !important;
+  height: calc(100vh - 140px) !important;
+  overflow: auto !important;
+  z-index: 65 !important;
+  background: #ffffff !important;
+  color: #0b1220 !important;
+  border: 1px solid rgba(148, 163, 184, 0.45) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 30px 90px rgba(0,0,0,0.45) !important;
+}
+
+html.print-preview #rapportino-document .no-print { display: none !important; }
+html.print-preview #rapportino-document .print-only { display: block !important; }
+
+/* =========================
+   PRINT (RÉEL)
    ========================= */
 @media print {
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+
   html, body {
     background: #ffffff !important;
     color: #000000 !important;
     margin: 0 !important;
     padding: 0 !important;
     box-shadow: none !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
-  /* 🔥 NEUTRALISATION DES WRAPPERS ÉCRAN */
-  .app-shell,
-  .page-shell,
-  .page-container,
-  .layout-root,
-  .surface,
-  .card,
-  .panel,
-  .dark,
-  .bg-dark,
-  .bg-black {
-    background: transparent !important;
+  /* IMPORTANT: retire tous les éléments UI */
+  .no-print { display: none !important; }
+  .print-only { display: block !important; }
+
+  /* Neutralise tout effet preview */
+  html.print-preview #rapportino-document {
+    position: static !important;
+    top: auto !important;
+    left: auto !important;
+    transform: none !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    z-index: auto !important;
+    border-radius: 0 !important;
     box-shadow: none !important;
     border: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
   }
 
-  /* Supprime toute “carte” ou cadre */
+  /* Wrapper document */
+  #rapportino-document,
+  .rapportino-document {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  /* =========================
+     FIX COLONNES (NOTE)
+     On override les widths px par des widths "physiques" qui rentrent en A4 paysage
+     Colonnes (RapportinoTable):
+     1 CATEGORIA
+     2 DESCRIZIONE ATTIVITÀ
+     3 OPERATORE
+     4 TEMPO
+     5 PREVISTO
+     6 PRODOTTO
+     7 NOTE  (=> large)
+     8 INDICE
+     9 ACTIONS (no-print)
+     ========================= */
+  #rapportino-document .rapportino-table {
+    width: 100% !important;
+    table-layout: fixed !important;
+  }
+
+  /* Empêche les inputs de forcer une largeur mini */
+  #rapportino-document input,
+  #rapportino-document textarea,
+  #rapportino-document select {
+    min-width: 0 !important;
+  }
+
+  /* Largeurs (somme ≈ largeur imprimable) */
+  #rapportino-document .rapportino-table th:nth-child(1),
+  #rapportino-document .rapportino-table td:nth-child(1) { width: 25mm !important; }
+
+  #rapportino-document .rapportino-table th:nth-child(2),
+  #rapportino-document .rapportino-table td:nth-child(2) { width: 55mm !important; }
+
+  #rapportino-document .rapportino-table th:nth-child(3),
+  #rapportino-document .rapportino-table td:nth-child(3) { width: 50mm !important; }
+
+  #rapportino-document .rapportino-table th:nth-child(4),
+  #rapportino-document .rapportino-table td:nth-child(4) { width: 20mm !important; }
+
+  #rapportino-document .rapportino-table th:nth-child(5),
+  #rapportino-document .rapportino-table td:nth-child(5) { width: 18mm !important; }
+
+  #rapportino-document .rapportino-table th:nth-child(6),
+  #rapportino-document .rapportino-table td:nth-child(6) { width: 20mm !important; }
+
+  /* ✅ NOTE large (c’est ce que tu demandes) */
+  #rapportino-document .rapportino-table th:nth-child(7),
+  #rapportino-document .rapportino-table td:nth-child(7) { width: 55mm !important; }
+
+  #rapportino-document .rapportino-table th:nth-child(8),
+  #rapportino-document .rapportino-table td:nth-child(8) { width: 14mm !important; }
+
+  /* Sécurité : si la colonne actions existe encore dans le DOM */
+  #rapportino-document .rapportino-table th:nth-child(9),
+  #rapportino-document .rapportino-table td:nth-child(9) {
+    width: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+  }
+
+  /* Évite les ombres accidentelles */
   * {
     box-shadow: none !important;
+    text-shadow: none !important;
   }
 }
 
 /* =========================
-   RAPPORTINO DOCUMENT
+   RAPPORTINO DOCUMENT (SCREEN)
    ========================= */
 #rapportino-document {
   background: #ffffff;
@@ -58,7 +172,7 @@ html, body {
 }
 
 /* =========================
-   TABLE RAPPORTINO
+   TABLE RAPPORTINO (screen + base)
    ========================= */
 .rapportino-table {
   width: 100%;
@@ -91,19 +205,8 @@ html, body {
   pointer-events: none;
 }
 
-/* Légèrement visible à l’écran, neutre */
 @media screen {
   .core-print-signature {
     color: rgba(0, 0, 0, 0.15);
-  }
-}
-
-/* =========================
-   PAGE FORMAT
-   ========================= */
-@media print {
-  @page {
-    size: A4 landscape;
-    margin: 10mm;
   }
 }
