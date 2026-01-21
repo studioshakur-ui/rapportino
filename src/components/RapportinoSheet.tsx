@@ -412,6 +412,9 @@ export default function RapportinoSheet(): JSX.Element {
         </div>
         <div className="core-print-signature print-only">Copyright © 2026 CNCS — CORE</div>
       </div>
+<div className="core-print-signature">
+  CNCS · CORE · Rapportino giornaliero · 20/01/2026
+</div>
     </div>
   );
 }
