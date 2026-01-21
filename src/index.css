@@ -189,24 +189,30 @@
     print-color-adjust: exact !important;
   }
 
-  /* isolation totale */
-  body * {
+  /*
+    PRINT ISOLATION (CRITICAL)
+    ------------------------
+    Isolate print ONLY on the dedicated print route.
+    We toggle this via document.body.classList in RapportinoSheet.
+    This prevents accidental "blank" prints when the same id exists on editor/presentation routes.
+  */
+  body.core-print-rapportino * {
     visibility: hidden !important;
   }
 
-  #rapportino-document,
-  #rapportino-document * {
+  body.core-print-rapportino #rapportino-document,
+  body.core-print-rapportino #rapportino-document * {
     visibility: visible !important;
   }
 
-  #rapportino-document {
+  body.core-print-rapportino #rapportino-document {
     position: absolute;
     inset: 0;
     width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
     background: #fff !important;
-  
+
     min-height: 0 !important;
     height: 100% !important;
     overflow: hidden !important;
