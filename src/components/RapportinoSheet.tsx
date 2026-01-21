@@ -166,6 +166,23 @@ export default function RapportinoSheet(): JSX.Element {
     else setLoading(false);
   }, []);
 
+  // Enable print isolation ONLY on this route.
+  useEffect(() => {
+    try {
+      document.body.classList.add("core-print-rapportino");
+    } catch {
+      // ignore
+    }
+
+    return () => {
+      try {
+        document.body.classList.remove("core-print-rapportino");
+      } catch {
+        // ignore
+      }
+    };
+  }, []);
+
   // Neutraliser preview classes (si l’utilisateur arrive depuis un preview)
   useEffect(() => {
     try {
@@ -354,7 +371,7 @@ export default function RapportinoSheet(): JSX.Element {
                 <th className="px-1 py-1 text-left">TEMPO IMPIEGATO</th>
                 <th className="px-1 py-1 text-right">PREVISTO</th>
                 <th className="px-1 py-1 text-right">PRODOTTO</th>
-                <th className="px-1 py-1 text-left">NOTE</th>
+                <th className="px-1 py-1 textext-left">NOTE</th>
               </tr>
             </thead>
             <tbody>
