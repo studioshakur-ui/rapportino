@@ -7,7 +7,7 @@ type T = {
 };
 
 type Props = {
-  t: T;
+  t?: Partial<T>;
 };
 
 function clamp(n: number, a: number, b: number): number {
@@ -18,7 +18,19 @@ function cx(...xs: Array<string | false | null | undefined>): string {
   return xs.filter(Boolean).join(" ");
 }
 
+const FALLBACK_T: T = {
+  spec: "Un solo flusso · Un solo dato · Nessuna ricostruzione",
+  nodes: ["CAPO", "UFFICIO", "CORE DRIVE", "DIREZIONE"],
+  nodeSubs: ["Inserisce", "Valida", "Archivia", "Legge"],
+};
+
 export function ElectricFlowPanel({ t }: Props): JSX.Element {
+  const safeT: T = {
+    spec: t?.spec ?? FALLBACK_T.spec,
+    nodes: (t?.nodes as T["nodes"]) ?? FALLBACK_T.nodes,
+    nodeSubs: (t?.nodeSubs as T["nodeSubs"]) ?? FALLBACK_T.nodeSubs,
+  };
+
   const panelRef = useRef<HTMLDivElement | null>(null);
 
   // Pointer variables for parallax + edge light
@@ -47,13 +59,12 @@ export function ElectricFlowPanel({ t }: Props): JSX.Element {
     return () => el.removeEventListener("pointermove", onMove);
   }, []);
 
-  // Larger canvas for readability (hero panel was reported as too small / illegible).
-  const W = 900;
-  const H = 260;
+  const W = 760;
+  const H = 200;
 
-  const leftPad = 70;
-  const rightPad = 70;
-  const y = 138;
+  const leftPad = 58;
+  const rightPad = 58;
+  const y = 104;
 
   const x0 = leftPad;
   const x3 = W - rightPad;
@@ -76,21 +87,10 @@ export function ElectricFlowPanel({ t }: Props): JSX.Element {
   return (
     <div className="relative">
       <style>{`
-        @keyframes coreDash {
-          from { stroke-dashoffset: 0; }
-          to { stroke-dashoffset: -320; }
-        }
-        @keyframes coreSpark {
-          from { stroke-dashoffset: 0; }
-          to { stroke-dashoffset: -680; }
-        }
-        /* Current surge: slower, thicker wave-like pass */
-        @keyframes coreSurge {
-          from { stroke-dashoffset: 0; }
-          to { stroke-dashoffset: -980; }
-        }
+        @keyframes coreDash { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -320; } }
+        @keyframes coreSpark { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -680; } }
+        @keyframes coreSurge { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -980; } }
 
-        /* Palantir-grade reveal of the panel background layers via pointer vars */
         .corePanel {
           position: relative;
           border-radius: 20px;
@@ -119,7 +119,6 @@ export function ElectricFlowPanel({ t }: Props): JSX.Element {
           opacity: 1;
         }
 
-        /* subtle scan texture (static, not animated) */
         .corePanel::after {
           content: "";
           position: absolute;
@@ -138,7 +137,6 @@ export function ElectricFlowPanel({ t }: Props): JSX.Element {
           mix-blend-mode: overlay;
         }
 
-        /* Edge light (cursor-follow) */
         .coreEdgeLight {
           position: absolute;
           inset: -1px;
@@ -159,135 +157,93 @@ export function ElectricFlowPanel({ t }: Props): JSX.Element {
           inset: 0;
           pointer-events: none;
           border-radius: 20px;
-          border: 1px solid rgba(56,189,248,0.10);
-          opacity: 0.9;
+          border: 1px solid rgba(148,163,184,0.22);
+          opacity: 0.7;
         }
       `}</style>
 
       <div
         ref={panelRef}
-        className="corePanel p-7 md:p-8"
-        style={{
-          // pointer to percent for gradients
-          ["--mx" as never]: `${Math.round(p.x * 100)}%`,
-          ["--my" as never]: `${Math.round(p.y * 100)}%`,
-        }}
+        className="corePanel"
+        style={
+          {
+            ["--mx" as unknown as string]: `${Math.round(p.x * 100)}%`,
+            ["--my" as unknown as string]: `${Math.round(p.y * 100)}%`,
+          } as React.CSSProperties
+        }
       >
-        {/* Edge light (A2) */}
-        <div className="coreEdgeLight" aria-hidden="true" />
-        <div className="coreEdgeRing" aria-hidden="true" />
+        <div aria-hidden="true" className="coreEdgeLight" />
+        <div aria-hidden="true" className="coreEdgeRing" />
 
-        <div className="flex items-center justify-between gap-4 mb-6 relative z-10">
-          <div className="min-w-0 text-[12px] uppercase tracking-[0.28em] text-slate-500">{t.spec}</div>
-
-          <div className="shrink-0 inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/55 px-3 py-1.5">
-            <span className="text-[11px] uppercase tracking-[0.20em] text-slate-400">CORE 1.0</span>
-            <span className="text-[11px] uppercase tracking-[0.20em] text-sky-200">LIVE</span>
+        <div className="relative z-10 px-6 pt-6">
+          <div className="flex items-center justify-between">
+            <div className="text-[11px] uppercase tracking-[0.26em] text-slate-500">
+              {safeT.spec}
+            </div>
+            <span className="rounded-full border border-slate-800 bg-slate-950/45 px-3 py-1.5">
+              <span className="text-[10px] uppercase tracking-[0.24em] text-slate-400">CORE 1.0 LIVE</span>
+            </span>
           </div>
         </div>
 
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[240px] md:h-[290px] relative z-10" aria-hidden="true">
-          <defs>
-            <linearGradient id="railGrad" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="rgba(148,163,184,0.18)" />
-              <stop offset="50%" stopColor="rgba(148,163,184,0.28)" />
-              <stop offset="100%" stopColor="rgba(148,163,184,0.18)" />
-            </linearGradient>
+        <div className="relative z-10 px-6 pb-6 pt-4">
+          <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
+            <path d={d} fill="none" stroke="rgba(148,163,184,0.18)" strokeWidth="6" strokeLinecap="round" />
+            <path
+              d={d}
+              fill="none"
+              stroke="rgba(56,189,248,0.55)"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeDasharray="16 22"
+              style={{
+                animation: reduceMotion ? "none" : "coreDash 11.5s linear infinite",
+              }}
+            />
+            <path
+              d={d}
+              fill="none"
+              stroke="rgba(56,189,248,0.92)"
+              strokeWidth="2.6"
+              strokeLinecap="round"
+              strokeDasharray="4 62"
+              style={{
+                opacity: reduceMotion ? 0 : 0.35,
+                animation: reduceMotion ? "none" : "coreSpark 18s linear infinite",
+              }}
+            />
+            <path
+              d={d}
+              fill="none"
+              stroke="rgba(226,232,240,0.78)"
+              strokeWidth="3.4"
+              strokeLinecap="round"
+              strokeDasharray="10 120"
+              style={{
+                opacity: reduceMotion ? 0 : 0.18,
+                animation: reduceMotion ? "none" : "coreSurge 26s linear infinite",
+              }}
+            />
 
-            <linearGradient id="currentGrad" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="rgba(56,189,248,0.22)" />
-              <stop offset="55%" stopColor="rgba(56,189,248,0.92)" />
-              <stop offset="100%" stopColor="rgba(56,189,248,0.22)" />
-            </linearGradient>
-
-            <linearGradient id="surgeGrad" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="rgba(56,189,248,0.00)" />
-              <stop offset="45%" stopColor="rgba(56,189,248,0.55)" />
-              <stop offset="55%" stopColor="rgba(226,232,240,0.82)" />
-              <stop offset="100%" stopColor="rgba(56,189,248,0.00)" />
-            </linearGradient>
-          </defs>
-
-          {/* Rail */}
-          <path d={d} fill="none" stroke="url(#railGrad)" strokeWidth="3.2" strokeLinecap="round" opacity="0.95" />
-          <path d={d} fill="none" stroke="rgba(56,189,248,0.06)" strokeWidth="12" strokeLinecap="round" opacity="0.62" />
-
-          {/* Current dash (C1 base) */}
-          <path
-            d={d}
-            fill="none"
-            stroke="url(#currentGrad)"
-            strokeWidth="4.2"
-            strokeLinecap="round"
-            strokeDasharray="34 52"
-            strokeDashoffset="0"
-            opacity="0.95"
-            style={{
-              animation: reduceMotion ? "none" : "coreDash 9.2s linear infinite",
-            }}
-          />
-
-          {/* Spark micro (existing style, slow) */}
-          <path
-            d={d}
-            fill="none"
-            stroke="rgba(226,232,240,0.88)"
-            strokeWidth="4.2"
-            strokeLinecap="round"
-            strokeDasharray="3 180"
-            strokeDashoffset="0"
-            opacity="0.70"
-            style={{
-              animation: reduceMotion ? "none" : "coreSpark 8.6s linear infinite",
-            }}
-          />
-
-          {/* Current surge (C1) */}
-          <path
-            d={d}
-            fill="none"
-            stroke="url(#surgeGrad)"
-            strokeWidth="7.5"
-            strokeLinecap="round"
-            strokeDasharray="120 860"
-            strokeDashoffset="0"
-            opacity="0.55"
-            style={{
-              animation: reduceMotion ? "none" : "coreSurge 12.4s linear infinite",
-            }}
-          />
-
-          <Node x={x0} y={y} label={t.nodes[0]} sub={t.nodeSubs[0]} />
-          <Node x={x1} y={y} label={t.nodes[1]} sub={t.nodeSubs[1]} />
-          <Node x={x2} y={y} label={t.nodes[2]} sub={t.nodeSubs[2]} />
-          <Node x={x3} y={y} label={t.nodes[3]} sub={t.nodeSubs[3]} />
-        </svg>
+            {safeT.nodes.map((label, i) => {
+              const xs = [x0, x1, x2, x3];
+              const xi = xs[i] ?? x0;
+              return (
+                <g key={label} transform={`translate(${xi}, ${y})`}>
+                  <circle r="10" fill="rgba(2,6,23,0.85)" stroke="rgba(56,189,248,0.55)" strokeWidth="2" />
+                  <circle r="3.5" fill="rgba(56,189,248,0.95)" />
+                  <text x="0" y="30" textAnchor="middle" fontSize="14" fill="rgba(226,232,240,0.92)" fontWeight="700">
+                    {label}
+                  </text>
+                  <text x="0" y="48" textAnchor="middle" fontSize="12" fill="rgba(148,163,184,0.85)">
+                    {safeT.nodeSubs[i] ?? ""}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
       </div>
     </div>
-  );
-}
-
-function Node({ x, y, label, sub }: { x: number; y: number; label: string; sub: string }): JSX.Element {
-  return (
-    <>
-      <circle cx={x} cy={y} r="11" fill="rgba(2,6,23,0.92)" stroke="rgba(56,189,248,0.72)" strokeWidth="2.2" />
-      <circle cx={x} cy={y} r="5.6" fill="rgba(2,6,23,0.98)" stroke="rgba(226,232,240,0.22)" strokeWidth="1" />
-      <circle cx={x} cy={y} r="2.6" fill="rgba(226,232,240,0.92)" />
-      <circle cx={x} cy={y} r="8" fill="rgba(56,189,248,0.06)" />
-
-      <text
-        x={x}
-        y={y + 30}
-        textAnchor="middle"
-        fontSize="13"
-        fill="rgba(226,232,240,0.95)"
-        style={{ fontWeight: 700, letterSpacing: "0.10em" }}
-      >
-        {label}
-      </text>
-      <text x={x} y={y + 52} textAnchor="middle" fontSize="12" fill="rgba(148,163,184,0.92)">
-        {sub}
-      </text>
-    </>
   );
 }
