@@ -1,68 +1,99 @@
-[[headers]]
-  for = "/*"
-  [headers.values]
-    X-Frame-Options = "DENY"
-    X-Content-Type-Options = "nosniff"
-    Referrer-Policy = "strict-origin-when-cross-origin"
-    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+// src/main.tsx
+import React from "react";
+import ReactDOM from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-# AppShell cache hardening:
-# - index.html: no-store pour éviter index stale → mauvais chunks
-# - assets: immutable long cache (Vite hashed)
-[[headers]]
-  for = "/index.html"
-  [headers.values]
-    Cache-Control = "no-store, no-cache, must-revalidate, max-age=0"
+import AppRoutes from "./routes";
+import { AuthProvider } from "./auth/AuthProvider";
+import { ShipProvider } from "./context/ShipContext";
+import { I18nProvider } from "./i18n/I18nProvider";
 
-[[headers]]
-  for = "/assets/*"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
+import "./index.css";
+import "./styles/inca-percorso-search.css";
 
-[[redirects]]
-  from = "/env*"
-  to = "/404.html"
-  status = 404
-  force = true
+/**
+ * AppShell recovery for Vite chunk / dynamic-import failures.
+ *
+ * Symptôme typique (iOS Safari surtout):
+ * - clic sur un module → "revient" / UI semble reset
+ * - hard refresh → OK
+ *
+ * Cause fréquente:
+ * - index.html en cache (stale) référence une graph de chunks qui ne matche plus
+ * - dynamic import échoue (ChunkLoadError / failed to fetch module)
+ *
+ * Remède:
+ * - 1 reload automatique max par minute quand on détecte ces erreurs
+ */
+function installChunkLoadRecovery(): void {
+  const KEY = "__core_chunk_recovery_last_reload__";
+  const now = Date.now();
 
-[[redirects]]
-  from = "/config*"
-  to = "/404.html"
-  status = 404
-  force = true
+  const last = Number(sessionStorage.getItem(KEY) ?? "0");
+  const recentlyReloaded = Number.isFinite(last) && now - last < 60_000;
 
-[[redirects]]
-  from = "/webpack*"
-  to = "/404.html"
-  status = 404
-  force = true
+  const shouldReloadForMessage = (message: string): boolean => {
+    const m = message.toLowerCase();
+    return (
+      m.includes("failed to fetch dynamically imported module") ||
+      m.includes("importing a module script failed") ||
+      m.includes("chunkloaderror") ||
+      m.includes("loading chunk")
+    );
+  };
 
-[[redirects]]
-  from = "/next.config.js"
-  to = "/404.html"
-  status = 404
-  force = true
+  const triggerReload = (): void => {
+    if (recentlyReloaded) return;
+    sessionStorage.setItem(KEY, String(now));
+    window.location.reload();
+  };
 
-[[redirects]]
-  from = "/gatsby-config.js"
-  to = "/404.html"
-  status = 404
-  force = true
+  window.addEventListener("error", (event) => {
+    const msg = String((event as ErrorEvent).message ?? "");
+    if (msg && shouldReloadForMessage(msg)) triggerReload();
+  });
 
-[[redirects]]
-  from = "/svelte.config.js"
-  to = "/404.html"
-  status = 404
-  force = true
+  window.addEventListener("unhandledrejection", (event) => {
+    const reason = (event as PromiseRejectionEvent).reason;
+    const msg = String((reason && (reason.message ?? reason)) ?? "");
+    if (msg && shouldReloadForMessage(msg)) triggerReload();
+  });
+}
 
-[[redirects]]
-  from = "/src/*"
-  to = "/404.html"
-  status = 404
-  force = true
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      gcTime: 5 * 60_000,
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+    mutations: {
+      retry: 0,
+    },
+  },
+});
 
-# SPA fallback (doit rester en dernier)
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
+const rootEl = document.getElementById("root");
+if (!rootEl) {
+  throw new Error("Root element #root not found");
+}
+
+installChunkLoadRecovery();
+
+ReactDOM.createRoot(rootEl).render(
+  <React.StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <I18nProvider>
+          <ShipProvider>
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
+          </ShipProvider>
+        </I18nProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  </React.StrictMode>
+);
