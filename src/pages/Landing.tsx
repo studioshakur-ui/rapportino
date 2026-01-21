@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { headerPill, themeIconBg, buttonPrimary } from "../ui/designSystem";
@@ -6,7 +6,6 @@ import { headerPill, themeIconBg, buttonPrimary } from "../ui/designSystem";
 import { CoreWordmark } from "../components/landing/CoreWordmark";
 import { ElectricFlowPanel } from "../components/landing/ElectricFlowPanel";
 import { ControlLayerSection } from "../components/landing/SectionControlLayer";
-import { GlobalCursorLight } from "../components/landing/GlobalCursorLight";
 
 type Lang = "it" | "fr" | "en";
 
@@ -36,22 +35,60 @@ const COPY: Record<
 
     s2Title: string;
     s2Subtitle: string;
-    s2Cards: {
-      c1Title: string;
-      c1Body: string;
-      c1Example: string;
-      c1Cta: string;
 
-      c2Title: string;
-      c2Body: string;
-      c2Example: string;
-      c2Cta: string;
-
-      c3Title: string;
-      c3Body: string;
-      c3Example: string;
-      c3Cta: string;
+    // Control Layer (slides + strict i18n)
+    s2KickerRight: string;
+    s2Tabs: {
+      identity: string;
+      operational: string;
+      evidence: string;
+      anomalies: string;
     };
+    s2Badges: {
+      identity: string;
+      operational: string;
+      evidence: string;
+      anomalies: string;
+    };
+    s2Identity: {
+      title: string;
+      body: string;
+      table: {
+        cols: [string, string, string];
+        rows: Array<[string, string, string]>;
+      };
+    };
+    s2Operational: {
+      title: string;
+      body: string;
+      chartTitle: string;
+      signals: {
+        s1K: string;
+        s1V: string;
+        s2K: string;
+        s2V: string;
+        s3K: string;
+        s3V: string;
+      };
+    };
+    s2Evidence: {
+      title: string;
+      body: string;
+      table: {
+        cols: [string, string, string];
+        rows: Array<[string, string, string]>;
+      };
+    };
+    s2Anomalies: {
+      title: string;
+      body: string;
+      table: {
+        cols: [string, string, string];
+        rows: Array<[string, string, string]>;
+      };
+    };
+    s2FooterLeft: string;
+    s2FooterRight: string;
   }
 > = {
   it: {
@@ -76,22 +113,71 @@ const COPY: Record<
 
     s2Title: "CORE · Control Layer",
     s2Subtitle: "Controlli automatici. Prove verificabili. Nessuna ricostruzione.",
-    s2Cards: {
-      c1Title: "Controlli",
-      c1Body: "Incoerenze rilevate sulle righe operative.",
-      c1Example: "Previsto = 0 · Prodotto > 0",
-      c1Cta: "Vedi esempi",
 
-      c2Title: "Indice",
-      c2Body: "Scostamenti spiegati con ore e attività.",
-      c2Example: "–2h · Attività posa",
-      c2Cta: "Vedi prove",
-
-      c3Title: "Evidenze",
-      c3Body: "Ogni decisione ha una prova.",
-      c3Example: "PDF · Versioning · Audit log",
-      c3Cta: "Apri esempio",
+    s2KickerRight: "Accesso per ruoli · Tracciabilità completa · Export firmato",
+    s2Tabs: {
+      identity: "Identità",
+      operational: "Operativo",
+      evidence: "Evidenze",
+      anomalies: "Anomalie",
     },
+    s2Badges: {
+      identity: "ROLE-GATED",
+      operational: "LINE-PROVEN",
+      evidence: "AUDIT-READY",
+      anomalies: "TRACEABLE",
+    },
+    s2Identity: {
+      title: "Identità & ruoli",
+      body: "Ogni azione è consentita solo al ruolo corretto. Nessuna ambiguità tra CAPO, UFFICIO e DIREZIONE.",
+      table: {
+        cols: ["Controllo", "Condizione", "Esito"],
+        rows: [
+          ["Role gate", "Ruolo non autorizzato", "BLOCK"],
+          ["Scope", "Ship non assegnata", "BLOCK"],
+          ["Periodo", "Data fuori range", "WARN"],
+        ],
+      },
+    },
+    s2Operational: {
+      title: "Indice",
+      body: "Scostamenti spiegati con ore e attività.",
+      chartTitle: "Coerenza (campione)",
+      signals: {
+        s1K: "Segnale",
+        s1V: "Scostamento previsto/prodotto",
+        s2K: "Azione",
+        s2V: "Spiegazione richiesta",
+        s3K: "Esito",
+        s3V: "WARN · EXPLAIN",
+      },
+    },
+    s2Evidence: {
+      title: "Evidenze",
+      body: "Ogni decisione è supportata da prove versionate e documenti congelati, sempre consultabili.",
+      table: {
+        cols: ["Prova", "Formato", "Garanzia"],
+        rows: [
+          ["Rapportino", "PDF", "Versioning"],
+          ["CORE Drive", "SHA-256", "Integrità"],
+          ["Freeze", "Read-only", "Non alterabile"],
+        ],
+      },
+    },
+    s2Anomalies: {
+      title: "Anomalie & claims",
+      body: "Le anomalie generano un flusso tracciato: apertura, verifica, decisione e chiusura.",
+      table: {
+        cols: ["Evento", "Stato", "Responsabile"],
+        rows: [
+          ["Anomalia", "Open", "Capo / Ufficio"],
+          ["Verifica", "In review", "Manager"],
+          ["Decisione", "Closed", "Direzione"],
+        ],
+      },
+    },
+    s2FooterLeft: "AUDIT-DEFENSIBLE",
+    s2FooterRight: "POLICY-DRIVEN",
   },
   fr: {
     eyebrow: "Système opérationnel de chantier",
@@ -115,22 +201,71 @@ const COPY: Record<
 
     s2Title: "CORE · Control Layer",
     s2Subtitle: "Contrôles automatiques. Preuves vérifiables. Aucune reconstruction.",
-    s2Cards: {
-      c1Title: "Contrôles",
-      c1Body: "Incohérences détectées sur les lignes.",
-      c1Example: "Prévu = 0 · Produit > 0",
-      c1Cta: "Voir exemples",
 
-      c2Title: "Indice",
-      c2Body: "Écarts expliqués par heures et activités.",
-      c2Example: "–2h · Activité pose",
-      c2Cta: "Voir preuves",
-
-      c3Title: "Preuves",
-      c3Body: "Chaque décision a une preuve.",
-      c3Example: "PDF · Versioning · Journal d’audit",
-      c3Cta: "Ouvrir exemple",
+    s2KickerRight: "Accès par rôles · Traçabilité complète · Export signé",
+    s2Tabs: {
+      identity: "Identité",
+      operational: "Opérationnel",
+      evidence: "Preuves",
+      anomalies: "Anomalies",
     },
+    s2Badges: {
+      identity: "ROLE-GATED",
+      operational: "LINE-PROVEN",
+      evidence: "AUDIT-READY",
+      anomalies: "TRACEABLE",
+    },
+    s2Identity: {
+      title: "Identité & rôles",
+      body: "Chaque action est autorisée uniquement au bon rôle. Pas d’ambiguïté entre CAPO, UFFICIO et DIREZIONE.",
+      table: {
+        cols: ["Contrôle", "Condition", "Résultat"],
+        rows: [
+          ["Accès par rôle", "Rôle non autorisé", "BLOCK"],
+          ["Périmètre", "Navire non assigné", "BLOCK"],
+          ["Période", "Date hors plage", "WARN"],
+        ],
+      },
+    },
+    s2Operational: {
+      title: "Indice",
+      body: "Écarts expliqués par heures et activités.",
+      chartTitle: "Cohérence (échantillon)",
+      signals: {
+        s1K: "Signal",
+        s1V: "Écart prévu/produit",
+        s2K: "Action",
+        s2V: "Explication requise",
+        s3K: "Résultat",
+        s3V: "WARN · EXPLAIN",
+      },
+    },
+    s2Evidence: {
+      title: "Preuves",
+      body: "Chaque décision est appuyée par des preuves versionnées et des documents gelés, toujours consultables.",
+      table: {
+        cols: ["Preuve", "Format", "Garantie"],
+        rows: [
+          ["Rapport", "PDF", "Versioning"],
+          ["CORE Drive", "SHA-256", "Intégrité"],
+          ["Gel", "Lecture seule", "Non modifiable"],
+        ],
+      },
+    },
+    s2Anomalies: {
+      title: "Anomalies & réclamations",
+      body: "Les anomalies déclenchent un flux traçable : ouverture, revue, décision, clôture.",
+      table: {
+        cols: ["Événement", "Statut", "Responsable"],
+        rows: [
+          ["Anomalie", "Open", "Capo / Ufficio"],
+          ["Revue", "In review", "Manager"],
+          ["Décision", "Closed", "Direzione"],
+        ],
+      },
+    },
+    s2FooterLeft: "AUDIT-DEFENSIBLE",
+    s2FooterRight: "POLICY-DRIVEN",
   },
   en: {
     eyebrow: "Operational shipyard system",
@@ -154,22 +289,71 @@ const COPY: Record<
 
     s2Title: "CORE · Control Layer",
     s2Subtitle: "Automatic controls. Verifiable evidence. No reconstruction.",
-    s2Cards: {
-      c1Title: "Controls",
-      c1Body: "Inconsistencies detected on operational lines.",
-      c1Example: "Planned = 0 · Produced > 0",
-      c1Cta: "View examples",
 
-      c2Title: "Index",
-      c2Body: "Deviations explained with hours and activities.",
-      c2Example: "–2h · Laying activity",
-      c2Cta: "View evidence",
-
-      c3Title: "Evidence",
-      c3Body: "Every decision has a proof.",
-      c3Example: "PDF · Versioning · Audit log",
-      c3Cta: "Open example",
+    s2KickerRight: "Role access · Full traceability · Signed export",
+    s2Tabs: {
+      identity: "Identity",
+      operational: "Operational",
+      evidence: "Evidence",
+      anomalies: "Anomalies",
     },
+    s2Badges: {
+      identity: "ROLE-GATED",
+      operational: "LINE-PROVEN",
+      evidence: "AUDIT-READY",
+      anomalies: "TRACEABLE",
+    },
+    s2Identity: {
+      title: "Identity & roles",
+      body: "Every action is allowed only for the correct role. No ambiguity across CAPO, UFFICIO and DIREZIONE.",
+      table: {
+        cols: ["Control", "Condition", "Outcome"],
+        rows: [
+          ["Role gate", "Unauthorized role", "BLOCK"],
+          ["Scope", "Ship not assigned", "BLOCK"],
+          ["Period", "Date out of range", "WARN"],
+        ],
+      },
+    },
+    s2Operational: {
+      title: "Index",
+      body: "Deviations explained with hours and activities.",
+      chartTitle: "Consistency (sample)",
+      signals: {
+        s1K: "Signal",
+        s1V: "Planned/produced gap",
+        s2K: "Action",
+        s2V: "Explanation required",
+        s3K: "Outcome",
+        s3V: "WARN · EXPLAIN",
+      },
+    },
+    s2Evidence: {
+      title: "Evidence",
+      body: "Every decision is backed by versioned proofs and frozen documents, always consultable.",
+      table: {
+        cols: ["Evidence", "Format", "Guarantee"],
+        rows: [
+          ["Report", "PDF", "Versioning"],
+          ["CORE Drive", "SHA-256", "Integrity"],
+          ["Freeze", "Read-only", "Tamper-proof"],
+        ],
+      },
+    },
+    s2Anomalies: {
+      title: "Anomalies & claims",
+      body: "Anomalies trigger a traceable flow: open, review, decision, close.",
+      table: {
+        cols: ["Event", "Status", "Owner"],
+        rows: [
+          ["Anomaly", "Open", "Capo / Ufficio"],
+          ["Review", "In review", "Manager"],
+          ["Decision", "Closed", "Direzione"],
+        ],
+      },
+    },
+    s2FooterLeft: "AUDIT-DEFENSIBLE",
+    s2FooterRight: "POLICY-DRIVEN",
   },
 };
 
@@ -193,8 +377,6 @@ export default function Landing(): JSX.Element {
     document.documentElement.classList.add("dark");
   }, []);
 
-  const rootRef = useRef<HTMLDivElement | null>(null);
-
   const [lang, setLang] = useState<Lang>(() => safeGetInitialLang());
   const t = COPY[lang];
 
@@ -215,10 +397,10 @@ export default function Landing(): JSX.Element {
   }, []);
 
   return (
-    <div ref={rootRef} className="relative min-h-screen bg-slate-950 text-slate-100">
+    <div className="min-h-screen bg-slate-950 text-slate-100">
       {/* BACKDROP (clean, no seasonal modes) */}
       <div
-        className="pointer-events-none fixed inset-0 z-0"
+        className="pointer-events-none fixed inset-0"
         style={{
           backgroundImage: `
             radial-gradient(1200px 620px at 14% 18%, rgba(56,189,248,0.08), transparent 62%),
@@ -229,12 +411,9 @@ export default function Landing(): JSX.Element {
         }}
       />
 
-      {/* GLOBAL CURSOR LIGHT (subtle, site-wide on the landing) */}
-      <GlobalCursorLight target={rootRef} />
-
       {/* GRAIN (very subtle) */}
       <div
-        className="pointer-events-none fixed inset-0 z-[12] opacity-[0.045]"
+        className="pointer-events-none fixed inset-0 opacity-[0.045]"
         style={{
           backgroundImage: `
             repeating-linear-gradient(
@@ -245,128 +424,109 @@ export default function Landing(): JSX.Element {
               rgba(0,0,0,0.20) 3px
             )
           `,
-          mixBlendMode: "overlay",
         }}
       />
 
-      {/* HEADER */}
-      <header className="relative z-20 px-3 pt-3">
-        <div className="mx-auto max-w-7xl">
-          <div className="no-print sticky top-0 z-30 rounded-2xl border border-slate-800 bg-[#050910]/70 backdrop-blur px-3 py-2">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0 flex items-center gap-3">
-                <div className={cx(headerPill(true), "border-slate-700 text-slate-200 bg-slate-900/40")}>
-                  <span className={themeIconBg(true, "sky")}>●</span>
-                  <span>CORE</span>
-                </div>
-                <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500 truncate">{t.eyebrow}</div>
-              </div>
+      {/* NAV */}
+      <div className="relative z-10 mx-auto max-w-6xl px-6 pt-7">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className={cx("inline-flex items-center gap-2 rounded-full border px-3 py-1.5", headerPill)}>
+              <span className={cx("inline-flex h-5 w-5 items-center justify-center rounded-full", themeIconBg)}>
+                <span className="h-2 w-2 rounded-full bg-sky-400" />
+              </span>
+              <span className="text-[11px] uppercase tracking-[0.22em] text-slate-300">CORE</span>
+            </span>
 
-              <div className="flex items-center gap-2">
-                <div className="hidden sm:flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-950/45 px-2 py-1">
-                  {LANGS.map((l) => (
-                    <button
-                      key={l}
-                      type="button"
-                      onClick={() => setLang(l)}
-                      className={cx(
-                        "px-2.5 py-1.5 rounded-lg text-[11px] uppercase tracking-[0.18em] transition",
-                        l === lang ? "text-sky-200" : "text-slate-500 hover:text-slate-300"
-                      )}
-                      aria-label={`Language ${l}`}
-                      title={l.toUpperCase()}
-                    >
-                      {l}
-                    </button>
-                  ))}
-                </div>
-
-                <Link
-                  to="/login"
-                  className={cx(
-                    buttonPrimary(true),
-                    "h-9 px-4 rounded-xl shadow-[0_18px_45px_rgba(56,189,248,0.14)]"
-                  )}
-                >
-                  {t.ctaPrimary}
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* MAIN */}
-      <main className="relative z-10">
-        <div className="mx-auto max-w-7xl px-6 py-16 md:py-20">
-          {/* HERO */}
-          <section className="grid grid-cols-1 lg:grid-cols-12 gap-12 xl:gap-14 items-start">
-            <div className="lg:col-span-5 space-y-9">
-              <div className="space-y-4">
-                <div className="text-[12px] uppercase tracking-[0.30em] text-slate-500">{t.eyebrow}</div>
-
-                <CoreWordmark title={t.title} />
-
-                <div className="text-2xl text-slate-300 tracking-tight">{t.subtitle}</div>
-              </div>
-
-              <div className="space-y-2 text-[22px] leading-relaxed">
-                {t.valueLines.map((line) => (
-                  <div key={line} className="text-slate-100">
-                    {line}
-                  </div>
-                ))}
-              </div>
-
-              <div className="pt-2 flex flex-wrap items-center gap-4">
-                <Link
-                  to="/login"
-                  className={cx(buttonPrimary(true), "px-7 py-3 rounded-xl shadow-[0_18px_50px_rgba(56,189,248,0.14)]")}
-                >
-                  {t.ctaPrimary}
-                </Link>
-
-                <a
-                  href={accessHref}
-                  className={cx(
-                    "inline-flex items-center justify-center rounded-xl border border-slate-800 bg-slate-950/45 px-7 py-3 text-slate-200 hover:bg-slate-950/70 transition"
-                  )}
-                >
-                  {t.ctaSecondary}
-                </a>
-
-                <span className="text-sm text-slate-500">{t.accessNote}</span>
-              </div>
-            </div>
-
-            <div className="lg:col-span-7">
-              <ElectricFlowPanel t={t} />
-            </div>
-          </section>
-
-          {/* SECTION 2 (under hero) */}
-          <div className="pt-14 md:pt-16">
-            <ControlLayerSection t={t} />
+            <span className="hidden sm:block text-[11px] uppercase tracking-[0.26em] text-slate-500">
+              {t.eyebrow}
+            </span>
           </div>
 
-          {/* CLOSURE */}
-          <section className="pt-16 mt-16 border-t border-slate-800/70">
-            <div className="text-5xl font-semibold tracking-tight leading-[1.05]">
-              {t.closureTitle}
-              <br />
-              {t.closureSub}
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center rounded-full border border-slate-800 bg-slate-950/45 p-1">
+              {LANGS.map((l) => (
+                <button
+                  key={l}
+                  type="button"
+                  className={cx(
+                    "rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.22em] transition",
+                    l === lang ? "bg-slate-900 text-slate-100" : "text-slate-500 hover:text-slate-200"
+                  )}
+                  onClick={() => setLang(l)}
+                >
+                  {l.toUpperCase()}
+                </button>
+              ))}
             </div>
-            <div className="mt-4 text-base text-slate-400 max-w-3xl leading-relaxed">{t.closureLine}</div>
-          </section>
-        </div>
-      </main>
 
-      <footer className="relative z-10 border-t border-slate-800/70">
-        <div className="mx-auto max-w-7xl px-6 py-6 flex items-center justify-between text-[11px] text-slate-500">
-          <span>{t.footerLeft}</span>
-          <span>{t.footerRight}</span>
+            <Link to="/login" className={cx("rounded-full px-5 py-2 text-sm font-semibold", buttonPrimary)}>
+              {t.ctaPrimary}
+            </Link>
+          </div>
         </div>
-      </footer>
+      </div>
+
+      {/* HERO */}
+      <div className="relative z-10 mx-auto max-w-6xl px-6 pt-16 pb-16">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+          <div className="lg:col-span-5">
+            <div className="text-[11px] uppercase tracking-[0.26em] text-slate-500">{t.eyebrow}</div>
+
+            <div className="mt-4">
+              <CoreWordmark title={t.title} />
+              <div className="mt-3 text-xl text-slate-300">{t.subtitle}</div>
+            </div>
+
+            <div className="mt-10 space-y-4 text-2xl text-slate-100">
+              {t.valueLines.map((x) => (
+                <div key={x}>{x}</div>
+              ))}
+            </div>
+
+            <div className="mt-10 flex items-center gap-4">
+              <Link to="/login" className={cx("rounded-full px-7 py-3 text-sm font-semibold", buttonPrimary)}>
+                {t.ctaPrimary}
+              </Link>
+
+              <a
+                href={accessHref}
+                className="rounded-full border border-slate-800 bg-slate-950/40 px-7 py-3 text-sm text-slate-200 hover:bg-slate-950/55 transition"
+              >
+                {t.ctaSecondary}
+              </a>
+            </div>
+
+            <div className="mt-4 text-sm text-slate-500">{t.accessNote}</div>
+          </div>
+
+          <div className="lg:col-span-7">
+            <ElectricFlowPanel spec={t.spec} nodes={t.nodes} nodeSubs={t.nodeSubs} />
+          </div>
+        </div>
+      </div>
+
+      {/* SECTION 2: CONTROL LAYER */}
+      <div className="relative z-10 mx-auto max-w-6xl px-6 pb-20">
+        <ControlLayerSection t={t} />
+      </div>
+
+      {/* CLOSURE */}
+      <div className="relative z-10 mx-auto max-w-6xl px-6 pb-28">
+        <div className="border-t border-slate-800/70 pt-16">
+          <div className="text-5xl md:text-6xl font-semibold tracking-tight leading-tight">
+            {t.closureTitle}
+            <br />
+            {t.closureSub}
+          </div>
+          <div className="mt-4 text-lg text-slate-500">{t.closureLine}</div>
+        </div>
+
+        <div className="mt-16 flex items-center justify-between border-t border-slate-800/70 pt-6 text-[12px] text-slate-500">
+          <div>{t.footerLeft}</div>
+          <div>{t.footerRight}</div>
+        </div>
+      </div>
     </div>
   );
 }
