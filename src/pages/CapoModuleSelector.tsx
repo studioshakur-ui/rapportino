@@ -1,5 +1,5 @@
 // src/pages/CapoModuleSelector.tsx
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useShip, type Ship } from "../context/ShipContext";
 import { corePills } from "../ui/designSystem";
@@ -16,13 +16,19 @@ export default function CapoModuleSelector(): JSX.Element {
 
   const { currentShip, ships, loadingShips, setCurrentShip, refreshShips } = useShip();
 
+  // Prevent iOS ghost-tap / double trigger
+  const navLockRef = useRef<number>(0);
+  const canNavigate = (): boolean => Date.now() > navLockRef.current;
+  const lockNav = (ms = 420): void => {
+    navLockRef.current = Date.now() + ms;
+  };
+
   useEffect(() => {
     refreshShips();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const resolvedShip = useMemo(() => findShipById(ships ?? [], shipId), [ships, shipId]);
-
   const uiShip = useMemo(() => resolvedShip || currentShip || null, [resolvedShip, currentShip]);
 
   const shipLabel = useMemo(() => {
@@ -33,30 +39,39 @@ export default function CapoModuleSelector(): JSX.Element {
   }, [uiShip, shipId]);
 
   const goRapportino = (): void => {
+    if (!canNavigate()) return;
+    lockNav();
     navigate(`/app/ship/${shipId}/rapportino/role`);
   };
 
   const goTeams = (): void => {
+    if (!canNavigate()) return;
+    lockNav();
     navigate(`/app/ship/${shipId}/teams`);
   };
 
   const goInca = (): void => {
+    if (!canNavigate()) return;
+    lockNav();
     navigate(`/app/ship/${shipId}/inca`);
   };
 
   const goKpi = async (): Promise<void> => {
+    if (!canNavigate()) return;
+    lockNav();
+
     // KPI page depends on ShipContext.currentShip.code (costr)
-    // Ensure currentShip is set to the resolvedShip before navigating.
     if (resolvedShip) {
       setCurrentShip(resolvedShip);
-      // Yield one microtask to let state propagate before route render
       await Promise.resolve();
     }
     navigate(`/app/kpi-operatori`, { state: { shipId } });
   };
 
   const goMegaKpi = async (): Promise<void> => {
-    // Mega KPI page depends on ShipContext.currentShip (costr/commessa)
+    if (!canNavigate()) return;
+    lockNav();
+
     if (resolvedShip) {
       setCurrentShip(resolvedShip);
       await Promise.resolve();
@@ -83,8 +98,13 @@ export default function CapoModuleSelector(): JSX.Element {
         {/* ORGANIZZAZIONE SQUADRE */}
         <button
           type="button"
-          onClick={goTeams}
+          onPointerUp={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            goTeams();
+          }}
           className="group relative overflow-hidden rounded-2xl border border-violet-500/30 bg-slate-950/60 hover:bg-slate-950/75 hover:border-violet-400/80 transition-all px-4 py-4 text-left"
+          style={{ touchAction: "manipulation" }}
         >
           <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-violet-400/80 to-transparent" />
           <div className="flex items-start justify-between gap-2 mb-2">
@@ -107,8 +127,13 @@ export default function CapoModuleSelector(): JSX.Element {
         {/* Rapportino */}
         <button
           type="button"
-          onClick={goRapportino}
+          onPointerUp={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            goRapportino();
+          }}
           className="group relative overflow-hidden rounded-2xl border border-sky-500/30 bg-slate-950/60 hover:bg-slate-950/75 hover:border-sky-400/80 transition-all px-4 py-4 text-left"
+          style={{ touchAction: "manipulation" }}
         >
           <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-sky-400/80 to-transparent" />
           <div className="flex items-start justify-between gap-2 mb-2">
@@ -128,8 +153,13 @@ export default function CapoModuleSelector(): JSX.Element {
         {/* INCA */}
         <button
           type="button"
-          onClick={goInca}
+          onPointerUp={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            goInca();
+          }}
           className="group relative overflow-hidden rounded-2xl border border-amber-500/30 bg-slate-950/60 hover:bg-slate-950/75 hover:border-amber-400/80 transition-all px-4 py-4 text-left"
+          style={{ touchAction: "manipulation" }}
         >
           <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-amber-400/80 to-transparent" />
           <div className="flex items-start justify-between gap-2 mb-2">
@@ -147,8 +177,13 @@ export default function CapoModuleSelector(): JSX.Element {
         {/* KPI */}
         <button
           type="button"
-          onClick={goKpi}
+          onPointerUp={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            void goKpi();
+          }}
           className="group relative overflow-hidden rounded-2xl border border-fuchsia-500/30 bg-slate-950/60 hover:bg-slate-950/75 hover:border-fuchsia-400/80 transition-all px-4 py-4 text-left"
+          style={{ touchAction: "manipulation" }}
         >
           <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-fuchsia-400/80 to-transparent" />
           <div className="flex items-start justify-between gap-2 mb-2">
@@ -174,8 +209,13 @@ export default function CapoModuleSelector(): JSX.Element {
         {/* MEGA KPI · STESURA */}
         <button
           type="button"
-          onClick={goMegaKpi}
+          onPointerUp={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            void goMegaKpi();
+          }}
           className="group relative overflow-hidden rounded-2xl border border-emerald-500/30 bg-slate-950/60 hover:bg-slate-950/75 hover:border-emerald-400/80 transition-all px-4 py-4 text-left"
+          style={{ touchAction: "manipulation" }}
         >
           <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-emerald-400/80 to-transparent" />
           <div className="flex items-start justify-between gap-2 mb-2">
