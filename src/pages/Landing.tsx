@@ -501,7 +501,7 @@ export default function Landing(): JSX.Element {
           </div>
 
           <div className="lg:col-span-7">
-            <ElectricFlowPanel spec={t.spec} nodes={t.nodes} nodeSubs={t.nodeSubs} />
+          <ElectricFlowPanel t={{ spec: t.spec, nodes: t.nodes, nodeSubs: t.nodeSubs }} />
           </div>
         </div>
       </div>
