@@ -172,23 +172,53 @@ export default function AppShell(): JSX.Element {
     setMobileNavOpen(false);
   }, [pathname]);
 
-  /* ───────────────────────── iOS Ghost-tap protection ─────────────────────────
+  /* ───────────────────────── iOS tap-through hard shield ─────────────────────────
    *
    * Symptom:
-   * - tap a module card -> route changes -> new screen appears -> immediately navigates back
+   * - tap module card -> enters target page -> immediately exits (often by "Indietro")
    *
-   * Cause (very common on iOS Safari):
-   * - "tap-through" / ghost click delivered to the new screen after navigation
+   * Cause:
+   * - iOS Safari can replay a "ghost tap" after navigation (tap-through).
    *
    * Fix:
-   * - freeze pointer events very briefly on every route change
+   * - After each route change, we block ALL pointer/click events for a short window.
+   * - Additionally we capture and stop propagation at window level.
    */
-  const [navFreeze, setNavFreeze] = useState<boolean>(false);
+  const [tapShield, setTapShield] = useState<boolean>(false);
+
   useEffect(() => {
-    setNavFreeze(true);
-    const tmr = window.setTimeout(() => setNavFreeze(false), 240);
+    setTapShield(true);
+    const tmr = window.setTimeout(() => setTapShield(false), 750);
     return () => window.clearTimeout(tmr);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!tapShield) return;
+
+    const stop = (e: Event) => {
+      try {
+        e.preventDefault();
+        e.stopPropagation();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (e as any).stopImmediatePropagation?.();
+      } catch {
+        // ignore
+      }
+    };
+
+    // Capture phase to win against React handlers
+    window.addEventListener("pointerup", stop, true);
+    window.addEventListener("click", stop, true);
+    window.addEventListener("touchend", stop, true);
+    window.addEventListener("mouseup", stop, true);
+
+    return () => {
+      window.removeEventListener("pointerup", stop, true);
+      window.removeEventListener("click", stop, true);
+      window.removeEventListener("touchend", stop, true);
+      window.removeEventListener("mouseup", stop, true);
+    };
+  }, [tapShield]);
 
   /* ───────────────────────── Logout ───────────────────────── */
 
@@ -229,6 +259,9 @@ export default function AppShell(): JSX.Element {
 
   /**
    * Sidebar NAV (CAPO)
+   * Requested:
+   *  - KPI button in sidebar
+   *  - INCA Capo button in sidebar
    */
   const navItems = [
     {
@@ -263,6 +296,7 @@ export default function AppShell(): JSX.Element {
       {/* ───────────── Idle / Session security ───────────── */}
       <IdleSessionManager
         enabled
+        // ✅ Scope storage per user to avoid cross-account contamination on shared machines
         storageScopeKey={session?.user?.id ?? "anon"}
         warnAfterMs={25 * 60 * 1000}
         logoutAfterMs={30 * 60 * 1000}
@@ -396,18 +430,16 @@ export default function AppShell(): JSX.Element {
 
             {/* CONTENT */}
             <div className="flex-1 min-h-0 overflow-auto">
-              <div
-                className={`${contentWrapClass} px-3 sm:px-4 pb-6`}
-                style={
-                  navFreeze
-                    ? {
-                        pointerEvents: "none",
-                        // prevent iOS ghost tap propagation
-                        touchAction: "manipulation",
-                      }
-                    : { touchAction: "manipulation" }
-                }
-              >
+              <div className={`${contentWrapClass} px-3 sm:px-4 pb-6 relative`} style={{ touchAction: "manipulation" }}>
+                {/* Hard shield (blocks taps during nav settling) */}
+                {tapShield ? (
+                  <div
+                    className="absolute inset-0 z-[999] bg-transparent"
+                    aria-hidden="true"
+                    style={{ pointerEvents: "auto" }}
+                  />
+                ) : null}
+
                 <KeepAliveOutlet scopeKey="app" context={{ opDropToken } as OutletCtx} />
               </div>
             </div>
