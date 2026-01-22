@@ -52,11 +52,6 @@ function hasAnyOperatorValueLegacy(operatori: any): boolean {
   return lines.some((l) => String(l ?? "").trim().length > 0);
 }
 
-function countLegacyOperators(operatori: any): number {
-  const lines = splitLinesKeepEmpties(operatori);
-  return lines.filter((l) => String(l ?? "").trim().length > 0).length;
-}
-
 function prettyMultiline(value: any): string {
   const lines = splitLinesKeepEmpties(value).map((x) => String(x ?? "").trim());
   const filtered = lines.filter((x) => x.length > 0);
@@ -171,11 +166,9 @@ export default function RapportinoTable({
               const indiceText = (() => {
                 const m = productivityIndexMap;
                 if (!m || m.size === 0) {
-                  // Keep the column stable even when KPI data is not available.
                   return "";
                 }
 
-                // Canonical rows: 1 line per operator_item
                 if (isCanonical) {
                   const items = Array.isArray((r as any)?.operator_items) ? (r as any).operator_items : [];
                   const lines = items.map((it: any) => {
@@ -188,7 +181,6 @@ export default function RapportinoTable({
                   return lines.join("\n");
                 }
 
-                // Legacy rows: no operator_id => show placeholders (avoid wrong attribution)
                 const opLines = splitLinesKeepEmpties((r as any)?.operatori);
                 return opLines.map(() => "—").join("\n");
               })();
@@ -255,161 +247,115 @@ export default function RapportinoTable({
                               return;
                             }
 
-                            // fallback -> legacy text
                             if (!onRowChange) return;
                             const next = appendLegacyOperatorLine(r.operatori, String(dropped.name || "").trim());
                             onRowChange(idx, "operatori", next);
                           }}
                         >
-                          <div className="flex flex-wrap gap-2">
-                            {canonItems.length === 0 ? (
-                              <span className="text-slate-400 text-[12px]">Tocca per scegliere…</span>
+                          {/* PRINT VIEW */}
+                          <div className="print-only whitespace-pre-wrap leading-5 text-[11px]">
+                            {prettyMultiline(canonItems.map((it) => it?.label).filter(Boolean).join("\n"))}
+                          </div>
+
+                          {/* SCREEN VIEW */}
+                          <div className="no-print">
+                            {canonItems.length > 0 ? (
+                              <div className="flex flex-wrap gap-2">
+                                {canonItems.map((it: any, i: number) => {
+                                  const label = String(it?.label ?? "").trim();
+                                  const opId = String(it?.operator_id ?? "").trim();
+                                  if (!label) return null;
+
+                                  return (
+                                    <span
+                                      key={`${opId || "op"}-${i}`}
+                                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold"
+                                    >
+                                      {label}
+                                      {!ro ? (
+                                        <button
+                                          type="button"
+                                          className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-200 text-[10px] text-slate-700 hover:bg-slate-50"
+                                          title="Rimuovi"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            const id = String((it as any)?.operator_id ?? "").trim();
+                                            if (id) onRemoveOperatorFromRow?.(idx, id);
+                                          }}
+                                        >
+                                          ×
+                                        </button>
+                                      ) : null}
+                                    </span>
+                                  );
+                                })}
+                              </div>
                             ) : (
-                              canonItems.map((it, j) => {
-                                const operatorId = it?.operator_id;
-                                const label = String(it?.label || "").trim() || "Operatore";
-                                const isLeader = idx === 0 && j === 0;
-                                return (
-                                  <span
-                                    key={String(operatorId)}
-                                    className={cn(
-                                      "inline-flex items-center gap-2 rounded-full border bg-white px-2.5 py-1 text-[12px] font-semibold",
-                                      isLeader
-                                        ? "border-fuchsia-400/40 bg-fuchsia-50 text-slate-950 font-extrabold"
-                                        : "border-slate-200 text-slate-900"
-                                    )}
-                                    title={label}
-                                  >
-                                    <span className="max-w-[180px] truncate">{label}</span>
-                                    {!ro ? (
-                                      <span
-                                        role="button"
-                                        tabIndex={0}
-                                        className="rounded-full border border-slate-200 w-6 h-6 inline-flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-50"
-                                        title="Rimuovi operatore"
-                                        aria-label={`Rimuovi ${label}`}
-                                        onClick={(ev) => {
-                                          ev.stopPropagation();
-                                          if (!operatorId) return;
-                                          onRemoveOperatorFromRow?.(idx, String(operatorId));
-                                        }}
-                                        onKeyDown={(ev) => {
-                                          if (ev.key === "Enter" || ev.key === " ") {
-                                            ev.preventDefault();
-                                            ev.stopPropagation();
-                                            if (!operatorId) return;
-                                            onRemoveOperatorFromRow?.(idx, String(operatorId));
-                                          }
-                                        }}
-                                      >
-                                        ×
-                                      </span>
-                                    ) : null}
-                                  </span>
-                                );
-                              })
+                              <div className="text-slate-400">—</div>
                             )}
                           </div>
                         </button>
-
-                        <div className="print-only">
-                          <PrintLines value={r.operatori} />
-                        </div>
                       </>
                     ) : (
                       <>
-                        {ro ? (
-                          <div className="no-print w-full rounded-md border border-slate-200 bg-white/60 px-2 py-2 text-[12px] text-slate-900 whitespace-pre-wrap">
-                            {prettyMultiline(r.operatori) ? (
-                              prettyMultiline(r.operatori)
-                            ) : (
-                              <span className="text-slate-400">Nomi operatori (uno per riga)</span>
-                            )}
-                          </div>
-                        ) : (
-                          <textarea
-                            className="no-print w-full min-h-[72px] rounded-md border border-slate-200 bg-white/70 px-2 py-2 text-[12px] text-slate-900 outline-none focus:ring-2 focus:ring-sky-500/35"
-                            value={String(r.operatori ?? "")}
-                            placeholder="Nomi operatori (uno per riga)"
-                            onChange={(e) => onRowChange?.(idx, "operatori", e.target.value)}
-                            onDragOver={(e) => {
-                              e.preventDefault();
-                              try {
-                                e.dataTransfer.dropEffect = "copy";
-                              } catch {
-                                // ignore
-                              }
-                            }}
-                            onDrop={(e) => {
-                              e.preventDefault();
-                              const dropped = readDroppedOperator(e);
-                              if (!dropped) return;
-                              const next = appendLegacyOperatorLine(r.operatori, String(dropped.name || "").trim());
-                              onRowChange?.(idx, "operatori", next);
-                            }}
-                          />
-                        )}
-                        <div className="print-only">
-                          <PrintLines value={r.operatori} />
+                        <div className="print-only whitespace-pre-wrap leading-5 text-[11px]">
+                          {prettyMultiline(r.operatori)}
                         </div>
+
+                        <textarea
+                          className={cn(
+                            "no-print w-full resize-none bg-transparent outline-none",
+                            ro ? "opacity-80 cursor-not-allowed" : ""
+                          )}
+                          value={String(r.operatori ?? "")}
+                          onChange={ro ? undefined : (e) => onRowChange?.(idx, "operatori", e.target.value)}
+                          disabled={ro}
+                          readOnly={ro}
+                          placeholder="—"
+                          rows={Math.max(2, splitLinesKeepEmpties(r.operatori).length || 2)}
+                        />
                       </>
                     )}
-
-                    {isIncomplete ? (
-                      <div className="no-print mt-1 text-[11px] text-amber-600">
-                        Attenzione: operatori inseriti ma valori mancanti (o viceversa).
-                      </div>
-                    ) : null}
                   </td>
 
                   {/* TEMPO */}
                   <td className="px-2 py-2 text-center">
-                    <div
-                      className={cn(
-                        "no-print w-full rounded-xl border border-slate-200 bg-white/80 px-2.5 py-2",
-                        tempoPillEnabled
-                          ? "cursor-pointer hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-sky-500/35"
-                          : "opacity-70 cursor-not-allowed"
-                      )}
-                      role={tempoPillEnabled ? "button" : undefined}
-                      tabIndex={tempoPillEnabled ? 0 : -1}
-                      title={!hasOperators ? "Prima inserisci almeno un operatore" : ro ? undefined : "Tocca per impostare le ore…"}
-                      onClick={() => {
-                        if (!tempoPillEnabled) return;
-                        onOpenTempoPicker?.(idx);
-                      }}
-                      onPointerUp={() => {
-                        if (!tempoPillEnabled) return;
-                        onOpenTempoPicker?.(idx);
-                      }}
-                      onKeyDown={(e) => {
-                        if (!tempoPillEnabled) return;
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          onOpenTempoPicker?.(idx);
-                        }
-                      }}
-                    >
-                      <div className="text-[10px] font-semibold tracking-[0.14em] text-slate-500">TEMPO</div>
-                      <div className="mt-1 text-[12px] font-semibold text-slate-900 text-center whitespace-pre-wrap leading-5">
-                        {prettyMultiline(r.tempo) ? prettyMultiline(r.tempo) : "Tocca per impostare…"}
-                      </div>
+                    <div className="print-only text-center">
+                      <PrintLines value={prettyMultiline(r.tempo)} numeric={true} align="center" />
                     </div>
 
-                    <div className="print-only text-center">
-                      <PrintLines value={r.tempo} numeric={true} align="center" />
+                    <div className="no-print">
+                      <button
+                        type="button"
+                        className={cn(
+                          "w-full rounded-md border border-slate-200 bg-white/70 px-2 py-2 text-center",
+                          ro || !tempoPillEnabled ? "cursor-not-allowed opacity-70" : "hover:bg-slate-50"
+                        )}
+                        onClick={() => {
+                          if (ro) return;
+                          if (!tempoPillEnabled) return;
+                          onOpenTempoPicker?.(idx);
+                        }}
+                        disabled={ro || !tempoPillEnabled}
+                      >
+                        <div className="text-[10px] font-semibold tracking-[0.18em] uppercase text-slate-500">TEMPO</div>
+                        <div className="mt-1 whitespace-pre-wrap text-[12px] font-semibold leading-5 text-slate-900">
+                          {prettyMultiline(r.tempo) || "—"}
+                        </div>
+                      </button>
                     </div>
                   </td>
 
-                  {/* PREVISTO (LOCKED) */}
+                  {/* PREVISTO */}
                   <td className="px-2 py-2 text-right">
                     <input
-                      className={cn("w-full bg-transparent outline-none text-right", "opacity-90 cursor-not-allowed")}
+                      className={cn("w-full bg-transparent outline-none text-right", ro ? "opacity-80 cursor-not-allowed" : "")}
                       value={formatPrevisto(r.previsto)}
-                      onChange={undefined}
-                      disabled={true}
-                      readOnly={true}
-                      title="Colonna gestita dal Catalogo"
+                      onChange={ro ? undefined : (e) => onRowChange?.(idx, "previsto", e.target.value)}
+                      disabled={ro}
+                      readOnly={ro}
+                      placeholder="0"
+                      inputMode="decimal"
                     />
                   </td>
 
@@ -428,8 +374,14 @@ export default function RapportinoTable({
 
                   {/* NOTE */}
                   <td className="px-2 py-2">
+                    {/* ✅ PRINT: texte wrap (pas d’input, pas de placeholder) */}
+                    <div className="print-only whitespace-pre-wrap leading-5 text-[11px] text-slate-900">
+                      {String(r.note ?? "").trim()}
+                    </div>
+
+                    {/* ✅ SCREEN: input inchangé */}
                     <input
-                      className={cn("w-full bg-transparent outline-none", ro ? "opacity-80 cursor-not-allowed" : "")}
+                      className={cn("no-print w-full bg-transparent outline-none", ro ? "opacity-80 cursor-not-allowed" : "")}
                       value={String(r.note ?? "")}
                       onChange={ro ? undefined : (e) => onRowChange?.(idx, "note", e.target.value)}
                       disabled={ro}

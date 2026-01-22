@@ -61,6 +61,103 @@ function installChunkLoadRecovery(): void {
   });
 }
 
+/**
+ * Robust print isolation for Rapportino.
+ *
+ * Objectif:
+ * - Éliminer totalement les backgrounds du shell (AppShell, page wrappers, overlays)
+ * - Éviter les pages blanches / cadres noirs
+ * - Imprimer UNIQUEMENT #rapportino-document, quel que soit le layout courant
+ *
+ * Stratégie:
+ * - beforeprint / matchMedia('print'): déplacer temporairement #rapportino-document sous <body>
+ * - ajouter une classe html.core-printing
+ * - afterprint: restaurer le DOM à l'identique
+ */
+function installRapportinoPrintIsolation(): void {
+  const HTML_CLASS = "core-printing";
+  const PLACEHOLDER_ID = "__core_print_placeholder__";
+
+  let movedEl: HTMLElement | null = null;
+  let placeholderEl: HTMLElement | null = null;
+
+  const cleanup = (): void => {
+    document.documentElement.classList.remove(HTML_CLASS);
+
+    // Restore DOM if we moved it
+    if (movedEl && placeholderEl && placeholderEl.parentNode) {
+      placeholderEl.parentNode.insertBefore(movedEl, placeholderEl);
+      placeholderEl.remove();
+    } else {
+      // if placeholder exists but missing movedEl, remove it anyway
+      const ph = document.getElementById(PLACEHOLDER_ID);
+      if (ph) ph.remove();
+    }
+
+    movedEl = null;
+    placeholderEl = null;
+  };
+
+  const prepare = (): void => {
+    // Only apply when the Rapportino document exists in DOM
+    const docEl = document.getElementById("rapportino-document") as HTMLElement | null;
+    if (!docEl) {
+      cleanup();
+      return;
+    }
+
+    // Avoid double-move
+    if (movedEl === docEl && placeholderEl) {
+      document.documentElement.classList.add(HTML_CLASS);
+      return;
+    }
+
+    // Cleanup any stale state
+    cleanup();
+
+    // Insert placeholder at original position
+    const ph = document.createElement("div");
+    ph.id = PLACEHOLDER_ID;
+
+    const parent = docEl.parentNode;
+    if (!parent) return;
+
+    parent.insertBefore(ph, docEl);
+
+    // Move the document under <body> (top-level), so print CSS can hide everything else safely
+    document.body.appendChild(docEl);
+
+    movedEl = docEl;
+    placeholderEl = ph;
+
+    document.documentElement.classList.add(HTML_CLASS);
+  };
+
+  // Chrome / most browsers
+  window.addEventListener("beforeprint", prepare);
+  window.addEventListener("afterprint", cleanup);
+
+  // Safari/iOS: matchMedia('print') is often more reliable
+  const mql = window.matchMedia?.("print");
+  if (mql) {
+    const onChange = (e: MediaQueryListEvent | MediaQueryList) => {
+      // Some browsers call with MediaQueryList, some with event
+      const matches = "matches" in e ? e.matches : false;
+      if (matches) prepare();
+      else cleanup();
+    };
+
+    // Modern
+    if ("addEventListener" in mql) {
+      mql.addEventListener("change", onChange);
+    } else if ("addListener" in mql) {
+      // Legacy Safari
+      // @ts-expect-error legacy API
+      mql.addListener(onChange);
+    }
+  }
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -81,6 +178,7 @@ if (!rootEl) {
 }
 
 installChunkLoadRecovery();
+installRapportinoPrintIsolation();
 
 ReactDOM.createRoot(rootEl).render(
   <React.StrictMode>

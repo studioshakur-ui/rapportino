@@ -15,7 +15,6 @@ html, body {
 
 /* =========================
    PRINT PREVIEW MODE (SCREEN)
-   (si tu l’utilises via html/body.print-preview)
    ========================= */
 html.print-preview,
 body.print-preview {
@@ -60,12 +59,27 @@ html.print-preview #rapportino-document .print-only { display: block !important;
     print-color-adjust: exact;
   }
 
-  /* IMPORTANT: retire tous les éléments UI */
+  /* Nettoyage standard */
   .no-print { display: none !important; }
   .print-only { display: block !important; }
 
-  /* Neutralise tout effet preview */
-  html.print-preview #rapportino-document {
+  /* =========================================================
+     PRINT ISOLATION (ROBUSTE)
+     - main.tsx déplace #rapportino-document sous <body> juste avant print
+     - ici, on cache tout sauf #rapportino-document
+     - pas de :has(), pas d'effet de bord, pas de page vide
+     ========================================================= */
+  html.core-printing body * {
+    display: none !important;
+  }
+
+  html.core-printing body #rapportino-document,
+  html.core-printing body #rapportino-document * {
+    display: revert !important; /* conserve table/thead/tr/etc */
+  }
+
+  /* Neutralise tout effet preview (fixed/scale) pendant l'impression */
+  html.core-printing #rapportino-document {
     position: static !important;
     top: auto !important;
     left: auto !important;
@@ -77,6 +91,10 @@ html.print-preview #rapportino-document .print-only { display: block !important;
     border-radius: 0 !important;
     box-shadow: none !important;
     border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
   }
 
   /* Wrapper document */
@@ -95,31 +113,18 @@ html.print-preview #rapportino-document .print-only { display: block !important;
 
   /* =========================
      FIX COLONNES (NOTE)
-     On override les widths px par des widths "physiques" qui rentrent en A4 paysage
-     Colonnes (RapportinoTable):
-     1 CATEGORIA
-     2 DESCRIZIONE ATTIVITÀ
-     3 OPERATORE
-     4 TEMPO
-     5 PREVISTO
-     6 PRODOTTO
-     7 NOTE  (=> large)
-     8 INDICE
-     9 ACTIONS (no-print)
      ========================= */
   #rapportino-document .rapportino-table {
     width: 100% !important;
     table-layout: fixed !important;
   }
 
-  /* Empêche les inputs de forcer une largeur mini */
   #rapportino-document input,
   #rapportino-document textarea,
   #rapportino-document select {
     min-width: 0 !important;
   }
 
-  /* Largeurs (somme ≈ largeur imprimable) */
   #rapportino-document .rapportino-table th:nth-child(1),
   #rapportino-document .rapportino-table td:nth-child(1) { width: 25mm !important; }
 
@@ -138,14 +143,12 @@ html.print-preview #rapportino-document .print-only { display: block !important;
   #rapportino-document .rapportino-table th:nth-child(6),
   #rapportino-document .rapportino-table td:nth-child(6) { width: 20mm !important; }
 
-  /* ✅ NOTE large (c’est ce que tu demandes) */
   #rapportino-document .rapportino-table th:nth-child(7),
   #rapportino-document .rapportino-table td:nth-child(7) { width: 55mm !important; }
 
   #rapportino-document .rapportino-table th:nth-child(8),
   #rapportino-document .rapportino-table td:nth-child(8) { width: 14mm !important; }
 
-  /* Sécurité : si la colonne actions existe encore dans le DOM */
   #rapportino-document .rapportino-table th:nth-child(9),
   #rapportino-document .rapportino-table td:nth-child(9) {
     width: 0 !important;
@@ -153,7 +156,6 @@ html.print-preview #rapportino-document .print-only { display: block !important;
     border: none !important;
   }
 
-  /* Évite les ombres accidentelles */
   * {
     box-shadow: none !important;
     text-shadow: none !important;
@@ -172,7 +174,7 @@ html.print-preview #rapportino-document .print-only { display: block !important;
 }
 
 /* =========================
-   TABLE RAPPORTINO (screen + base)
+   TABLE RAPPORTINO
    ========================= */
 .rapportino-table {
   width: 100%;
