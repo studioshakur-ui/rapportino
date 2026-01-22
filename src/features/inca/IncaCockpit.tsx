@@ -6,12 +6,7 @@ import { supabase } from "../../lib/supabaseClient";
 
 import ApparatoCaviPopover from "./ApparatoCaviPopover";
 import { ApparatoPill, CodicePill, computeApparatoPMaps } from "../inca/IncaPills";
-
-// =====================================================
-// INCA COCKPIT (UFFICIO) — CLEAN (UI-first)
-// Source is VIEW: inca_cavi_with_last_posa_and_capo_v1
-// (adds data_posa + capo_label)
-// =====================================================
+import IncaCaviTable, { type IncaCavoRow, type IncaTableViewMode } from "./IncaCaviTable";
 
 export type IncaCockpitMode = "page" | "modal";
 
@@ -29,43 +24,10 @@ type IncaFileRow = {
   uploaded_at: string | null;
 };
 
-type IncaCavoRow = {
-  id: string;
-  inca_file_id: string;
+const SITUAZIONI_ORDER = ["NP", "T", "P", "R", "B", "E"] as const;
+type SituazioneCode = (typeof SITUAZIONI_ORDER)[number];
 
-  costr: string | null;
-  commessa: string | null;
-
-  codice: string | null;
-  descrizione: string | null;
-  impianto: string | null;
-  tipo: string | null;
-  marca_cavo: string | null;
-  sezione: string | null;
-
-  zona_da: string | null;
-  zona_a: string | null;
-  apparato_da: string | null;
-  apparato_a: string | null;
-  descrizione_da: string | null;
-  descrizione_a: string | null;
-
-  metri_teo: number | null;
-  metri_dis: number | null;
-  metri_totali: number | null;
-
-  situazione: string | null;
-  livello: string | null;
-  wbs: string | null;
-
-  data_posa: string | null;
-  capo_label: string | null;
-};
-
-export const SITUAZIONI_ORDER = ["NP", "T", "P", "R", "B", "E"] as const;
-export type SituazioneCode = (typeof SITUAZIONI_ORDER)[number];
-
-export const SITUAZIONI_LABEL: Record<SituazioneCode, string> = {
+const SITUAZIONI_LABEL: Record<SituazioneCode, string> = {
   NP: "Non posato",
   T: "Terminato",
   P: "Posato",
@@ -92,6 +54,16 @@ function formatDateIT(value: unknown): string {
   return d.toLocaleDateString("it-IT");
 }
 
+function norm(v: unknown): string {
+  return String(v ?? "").trim();
+}
+
+function toSituazione(v: unknown): SituazioneCode {
+  const s = norm(v);
+  if (s && (SITUAZIONI_ORDER as readonly string[]).includes(s)) return s as SituazioneCode;
+  return "NP";
+}
+
 function colorForSituazione(code: SituazioneCode): string {
   switch (code) {
     case "P":
@@ -110,27 +82,16 @@ function colorForSituazione(code: SituazioneCode): string {
   }
 }
 
-function norm(v: unknown): string {
-  return String(v ?? "").trim();
-}
-
-function toSituazione(v: unknown): SituazioneCode {
-  const s = norm(v);
-  if (s && (SITUAZIONI_ORDER as readonly string[]).includes(s)) return s as SituazioneCode;
-  return "NP";
-}
-
 function tipoCavoLabel(r: IncaCavoRow): string {
   const t = norm(r?.tipo);
   if (t) return t;
-  const m = norm(r?.marca_cavo);
+  const m = norm((r as any)?.marca_cavo);
   if (m) return m;
   return "—";
 }
 
 export default function IncaCockpit(props: IncaCockpitProps) {
   const navigate = useNavigate();
-
   const mode: IncaCockpitMode = props.mode ?? "page";
 
   // Filters
@@ -141,6 +102,9 @@ export default function IncaCockpit(props: IncaCockpitProps) {
   const [situazioni, setSituazioni] = useState<SituazioneCode[]>([]);
   const [apparatoDa, setApparatoDa] = useState<string>("");
   const [apparatoA, setApparatoA] = useState<string>("");
+
+  // Table view
+  const [viewMode, setViewMode] = useState<IncaTableViewMode>("standard");
 
   // Data
   const [cavi, setCavi] = useState<IncaCavoRow[]>([]);
@@ -159,15 +123,12 @@ export default function IncaCockpit(props: IncaCockpitProps) {
   const [apparatoPopoverName, setApparatoPopoverName] = useState<string>("");
   const [apparatoAnchorRect, setApparatoAnchorRect] = useState<DOMRect | null>(null);
 
-  // Batched loading rules (pageSize <= 1000 to defeat PostgREST caps)
   const loadInfo = useMemo(() => ({ pageSize: 1000, maxPages: 200 }), []);
 
-  // Keep state aligned if modal passes a fileId
   useEffect(() => {
     const v = (props.fileId ?? "").trim();
     if (!v) return;
     setFileId(v);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.fileId]);
 
   // 1) load files
@@ -191,7 +152,6 @@ export default function IncaCockpit(props: IncaCockpitProps) {
         const list: IncaFileRow[] = Array.isArray(data) ? (data as IncaFileRow[]) : [];
         setFiles(list);
 
-        // Only auto-pick if no external fileId is provided
         if (!fileId && !props.fileId && list[0]?.id) setFileId(list[0].id);
       } catch (err) {
         console.error("[IncaCockpit] loadFiles error:", err);
@@ -211,8 +171,7 @@ export default function IncaCockpit(props: IncaCockpitProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 2) load cavi by fileId (batched, no 1000 ceiling)
-  // IMPORTANT: source is VIEW inca_cavi_with_last_posa_and_capo_v1
+  // 2) load cavi by fileId (batched) — source VIEW: inca_cavi_with_last_posa_and_capo_v1
   useEffect(() => {
     let alive = true;
     const ac = new AbortController();
@@ -238,14 +197,15 @@ export default function IncaCockpit(props: IncaCockpitProps) {
               [
                 "id",
                 "inca_file_id",
-                "costr",
-                "commessa",
                 "codice",
-                "descrizione",
-                "impianto",
-                "tipo",
                 "marca_cavo",
+                "tipo",
                 "sezione",
+                "livello_disturbo",
+                "impianto",
+                "situazione",
+                "stato_cantiere",
+                "stato_tec",
                 "zona_da",
                 "zona_a",
                 "apparato_da",
@@ -255,9 +215,9 @@ export default function IncaCockpit(props: IncaCockpitProps) {
                 "metri_teo",
                 "metri_dis",
                 "metri_totali",
-                "situazione",
                 "livello",
                 "wbs",
+                "pagina_pdf",
                 "data_posa",
                 "capo_label",
               ].join(",")
@@ -298,13 +258,12 @@ export default function IncaCockpit(props: IncaCockpitProps) {
     };
   }, [fileId, loadInfo.maxPages, loadInfo.pageSize]);
 
-  // Apparato maps MUST be computed on FILE SCOPE (not filtered scope)
-  const apparatoPMaps = useMemo(() => computeApparatoPMaps(cavi), [cavi]);
+  // Apparato maps computed on FILE SCOPE
+  const apparatoPMaps = useMemo(() => computeApparatoPMaps(cavi as any), [cavi]);
 
-  // Base filter scope for pills: file scope + query + apparato exact filters
+  // Base scope for pills: file scope + query + apparato exact
   const baseByQuery = useMemo(() => {
     const q = (query || "").trim().toLowerCase();
-
     const da = norm(apparatoDa).toLowerCase();
     const a = norm(apparatoA).toLowerCase();
 
@@ -319,10 +278,10 @@ export default function IncaCockpit(props: IncaCockpitProps) {
 
       const hay = [
         r.codice,
-        r.descrizione,
+        (r as any).descrizione,
         r.impianto,
         r.tipo,
-        r.marca_cavo,
+        (r as any).marca_cavo,
         r.sezione,
         r.zona_da,
         r.zona_a,
@@ -343,7 +302,6 @@ export default function IncaCockpit(props: IncaCockpitProps) {
     });
   }, [cavi, query, apparatoDa, apparatoA]);
 
-  // Pills distribution computed on base scope (so pills remain informative)
   const distribBase = useMemo(() => {
     const map = new Map<SituazioneCode, number>();
     for (const code of SITUAZIONI_ORDER) map.set(code, 0);
@@ -366,7 +324,7 @@ export default function IncaCockpit(props: IncaCockpitProps) {
     return baseByQuery.filter((r) => allow.has(toSituazione(r?.situazione)));
   }, [baseByQuery, situazioni]);
 
-  // KPIs / metrics (computed from visible scope)
+  // KPIs computed from visible scope
   const totalCavi = filteredCavi.length;
   const pCount = useMemo(
     () => filteredCavi.reduce((acc, r) => acc + (toSituazione(r?.situazione) === "P" ? 1 : 0), 0),
@@ -376,11 +334,7 @@ export default function IncaCockpit(props: IncaCockpitProps) {
     () => filteredCavi.reduce((acc, r) => acc + (toSituazione(r?.situazione) === "NP" ? 1 : 0), 0),
     [filteredCavi]
   );
-
-  const prodPercent = useMemo(() => {
-    if (!totalCavi) return 0;
-    return (pCount / totalCavi) * 100;
-  }, [pCount, totalCavi]);
+  const prodPercent = useMemo(() => (totalCavi ? (pCount / totalCavi) * 100 : 0), [pCount, totalCavi]);
 
   const totalMetri = useMemo(() => {
     return (filteredCavi || []).reduce((acc, r) => {
@@ -397,17 +351,13 @@ export default function IncaCockpit(props: IncaCockpitProps) {
     }, 0);
   }, [filteredCavi]);
 
-  const chosenFile = useMemo(
-    () => (files || []).find((x) => x.id === fileId) || null,
-    [files, fileId]
-  );
+  const chosenFile = useMemo(() => (files || []).find((x) => x.id === fileId) || null, [files, fileId]);
 
   function toggleSituazione(code: SituazioneCode) {
     setSituazioni((prev) => {
       if (!prev.length) return [code];
       const has = prev.includes(code);
-      const next = has ? prev.filter((x) => x !== code) : [...prev, code];
-      return next;
+      return has ? prev.filter((x) => x !== code) : [...prev, code];
     });
   }
 
@@ -434,13 +384,13 @@ export default function IncaCockpit(props: IncaCockpitProps) {
 
   const topAppDa = useMemo(() => {
     const items = Array.from(apparatoPMaps.da.entries()).map(([name, st]) => ({ name, ...st }));
-    items.sort((a, b) => (b.total || 0) - (a.total || 0));
+    items.sort((a: any, b: any) => (b.total || 0) - (a.total || 0));
     return items.slice(0, 8);
   }, [apparatoPMaps.da]);
 
   const topAppA = useMemo(() => {
     const items = Array.from(apparatoPMaps.a.entries()).map(([name, st]) => ({ name, ...st }));
-    items.sort((a, b) => (b.total || 0) - (a.total || 0));
+    items.sort((a: any, b: any) => (b.total || 0) - (a.total || 0));
     return items.slice(0, 8);
   }, [apparatoPMaps.a]);
 
@@ -480,22 +430,13 @@ export default function IncaCockpit(props: IncaCockpitProps) {
             )}
 
             <div className="text-right text-[11px]">
-              {loadingFiles ? (
-                <span className="text-slate-400">Caricamento file…</span>
+              {loading ? (
+                <span className="text-slate-400">Caricamento cavi…</span>
               ) : (
                 <span className="text-slate-400">
-                  File: <span className="text-slate-200 font-semibold">{files?.length || 0}</span>
+                  Cavi visibili: <span className="text-slate-200 font-semibold">{totalCavi}</span>
                 </span>
               )}
-              <div className="mt-1">
-                {loading ? (
-                  <span className="text-slate-400">Caricamento cavi…</span>
-                ) : (
-                  <span className="text-slate-400">
-                    Cavi visibili: <span className="text-slate-200 font-semibold">{totalCavi}</span>
-                  </span>
-                )}
-              </div>
               <div className="mt-1">
                 <span className="text-slate-500">Posa/Capo: via VIEW</span>
               </div>
@@ -637,12 +578,12 @@ export default function IncaCockpit(props: IncaCockpitProps) {
             })}
           </div>
 
-          {/* Apparato pills (2 rows max) */}
+          {/* Apparato pills (2 boxes) */}
           <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-2">
               <div className="text-[10px] text-slate-500 uppercase tracking-wide mb-2">Top Apparato DA</div>
               <div className="flex flex-wrap gap-2">
-                {topAppDa.map((it) => (
+                {topAppDa.map((it: any) => (
                   <ApparatoPill
                     key={`da-${it.name}`}
                     side="DA"
@@ -659,7 +600,7 @@ export default function IncaCockpit(props: IncaCockpitProps) {
             <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-2">
               <div className="text-[10px] text-slate-500 uppercase tracking-wide mb-2">Top Apparato A</div>
               <div className="flex flex-wrap gap-2">
-                {topAppA.map((it) => (
+                {topAppA.map((it: any) => (
                   <ApparatoPill
                     key={`a-${it.name}`}
                     side="A"
@@ -676,118 +617,26 @@ export default function IncaCockpit(props: IncaCockpitProps) {
         </div>
       </div>
 
-      {/* Table */}
-      <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/40 overflow-hidden">
-        <div className="flex items-center justify-between gap-3 px-3 py-2 border-b border-slate-800">
-          <div className="text-[11px] text-slate-500 uppercase tracking-wide">Cavi ({filteredCavi.length})</div>
-          <div className="text-[11px] text-slate-500">Click riga → dettagli</div>
-        </div>
-
-        {loading ? (
-          <div className="p-4">
-            <LoadingScreen message="Caricamento cavi…" />
-          </div>
-        ) : (
-          <div className="max-h-[62vh] overflow-auto">
-            <table className="w-full">
-              <thead className="sticky top-0 bg-slate-950/90 backdrop-blur border-b border-slate-800">
-                <tr className="text-left text-[11px] text-slate-500">
-                  <th className="px-3 py-2">Codice</th>
-                  <th className="px-3 py-2">Da → A</th>
-                  <th className="px-3 py-2">Tipo cavo</th>
-                  <th className="px-3 py-2">Situaz.</th>
-                  <th className="px-3 py-2">Data posa</th>
-                  <th className="px-3 py-2">Capo</th>
-                  <th className="px-3 py-2 text-right">m teo</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {filteredCavi.map((r) => {
-                  const situ = toSituazione(r?.situazione);
-
-                  const appDA = norm(r?.apparato_da);
-                  const appA = norm(r?.apparato_a);
-
-                  const statDA = appDA ? apparatoPMaps.da.get(appDA) || { total: 0, pCount: 0, status: "RED" } : null;
-                  const statA = appA ? apparatoPMaps.a.get(appA) || { total: 0, pCount: 0, status: "RED" } : null;
-
-                  const posa = r?.data_posa ? formatDateIT(r.data_posa) : "—";
-                  const capo = norm(r?.capo_label) || "—";
-
-                  return (
-                    <tr
-                      key={r.id}
-                      className="border-b border-slate-900/80 cursor-pointer"
-                      onClick={() => setSelectedCable(r)}
-                    >
-                      <td className="px-3 py-2">
-                        <CodicePill value={r.codice ?? "—"} dotColor={colorForSituazione(situ)} />
-                      </td>
-
-                      <td className="px-3 py-2">
-                        <div className="flex flex-col md:flex-row md:items-center gap-2">
-                          <ApparatoPill
-                            side="DA"
-                            value={appDA || "—"}
-                            stats={statDA}
-                            disabled={!appDA}
-                            onClick={(e) => openApparatoPopover(e, "DA", appDA)}
-                          />
-                          <span className="hidden md:inline text-slate-600" aria-hidden="true">
-                            →
-                          </span>
-                          <ApparatoPill
-                            side="A"
-                            value={appA || "—"}
-                            stats={statA}
-                            disabled={!appA}
-                            onClick={(e) => openApparatoPopover(e, "A", appA)}
-                          />
-                        </div>
-                      </td>
-
-                      <td className="px-3 py-2 text-[12px] text-slate-300">{tipoCavoLabel(r)}</td>
-
-                      <td className="px-3 py-2">
-                        <span className="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/60 px-2 py-0.5 text-[11px]">
-                          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: colorForSituazione(situ) }} />
-                          <span className="text-slate-200 font-semibold">{situ}</span>
-                        </span>
-                      </td>
-
-                      <td className="px-3 py-2 text-[12px] text-slate-300 tabular-nums">{posa}</td>
-
-                      <td className="px-3 py-2 text-[12px] text-slate-300">{capo}</td>
-
-                      <td className="px-3 py-2 text-[12px] text-slate-200 text-right">
-                        {formatMeters(r.metri_teo ?? r.metri_dis)}
-                      </td>
-                    </tr>
-                  );
-                })}
-
-                {filteredCavi.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="px-3 py-10 text-center text-[12px] text-slate-500">
-                      Nessun cavo trovato con i filtri correnti.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
+      {/* NEW: Power table with 3 views */}
+      <div className="mt-3">
+        <IncaCaviTable
+          rows={filteredCavi}
+          loading={loading}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          onRowClick={(r) => setSelectedCable(r)}
+          title="Cavi"
+        />
       </div>
 
-      {/* Details panel (kept; no noise unless a row is selected) */}
+      {/* Details panel */}
       {selectedCable && (
         <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-[11px] text-slate-500 uppercase tracking-wide">Dettaglio cavo</div>
               <div className="text-lg font-semibold text-slate-50">{selectedCable.codice ?? "—"}</div>
-              <div className="text-[12px] text-slate-400">{selectedCable.descrizione || "—"}</div>
+              <div className="text-[12px] text-slate-400">{(selectedCable as any).descrizione || "—"}</div>
             </div>
             <button
               type="button"
@@ -810,8 +659,10 @@ export default function IncaCockpit(props: IncaCockpitProps) {
             </div>
 
             <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wide">Metri teo</div>
-              <div className="text-[13px] text-slate-100 font-semibold">{formatMeters(selectedCable.metri_teo ?? selectedCable.metri_dis)}</div>
+              <div className="text-[10px] text-slate-500 uppercase tracking-wide">Metri</div>
+              <div className="text-[13px] text-slate-100 font-semibold">
+                teo {formatMeters(selectedCable.metri_teo)} · dis {formatMeters(selectedCable.metri_dis)}
+              </div>
             </div>
 
             <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2">

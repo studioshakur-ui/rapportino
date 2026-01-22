@@ -1,6 +1,6 @@
 // src/admin/AdminShell.tsx
 import React, { useMemo, useState } from "react";
-import { Link, Outlet, useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import KeepAliveOutlet from "../utils/KeepAliveOutlet";
 
 type Lang = "it" | "fr" | "en";
@@ -46,7 +46,6 @@ function menuItems(pathname: string) {
   return [
     { to: "/admin/users", label: "Utenti", active: is("/admin/users") },
     { to: "/admin/operators", label: "Operatori", active: is("/admin/operators") },
-    // ✅ Perimetri (ship_managers + ship_operators)
     { to: "/admin/perimetri", label: "Perimetri", active: is("/admin/perimetri") },
     { to: "/admin/catalogo", label: "Catalogo", active: is("/admin/catalogo") },
     { to: "/admin/planning", label: "Planning (overview)", active: is("/admin/planning") },
@@ -62,17 +61,14 @@ export default function AdminShell(): JSX.Element {
 
   const items = useMemo(() => menuItems(location.pathname), [location.pathname]);
 
-  const outletCtx: OutletCtx = useMemo(
-    () => ({ lang, setLang }),
-    [lang]
-  );
+  const outletCtx: OutletCtx = useMemo(() => ({ lang, setLang }), [lang]);
 
   return (
-    <div className="min-h-screen bg-[#050910] text-slate-50">
-      <div className="mx-auto max-w-7xl px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+    <div className="min-h-screen bg-[#050910] text-slate-50 flex">
+      <div className="mx-auto max-w-7xl w-full flex-1 min-h-0 px-4 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 h-full min-h-0">
           {/* Sidebar */}
-          <aside className="lg:col-span-3">
+          <aside className="lg:col-span-3 min-h-0">
             <div className="rounded-2xl border border-slate-800 bg-slate-950 shadow-[0_10px_40px_rgba(0,0,0,0.35)]">
               <div className="p-4 border-b border-slate-800">
                 <div className="flex items-start justify-between gap-3">
@@ -104,8 +100,8 @@ export default function AdminShell(): JSX.Element {
           </aside>
 
           {/* Content */}
-          <main className="lg:col-span-9">
-            <div className="rounded-2xl border border-slate-800 bg-slate-950 shadow-[0_10px_40px_rgba(0,0,0,0.35)]">
+          <main className="lg:col-span-9 min-h-0">
+            <div className="rounded-2xl border border-slate-800 bg-slate-950 shadow-[0_10px_40px_rgba(0,0,0,0.35)] flex flex-col h-full min-h-0">
               <div className="p-4 border-b border-slate-800">
                 <div className="flex items-start justify-between gap-3">
                   <SectionTitle kicker="ADMIN · CNCS / CORE" title="Console Admin" />
@@ -148,9 +144,8 @@ export default function AdminShell(): JSX.Element {
                 </div>
               </div>
 
-              <div className="p-4">
-               <KeepAliveOutlet scopeKey="admin" context={outletCtx} />
-
+              <div className="p-4 min-h-0 overflow-auto">
+                <KeepAliveOutlet scopeKey="admin" context={outletCtx} />
               </div>
             </div>
           </main>
