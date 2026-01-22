@@ -1,6 +1,12 @@
-// src/inca/IncaCockpitModal.jsx
 import React, { useEffect } from "react";
+
 import IncaCockpit from "./IncaCockpit";
+
+export type IncaCockpitModalProps = {
+  open: boolean;
+  fileId?: string | null;
+  onClose?: (() => void) | null;
+};
 
 /**
  * Fullscreen modal wrapper for INCA Cockpit.
@@ -8,11 +14,11 @@ import IncaCockpit from "./IncaCockpit";
  * - Click on backdrop closes
  * - Locks body scroll
  */
-export default function IncaCockpitModal({ open, fileId, onClose }) {
+export default function IncaCockpitModal({ open, fileId, onClose }: IncaCockpitModalProps) {
   useEffect(() => {
     if (!open) return;
 
-    const onKeyDown = (e) => {
+    const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose?.();
     };
 
@@ -41,11 +47,7 @@ export default function IncaCockpitModal({ open, fileId, onClose }) {
       <div className="absolute inset-0 p-2 sm:p-3 md:p-4">
         <div className="h-full w-full overflow-hidden rounded-2xl border border-slate-700 bg-slate-950/85 shadow-2xl">
           <div className="h-full overflow-auto">
-            <IncaCockpit
-              mode="modal"
-              fileId={fileId}
-              onRequestClose={onClose}
-            />
+            <IncaCockpit mode="modal" fileId={fileId ?? null} onRequestClose={onClose ?? null} />
           </div>
         </div>
       </div>
