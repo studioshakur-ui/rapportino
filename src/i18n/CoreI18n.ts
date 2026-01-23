@@ -1,4 +1,4 @@
-// src/i18n/CoreI18n.ts
+// src/i18n/coreI18n.ts
 //
 // CORE canonical i18n entrypoint.
 //
@@ -10,6 +10,9 @@
 // IMPORTANT:
 // - Netlify (Linux) is case-sensitive.
 // - Avoid ANY circular re-export between CoreI18n.ts and coreI18n.ts.
+
+import type { Lang as LangT } from "./I18nProvider";
+import { dictionaries as DICTS } from "./dictionaries";
 
 export type { Lang } from "./I18nProvider";
 
@@ -26,7 +29,7 @@ export {
 export { useI18n as useCoreI18n } from "./I18nProvider";
 
 // Re-export dictionaries for places that need direct access (rare, but sometimes useful)
-export { dictionaries } from "./dictionaries";
+export { DICTS as dictionaries };
 
 // Re-export login dictionary (if some pages import it through CoreI18n)
 export { dict as loginDict } from "./dict";
@@ -40,15 +43,15 @@ export type { LoginKey } from "./dict";
  * - It uses dictionaries.ts as source of truth.
  * - It falls back to Italian if key missing in target language.
  */
-export function t(lang: Lang | string, key: string, fallback = "—"): string {
-  const safeLang = (["it", "fr", "en"] as const).includes(lang as any) ? (lang as Lang) : ("it" as Lang);
+export function t(lang: LangT | string, key: string, fallback = "—"): string {
+  const safeLang = (["it", "fr", "en"] as const).includes(lang as any) ? (lang as LangT) : ("it" as LangT);
   const k = String(key || "").trim();
   if (!k) return fallback;
 
-  const fromLang = dictionaries?.[safeLang]?.[k];
+  const fromLang = DICTS?.[safeLang]?.[k];
   if (typeof fromLang === "string" && fromLang.trim()) return fromLang;
 
-  const fromIt = dictionaries?.it?.[k];
+  const fromIt = DICTS?.it?.[k];
   if (typeof fromIt === "string" && fromIt.trim()) return fromIt;
 
   return fallback;
