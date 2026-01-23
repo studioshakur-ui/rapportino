@@ -1,4 +1,4 @@
-// src/i18n/coreI18n.ts
+// src/i18n/CoreI18n.ts
 //
 // CORE canonical i18n entrypoint.
 //
