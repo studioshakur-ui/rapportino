@@ -1,4 +1,4 @@
-// src/i18n/CoreI18n.ts
+// src/i18n/coreI18n.ts
 //
 // CORE canonical i18n entrypoint.
 //
@@ -10,6 +10,9 @@
 // IMPORTANT:
 // - Netlify (Linux) is case-sensitive.
 // - Avoid ANY circular re-export between CoreI18n.ts and coreI18n.ts.
+
+import type { Lang } from "./I18nProvider";
+import { dictionaries } from "./dictionaries";
 
 export type { Lang } from "./I18nProvider";
 
