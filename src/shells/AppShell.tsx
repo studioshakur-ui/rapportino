@@ -5,7 +5,8 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { useShip } from "../context/ShipContext";
 import { supabase } from "../lib/supabaseClient";
-import KeepAliveOutlet from "../utils/KeepAliveOutlet";
+import { KeepAliveOutlet } from "../utils/KeepAliveOutlet";
+
 
 import IdleSessionManager from "../auth/IdleSessionManager";
 import ConnectionIndicator from "../components/ConnectionIndicator";

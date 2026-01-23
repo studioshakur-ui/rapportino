@@ -11,6 +11,9 @@
 // - Netlify (Linux) is case-sensitive.
 // - Avoid ANY circular re-export between CoreI18n.ts and coreI18n.ts.
 
+import type { Lang as LangT } from "./I18nProvider";
+import { dictionaries } from "./dictionaries";
+
 export type { Lang } from "./I18nProvider";
 
 export {
@@ -26,7 +29,7 @@ export {
 export { useI18n as useCoreI18n } from "./I18nProvider";
 
 // Re-export dictionaries for places that need direct access (rare, but sometimes useful)
-export { DICTS as dictionaries };
+export { dictionaries };
 
 // Re-export login dictionary (if some pages import it through CoreI18n)
 export { dict as loginDict } from "./dict";
@@ -41,14 +44,17 @@ export type { LoginKey } from "./dict";
  * - It falls back to Italian if key missing in target language.
  */
 export function t(lang: LangT | string, key: string, fallback = "—"): string {
-  const safeLang = (["it", "fr", "en"] as const).includes(lang as any) ? (lang as LangT) : ("it" as LangT);
+  const safeLang = (["it", "fr", "en"] as const).includes(lang as any)
+    ? (lang as LangT)
+    : ("it" as LangT);
+
   const k = String(key || "").trim();
   if (!k) return fallback;
 
-  const fromLang = DICTS?.[safeLang]?.[k];
+  const fromLang = dictionaries?.[safeLang]?.[k];
   if (typeof fromLang === "string" && fromLang.trim()) return fromLang;
 
-  const fromIt = DICTS?.it?.[k];
+  const fromIt = dictionaries?.it?.[k];
   if (typeof fromIt === "string" && fromIt.trim()) return fromIt;
 
   return fallback;

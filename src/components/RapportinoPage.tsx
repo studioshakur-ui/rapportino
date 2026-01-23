@@ -1,4 +1,4 @@
-// /src/components/RapportinoPage.tsx
+// src/components/RapportinoPage.tsx
 // @ts-nocheck
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useOutletContext, useLocation } from "react-router-dom";
@@ -15,6 +15,8 @@ import OperatorPickerModal from "./rapportino/modals/OperatorPickerModal";
 import TempoPickerModal from "./rapportino/modals/TempoPickerModal";
 
 import { getTodayISO, parseNumeric, adjustOperatorTempoHeights } from "../rapportinoUtils";
+
+import { exportRapportinoPdf } from "../services/rapportinoExport.api";
 
 import {
   CREW_LABELS,
@@ -250,6 +252,61 @@ function buildAutoSaveSignature({ profileId, crewRole, reportDate, costr, commes
     commessa: safeStr(commessa),
     rows: compactRows,
   });
+}
+
+function isProbablyIOS(): boolean {
+  try {
+    const ua = String(navigator?.userAgent || "");
+    const isIPhoneIPadIPod = /iPad|iPhone|iPod/i.test(ua);
+    // iPadOS reports as MacIntel + touchpoints
+    const isIPadOS = navigator?.platform === "MacIntel" && (navigator as any)?.maxTouchPoints > 1;
+    return Boolean(isIPhoneIPadIPod || isIPadOS);
+  } catch {
+    return false;
+  }
+}
+
+function safeOpenBlankTab(): Window | null {
+  try {
+    const w = window.open("about:blank", "_blank");
+    return w || null;
+  } catch {
+    return null;
+  }
+}
+
+function closeTabQuietly(w: Window | null) {
+  try {
+    if (w && !w.closed) w.close();
+  } catch {
+    // ignore
+  }
+}
+
+function openPdfUrl(url: string, preOpened: Window | null) {
+  const u = String(url || "").trim();
+  if (!u) return;
+
+  // If we pre-opened a tab (iOS), reuse it.
+  if (preOpened && !preOpened.closed) {
+    try {
+      preOpened.location.href = u;
+      return;
+    } catch {
+      // fallback below
+    }
+  }
+
+  try {
+    window.open(u, "_blank");
+  } catch {
+    // final fallback: same tab
+    try {
+      window.location.href = u;
+    } catch {
+      // ignore
+    }
+  }
 }
 
 export default function RapportinoPage() {
@@ -588,20 +645,55 @@ export default function RapportinoPage() {
     await handleSave("VALIDATED_CAPO");
   };
 
-  // Print/Export: pas de nouvel onglet.
-  // On sauvegarde d'abord, puis on ouvre la boîte de dialogue d'impression du navigateur.
+  // Export PDF (Option A): Edge Function generates the PDF and returns a signed URL.
+  // iOS popup blocker: we pre-open a blank tab synchronously, then redirect it after async work.
   const handlePrint = async () => {
-    const ok = await handleSave(status);
-    if (!ok) return;
+    const preOpened = isProbablyIOS() ? safeOpenBlankTab() : null;
 
-    // petit délai pour laisser React peindre l'état final avant impression
-    setTimeout(() => {
-      try {
-        window.print();
-      } catch (e) {
-        console.warn("window.print failed:", e);
+    try {
+      const okId = await handleSave(status);
+      if (!okId) {
+        closeTabQuietly(preOpened);
+        return;
       }
-    }, 50);
+
+      if (!rapportinoId) {
+        closeTabQuietly(preOpened);
+        pushToast({ type: "error", message: "Rapportino non salvato.", detail: "Salva prima di esportare." });
+        return;
+      }
+
+      pushToast({ type: "info", message: "Export PDF in corso…" });
+
+      const res = await exportRapportinoPdf({
+        rapportinoId: String(rapportinoId),
+        mode: "AUTO",
+        force: false,
+      });
+
+      const url = String(res?.download_url || "").trim();
+      if (!url) {
+        closeTabQuietly(preOpened);
+        pushToast({
+          type: "error",
+          message: "Export completato ma URL mancante.",
+          detail: "Controlla i log Edge Function / Storage Signed URL.",
+        });
+        return;
+      }
+
+      pushToast({
+        type: "success",
+        message: res.reused ? "PDF già presente: apertura…" : "PDF pronto: apertura…",
+        detail: res.reused ? "Nessuna duplicazione. Stesso contenuto → stesso claim_id." : undefined,
+      });
+
+      openPdfUrl(url, preOpened);
+    } catch (e) {
+      console.error("[Export PDF] failed:", e);
+      closeTabQuietly(preOpened);
+      pushToast({ type: "error", message: "Export PDF fallito.", detail: e?.message || String(e) });
+    }
   };
 
   // ────────────────────────────────────────────────────────────────

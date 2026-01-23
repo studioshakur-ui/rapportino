@@ -7,7 +7,8 @@ import ConnectionIndicator from "../components/ConnectionIndicator";
 import CNCSSidebar from "../components/shell/CNCSSidebar";
 import CNCSTopbar from "../components/shell/CNCSTopbar";
 import LangSwitcher from "../components/shell/LangSwitcher";
-import KeepAliveOutlet from "../utils/KeepAliveOutlet";
+import { KeepAliveOutlet } from "../utils/KeepAliveOutlet";
+
 
 import { useI18n } from "../i18n/I18nProvider";
 import { formatDisplayName } from "../utils/formatHuman";

@@ -1,7 +1,9 @@
 // src/admin/AdminShell.tsx
-import React, { useMemo, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
-import KeepAliveOutlet from "../utils/KeepAliveOutlet";
+import React, { useCallback, useMemo, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { KeepAliveOutlet } from "../utils/KeepAliveOutlet";
+
+import { useAuth } from "../auth/AuthProvider";
 
 type Lang = "it" | "fr" | "en";
 
@@ -59,6 +61,22 @@ export default function AdminShell(): JSX.Element {
   const location = useLocation();
   const [lang, setLang] = useState<Lang>("it");
 
+  const nav = useNavigate();
+  const { profile, signOut } = useAuth();
+
+  const displayEmail = useMemo(() => {
+    const e = (profile as any)?.email;
+    return typeof e === "string" && e.trim() ? e.trim() : "—";
+  }, [profile]);
+
+  const handleLogout = useCallback(async () => {
+    try {
+      await signOut({ reason: "admin_logout" });
+    } finally {
+      nav("/login", { replace: true });
+    }
+  }, [nav, signOut]);
+
   const items = useMemo(() => menuItems(location.pathname), [location.pathname]);
 
   const outletCtx: OutletCtx = useMemo(() => ({ lang, setLang }), [lang]);
@@ -82,7 +100,7 @@ export default function AdminShell(): JSX.Element {
                 <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/60 px-3 py-2">
                   <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">Profilo</div>
                   <div className="mt-1 flex items-center justify-between gap-2">
-                    <div className="text-[13px] font-semibold text-slate-50 truncate">admin@core.com</div>
+                    <div className="text-[13px] font-semibold text-slate-50 truncate">{displayEmail}</div>
                     <div className="h-2 w-2 rounded-full bg-emerald-400" title="Online" />
                   </div>
                 </div>
@@ -108,7 +126,7 @@ export default function AdminShell(): JSX.Element {
 
                   <div className="flex items-center gap-2">
                     <div className="inline-flex items-center rounded-full border border-slate-800 bg-slate-950/60 px-3 py-2">
-                      <div className="text-[12px] text-slate-200">ADMIN@CORE.COM</div>
+                      <div className="text-[12px] text-slate-200">{displayEmail.toUpperCase()}</div>
                     </div>
 
                     <div className="inline-flex items-center gap-1 rounded-full border border-slate-800 bg-slate-950/60 p-1">
@@ -131,6 +149,7 @@ export default function AdminShell(): JSX.Element {
 
                     <button
                       type="button"
+                      onClick={handleLogout}
                       className={cn(
                         "inline-flex items-center rounded-full border px-3 py-2",
                         "text-[12px] font-semibold",

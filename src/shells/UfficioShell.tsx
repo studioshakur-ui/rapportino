@@ -6,7 +6,8 @@ import { useAuth } from "../auth/AuthProvider";
 import ConnectionIndicator from "../components/ConnectionIndicator";
 import CNCSSidebar from "../components/shell/CNCSSidebar";
 import CNCSTopbar from "../components/shell/CNCSTopbar";
-import KeepAliveOutlet from "../utils/KeepAliveOutlet";
+import { KeepAliveOutlet } from "../utils/KeepAliveOutlet";
+
 
 type ThemeMode = "dark" | "light";
 

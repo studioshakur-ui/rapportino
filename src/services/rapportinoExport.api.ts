@@ -1,42 +1,48 @@
 // src/services/rapportinoExport.api.ts
 import { supabase } from "../lib/supabaseClient";
 
+export type ExportMode = "AUTO" | "DRAFT" | "OFFICIAL";
+
 export type RapportinoExportResult = {
   ok: true;
-  file_id: string;
-  bucket: string;
-  storage_path: string;
-  filename: string;
+  reused: boolean;
+  core_file_id: string;
+  version_num: number | null;
+  sha256: string | null;
+  claim_id: string;
+  run_id?: string | null;
   download_url: string | null;
+  storage_bucket: string;
+  storage_path: string;
+  is_official?: boolean;
 };
-
-function normalizeEdgeError(err: unknown): Error {
-  if (!err) return new Error("Errore sconosciuto.");
-  if (err instanceof Error) return err;
-  if (typeof err === "string") return new Error(err);
-  try {
-    return new Error(JSON.stringify(err));
-  } catch {
-    return new Error(String(err));
-  }
-}
 
 export async function exportRapportinoPdf(params: {
   rapportinoId: string;
-  origine?: "CAPO" | "UFFICIO" | "DIREZIONE" | "SYSTEM" | "ADMIN";
+  mode?: ExportMode;
+  force?: boolean;
 }): Promise<RapportinoExportResult> {
   const rapportinoId = String(params.rapportinoId || "").trim();
-  if (!rapportinoId) throw new Error("rapportinoId mancante");
+  const mode: ExportMode = (String(params.mode ?? "AUTO").toUpperCase() as ExportMode) || "AUTO";
+  const force = Boolean(params.force);
 
   const { data, error } = await supabase.functions.invoke("rapportino-export-pdf", {
     body: {
       rapportino_id: rapportinoId,
-      origine: params.origine || "CAPO",
+      mode,
+      force,
     },
   });
 
-  if (error) throw normalizeEdgeError(error);
-  if (!data?.ok) throw new Error(data?.error || "Export PDF fallito");
+  if (error) {
+    const msg = (error as any)?.message || String(error);
+    throw new Error(msg);
+  }
 
-  return data as RapportinoExportResult;
+  const d = data as any;
+  if (!d?.ok) {
+    throw new Error(d?.error ? String(d.error) : "Export failed");
+  }
+
+  return d as RapportinoExportResult;
 }

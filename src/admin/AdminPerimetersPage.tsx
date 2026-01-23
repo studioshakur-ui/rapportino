@@ -21,8 +21,8 @@ type Lang = "it" | "fr" | "en";
 
 type Ship = {
   ship_id: string;
-  ship_code: string;
-  ship_name: string;
+  code: string;
+  name: string;
   costr: string;
   commessa: string;
 };
@@ -146,7 +146,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
   const scopeLabel = useMemo(() => {
     const s = ships.find((x) => x.ship_id === selectedShipId);
     if (!s) return "—";
-    return `${safeText(s.commessa)} · ${safeText(s.ship_code)}`;
+    return `${safeText(s.commessa)} · ${safeText(s.code)}`;
   }, [ships, selectedShipId]);
 
   // ===== Load ships =====
@@ -155,15 +155,19 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
     setErr("");
     try {
       // IMPORTANT:
-      // Supabase/PostgREST in this deployment rejects multi-column `order=commessa.asc,ship_code.asc` (400).
+      // Supabase/PostgREST in this deployment rejects some multi-column `order=...` payloads (400).
       // We keep the server query minimal and sort deterministically client-side.
-      const { data, error } = await supabase.from("ships").select("id, ship_code, ship_name, costr, commessa");
+      // NOTE:
+      // The canonical ships schema in this repo is: id, code, name, costr, commessa, is_active
+      // Other Admin pages (Catalogo, ShipContext) rely on `code` and `name`.
+      // Using `ship_code/ship_name` causes PostgREST 400 (unknown columns) and blocks the entire Admin UI.
+      const { data, error } = await supabase.from("ships").select("id, code, name, costr, commessa");
       if (error) throw error;
 
       const list: Ship[] = (Array.isArray(data) ? data : []).map((r: any) => ({
         ship_id: r.id,
-        ship_code: safeText(r.ship_code),
-        ship_name: safeText(r.ship_name),
+        code: safeText(r.code),
+        name: safeText(r.name),
         costr: safeText(r.costr),
         commessa: safeText(r.commessa),
       }));
@@ -173,8 +177,8 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
         const cb = safeText(b.commessa);
         const c1 = ca.localeCompare(cb);
         if (c1 !== 0) return c1;
-        const sa = safeText(a.ship_code);
-        const sb = safeText(b.ship_code);
+        const sa = safeText(a.code);
+        const sb = safeText(b.code);
         return sa.localeCompare(sb);
       });
 
@@ -415,8 +419,8 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
               >
                 {ships.map((s) => (
                   <option key={s.ship_id} value={s.ship_id}>
-                    {safeText(s.commessa)} · {safeText(s.ship_code)}
-                    {s.ship_name ? ` · ${safeText(s.ship_name)}` : ""}
+                    {safeText(s.commessa)} · {safeText(s.code)}
+                    {s.name ? ` · ${safeText(s.name)}` : ""}
                   </option>
                 ))}
               </select>
@@ -443,7 +447,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
                     <span className="text-slate-50 font-semibold">{safeText(selectedShip.commessa) || "—"}</span>
                   </div>
                   <div className="mt-1 text-[12px] text-slate-300">
-                    Ship: <span className="text-slate-50 font-semibold">{safeText(selectedShip.ship_code) || "—"}</span>
+                    Ship: <span className="text-slate-50 font-semibold">{safeText(selectedShip.code) || "—"}</span>
                   </div>
                   <div className="mt-1 text-[12px] text-slate-300">
                     Costr: <span className="text-slate-50 font-semibold">{safeText(selectedShip.costr) || "—"}</span>
