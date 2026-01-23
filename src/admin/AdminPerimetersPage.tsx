@@ -64,17 +64,11 @@ function btnBase(): string {
 }
 
 function btnGhost(): string {
-  return cn(
-    btnBase(),
-    "border-slate-700 text-slate-100 bg-slate-950/60 hover:bg-slate-900/50"
-  );
+  return cn(btnBase(), "border-slate-700 text-slate-100 bg-slate-950/60 hover:bg-slate-900/50");
 }
 
 function btnPrimary(): string {
-  return cn(
-    btnBase(),
-    "border-sky-400/55 text-slate-50 bg-slate-950/60 hover:bg-slate-900/50"
-  );
+  return cn(btnBase(), "border-sky-400/55 text-slate-50 bg-slate-950/60 hover:bg-slate-900/50");
 }
 
 function inputClass(): string {
@@ -104,6 +98,15 @@ function dedupRoles(roles: string[]): string[] {
     if (x) s.add(x);
   });
   return Array.from(s.values()).sort((a, b) => a.localeCompare(b));
+}
+
+function formatSupabaseError(e: unknown): { short: string; debug: any } {
+  const x: any = e ?? {};
+  const message = safeText(x?.message) || safeText(x?.error_description) || safeText(x?.hint) || safeText(x?.details);
+  const code = safeText(x?.code);
+  const status = x?.status != null ? String(x.status) : "";
+  const parts = [message, code ? `code=${code}` : "", status ? `status=${status}` : ""].filter(Boolean);
+  return { short: parts.join(" · ") || "Errore sconosciuto.", debug: x };
 }
 
 export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolean }): JSX.Element {
@@ -151,11 +154,10 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
     setLoadingShips(true);
     setErr("");
     try {
-      const { data, error } = await supabase
-        .from("ships")
-        .select("id, ship_code, ship_name, costr, commessa")
-        .order("commessa", { ascending: true })
-        .order("ship_code", { ascending: true });
+      // IMPORTANT:
+      // Supabase/PostgREST in this deployment rejects multi-column `order=commessa.asc,ship_code.asc` (400).
+      // We keep the server query minimal and sort deterministically client-side.
+      const { data, error } = await supabase.from("ships").select("id, ship_code, ship_name, costr, commessa");
       if (error) throw error;
 
       const list: Ship[] = (Array.isArray(data) ? data : []).map((r: any) => ({
@@ -166,13 +168,24 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
         commessa: safeText(r.commessa),
       }));
 
+      list.sort((a, b) => {
+        const ca = safeText(a.commessa);
+        const cb = safeText(b.commessa);
+        const c1 = ca.localeCompare(cb);
+        if (c1 !== 0) return c1;
+        const sa = safeText(a.ship_code);
+        const sb = safeText(b.ship_code);
+        return sa.localeCompare(sb);
+      });
+
       setShips(list);
       if (!selectedShipId && list.length > 0) setSelectedShipId(list[0].ship_id);
     } catch (e) {
+      const fe = formatSupabaseError(e);
       // eslint-disable-next-line no-console
-      console.error("[AdminPerimetersPage] loadShips error:", e);
+      console.error("[AdminPerimetersPage] loadShips error:", fe.debug);
       setShips([]);
-      setErr("Impossibile caricare elenco navi (RLS o connessione).");
+      setErr(`Impossibile caricare elenco navi. ${fe.short}`);
     } finally {
       setLoadingShips(false);
     }
@@ -200,10 +213,11 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
 
       setOperatorPool(list);
     } catch (e) {
+      const fe = formatSupabaseError(e);
       // eslint-disable-next-line no-console
-      console.error("[AdminPerimetersPage] loadOperatorPool error:", e);
+      console.error("[AdminPerimetersPage] loadOperatorPool error:", fe.debug);
       setOperatorPool([]);
-      setErr("Impossibile caricare pool operatori (view operators_admin_list_v1).");
+      setErr(`Impossibile caricare pool operatori (view operators_admin_list_v1). ${fe.short}`);
     } finally {
       setLoadingPool(false);
     }
@@ -255,10 +269,11 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
 
       setPerimOps(list);
     } catch (e) {
+      const fe = formatSupabaseError(e);
       // eslint-disable-next-line no-console
-      console.error("[AdminPerimetersPage] loadPerimeterOperators error:", e);
+      console.error("[AdminPerimetersPage] loadPerimeterOperators error:", fe.debug);
       setPerimOps([]);
-      setErr("Impossibile caricare operatori del perimetro (ship_operators).");
+      setErr(`Impossibile caricare operatori del perimetro (ship_operators). ${fe.short}`);
     } finally {
       setLoadingPerimOps(false);
     }
@@ -287,9 +302,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
     const q = safeText(opQuery).toLowerCase();
     const base = operatorPool;
     if (!q) return base.slice(0, 12);
-    return base
-      .filter((o) => safeText(o.display_name).toLowerCase().includes(q))
-      .slice(0, 12);
+    return base.filter((o) => safeText(o.display_name).toLowerCase().includes(q)).slice(0, 12);
   }, [operatorPool, opQuery]);
 
   const alreadyInPerimeter = useMemo(() => {
@@ -327,9 +340,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
       const rt = safeText(roleTag);
       if (rt) payload.role_tag = rt;
 
-      const { error } = await supabase
-        .from("ship_operators")
-        .upsert(payload, { onConflict: "ship_id,operator_id" });
+      const { error } = await supabase.from("ship_operators").upsert(payload, { onConflict: "ship_id,operator_id" });
       if (error) throw error;
 
       setToastSoft("Perimetro aggiornato.");
@@ -338,9 +349,10 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
       setRoleTag("");
       await loadPerimeterOperators(selectedShipId);
     } catch (e) {
+      const fe = formatSupabaseError(e);
       // eslint-disable-next-line no-console
-      console.error("[AdminPerimetersPage] addToPerimeter error:", e);
-      setErr("Impossibile aggiungere al perimetro (RLS/duplicati).");
+      console.error("[AdminPerimetersPage] addToPerimeter error:", fe.debug);
+      setErr(`Impossibile aggiungere al perimetro. ${fe.short}`);
     } finally {
       setBusyAdd(false);
     }
@@ -359,9 +371,10 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
       await loadPerimeterOperators(selectedShipId);
       setToastSoft(nextActive ? "Attivato." : "Disattivato.");
     } catch (e) {
+      const fe = formatSupabaseError(e);
       // eslint-disable-next-line no-console
-      console.error("[AdminPerimetersPage] setActive error:", e);
-      setErr("Impossibile aggiornare stato perimetro (RLS).");
+      console.error("[AdminPerimetersPage] setActive error:", fe.debug);
+      setErr(`Impossibile aggiornare stato perimetro. ${fe.short}`);
     }
   };
 
@@ -402,7 +415,8 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
               >
                 {ships.map((s) => (
                   <option key={s.ship_id} value={s.ship_id}>
-                    {safeText(s.commessa)} · {safeText(s.ship_code)}{s.ship_name ? ` · ${safeText(s.ship_name)}` : ""}
+                    {safeText(s.commessa)} · {safeText(s.ship_code)}
+                    {s.ship_name ? ` · ${safeText(s.ship_name)}` : ""}
                   </option>
                 ))}
               </select>
@@ -425,7 +439,8 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
                 <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/60 px-3 py-2">
                   <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Dettagli</div>
                   <div className="mt-1 text-[12px] text-slate-300">
-                    Commessa: <span className="text-slate-50 font-semibold">{safeText(selectedShip.commessa) || "—"}</span>
+                    Commessa:{" "}
+                    <span className="text-slate-50 font-semibold">{safeText(selectedShip.commessa) || "—"}</span>
                   </div>
                   <div className="mt-1 text-[12px] text-slate-300">
                     Ship: <span className="text-slate-50 font-semibold">{safeText(selectedShip.ship_code) || "—"}</span>
@@ -545,7 +560,9 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
                   <button
                     type="button"
                     className={btnPrimary() + " w-full"}
-                    disabled={busyAdd || !selectedShipId || !selectedOperatorId || !selectedOp?.identity_ok || alreadyInPerimeter}
+                    disabled={
+                      busyAdd || !selectedShipId || !selectedOperatorId || !selectedOp?.identity_ok || alreadyInPerimeter
+                    }
                     onClick={addToPerimeter}
                     title={alreadyInPerimeter ? "Già presente" : "Aggiungi al perimetro"}
                   >
@@ -609,9 +626,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
                     <div className="grid grid-cols-12 gap-2 items-center">
                       <div className="col-span-5 min-w-0">
                         <div className="text-[13px] font-semibold text-slate-50 truncate">{o.display_name}</div>
-                        <div className="text-[11px] text-slate-500 truncate">
-                          Tag: {safeText(o.role_tag) || "—"}
-                        </div>
+                        <div className="text-[11px] text-slate-500 truncate">Tag: {safeText(o.role_tag) || "—"}</div>
                       </div>
                       <div className="col-span-3 text-[12px] text-slate-300 truncate">
                         {o.roles.length ? o.roles.join(", ") : "—"}
@@ -620,11 +635,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
                         <span className={pill(o.active ? "emerald" : "amber")}>{o.active ? "Perim Active" : "Perim OFF"}</span>
                       </div>
                       <div className="col-span-2 text-right">
-                        <button
-                          type="button"
-                          className={btnGhost()}
-                          onClick={() => setActive(o.operator_id, !o.active)}
-                        >
+                        <button type="button" className={btnGhost()} onClick={() => setActive(o.operator_id, !o.active)}>
                           {o.active ? "Disattiva" : "Attiva"}
                         </button>
                       </div>
