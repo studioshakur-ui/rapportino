@@ -90,6 +90,13 @@ type NormalizedRow = {
   note: string;
 };
 
+type CapoProfile = {
+  id: string;
+  display_name: string | null;
+  full_name: string | null;
+  email: string | null;
+};
+
 function json(status: number, body: unknown) {
   return new Response(JSON.stringify(body), {
     status,
@@ -104,6 +111,67 @@ function isUuid(v: unknown): v is string {
 
 function safeText(v: unknown): string {
   return String(v ?? "").trim();
+}
+
+function isUnknownCapoName(v: unknown): boolean {
+  const s = safeText(v).toUpperCase();
+  if (!s) return true;
+  if (s === "—") return true;
+  if (s.includes("SCONOSCIUTO")) return true;
+  if (s.includes("UNKNOWN")) return true;
+  return false;
+}
+
+function formatItalianDateForPdf(dateIso: unknown): string {
+  const s = safeText(dateIso);
+  const m = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(s);
+  if (!m) return s || "—";
+
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return s;
+  if (month < 1 || month > 12) return s;
+  if (day < 1 || day > 31) return s;
+
+  const months = ["gen.", "feb.", "mar.", "apr.", "mag.", "giu.", "lug.", "ago.", "set.", "ott.", "nov.", "dic."];
+
+  return `${day} ${months[month - 1]} ${year}`;
+}
+
+async function resolveCapoLabel(admin: any, header: RapportinoHeader): Promise<string> {
+  const current = safeText(header.capo_name);
+  if (!isUnknownCapoName(current)) return titleCaseHumanName(current);
+
+  const capoId = safeText(header.capo_id);
+  if (!isUuid(capoId)) return "CAPO NON RISOLTO";
+
+  const { data } = await admin.from("profiles").select("id,display_name,full_name,email").eq("id", capoId).maybeSingle();
+
+  const p = (data ?? null) as CapoProfile | null;
+  const raw = safeText(p?.display_name) || safeText(p?.full_name) || safeText(p?.email);
+  const label = titleCaseHumanName(raw);
+  return label || "CAPO NON RISOLTO";
+}
+
+function isEmailLike(v: string): boolean {
+  const s = safeText(v);
+  return !!s && s.includes("@");
+}
+
+function titleCaseHumanName(v: string): string {
+  const s = safeText(v);
+  if (!s) return "";
+  if (isEmailLike(s)) return s;
+
+  const tokens = s.split(/\s+/g).filter(Boolean);
+  const out = tokens.map((t) => {
+    if (/^[A-Z0-9]{2,}$/.test(t)) return t; // acronyms
+    const lower = t.toLowerCase();
+    return lower.charAt(0).toUpperCase() + lower.slice(1);
+  });
+
+  return out.join(" ");
 }
 
 function normalizeMultiLine(v: unknown): string {
@@ -221,25 +289,6 @@ function wrapText(font: PDFFont, text: string, fontSize: number, maxWidth: numbe
   return out.length ? out : [""];
 }
 
-function drawRect(
-  page: any,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  opts: { borderColor?: any; fillColor?: any; borderWidth?: number } = {},
-) {
-  page.drawRectangle({
-    x,
-    y,
-    width: w,
-    height: h,
-    borderColor: opts.borderColor,
-    borderWidth: opts.borderWidth ?? 1,
-    color: opts.fillColor,
-  });
-}
-
 function drawTextLines(
   page: any,
   font: PDFFont,
@@ -259,7 +308,7 @@ function drawTextLines(
 
 function buildCanonicalPayload(header: RapportinoHeader, rows: NormalizedRow[]) {
   return {
-    schema: "RAPPORTINO_PDF_V1",
+    schema: "RAPPORTINO_PDF_V2",
     header: {
       id: header.id,
       data: header.data,
@@ -382,109 +431,294 @@ async function renderRapportinoPdf(params: {
   header: RapportinoHeader;
   rows: NormalizedRow[];
   isOfficial: boolean;
-  runId: string;
 }): Promise<Uint8Array> {
-  const { header, rows, isOfficial, runId } = params;
+  const { header, rows } = params;
 
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
   const theme = buildTheme();
 
+  // A4 landscape in PDF points.
   const pageWidth = 841.89;
   const pageHeight = 595.28;
 
-  const marginX = mmToPt(10);
-  const marginTop = mmToPt(10);
-  const marginBottom = mmToPt(10);
-
-  const tableTopY = pageHeight - marginTop - 76;
-  const tableBottomY = marginBottom + 22;
-
-  const col = {
-    categoria: 82,
-    descrizione: 180,
-    operai: 238,
-    tempo: 78,
-    previsto: 70,
-    prodotto: 70,
-    note: 0,
-  };
+  const marginX = mmToPt(12);
+  const marginTop = mmToPt(12);
+  const marginBottom = mmToPt(12);
 
   const contentW = pageWidth - marginX * 2;
-  const fixedW = col.categoria + col.descrizione + col.operai + col.tempo + col.previsto + col.prodotto;
-  col.note = Math.max(120, contentW - fixedW);
+  const xLeft = marginX;
+  const xRight = marginX + contentW;
+
+  const title = "RAPPORTINO GIORNALIERO";
+  const titleSize = 14;
+
+  const metaLabelSize = 10;
+  const metaValueSize = 10;
+  const underlineThickness = 1;
+
+  const dateBoxW = 150;
+  const dateBoxH = 20;
+  const dateBoxR = 6;
+
+  const tableCornerR = 10;
+  const tableHeaderH = 46;
+
+  const col = (() => {
+    const base = {
+      categoria: 105,
+      descrizione: 175,
+      operatore: 135,
+      tempo: 70,
+      previsto: 65,
+      prodotto: 70,
+      indice: 60,
+      note: 0,
+    };
+
+    const fixed =
+      base.categoria + base.descrizione + base.operatore + base.tempo + base.previsto + base.prodotto + base.indice;
+
+    base.note = Math.max(160, Math.floor(contentW - fixed));
+
+    const sum =
+      base.categoria +
+      base.descrizione +
+      base.operatore +
+      base.tempo +
+      base.previsto +
+      base.prodotto +
+      base.note +
+      base.indice;
+
+    base.note += Math.round(contentW - sum);
+    return base;
+  })();
 
   const columns = [
-    { label: "CATEGORIA", w: col.categoria, align: "left" as const },
-    { label: "DESCRIZIONE", w: col.descrizione, align: "left" as const },
-    { label: "OPERAI", w: col.operai, align: "left" as const },
-    { label: "TEMPO", w: col.tempo, align: "left" as const },
-    { label: "PREVISTO", w: col.previsto, align: "right" as const },
-    { label: "PRODOTTO", w: col.prodotto, align: "right" as const },
-    { label: "NOTE", w: col.note, align: "left" as const },
+    { key: "categoria", label: "CATEGORIA", w: col.categoria, align: "left" as const },
+    { key: "descrizione", label: "DESCRIZIONE ATTIVITÀ", w: col.descrizione, align: "left" as const },
+    {
+      key: "operatore",
+      label: "OPERATORE",
+      subLabel: "(tap per scegliere /\ndrag&drop)",
+      w: col.operatore,
+      align: "left" as const,
+    },
+    { key: "tempo", label: "TEMPO", subLabel: "(ORE)", w: col.tempo, align: "center" as const },
+    { key: "previsto", label: "PREVISTO", w: col.previsto, align: "center" as const },
+    { key: "prodotto", label: "PRODOTTO", subLabel: "(MT)", w: col.prodotto, align: "center" as const },
+    { key: "note", label: "NOTE", w: col.note, align: "left" as const },
+    { key: "indice", label: "INDICE", w: col.indice, align: "center" as const },
   ];
 
-  function drawHeader(page: any) {
-    const x0 = marginX;
+  const colX: number[] = [xLeft];
+  for (const c of columns) colX.push(colX[colX.length - 1] + c.w);
+
+  function roundedRectPath(x: number, y: number, w: number, h: number, r: number): string {
+    const rr = Math.max(0, Math.min(r, Math.min(w / 2, h / 2)));
+    const x0 = x;
+    const y0 = y;
+    const x1 = x + w;
+    const y1 = y + h;
+    return [
+      `M ${x0 + rr} ${y0}`,
+      `L ${x1 - rr} ${y0}`,
+      `Q ${x1} ${y0} ${x1} ${y0 + rr}`,
+      `L ${x1} ${y1 - rr}`,
+      `Q ${x1} ${y1} ${x1 - rr} ${y1}`,
+      `L ${x0 + rr} ${y1}`,
+      `Q ${x0} ${y1} ${x0} ${y1 - rr}`,
+      `L ${x0} ${y0 + rr}`,
+      `Q ${x0} ${y0} ${x0 + rr} ${y0}`,
+      "Z",
+    ].join(" ");
+  }
+
+  function drawRoundedRect(
+    page: any,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    r: number,
+    opts: { fill?: any; border?: any; borderWidth?: number } = {},
+  ) {
+    const path = roundedRectPath(x, y, w, h, r);
+    page.drawSvgPath(path, {
+      color: opts.fill,
+      borderColor: opts.border,
+      borderWidth: opts.borderWidth ?? 1,
+    });
+  }
+
+  function drawUnderline(page: any, x1: number, y: number, x2: number) {
+    page.drawLine({
+      start: { x: x1, y },
+      end: { x: x2, y },
+      thickness: underlineThickness,
+      color: theme.borderColor,
+    });
+  }
+
+  function drawHeaderUi(page: any) {
     const yTop = pageHeight - marginTop;
 
-    const title = "RAPPORTINO GIORNALIERO";
-    const titleSize = 15;
-    const titleWidth = fontBold.widthOfTextAtSize(title, titleSize);
+    const titleW = fontBold.widthOfTextAtSize(title, titleSize);
     page.drawText(title, {
-      x: x0 + contentW / 2 - titleWidth / 2,
-      y: yTop - 22,
+      x: xLeft + contentW / 2 - titleW / 2,
+      y: yTop - 20,
       size: titleSize,
       font: fontBold,
       color: theme.textColor,
     });
 
-    const boxY = yTop - 52;
-    const boxH = 22;
-    const gap = 8;
-    const boxW = (contentW - gap * 3) / 4;
+    const baseY = yTop - 64;
 
-    const meta = [
-      { label: "COSTR", value: safeText(header.costr) || "—" },
-      { label: "COMMESSA", value: safeText(header.commessa) || "—" },
-      { label: "CAPO SQUADRA", value: safeText(header.capo_name) || "—" },
-      { label: "DATA", value: safeText(header.data) || "—" },
-    ];
+    const costrLabel = "COSTR.:";
+    const costrValue = safeText(header.costr) || "—";
+    const costrLabelW = fontBold.widthOfTextAtSize(costrLabel, metaLabelSize);
 
-    for (let i = 0; i < meta.length; i++) {
-      const bx = x0 + i * (boxW + gap);
-      drawRect(page, bx, boxY, boxW, boxH, { borderColor: theme.borderColor, borderWidth: 1 });
-      page.drawText(meta[i].label, { x: bx + 6, y: boxY + 13.5, size: 8, font: fontBold, color: theme.mutedColor });
-      page.drawText(meta[i].value, { x: bx + 6, y: boxY + 4.5, size: 10, font, color: theme.textColor });
-    }
-
-    const total = header.prodotto_totale ?? header.prodotto_tot ?? header.totale_prodotto ?? null;
-    const totalText = total === null ? "—" : normalizeNumberToText(total);
-    const statusText = safeText(header.status);
-    const rightLine = `Totale prodotto: ${totalText}   •   Stato: ${statusText}${isOfficial ? "   •   OFFICIAL" : ""}`;
-    const rlSize = 9;
-    const rlWidth = font.widthOfTextAtSize(rightLine, rlSize);
-    page.drawText(rightLine, {
-      x: x0 + contentW - rlWidth,
-      y: boxY - 12,
-      size: rlSize,
+    page.drawText(costrLabel, { x: xLeft, y: baseY, size: metaLabelSize, font: fontBold, color: theme.textColor });
+    page.drawText(costrValue, {
+      x: xLeft + costrLabelW + 8,
+      y: baseY,
+      size: metaValueSize,
       font,
-      color: theme.mutedColor,
+      color: theme.textColor,
+    });
+    drawUnderline(page, xLeft + costrLabelW + 8, baseY - 4, xLeft + 250);
+
+    const commLabel = "Commessa:";
+    const commValue = safeText(header.commessa) || "—";
+    const commY = baseY - 26;
+    const commLabelW = fontBold.widthOfTextAtSize(commLabel, metaLabelSize);
+
+    page.drawText(commLabel, { x: xLeft, y: commY, size: metaLabelSize, font: fontBold, color: theme.textColor });
+    page.drawText(commValue, {
+      x: xLeft + commLabelW + 8,
+      y: commY,
+      size: metaValueSize,
+      font,
+      color: theme.textColor,
+    });
+    drawUnderline(page, xLeft + commLabelW + 8, commY - 4, xLeft + 250);
+
+    const capoLabel = "Capo Squadra:";
+    const capoValue = titleCaseHumanName(safeText(header.capo_name) || "—");
+    const capoLineY = baseY;
+    const capoLabelW = fontBold.widthOfTextAtSize(capoLabel, metaLabelSize);
+    const capoValueW = font.widthOfTextAtSize(capoValue, metaValueSize);
+    const capoTotalW = capoLabelW + 8 + capoValueW;
+    const capoX = xLeft + contentW / 2 - capoTotalW / 2;
+
+    page.drawText(capoLabel, { x: capoX, y: capoLineY, size: metaLabelSize, font: fontBold, color: theme.textColor });
+    page.drawText(capoValue, { x: capoX + capoLabelW + 8, y: capoLineY, size: metaValueSize, font, color: theme.textColor });
+
+    const dateLabel = "DATA:";
+    const dateValue = formatItalianDateForPdf(header.data) || "—";
+    const dateLabelW = fontBold.widthOfTextAtSize(dateLabel, metaLabelSize);
+    const boxX = xRight - dateBoxW;
+    const boxY = baseY - 6;
+
+    page.drawText(dateLabel, {
+      x: boxX - 10 - dateLabelW,
+      y: baseY,
+      size: metaLabelSize,
+      font: fontBold,
+      color: theme.textColor,
+    });
+
+    drawRoundedRect(page, boxX, boxY, dateBoxW, dateBoxH, dateBoxR, {
+      fill: rgb(1, 1, 1),
+      border: theme.borderColor,
+      borderWidth: 1,
+    });
+
+    const dateTextW = font.widthOfTextAtSize(dateValue, metaValueSize);
+    page.drawText(dateValue, {
+      x: boxX + dateBoxW - 10 - dateTextW,
+      y: boxY + 6,
+      size: metaValueSize,
+      font,
+      color: theme.textColor,
     });
   }
 
-  function drawTableHeader(page: any, y: number): number {
-    const h = 18;
-    let x = marginX;
+  function drawFooter(page: any) {
+    const sig = "© CNCS — CORE";
+    const sigSize = 8.5;
+    const sigW = font.widthOfTextAtSize(sig, sigSize);
+    page.drawText(sig, { x: xRight - sigW, y: marginBottom - 2, size: sigSize, font, color: theme.mutedColor });
+  }
 
-    for (const c of columns) {
-      drawRect(page, x, y - h, c.w, h, { borderColor: theme.borderColor, fillColor: theme.headerFill, borderWidth: 1 });
-      const labelLines = wrapText(fontBold, c.label, 8.5, c.w - theme.paddingX * 2);
-      drawTextLines(page, fontBold, labelLines, x + theme.paddingX, y - 13, 8.5, 10, theme.textColor);
-      x += c.w;
+  function drawTableFrame(page: any, tableTopY: number, tableBottomY: number) {
+    const h = tableTopY - tableBottomY;
+
+    // 1) Fill whole container with headerFill using rounded corners (so top corners stay rounded)
+    drawRoundedRect(page, xLeft, tableBottomY, contentW, h, tableCornerR, {
+      fill: theme.headerFill,
+      border: theme.borderColor,
+      borderWidth: 1,
+    });
+
+    // 2) Draw body white rectangle (keeps header area grey, body white)
+    const bodyY = tableTopY - tableHeaderH;
+    page.drawRectangle({
+      x: xLeft + 1,
+      y: tableBottomY + 1,
+      width: contentW - 2,
+      height: Math.max(0, bodyY - (tableBottomY + 1)),
+      color: rgb(1, 1, 1),
+      borderWidth: 0,
+    });
+
+    // 3) Reinforce border on top (optional crisp)
+    drawRoundedRect(page, xLeft, tableBottomY, contentW, h, tableCornerR, {
+      fill: undefined,
+      border: theme.borderColor,
+      borderWidth: 1,
+    });
+
+    // Vertical grid lines only until tableBottomY (auto height)
+    for (let i = 1; i < colX.length - 1; i++) {
+      const x = colX[i];
+      page.drawLine({
+        start: { x, y: tableBottomY },
+        end: { x, y: tableTopY },
+        thickness: 1,
+        color: theme.borderColor,
+      });
     }
-    return h;
+
+    // Header bottom line
+    page.drawLine({
+      start: { x: xLeft, y: tableTopY - tableHeaderH },
+      end: { x: xRight, y: tableTopY - tableHeaderH },
+      thickness: 1,
+      color: theme.borderColor,
+    });
+
+    // Header text
+    const headerLabelSize = 9;
+    const headerSubSize = 8;
+    const headerLabelY = tableTopY - 18;
+    const headerSubY = tableTopY - 34;
+
+    for (let i = 0; i < columns.length; i++) {
+      const c = columns[i];
+      const cx = colX[i];
+
+      const labelLines = wrapText(fontBold, c.label, headerLabelSize, c.w - theme.paddingX * 2);
+      drawTextLines(page, fontBold, labelLines, cx + theme.paddingX, headerLabelY, headerLabelSize, 11, theme.textColor);
+
+      const sub = safeText((c as any).subLabel);
+      if (sub) {
+        const subLines = wrapText(font, sub, headerSubSize, c.w - theme.paddingX * 2);
+        drawTextLines(page, font, subLines, cx + theme.paddingX, headerSubY, headerSubSize, 10, theme.mutedColor);
+      }
+    }
   }
 
   function measureRowHeight(r: NormalizedRow): number {
@@ -492,90 +726,123 @@ async function renderRapportinoPdf(params: {
 
     const linesCategoria = maxLines(r.categoria, col.categoria);
     const linesDesc = maxLines(r.descrizione, col.descrizione);
-    const linesOps = maxLines(r.operatorsText, col.operai);
+    const linesOps = maxLines(r.operatorsText, col.operatore);
     const linesTempo = maxLines(r.tempoText, col.tempo);
+    const linesPrev = maxLines(r.previstoText, col.previsto);
+    const linesProd = maxLines(r.prodottoText, col.prodotto);
     const linesNote = maxLines(r.note, col.note);
+    const linesIndice = 1;
 
-    const max = Math.max(linesCategoria, linesDesc, linesOps, linesTempo, linesNote, 1);
+    const max = Math.max(linesCategoria, linesDesc, linesOps, linesTempo, linesPrev, linesProd, linesNote, linesIndice, 1);
     const h = max * theme.lineHeight + theme.paddingY * 2;
-    return Math.max(20, h);
+    return Math.max(22, h);
   }
 
-  function drawRow(page: any, yTop: number, r: NormalizedRow): number {
-    const h = measureRowHeight(r);
+  function drawRow(page: any, yTop: number, r: NormalizedRow, rowH: number) {
+    const yTextTop = yTop - theme.paddingY - theme.fontSize;
 
     const cells = [
-      { w: col.categoria, text: r.categoria, align: "left" as const },
-      { w: col.descrizione, text: r.descrizione, align: "left" as const },
-      { w: col.operai, text: r.operatorsText, align: "left" as const },
-      { w: col.tempo, text: r.tempoText, align: "left" as const },
-      { w: col.previsto, text: r.previstoText, align: "right" as const },
-      { w: col.prodotto, text: r.prodottoText, align: "right" as const },
-      { w: col.note, text: r.note, align: "left" as const },
+      { idx: 0, text: r.categoria, align: "left" as const },
+      { idx: 1, text: r.descrizione, align: "left" as const },
+      { idx: 2, text: r.operatorsText, align: "left" as const },
+      { idx: 3, text: r.tempoText, align: "center" as const },
+      { idx: 4, text: r.previstoText, align: "center" as const },
+      { idx: 5, text: r.prodottoText, align: "center" as const },
+      { idx: 6, text: r.note, align: "left" as const }, // keep empty if empty
+      { idx: 7, text: "", align: "center" as const }, // INDICE empty if empty
     ];
 
-    let x = marginX;
     for (const c of cells) {
-      drawRect(page, x, yTop - h, c.w, h, { borderColor: theme.borderColor, borderWidth: 1 });
+      const x = colX[c.idx];
+      const w = columns[c.idx].w;
+      const lines = wrapText(font, c.text, theme.fontSize, w - theme.paddingX * 2);
 
-      const lines = wrapText(font, c.text, theme.fontSize, c.w - theme.paddingX * 2);
-      const textY = yTop - theme.paddingY - theme.fontSize;
-
-      if (c.align === "right") {
-        let ty = textY;
+      if (c.align === "center") {
+        let ty = yTextTop;
         for (const ln of lines) {
-          const w = font.widthOfTextAtSize(ln, theme.fontSize);
-          page.drawText(ln, { x: x + c.w - theme.paddingX - w, y: ty, size: theme.fontSize, font, color: theme.textColor });
+          const tw = font.widthOfTextAtSize(ln, theme.fontSize);
+          page.drawText(ln, { x: x + w / 2 - tw / 2, y: ty, size: theme.fontSize, font, color: theme.textColor });
           ty -= theme.lineHeight;
         }
       } else {
-        drawTextLines(page, font, lines, x + theme.paddingX, textY, theme.fontSize, theme.lineHeight, theme.textColor);
+        drawTextLines(page, font, lines, x + theme.paddingX, yTextTop, theme.fontSize, theme.lineHeight, theme.textColor);
       }
-
-      x += c.w;
     }
 
-    return h;
+    // Row bottom line (grid)
+    page.drawLine({
+      start: { x: xLeft, y: yTop - rowH },
+      end: { x: xRight, y: yTop - rowH },
+      thickness: 1,
+      color: theme.borderColor,
+    });
   }
 
-  function drawFooter(page: any) {
-    const x0 = marginX;
-    const y0 = marginBottom;
-
-    const sig = "CNCS — CORE";
-    const sigSize = 8.5;
-    const sigW = font.widthOfTextAtSize(sig, sigSize);
-    page.drawText(sig, { x: x0 + contentW - sigW, y: y0, size: sigSize, font, color: theme.mutedColor });
-
-    const rid = `run_id: ${runId}`;
-    const ridSize = 7.5;
-    const ridW = font.widthOfTextAtSize(rid, ridSize);
-    page.drawText(rid, { x: x0 + contentW - ridW, y: y0 + 10, size: ridSize, font, color: rgb(0.7, 0.72, 0.75) });
+  function renderPage(page: any, tableTopY: number, tableBottomY: number) {
+    drawHeaderUi(page);
+    drawTableFrame(page, tableTopY, tableBottomY);
   }
 
-  let page = doc.addPage([pageWidth, pageHeight]);
-  drawHeader(page);
+  const yTop = pageHeight - marginTop;
+  const headerBottomY = yTop - 92;
+  const tableTopY = headerBottomY - 22;
 
-  let cursorY = tableTopY;
-  cursorY -= drawTableHeader(page, cursorY);
+  // Available height for body rows (we paginate, but table bottom is auto per page)
+  const maxBodyBottomY = marginBottom + 22;
+  const maxBodyHeight = (tableTopY - tableHeaderH) - maxBodyBottomY;
 
-  for (const r of rows) {
-    const rh = measureRowHeight(r);
+  // Pre-measure heights
+  const measured = rows.map((r) => ({ r, h: measureRowHeight(r) }));
 
-    if (cursorY - rh < tableBottomY) {
-      page = doc.addPage([pageWidth, pageHeight]);
-      drawHeader(page);
-      cursorY = tableTopY;
-      cursorY -= drawTableHeader(page, cursorY);
+  // Paginate rows based on maxBodyHeight
+  const pages: Array<{ rows: Array<{ r: NormalizedRow; h: number }>; totalH: number }> = [];
+  let cur: Array<{ r: NormalizedRow; h: number }> = [];
+  let curH = 0;
+
+  for (const item of measured) {
+    if (cur.length === 0) {
+      cur.push(item);
+      curH = item.h;
+      continue;
+    }
+    if (curH + item.h <= maxBodyHeight) {
+      cur.push(item);
+      curH += item.h;
+    } else {
+      pages.push({ rows: cur, totalH: curH });
+      cur = [item];
+      curH = item.h;
+    }
+  }
+  if (cur.length > 0) pages.push({ rows: cur, totalH: curH });
+  if (pages.length === 0) pages.push({ rows: [], totalH: 60 });
+
+  // Render each page with auto tableBottomY
+  for (let p = 0; p < pages.length; p++) {
+    const page = doc.addPage([pageWidth, pageHeight]);
+
+    const pageRows = pages[p].rows;
+    const totalBodyH = pages[p].totalH;
+
+    // Auto bottom: stop exactly after last row (small padding to make bottom look clean)
+    const padBottom = 6; // pt
+    const computedBottom = tableTopY - tableHeaderH - totalBodyH - padBottom;
+
+    // Never go below the minimal bottom margin area (safety)
+    const tableBottomY = Math.max(maxBodyBottomY, computedBottom);
+
+    renderPage(page, tableTopY, tableBottomY);
+
+    let cursorY = tableTopY - tableHeaderH;
+    for (const item of pageRows) {
+      drawRow(page, cursorY, item.r, item.h);
+      cursorY -= item.h;
     }
 
-    cursorY -= drawRow(page, cursorY, r);
+    drawFooter(page);
   }
 
-  drawFooter(page);
-
-  const bytes = await doc.save();
-  return bytes;
+  return await doc.save();
 }
 
 serve(
@@ -631,11 +898,14 @@ serve(
 
     if (!header) {
       const { data: hP, error: hErr } = await admin.from("rapportini").select("*").eq("id", rapportinoId).maybeSingle();
-      if (hErr) return json(500, { ok: false, error: `rapportini read error: ${String(hErr.message ?? hErr)}` });
+      if (hErr) return json(500, { ok: false, error: `rapportini read error: ${String((hErr as any)?.message ?? hErr)}` });
       if (!hP) return json(404, { ok: false, error: "Rapportino not found" });
       header = hP as RapportinoHeader;
       isOfficial = false;
     }
+
+    const capoLabel = await resolveCapoLabel(admin, header);
+    const headerResolved: RapportinoHeader = { ...header, capo_name: capoLabel };
 
     let rows: NormalizedRow[] = [];
 
@@ -645,7 +915,7 @@ serve(
         .select("id,rapportino_id,row_index,position,categoria,descrizione,operatori,tempo,previsto,prodotto,note,updated_at")
         .eq("rapportino_id", rapportinoId);
 
-      if (rAErr) return json(500, { ok: false, error: `archive rows read error: ${String(rAErr.message ?? rAErr)}` });
+      if (rAErr) return json(500, { ok: false, error: `archive rows read error: ${String((rAErr as any)?.message ?? rAErr)}` });
 
       const archiveRows = (rA ?? []) as ArchiveRow[];
 
@@ -657,7 +927,7 @@ serve(
           .select("id,rapportino_id,idx,categoria,descrizione,previsto,prodotto,note,operai")
           .eq("rapportino_id", rapportinoId);
 
-        if (rLErr) return json(500, { ok: false, error: `archive legacy rows read error: ${String(rLErr.message ?? rLErr)}` });
+        if (rLErr) return json(500, { ok: false, error: `archive legacy rows read error: ${String((rLErr as any)?.message ?? rLErr)}` });
 
         rows = normalizeRowsFromArchiveLegacy(((rLegacy ?? []) as ArchiveRigaLegacy[]) ?? []);
       }
@@ -667,12 +937,12 @@ serve(
         .select("id,rapportino_id,row_index,position,categoria,descrizione,operatori,tempo,previsto,prodotto,note,activity_id,updated_at")
         .eq("rapportino_id", rapportinoId);
 
-      if (rErr) return json(500, { ok: false, error: `rapportino_rows read error: ${String(rErr.message ?? rErr)}` });
+      if (rErr) return json(500, { ok: false, error: `rapportino_rows read error: ${String((rErr as any)?.message ?? rErr)}` });
 
       rows = normalizeRowsFromPublic(((rP ?? []) as PublicRow[]) ?? []);
     }
 
-    const payload = buildCanonicalPayload(header, rows);
+    const payload = buildCanonicalPayload(headerResolved, rows);
     const payloadJson = JSON.stringify(payload);
     const payloadHash = await sha256HexText(payloadJson);
 
@@ -690,7 +960,6 @@ serve(
 
       if (existing?.storage_bucket && existing?.storage_path) {
         const { data: signed } = await admin.storage.from(String(existing.storage_bucket)).createSignedUrl(String(existing.storage_path), 120);
-
         return json(200, {
           ok: true,
           reused: true,
@@ -725,14 +994,14 @@ serve(
 
     const runId = crypto.randomUUID();
 
-    const pdfBytes = await renderRapportinoPdf({ header, rows, isOfficial, runId });
+    const pdfBytes = await renderRapportinoPdf({ header: headerResolved, rows, isOfficial });
     const sha256 = await sha256HexBytes(pdfBytes);
     const sizeBytes = pdfBytes.byteLength;
 
     let cantiere = "UNKNOWN";
     try {
-      const costr = safeText(header.costr);
-      const commessa = safeText(header.commessa);
+      const costr = safeText(headerResolved.costr);
+      const commessa = safeText(headerResolved.commessa);
       if (costr && commessa) {
         const { data: ship } = await admin
           .from("ships")
@@ -752,9 +1021,9 @@ serve(
     const statoDoc = isOfficial ? "VALIDO_INTERNO" : "BOZZA";
     const frozenAt = isOfficial ? new Date().toISOString() : null;
 
-    const costrSafe = safeText(header.costr) || "NA";
-    const commessaSafe = safeText(header.commessa) || "NA";
-    const dateSafe = safeText(header.data) || "NA";
+    const costrSafe = safeText(headerResolved.costr) || "NA";
+    const commessaSafe = safeText(headerResolved.commessa) || "NA";
+    const dateSafe = safeText(headerResolved.data) || "NA";
     const filename = `RAPPORTINO_${costrSafe}_${commessaSafe}_${dateSafe}_v${versionNum}.pdf`;
     const bucket = "core-drive";
     const storagePath = `rapportini/${costrSafe}/${commessaSafe}/${rapportinoId}/${payloadHash}.pdf`;
@@ -776,10 +1045,10 @@ serve(
       size_bytes: sizeBytes,
       sha256,
       cantiere,
-      commessa: header.commessa,
-      categoria: categoria, // doc_categoria
-      origine: origine, // doc_origine
-      stato_doc: statoDoc, // doc_stato
+      commessa: headerResolved.commessa,
+      categoria: categoria,
+      origine: origine,
+      stato_doc: statoDoc,
       rapportino_id: rapportinoId,
       created_by: callerId,
       version_num: versionNum,
