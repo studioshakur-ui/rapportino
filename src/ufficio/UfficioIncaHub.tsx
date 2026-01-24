@@ -56,7 +56,7 @@ export default function UfficioIncaHub(): JSX.Element {
   const loadFiles = useCallback(async (): Promise<IncaFileRow[]> => {
     const { data, error: e } = await supabase
       .from("inca_files")
-      .select("id,costr,commessa,project_code,file_name,file_type,uploaded_at")
+      .select("id,costr,commessa,project_code,file_name,file_type,uploaded_at,group_key,previous_inca_file_id,import_run_id,content_hash")
       .order("uploaded_at", { ascending: false });
 
     if (e) throw e;

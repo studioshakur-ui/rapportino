@@ -24,15 +24,31 @@ type IncaFileRow = {
   uploaded_at: string | null;
 };
 
-const SITUAZIONI_ORDER = ["NP", "T", "P", "R", "B", "E"] as const;
-type SituazioneCode = (typeof SITUAZIONI_ORDER)[number];
+// =============================
+// SITUAZIONE semantics (CANON)
+// =============================
+// P = posato
+// T = tagliato
+// R = rifare
+// B = bloccato
+// E = eliminato
+// L = null (missing)
+// NP = macro = T + R + B + L
 
-const SITUAZIONI_LABEL: Record<SituazioneCode, string> = {
-  NP: "Non posato",
-  T: "Terminato",
+const SITUAZIONI_ATOM_ORDER = ["P", "T", "R", "B", "L", "E"] as const;
+type SituazioneAtom = (typeof SITUAZIONI_ATOM_ORDER)[number];
+
+type SituazioneFilterCode = "NP" | SituazioneAtom;
+
+const SITUAZIONI_FILTER_ORDER: readonly SituazioneFilterCode[] = ["NP", "T", "P", "R", "B", "L", "E"] as const;
+
+const SITUAZIONI_LABEL: Record<SituazioneFilterCode, string> = {
+  NP: "Non posato (T+R+B+L)",
   P: "Posato",
-  R: "Rimosso",
+  T: "Tagliato",
+  R: "Rifare",
   B: "Bloccato",
+  L: "Non definito",
   E: "Eliminato",
 };
 
@@ -58,13 +74,18 @@ function norm(v: unknown): string {
   return String(v ?? "").trim();
 }
 
-function toSituazione(v: unknown): SituazioneCode {
-  const s = norm(v);
-  if (s && (SITUAZIONI_ORDER as readonly string[]).includes(s)) return s as SituazioneCode;
-  return "NP";
+function toAtom(v: unknown): SituazioneAtom {
+  const s = norm(v).toUpperCase();
+  if (!s) return "L";
+  if ((SITUAZIONI_ATOM_ORDER as readonly string[]).includes(s)) return s as SituazioneAtom;
+  return "L";
 }
 
-function colorForSituazione(code: SituazioneCode): string {
+function isNonPosatoAtom(a: SituazioneAtom): boolean {
+  return a === "T" || a === "R" || a === "B" || a === "L";
+}
+
+function colorForSituazione(code: SituazioneFilterCode): string {
   switch (code) {
     case "P":
       return "#34d399";
@@ -74,6 +95,8 @@ function colorForSituazione(code: SituazioneCode): string {
       return "#fbbf24";
     case "B":
       return "#e879f9";
+    case "L":
+      return "#94a3b8";
     case "E":
       return "#fb7185";
     case "NP":
@@ -99,7 +122,7 @@ export default function IncaCockpit(props: IncaCockpitProps) {
   const [files, setFiles] = useState<IncaFileRow[]>([]);
 
   const [query, setQuery] = useState<string>("");
-  const [situazioni, setSituazioni] = useState<SituazioneCode[]>([]);
+  const [situazioni, setSituazioni] = useState<SituazioneFilterCode[]>([]);
   const [apparatoDa, setApparatoDa] = useState<string>("");
   const [apparatoA, setApparatoA] = useState<string>("");
 
@@ -152,7 +175,8 @@ export default function IncaCockpit(props: IncaCockpitProps) {
         const list: IncaFileRow[] = Array.isArray(data) ? (data as IncaFileRow[]) : [];
         setFiles(list);
 
-        if (!fileId && !props.fileId && list[0]?.id) setFileId(list[0].id);
+        // IMPORTANT (CNCS): never silently fall back to the "latest" file.
+        // If no fileId is selected, the cockpit stays in "no selection" state.
       } catch (err) {
         console.error("[IncaCockpit] loadFiles error:", err);
         if (!alive) return;
@@ -177,7 +201,13 @@ export default function IncaCockpit(props: IncaCockpitProps) {
     const ac = new AbortController();
 
     async function loadCavi() {
-      if (!fileId) return;
+      if (!fileId) {
+        setLoading(false);
+        setError(null);
+        setSelectedCable(null);
+        setCavi([]);
+        return;
+      }
 
       setLoading(true);
       setError(null);
@@ -303,49 +333,72 @@ export default function IncaCockpit(props: IncaCockpitProps) {
   }, [cavi, query, apparatoDa, apparatoA]);
 
   const distribBase = useMemo(() => {
-    const map = new Map<SituazioneCode, number>();
-    for (const code of SITUAZIONI_ORDER) map.set(code, 0);
+    const atomCounts = new Map<SituazioneAtom, number>();
+    for (const a of SITUAZIONI_ATOM_ORDER) atomCounts.set(a, 0);
 
     for (const r of baseByQuery) {
-      const key = toSituazione(r?.situazione);
-      map.set(key, (map.get(key) || 0) + 1);
+      const a = toAtom((r as any)?.situazione);
+      atomCounts.set(a, (atomCounts.get(a) || 0) + 1);
     }
 
-    return SITUAZIONI_ORDER.map((code) => ({
-      code,
-      label: SITUAZIONI_LABEL[code],
-      count: map.get(code) || 0,
-    }));
+    const np =
+      (atomCounts.get("T") || 0) +
+      (atomCounts.get("R") || 0) +
+      (atomCounts.get("B") || 0) +
+      (atomCounts.get("L") || 0);
+
+    return SITUAZIONI_FILTER_ORDER.map((code) => {
+      if (code === "NP") {
+        return { code, label: SITUAZIONI_LABEL[code], count: np };
+      }
+      return {
+        code,
+        label: SITUAZIONI_LABEL[code],
+        count: atomCounts.get(code) || 0,
+      };
+    });
   }, [baseByQuery]);
 
   const filteredCavi = useMemo(() => {
     if (!situazioni.length) return baseByQuery;
-    const allow = new Set(situazioni);
-    return baseByQuery.filter((r) => allow.has(toSituazione(r?.situazione)));
+
+    const allowAtoms = new Set<SituazioneAtom>();
+    for (const c of situazioni) {
+      if (c === "NP") {
+        allowAtoms.add("T");
+        allowAtoms.add("R");
+        allowAtoms.add("B");
+        allowAtoms.add("L");
+      } else {
+        allowAtoms.add(c);
+      }
+    }
+
+    return baseByQuery.filter((r) => allowAtoms.has(toAtom((r as any)?.situazione)));
   }, [baseByQuery, situazioni]);
 
   // KPIs computed from visible scope
   const totalCavi = filteredCavi.length;
   const pCount = useMemo(
-    () => filteredCavi.reduce((acc, r) => acc + (toSituazione(r?.situazione) === "P" ? 1 : 0), 0),
+    () => filteredCavi.reduce((acc, r) => acc + (toAtom((r as any)?.situazione) === "P" ? 1 : 0), 0),
     [filteredCavi]
   );
   const npCount = useMemo(
-    () => filteredCavi.reduce((acc, r) => acc + (toSituazione(r?.situazione) === "NP" ? 1 : 0), 0),
+    () => filteredCavi.reduce((acc, r) => acc + (isNonPosatoAtom(toAtom((r as any)?.situazione)) ? 1 : 0), 0),
     [filteredCavi]
   );
   const prodPercent = useMemo(() => (totalCavi ? (pCount / totalCavi) * 100 : 0), [pCount, totalCavi]);
 
   const totalMetri = useMemo(() => {
     return (filteredCavi || []).reduce((acc, r) => {
-      const m = safeNum(r.metri_totali) || safeNum(r.metri_teo) || safeNum(r.metri_dis) || 0;
+      const m = Math.max(safeNum(r.metri_totali) || 0, safeNum(r.metri_teo) || 0, safeNum(r.metri_dis) || 0);
       return acc + m;
     }, 0);
   }, [filteredCavi]);
 
   const totalMetriPosati = useMemo(() => {
     return (filteredCavi || []).reduce((acc, r) => {
-      if (toSituazione(r?.situazione) !== "P") return acc;
+      if (toAtom((r as any)?.situazione) !== "P") return acc;
       const m = safeNum(r.metri_totali) || safeNum(r.metri_dis) || safeNum(r.metri_teo) || 0;
       return acc + m;
     }, 0);
@@ -353,7 +406,7 @@ export default function IncaCockpit(props: IncaCockpitProps) {
 
   const chosenFile = useMemo(() => (files || []).find((x) => x.id === fileId) || null, [files, fileId]);
 
-  function toggleSituazione(code: SituazioneCode) {
+  function toggleSituazione(code: SituazioneFilterCode) {
     setSituazioni((prev) => {
       if (!prev.length) return [code];
       const has = prev.includes(code);
@@ -487,6 +540,9 @@ export default function IncaCockpit(props: IncaCockpitProps) {
                 onChange={(e) => setFileId(e.target.value)}
                 className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[13px] text-slate-100"
               >
+                <option value="" disabled>
+                  {(files || []).length ? "Seleziona un file…" : "Nessun file disponibile"}
+                </option>
                 {(files || []).map((f) => (
                   <option key={f.id} value={f.id}>
                     {(f.costr || "—") + " · " + (f.commessa || "—") + " · " + (f.file_name || "file")}

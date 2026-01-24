@@ -62,17 +62,34 @@ export type IncaCaviTableProps = {
   title?: string;
 };
 
-const SITUAZIONI_ORDER = ["NP", "T", "P", "R", "B", "E"] as const;
-type SituazioneCode = (typeof SITUAZIONI_ORDER)[number];
+// =============================
+// SITUAZIONE semantics (CANON)
+// =============================
+// P = posato
+// T = tagliato
+// R = rifare
+// B = bloccato
+// E = eliminato
+// L = null (missing)
+
+const SITUAZIONI_ATOM_ORDER = ["P", "T", "R", "B", "L", "E"] as const;
+type SituazioneAtom = (typeof SITUAZIONI_ATOM_ORDER)[number];
 
 function norm(v: unknown): string {
   return String(v ?? "").trim();
 }
 
-function toSituazione(v: unknown): SituazioneCode {
-  const s = norm(v);
-  if (s && (SITUAZIONI_ORDER as readonly string[]).includes(s)) return s as SituazioneCode;
-  return "NP";
+function fmtMeters(v: number | null | undefined): string {
+  if (v === null || v === undefined) return "—";
+  const n = Number.isFinite(v) ? Math.round(v) : 0;
+  return new Intl.NumberFormat("it-IT").format(n);
+}
+
+function toAtom(v: unknown): SituazioneAtom {
+  const s = norm(v).toUpperCase();
+  if (!s) return "L";
+  if ((SITUAZIONI_ATOM_ORDER as readonly string[]).includes(s)) return s as SituazioneAtom;
+  return "L";
 }
 
 function formatMeters(v: unknown): string {
@@ -88,14 +105,17 @@ function formatDateIT(value: unknown): string {
   return d.toLocaleDateString("it-IT");
 }
 
-function deltaMeters(r: IncaCavoRow): number | null {
+function lengthRefMeters(r: IncaCavoRow): number {
   const teo = Number(r.metri_teo);
   const dis = Number(r.metri_dis);
-  if (!Number.isFinite(teo) || !Number.isFinite(dis)) return null;
-  return dis - teo;
+  const tot = Number((r as any).metri_totali);
+
+  const vals = [teo, dis, tot].filter((x) => Number.isFinite(x)) as number[];
+  if (!vals.length) return 0;
+  return Math.max(...vals);
 }
 
-function colorForSituazione(code: SituazioneCode): string {
+function colorForSituazione(code: SituazioneAtom): string {
   switch (code) {
     case "P":
       return "#34d399";
@@ -105,11 +125,12 @@ function colorForSituazione(code: SituazioneCode): string {
       return "#fbbf24";
     case "B":
       return "#e879f9";
+    case "L":
+      return "#94a3b8";
     case "E":
       return "#fb7185";
-    case "NP":
     default:
-      return "#a855f7";
+      return "#94a3b8";
   }
 }
 
@@ -152,29 +173,31 @@ export default function IncaCaviTable({
       {
         id: "codice",
         label: "Codice",
-        width: "240px",
+        width: "180px",
         sortValue: (r) => norm(r.codice).toLowerCase(),
-        render: (r) => {
-          const situ = toSituazione(r.situazione);
-          return (
-            <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: colorForSituazione(situ) }} />
-              <span className="text-[12px] text-slate-100 font-semibold">{r.codice ?? "—"}</span>
-            </div>
-          );
-        },
+        render: (r) => (
+          <div className="flex items-center gap-2">
+            <span
+              className="inline-block h-2 w-2 rounded-full"
+              style={{ background: colorForSituazione(toAtom((r as any)?.situazione)) }}
+            />
+            <span className="text-[13px] font-semibold text-slate-100">{norm(r.codice) || "—"}</span>
+          </div>
+        ),
       },
       {
         id: "situazione",
         label: "Sit.",
-        width: "90px",
-        sortValue: (r) => toSituazione(r.situazione),
+        width: "84px",
+        sortValue: (r) => toAtom((r as any)?.situazione),
         render: (r) => {
-          const situ = toSituazione(r.situazione);
+          const a = toAtom((r as any)?.situazione);
           return (
-            <span className="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/60 px-2 py-0.5 text-[11px]">
-              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: colorForSituazione(situ) }} />
-              <span className="text-slate-200 font-semibold">{situ}</span>
+            <span
+              className="inline-flex items-center rounded-full border border-slate-700/70 px-2 py-0.5 text-[12px] font-semibold"
+              style={{ color: colorForSituazione(a) }}
+            >
+              {a}
             </span>
           );
         },
@@ -184,69 +207,37 @@ export default function IncaCaviTable({
         label: "Cantiere",
         width: "120px",
         sortValue: (r) => norm(r.stato_cantiere).toLowerCase(),
-        render: (r) => <span className="text-[12px] text-slate-300">{norm(r.stato_cantiere) || "—"}</span>,
+        render: (r) => <span className="text-[12px] text-slate-400">{norm(r.stato_cantiere) || "—"}</span>,
         hideOnMobile: true,
       },
       {
-        id: "metri_teo",
-        label: "m teo",
+        id: "metri_ref",
+        label: "m",
         width: "90px",
-        align: "right",
-        sortValue: (r) => Number(r.metri_teo ?? -1),
-        render: (r) => <span className="text-[12px] text-slate-200 tabular-nums">{formatMeters(r.metri_teo)}</span>,
-      },
-      {
-        id: "metri_dis",
-        label: "m dis",
-        width: "90px",
-        align: "right",
-        sortValue: (r) => Number(r.metri_dis ?? -1),
-        render: (r) => <span className="text-[12px] text-slate-200 tabular-nums">{formatMeters(r.metri_dis)}</span>,
-        hideOnMobile: true,
-      },
-      {
-        id: "delta_m",
-        label: "Δm",
-        width: "90px",
-        align: "right",
-        sortValue: (r) => {
-          const d = deltaMeters(r);
-          return d === null ? -1 : d;
-        },
-        render: (r) => {
-          const d = deltaMeters(r);
-          const v = d === null ? "—" : new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 }).format(d);
-          const warn = d !== null && Math.abs(d) >= 5;
-          return (
-            <span className={["text-[12px] tabular-nums", warn ? "text-amber-200 font-semibold" : "text-slate-300"].join(" ")}>
-              {v}
-            </span>
-          );
-        },
-        hideOnMobile: true,
+        sortValue: (r) => lengthRefMeters(r),
+        render: (r) => <span className="text-[12px] text-slate-200 tabular-nums">{fmtMeters(lengthRefMeters(r))}</span>,
       },
       {
         id: "data_posa",
         label: "Data posa",
-        width: "110px",
-        sortValue: (r) => (r.data_posa ? new Date(String(r.data_posa)).getTime() : -1),
-        render: (r) => <span className="text-[12px] text-slate-300 tabular-nums">{formatDateIT(r.data_posa)}</span>,
+        width: "120px",
+        sortValue: (r) => norm((r as any)?.data_posa),
+        render: (r) => <span className="text-[12px] text-slate-400">{fmtDate((r as any)?.data_posa)}</span>,
         hideOnMobile: true,
       },
       {
         id: "capo",
         label: "Capo",
         width: "140px",
-        sortValue: (r) => norm(r.capo_label).toLowerCase(),
-        render: (r) => <span className="text-[12px] text-slate-300">{norm(r.capo_label) || "—"}</span>,
+        sortValue: (r) => norm((r as any)?.capo_label).toLowerCase(),
+        render: (r) => <span className="text-[12px] text-slate-300">{norm((r as any)?.capo_label) || "—"}</span>,
         hideOnMobile: true,
       },
       {
         id: "pagina_pdf",
         label: "PDF",
-        width: "70px",
-        align: "center",
-        sortValue: (r) => Number(r.pagina_pdf ?? -1),
+        width: "90px",
+        sortValue: (r) => norm(r.pagina_pdf),
         render: (r) => <span className="text-[12px] text-slate-400 tabular-nums">{r.pagina_pdf ?? "—"}</span>,
         hideOnMobile: true,
       },
@@ -313,7 +304,7 @@ export default function IncaCaviTable({
           render: (r) => <span className="text-[12px] text-slate-300">{norm(r.livello_disturbo) || "—"}</span>,
           hideOnMobile: true,
         },
-        ...base.filter((c) => ["metri_teo", "metri_dis", "delta_m", "data_posa", "capo"].includes(c.id)),
+        ...base.filter((c) => ["metri_ref", "data_posa", "capo"].includes(c.id)),
       ];
 
       return chantier;
@@ -322,6 +313,22 @@ export default function IncaCaviTable({
     // controle
     const controle: Column<IncaCavoRow>[] = [
       ...base,
+      {
+        id: "metri_teo",
+        label: "m teo",
+        width: "90px",
+        sortValue: (r) => Number(r.metri_teo) || 0,
+        render: (r) => <span className="text-[12px] text-slate-200 tabular-nums">{fmtMeters(Number(r.metri_teo) || 0)}</span>,
+        hideOnMobile: true,
+      },
+      {
+        id: "metri_dis",
+        label: "m dis",
+        width: "90px",
+        sortValue: (r) => Number(r.metri_dis) || 0,
+        render: (r) => <span className="text-[12px] text-slate-200 tabular-nums">{fmtMeters(Number(r.metri_dis) || 0)}</span>,
+        hideOnMobile: true,
+      },
       {
         id: "wbs",
         label: "WBS",
