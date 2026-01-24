@@ -15,6 +15,11 @@ type KeepAliveOutletProps = {
   scopeKey: string;
   max?: number;
   /**
+   * React Router Outlet context.
+   * When provided, descendant routes can read it via useOutletContext().
+   */
+  context?: unknown;
+  /**
    * If provided, it replaces location.pathname as the base cache key.
    * Useful when you want a stable key not coupled to the URL path.
    */
@@ -33,10 +38,11 @@ function isRenderable(node: React.ReactNode): boolean {
 }
 
 export function KeepAliveOutlet(props: KeepAliveOutletProps) {
-  const { scopeKey, max = 8, cacheKey, shouldCache } = props;
+  const { scopeKey, max = 8, cacheKey, shouldCache, context } = props;
 
   const location = useLocation();
-  const outlet = useOutlet();
+  // IMPORTANT: must pass context so pages using useOutletContext() remain reactive.
+  const outlet = useOutlet(context);
 
   const pathname = location.pathname ?? "";
   const search = location.search ?? "";
@@ -121,8 +127,10 @@ export function KeepAliveOutlet(props: KeepAliveOutletProps) {
     const prevRenderable = isRenderable(prevNode);
     const nowRenderable = isRenderable(outlet);
 
-    // Only upgrade cache when we previously cached nothing renderable.
-    if (!prevRenderable && nowRenderable) {
+    // Update rules:
+    //  - Always upgrade from non-renderable -> renderable (fixes blank panel).
+    //  - Also refresh the ACTIVE key when outlet identity changes (keeps outlet context reactive).
+    if (nowRenderable && (!prevRenderable || prevNode !== outlet)) {
       cacheRef.current.set(activeKey, outlet);
     }
   }, [activeKey, outlet, cacheAllowed]);
