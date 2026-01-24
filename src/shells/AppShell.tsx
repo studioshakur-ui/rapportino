@@ -7,7 +7,6 @@ import { useShip } from "../context/ShipContext";
 import { supabase } from "../lib/supabaseClient";
 import { KeepAliveOutlet } from "../utils/KeepAliveOutlet";
 
-
 import IdleSessionManager from "../auth/IdleSessionManager";
 import ConnectionIndicator from "../components/ConnectionIndicator";
 import CNCSSidebar from "../components/shell/CNCSSidebar";
@@ -164,6 +163,10 @@ export default function AppShell(): JSX.Element {
   /* ───────────────────────── Drag token (CAPO) ───────────────────────── */
 
   const [opDropToken, setOpDropToken] = useState<number>(0);
+
+  // IMPORTANT: keep Outlet context stable to prevent unnecessary downstream rerenders
+  // and to avoid stale-cached pages when KeepAlive is enabled.
+  const outletCtx: OutletCtx = useMemo(() => ({ opDropToken }), [opDropToken]);
 
   /* ───────────────────────── Mobile drawer ───────────────────────── */
 
@@ -441,7 +444,7 @@ export default function AppShell(): JSX.Element {
                   />
                 ) : null}
 
-                <KeepAliveOutlet scopeKey="app" context={{ opDropToken } as OutletCtx} />
+                <KeepAliveOutlet scopeKey="app" context={outletCtx} />
               </div>
             </div>
           </main>
