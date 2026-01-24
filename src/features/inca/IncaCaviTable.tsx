@@ -79,17 +79,10 @@ function norm(v: unknown): string {
   return String(v ?? "").trim();
 }
 
-function fmtMeters(v: number | null | undefined): string {
-  if (v === null || v === undefined) return "—";
-  const n = Number.isFinite(v) ? Math.round(v) : 0;
-  return new Intl.NumberFormat("it-IT").format(n);
-}
-
-function toAtom(v: unknown): SituazioneAtom {
-  const s = norm(v).toUpperCase();
-  if (!s) return "L";
-  if ((SITUAZIONI_ATOM_ORDER as readonly string[]).includes(s)) return s as SituazioneAtom;
-  return "L";
+function toSituazione(v: unknown): SituazioneCode {
+  const s = norm(v);
+  if (s && (SITUAZIONI_ORDER as readonly string[]).includes(s)) return s as SituazioneCode;
+  return "NP";
 }
 
 function formatMeters(v: unknown): string {
@@ -175,23 +168,23 @@ export default function IncaCaviTable({
         label: "Codice",
         width: "180px",
         sortValue: (r) => norm(r.codice).toLowerCase(),
-        render: (r) => (
-          <div className="flex items-center gap-2">
-            <span
-              className="inline-block h-2 w-2 rounded-full"
-              style={{ background: colorForSituazione(toAtom((r as any)?.situazione)) }}
-            />
-            <span className="text-[13px] font-semibold text-slate-100">{norm(r.codice) || "—"}</span>
-          </div>
-        ),
+        render: (r) => {
+          const situ = toSituazione(r.situazione);
+          return (
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: colorForSituazione(situ) }} />
+              <span className="text-[12px] text-slate-100 font-semibold">{r.codice ?? "—"}</span>
+            </div>
+          );
+        },
       },
       {
         id: "situazione",
         label: "Sit.",
-        width: "84px",
-        sortValue: (r) => toAtom((r as any)?.situazione),
+        width: "90px",
+        sortValue: (r) => toSituazione(r.situazione),
         render: (r) => {
-          const a = toAtom((r as any)?.situazione);
+          const situ = toSituazione(r.situazione);
           return (
             <span
               className="inline-flex items-center rounded-full border border-slate-700/70 px-2 py-0.5 text-[12px] font-semibold"

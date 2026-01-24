@@ -7,7 +7,6 @@ import { useShip } from "../context/ShipContext";
 import { supabase } from "../lib/supabaseClient";
 import { KeepAliveOutlet } from "../utils/KeepAliveOutlet";
 
-
 import IdleSessionManager from "../auth/IdleSessionManager";
 import ConnectionIndicator from "../components/ConnectionIndicator";
 import CNCSSidebar from "../components/shell/CNCSSidebar";
@@ -22,7 +21,6 @@ import CapoTodayOperatorsPanel from "../capo/CapoTodayOperatorsPanel";
 
 type OutletCtx = { opDropToken: number };
 
-// Typage minimal “safe”
 type ProfileLike = unknown;
 
 type AuthLike = {
@@ -47,7 +45,6 @@ function useIsMobile(breakpointPx = 768): boolean {
     const onChange = () => setIsMobile(mq.matches);
     onChange();
 
-    // Safari compat
     if (typeof mq.addEventListener === "function") {
       mq.addEventListener("change", onChange);
       return () => mq.removeEventListener("change", onChange);
@@ -59,13 +56,6 @@ function useIsMobile(breakpointPx = 768): boolean {
   return isMobile;
 }
 
-/**
- * Extract shipId from routes like:
- *  - /app/ship/:shipId
- *  - /app/ship/:shipId/inca
- *  - /app/ship/:shipId/kpi-stesura
- *  - /app/ship/:shipId/rapportino
- */
 function getShipIdFromPath(pathname: string): string | null {
   const m = pathname.match(/\/app\/ship\/([^/]+)(?:\/|$)/);
   if (!m) return null;
@@ -75,6 +65,11 @@ function getShipIdFromPath(pathname: string): string | null {
 
 const LAST_SHIP_KEY = "core:last-ship-id";
 
+// iOS “ghost tap” mitigation window.
+// On iOS (Safari/Chrome iOS), a delayed click/touch can replay after navigation.
+// We hardlock pointer events for this window to prevent tap-through.
+const TAP_HARDLOCK_MS = 1100;
+
 export default function AppShell(): JSX.Element {
   const { profile, session, signOut, refresh } = useAuth() as unknown as AuthLike;
   const { resetShipContext } = useShip() as unknown as ShipCtxLike;
@@ -82,12 +77,8 @@ export default function AppShell(): JSX.Element {
   const location = useLocation();
   const { t } = useI18n();
 
-  // CORE 1.0 – CAPO dark-only
   const isDark = true;
-
   const isMobile = useIsMobile(768);
-
-  /* ───────────────────────── Route helpers ───────────────────────── */
 
   const pathname = location.pathname || "";
 
@@ -96,14 +87,11 @@ export default function AppShell(): JSX.Element {
   const isMegaKpi = pathname.includes("/kpi-stesura");
   const isInca = pathname.includes("/inca");
 
-  // Resolve shipId for sidebar links (ship routes need it)
   const shipIdFromPath = useMemo(() => getShipIdFromPath(pathname), [pathname]);
 
   const resolvedShipId = useMemo(() => {
-    // 1) Prefer shipId from current route
     if (shipIdFromPath) return shipIdFromPath;
 
-    // 2) Fallback to last known shipId
     try {
       const v = window.localStorage.getItem(LAST_SHIP_KEY);
       if (v && v.trim()) return v.trim();
@@ -113,7 +101,6 @@ export default function AppShell(): JSX.Element {
     return null;
   }, [shipIdFromPath]);
 
-  // Persist last shipId whenever we are on a ship route
   useEffect(() => {
     if (!shipIdFromPath) return;
     try {
@@ -124,11 +111,8 @@ export default function AppShell(): JSX.Element {
   }, [shipIdFromPath]);
 
   const shipScopedFallback = "/app/ship-selector";
-
   const megaKpiTo = resolvedShipId ? `/app/ship/${resolvedShipId}/kpi-stesura` : shipScopedFallback;
   const incaTo = resolvedShipId ? `/app/ship/${resolvedShipId}/inca` : shipScopedFallback;
-
-  /* ───────────────────────── Route label ───────────────────────── */
 
   const pageLabel = isCoreDrive
     ? t("APP_CORE_DRIVE")
@@ -139,8 +123,6 @@ export default function AppShell(): JSX.Element {
     : isKpiOperatori
     ? t("APP_KPI_OPERATORI")
     : t("APP_RAPPORTINO");
-
-  /* ───────────────────────── Sidebar state ───────────────────────── */
 
   const [sidebarPeek, setSidebarPeek] = useState<boolean>(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
@@ -161,40 +143,42 @@ export default function AppShell(): JSX.Element {
     }
   }, [sidebarCollapsed]);
 
-  /* ───────────────────────── Drag token (CAPO) ───────────────────────── */
-
   const [opDropToken, setOpDropToken] = useState<number>(0);
 
-  /* ───────────────────────── Mobile drawer ───────────────────────── */
+  const outletCtx: OutletCtx = useMemo(() => ({ opDropToken }), [opDropToken]);
 
   const [mobileNavOpen, setMobileNavOpen] = useState<boolean>(false);
   useEffect(() => {
-    // ferme le drawer quand on change de route
     setMobileNavOpen(false);
   }, [pathname]);
 
-  /* ───────────────────────── iOS tap-through hard shield ─────────────────────────
-   *
-   * Symptom:
-   * - tap module card -> enters target page -> immediately exits (often by "Indietro")
-   *
-   * Cause:
-   * - iOS Safari can replay a "ghost tap" after navigation (tap-through).
-   *
-   * Fix:
-   * - After each route change, we block ALL pointer/click events for a short window.
-   * - Additionally we capture and stop propagation at window level.
+  /**
+   * HARDLOCK: blocks all interactions for a short window after route changes.
+   * This is the most reliable fix for iOS “tap-through / ghost click” after navigation.
    */
-  const [tapShield, setTapShield] = useState<boolean>(false);
+  const [tapHardlock, setTapHardlock] = useState<boolean>(false);
 
   useEffect(() => {
-    setTapShield(true);
-    const tmr = window.setTimeout(() => setTapShield(false), 750);
-    return () => window.clearTimeout(tmr);
+    setTapHardlock(true);
+
+    const root = document.documentElement;
+    const prevPointerEvents = root.style.pointerEvents;
+    root.style.pointerEvents = "none";
+
+    const tmr = window.setTimeout(() => {
+      root.style.pointerEvents = prevPointerEvents;
+      setTapHardlock(false);
+    }, TAP_HARDLOCK_MS);
+
+    return () => {
+      window.clearTimeout(tmr);
+      root.style.pointerEvents = prevPointerEvents;
+      setTapHardlock(false);
+    };
   }, [pathname]);
 
   useEffect(() => {
-    if (!tapShield) return;
+    if (!tapHardlock) return;
 
     const stop = (e: Event) => {
       try {
@@ -207,21 +191,25 @@ export default function AppShell(): JSX.Element {
       }
     };
 
-    // Capture phase to win against React handlers
-    window.addEventListener("pointerup", stop, true);
-    window.addEventListener("click", stop, true);
+    // Capture phase, covers iOS sequences and synthetic clicks.
+    window.addEventListener("touchstart", stop, true);
     window.addEventListener("touchend", stop, true);
+    window.addEventListener("pointerdown", stop, true);
+    window.addEventListener("pointerup", stop, true);
+    window.addEventListener("mousedown", stop, true);
     window.addEventListener("mouseup", stop, true);
+    window.addEventListener("click", stop, true);
 
     return () => {
-      window.removeEventListener("pointerup", stop, true);
-      window.removeEventListener("click", stop, true);
+      window.removeEventListener("touchstart", stop, true);
       window.removeEventListener("touchend", stop, true);
+      window.removeEventListener("pointerdown", stop, true);
+      window.removeEventListener("pointerup", stop, true);
+      window.removeEventListener("mousedown", stop, true);
       window.removeEventListener("mouseup", stop, true);
+      window.removeEventListener("click", stop, true);
     };
-  }, [tapShield]);
-
-  /* ───────────────────────── Logout ───────────────────────── */
+  }, [tapHardlock]);
 
   const handleLogout = async (): Promise<void> => {
     try {
@@ -239,8 +227,6 @@ export default function AppShell(): JSX.Element {
     }
   };
 
-  /* ───────────────────────── Display name (human-normalized) ───────────────────────── */
-
   const displayName = useMemo(() => {
     return formatDisplayName(profile, "Capo");
   }, [profile]);
@@ -253,17 +239,8 @@ export default function AppShell(): JSX.Element {
     );
   }
 
-  /* ───────────────────────── Layout constants ───────────────────────── */
-
-  // Mobile-first: pleine largeur. Desktop: max-width.
   const contentWrapClass = "w-full md:max-w-[1480px] md:mx-auto space-y-4";
 
-  /**
-   * Sidebar NAV (CAPO)
-   * Requested:
-   *  - KPI button in sidebar
-   *  - INCA Capo button in sidebar
-   */
   const navItems = [
     {
       to: "/app",
@@ -294,10 +271,8 @@ export default function AppShell(): JSX.Element {
 
   return (
     <>
-      {/* ───────────── Idle / Session security ───────────── */}
       <IdleSessionManager
         enabled
-        // ✅ Scope storage per user to avoid cross-account contamination on shared machines
         storageScopeKey={session?.user?.id ?? "anon"}
         warnAfterMs={25 * 60 * 1000}
         logoutAfterMs={30 * 60 * 1000}
@@ -330,10 +305,8 @@ export default function AppShell(): JSX.Element {
         }}
       />
 
-      {/* ───────────── App shell ───────────── */}
       <div className="min-h-screen bg-[#050910] text-slate-100 overflow-x-hidden">
         <div className="flex min-h-screen">
-          {/* SIDEBAR (DESKTOP ONLY) */}
           {!isMobile && (
             <CNCSSidebar
               isDark={isDark}
@@ -361,9 +334,7 @@ export default function AppShell(): JSX.Element {
             />
           )}
 
-          {/* MAIN */}
           <main className="flex-1 min-w-0 flex flex-col">
-            {/* TOPBAR */}
             <div className="sticky top-0 z-[200] px-3 sm:px-4 pt-3">
               <CNCSTopbar
                 isDark={isDark}
@@ -395,7 +366,6 @@ export default function AppShell(): JSX.Element {
                       <LangSwitcher compact />
                     </div>
 
-                    {/* User name — human case */}
                     <span
                       className={[
                         "inline-flex items-center gap-2 rounded-xl border px-3 py-2",
@@ -408,7 +378,6 @@ export default function AppShell(): JSX.Element {
                       {displayName}
                     </span>
 
-                    {/* Logout */}
                     <button
                       type="button"
                       onClick={handleLogout}
@@ -429,25 +398,22 @@ export default function AppShell(): JSX.Element {
               />
             </div>
 
-            {/* CONTENT */}
             <div className="flex-1 min-h-0 overflow-auto">
-              <div className={`${contentWrapClass} px-3 sm:px-4 pb-6 relative`} style={{ touchAction: "manipulation" }}>
-                {/* Hard shield (blocks taps during nav settling) */}
-                {tapShield ? (
-                  <div
-                    className="absolute inset-0 z-[999] bg-transparent"
-                    aria-hidden="true"
-                    style={{ pointerEvents: "auto" }}
-                  />
+              <div
+                className={`${contentWrapClass} px-3 sm:px-4 pb-6 relative`}
+                style={{ touchAction: "manipulation" }}
+              >
+                {/* Optional visual shield (not required for hardlock, but harmless). */}
+                {tapHardlock ? (
+                  <div className="absolute inset-0 z-[999] bg-transparent" aria-hidden="true" />
                 ) : null}
 
-                <KeepAliveOutlet scopeKey="app" context={{ opDropToken } as OutletCtx} />
+                <KeepAliveOutlet scopeKey="app" context={outletCtx} />
               </div>
             </div>
           </main>
         </div>
 
-        {/* MOBILE DRAWER */}
         {isMobile && mobileNavOpen ? (
           <div className="fixed inset-0 z-[500]">
             <button

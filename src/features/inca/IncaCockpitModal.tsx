@@ -4,7 +4,11 @@ import IncaCockpit from "./IncaCockpit";
 
 export type IncaCockpitModalProps = {
   open: boolean;
-  fileId?: string | null;
+  /**
+   * The selected INCA file id to open.
+   * REQUIRED: the cockpit must never silently fall back to "latest".
+   */
+  incaFileId: string | null;
   onClose?: (() => void) | null;
 };
 
@@ -14,7 +18,7 @@ export type IncaCockpitModalProps = {
  * - Click on backdrop closes
  * - Locks body scroll
  */
-export default function IncaCockpitModal({ open, fileId, onClose }: IncaCockpitModalProps) {
+export default function IncaCockpitModal({ open, incaFileId, onClose }: IncaCockpitModalProps) {
   useEffect(() => {
     if (!open) return;
 
@@ -47,7 +51,7 @@ export default function IncaCockpitModal({ open, fileId, onClose }: IncaCockpitM
       <div className="absolute inset-0 p-2 sm:p-3 md:p-4">
         <div className="h-full w-full overflow-hidden rounded-2xl border border-slate-700 bg-slate-950/85 shadow-2xl">
           <div className="h-full overflow-auto">
-            <IncaCockpit mode="modal" fileId={fileId ?? null} onRequestClose={onClose ?? null} />
+            <IncaCockpit mode="modal" fileId={incaFileId} onRequestClose={onClose ?? null} />
           </div>
         </div>
       </div>
