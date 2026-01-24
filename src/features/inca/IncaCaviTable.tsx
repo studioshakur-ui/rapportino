@@ -62,17 +62,28 @@ export type IncaCaviTableProps = {
   title?: string;
 };
 
-const SITUAZIONI_ORDER = ["NP", "T", "P", "R", "B", "E"] as const;
-type SituazioneCode = (typeof SITUAZIONI_ORDER)[number];
+// =============================
+// SITUAZIONE semantics (CANON)
+// =============================
+// P = posato
+// T = tagliato
+// R = rifare
+// B = bloccato
+// E = eliminato
+// L = null (missing)
+
+const SITUAZIONI_ATOM_ORDER = ["P", "T", "R", "B", "L", "E"] as const;
+type SituazioneAtom = (typeof SITUAZIONI_ATOM_ORDER)[number];
 
 function norm(v: unknown): string {
   return String(v ?? "").trim();
 }
 
-function toSituazione(v: unknown): SituazioneCode {
-  const s = norm(v);
-  if (s && (SITUAZIONI_ORDER as readonly string[]).includes(s)) return s as SituazioneCode;
-  return "NP";
+function toAtom(v: unknown): SituazioneAtom {
+  const s = norm(v).toUpperCase();
+  if (!s) return "L";
+  if ((SITUAZIONI_ATOM_ORDER as readonly string[]).includes(s)) return s as SituazioneAtom;
+  return "L";
 }
 
 function formatMeters(v: unknown): string {
@@ -95,7 +106,7 @@ function deltaMeters(r: IncaCavoRow): number | null {
   return dis - teo;
 }
 
-function colorForSituazione(code: SituazioneCode): string {
+function colorForSituazione(code: SituazioneAtom): string {
   switch (code) {
     case "P":
       return "#34d399";
@@ -105,11 +116,12 @@ function colorForSituazione(code: SituazioneCode): string {
       return "#fbbf24";
     case "B":
       return "#e879f9";
+    case "L":
+      return "#94a3b8";
     case "E":
       return "#fb7185";
-    case "NP":
     default:
-      return "#a855f7";
+      return "#94a3b8";
   }
 }
 
@@ -155,7 +167,7 @@ export default function IncaCaviTable({
         width: "240px",
         sortValue: (r) => norm(r.codice).toLowerCase(),
         render: (r) => {
-          const situ = toSituazione(r.situazione);
+          const situ = toAtom(r.situazione);
           return (
             <div className="flex items-center gap-2">
               <span className="h-2 w-2 rounded-full" style={{ backgroundColor: colorForSituazione(situ) }} />
@@ -168,9 +180,9 @@ export default function IncaCaviTable({
         id: "situazione",
         label: "Sit.",
         width: "90px",
-        sortValue: (r) => toSituazione(r.situazione),
+        sortValue: (r) => toAtom(r.situazione),
         render: (r) => {
-          const situ = toSituazione(r.situazione);
+          const situ = toAtom(r.situazione);
           return (
             <span className="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/60 px-2 py-0.5 text-[11px]">
               <span className="h-2 w-2 rounded-full" style={{ backgroundColor: colorForSituazione(situ) }} />
