@@ -1,0 +1,106 @@
+warning: in the working copy of 'supabase/migrations/20260124163000_catalogo_6368_rev04_seed_and_audit.sql', CRLF will be replaced by LF the next time Git touches it
+[1mdiff --git a/supabase/migrations/20260124163000_catalogo_6368_rev04_seed_and_audit.sql b/supabase/migrations/20260124163000_catalogo_6368_rev04_seed_and_audit.sql[m
+[1mindex 5814cf6..4a2671f 100644[m
+[1m--- a/supabase/migrations/20260124163000_catalogo_6368_rev04_seed_and_audit.sql[m
+[1m+++ b/supabase/migrations/20260124163000_catalogo_6368_rev04_seed_and_audit.sql[m
+[36m@@ -1,5 +1,8 @@[m
+[31m-// supabase/migrations/20260124163000_catalogo_6368_rev04_seed_and_audit.ts[m
+[31m-export const CATALOGO_6368_REV04_SQL = `[m
+[32m+[m[32m-- ============================================================[m
+[32m+[m[32m-- 20260124163000_catalogo_6368_rev04_seed_and_audit.sql[m
+[32m+[m[32m-- Source de vérité: "6368 STAMPA RAPPORTINO Rev04.xlsx"[m
+[32m+[m[32m-- ============================================================[m
+[32m+[m
+ -- ================[m
+ -- 1) Extend unit enum for MQ (square meters)[m
+ -- ================[m
+[36m@@ -67,6 +70,26 @@[m [mcreate index if not exists catalogo_events_at_idx on public.catalogo_events (at[m
+ create index if not exists catalogo_events_ship_commessa_idx on public.catalogo_events (ship_id, commessa);[m
+ create index if not exists catalogo_events_activity_idx on public.catalogo_events (activity_id);[m
+ [m
+[32m+[m[32m-- Grants (needed for authenticated to insert/select, then RLS will govern)[m
+[32m+[m[32mgrant insert, select on public.catalogo_events to authenticated;[m
+[32m+[m
+[32m+[m[32m-- RLS hardening (so enabling RLS later does not break writes)[m
+[32m+[m[32malter table public.catalogo_events enable row level security;[m
+[32m+[m
+[32m+[m[32mdrop policy if exists "catalogo_events_insert_authenticated" on public.catalogo_events;[m
+[32m+[m[32mcreate policy "catalogo_events_insert_authenticated"[m
+[32m+[m[32mon public.catalogo_events[m
+[32m+[m[32mfor insert[m
+[32m+[m[32mto authenticated[m
+[32m+[m[32mwith check (true);[m
+[32m+[m
+[32m+[m[32mdrop policy if exists "catalogo_events_select_admin" on public.catalogo_events;[m
+[32m+[m[32mcreate policy "catalogo_events_select_admin"[m
+[32m+[m[32mon public.catalogo_events[m
+[32m+[m[32mfor select[m
+[32m+[m[32mto authenticated[m
+[32m+[m[32musing ((auth.jwt() ->> 'app_role') = 'ADMIN');[m
+[32m+[m
+ create or replace function public.catalogo_log_ship_commessa_attivita()[m
+ returns trigger[m
+ language plpgsql[m
+[36m@@ -80,10 +103,12 @@[m [mbegin[m
+     insert into public.catalogo_events(actor, action, table_name, ship_id, commessa, activity_id, before_row, after_row)[m
+     values (v_actor, 'INSERT', 'catalogo_ship_commessa_attivita', new.ship_id, new.commessa, new.activity_id, null, to_jsonb(new));[m
+     return new;[m
+[32m+[m
+   elsif (tg_op = 'UPDATE') then[m
+     insert into public.catalogo_events(actor, action, table_name, ship_id, commessa, activity_id, before_row, after_row)[m
+     values (v_actor, 'UPDATE', 'catalogo_ship_commessa_attivita', new.ship_id, new.commessa, new.activity_id, to_jsonb(old), to_jsonb(new));[m
+     return new;[m
+[32m+[m
+   elsif (tg_op = 'DELETE') then[m
+     insert into public.catalogo_events(actor, action, table_name, ship_id, commessa, activity_id, before_row, after_row)[m
+     values (v_actor, 'DELETE', 'catalogo_ship_commessa_attivita', old.ship_id, old.commessa, old.activity_id, to_jsonb(old), null);[m
+[36m@@ -100,6 +125,7 @@[m [mfor each row execute function public.catalogo_log_ship_commessa_attivita();[m
+ [m
+ -- ================[m
+ -- 5) Seed / upsert: Catalogo attivita (Commessa 6368 – STAMPA RAPPORTINO Rev04)[m
+[32m+[m[32m--    On conflict key = (categoria, descrizione, unit) [unique index exists in baseline][m
+ -- ================[m
+ insert into public.catalogo_attivita ([m
+   categoria,[m
+[36m@@ -112,6 +138,9 @@[m [minsert into public.catalogo_attivita ([m
+   is_productive[m
+ )[m
+ values[m
+[32m+[m[32m  -- =========================[m
+[32m+[m[32m  -- CARPENTERIA (Rev04)[m
+[32m+[m[32m  -- =========================[m
+   ('CARPENTERIA', 'PREPARAZIONE STAFFE SOLETTE/STRADI CAVI MAGAZZINO', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 50, true, 'PRODUCTION', true),[m
+   ('CARPENTERIA', 'SALDATURA STAFFE STRADE CAVI', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 30, true, 'PRODUCTION', true),[m
+   ('CARPENTERIA', 'MONTAGGIO STRADE CAVI', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 7, true, 'PRODUCTION', true),[m
+[36m@@ -120,10 +149,37 @@[m [mvalues[m
+   ('CARPENTERIA', 'TRACCIATURA KIEPE/COLLARI', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 14, true, 'PRODUCTION', true),[m
+   ('CARPENTERIA', 'FORATURA KIEPE/COLLARI', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 14, true, 'PRODUCTION', true),[m
+   ('CARPENTERIA', 'SALDATURA KIEPE/COLLARI', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 7, true, 'PRODUCTION', true),[m
+[31m-  ('CARPENTERIA', 'SALDATURA CLIPS BIP', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 2, true, 'PRODUCTION', true),[m
+[31m-  ('CARPENTERIA', 'FORATURA E MONTAGGIO CLIPS BIP', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 5, true, 'PRODUCTION', true),[m
+[31m-  ('CARPENTERIA', 'CARPENTERIA RIBALTAMENTO', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 1, true, 'PRODUCTION', true),[m
+[31m-  ('CARPENTERIA', 'VARI CARPENTERIA', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 0.2, true, 'PRODUCTION', true),[m
+[32m+[m[32m  ('CARPENTERIA', 'MOLATURA KIEPE', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 7, true, 'PRODUCTION', true),[m
+[32m+[m[32m  ('CARPENTERIA', 'MOLATURA STAFFE,TONDINI,BASAMENTI', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 30, true, 'PRODUCTION', true),[m
+[32m+[m[32m  ('CARPENTERIA', 'PUNTI DI CARPENTERIA', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 0, true, 'PRODUCTION', true),[m
+[32m+[m[32m  ('CARPENTERIA', 'VARIE CARPENTERIE', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 0.2, true, 'PRODUCTION', true),[m
+[32m+[m
+[32m+[m[32m  -- =========================[m
+[32m+[m[32m  -- IMBARCHI (Rev04)[m
+[32m+[m[32m  -- =========================[m
+[32m+[m[32m  ('IMBARCHI', 'VARI IMBARCHI (LOGISTICA E TRASPORTO, APPARATI DA 16 A 1850 KG))', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 1, true, 'LOGISTICA', true),[m
+[32m+[m
+[32m+[m[32m  -- =========================[m
+[32m+[m[32m  -- MONTAGGIO (Rev04)[m
+[32m+[m[32m  -- =========================[m
+[32m+[m[32m  ('MONTAGGIO (IMBARCO A MANO)', 'MONTAGGIO APPARECCHIATURA DA 0 KG A 15 KG', 'QUANTITATIVE'::public.activity_type, 'PZ'::public.activity_unit, 14, true, 'PRODUCTION', true),[m
+[32m+[m[32m  ('MONTAGGIO', 'MONTAGGIO APPARECCHIATURA DA 16 KG A 50 KG', 'QUANTITATIVE'::public.activity_type, 'PZ'::public.activity_unit, 2, true, 'PRODUCTION', true),[m
+[32m+[m[32m  ('MONTAGGIO', 'MONTAGGIO APPARECCHIATURA DA 51 KG A 150 KG', 'QUANTITATIVE'::public.activity_type, 'PZ'::public.activity_unit, 1, true, 'PRODUCTION', true),[m
+[32m+[m[32m  ('MONTAGGIO', 'MONTAGGIO APPARECCHIATURA DA 151 KG A 350 KG', 'QUANTITATIVE'::public.activity_type, 'PZ'::public.activity_unit, 0.25, true, 'PRODUCTION', true),[m
+[32m+[m[32m  ('MONTAGGIO', 'MONTAGGIO APPARECCHIATURA DA 351 KG A 1850 KG', 'QUANTITATIVE'::public.activity_type, 'PZ'::public.activity_unit, 0.125, true, 'PRODUCTION', true),[m
+[32m+[m[32m  ('MONTAGGIO', 'VARIE MONTAGGI APPARECCHIATURE', 'QUANTITATIVE'::public.activity_type, 'PZ'::public.activity_unit, 0.2, true, 'PRODUCTION', true),[m
+[32m+[m
+[32m+[m[32m  -- =========================[m
+[32m+[m[32m  -- STESURA (Rev04)  <-- Previsto corrigé selon Excel[m
+[32m+[m[32m  -- =========================[m
+[32m+[m[32m  ('

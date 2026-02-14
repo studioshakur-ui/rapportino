@@ -82,3 +82,4 @@ mais des obligations à respecter lorsqu’un changement structurel est effectu�
   - **Uniquement les fichiers strictement concernés**
   - Les chemins exacts doivent être respectés
   - Aucun ZIP sans nécessité explicite
+LES MIGRATIONS DB TOUJOURS EN .SQL
