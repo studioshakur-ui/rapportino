@@ -1,5 +1,8 @@
-// supabase/migrations/20260124163000_catalogo_6368_rev04_seed_and_audit.ts
-export const CATALOGO_6368_REV04_SQL = `
+-- ============================================================
+-- 20260124163000_catalogo_6368_rev04_seed_and_audit.sql
+-- Source de vérité: "6368 STAMPA RAPPORTINO Rev04.xlsx"
+-- ============================================================
+
 -- ================
 -- 1) Extend unit enum for MQ (square meters)
 -- ================
@@ -67,6 +70,26 @@ create index if not exists catalogo_events_at_idx on public.catalogo_events (at 
 create index if not exists catalogo_events_ship_commessa_idx on public.catalogo_events (ship_id, commessa);
 create index if not exists catalogo_events_activity_idx on public.catalogo_events (activity_id);
 
+-- Grants (needed for authenticated to insert/select, then RLS will govern)
+grant insert, select on public.catalogo_events to authenticated;
+
+-- RLS hardening (so enabling RLS later does not break writes)
+alter table public.catalogo_events enable row level security;
+
+drop policy if exists "catalogo_events_insert_authenticated" on public.catalogo_events;
+create policy "catalogo_events_insert_authenticated"
+on public.catalogo_events
+for insert
+to authenticated
+with check (true);
+
+drop policy if exists "catalogo_events_select_admin" on public.catalogo_events;
+create policy "catalogo_events_select_admin"
+on public.catalogo_events
+for select
+to authenticated
+using ((auth.jwt() ->> 'app_role') = 'ADMIN');
+
 create or replace function public.catalogo_log_ship_commessa_attivita()
 returns trigger
 language plpgsql
@@ -80,10 +103,12 @@ begin
     insert into public.catalogo_events(actor, action, table_name, ship_id, commessa, activity_id, before_row, after_row)
     values (v_actor, 'INSERT', 'catalogo_ship_commessa_attivita', new.ship_id, new.commessa, new.activity_id, null, to_jsonb(new));
     return new;
+
   elsif (tg_op = 'UPDATE') then
     insert into public.catalogo_events(actor, action, table_name, ship_id, commessa, activity_id, before_row, after_row)
     values (v_actor, 'UPDATE', 'catalogo_ship_commessa_attivita', new.ship_id, new.commessa, new.activity_id, to_jsonb(old), to_jsonb(new));
     return new;
+
   elsif (tg_op = 'DELETE') then
     insert into public.catalogo_events(actor, action, table_name, ship_id, commessa, activity_id, before_row, after_row)
     values (v_actor, 'DELETE', 'catalogo_ship_commessa_attivita', old.ship_id, old.commessa, old.activity_id, to_jsonb(old), null);
@@ -100,6 +125,7 @@ for each row execute function public.catalogo_log_ship_commessa_attivita();
 
 -- ================
 -- 5) Seed / upsert: Catalogo attivita (Commessa 6368 – STAMPA RAPPORTINO Rev04)
+--    On conflict key = (categoria, descrizione, unit) [unique index exists in baseline]
 -- ================
 insert into public.catalogo_attivita (
   categoria,
@@ -112,6 +138,9 @@ insert into public.catalogo_attivita (
   is_productive
 )
 values
+  -- =========================
+  -- CARPENTERIA (Rev04)
+  -- =========================
   ('CARPENTERIA', 'PREPARAZIONE STAFFE SOLETTE/STRADI CAVI MAGAZZINO', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 50, true, 'PRODUCTION', true),
   ('CARPENTERIA', 'SALDATURA STAFFE STRADE CAVI', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 30, true, 'PRODUCTION', true),
   ('CARPENTERIA', 'MONTAGGIO STRADE CAVI', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 7, true, 'PRODUCTION', true),
@@ -120,10 +149,37 @@ values
   ('CARPENTERIA', 'TRACCIATURA KIEPE/COLLARI', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 14, true, 'PRODUCTION', true),
   ('CARPENTERIA', 'FORATURA KIEPE/COLLARI', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 14, true, 'PRODUCTION', true),
   ('CARPENTERIA', 'SALDATURA KIEPE/COLLARI', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 7, true, 'PRODUCTION', true),
-  ('CARPENTERIA', 'SALDATURA CLIPS BIP', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 2, true, 'PRODUCTION', true),
-  ('CARPENTERIA', 'FORATURA E MONTAGGIO CLIPS BIP', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 5, true, 'PRODUCTION', true),
-  ('CARPENTERIA', 'CARPENTERIA RIBALTAMENTO', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 1, true, 'PRODUCTION', true),
-  ('CARPENTERIA', 'VARI CARPENTERIA', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 0.2, true, 'PRODUCTION', true),
+  ('CARPENTERIA', 'MOLATURA KIEPE', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 7, true, 'PRODUCTION', true),
+  ('CARPENTERIA', 'MOLATURA STAFFE,TONDINI,BASAMENTI', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 30, true, 'PRODUCTION', true),
+  ('CARPENTERIA', 'PUNTI DI CARPENTERIA', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 0, true, 'PRODUCTION', true),
+  ('CARPENTERIA', 'VARIE CARPENTERIE', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 0.2, true, 'PRODUCTION', true),
+
+  -- =========================
+  -- IMBARCHI (Rev04)
+  -- =========================
+  ('IMBARCHI', 'VARI IMBARCHI (LOGISTICA E TRASPORTO, APPARATI DA 16 A 1850 KG))', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 1, true, 'LOGISTICA', true),
+
+  -- =========================
+  -- MONTAGGIO (Rev04)
+  -- =========================
+  ('MONTAGGIO (IMBARCO A MANO)', 'MONTAGGIO APPARECCHIATURA DA 0 KG A 15 KG', 'QUANTITATIVE'::public.activity_type, 'PZ'::public.activity_unit, 14, true, 'PRODUCTION', true),
+  ('MONTAGGIO', 'MONTAGGIO APPARECCHIATURA DA 16 KG A 50 KG', 'QUANTITATIVE'::public.activity_type, 'PZ'::public.activity_unit, 2, true, 'PRODUCTION', true),
+  ('MONTAGGIO', 'MONTAGGIO APPARECCHIATURA DA 51 KG A 150 KG', 'QUANTITATIVE'::public.activity_type, 'PZ'::public.activity_unit, 1, true, 'PRODUCTION', true),
+  ('MONTAGGIO', 'MONTAGGIO APPARECCHIATURA DA 151 KG A 350 KG', 'QUANTITATIVE'::public.activity_type, 'PZ'::public.activity_unit, 0.25, true, 'PRODUCTION', true),
+  ('MONTAGGIO', 'MONTAGGIO APPARECCHIATURA DA 351 KG A 1850 KG', 'QUANTITATIVE'::public.activity_type, 'PZ'::public.activity_unit, 0.125, true, 'PRODUCTION', true),
+  ('MONTAGGIO', 'VARIE MONTAGGI APPARECCHIATURE', 'QUANTITATIVE'::public.activity_type, 'PZ'::public.activity_unit, 0.2, true, 'PRODUCTION', true),
+
+  -- =========================
+  -- STESURA (Rev04)  <-- Previsto corrigé selon Excel
+  -- =========================
+  ('STESURA', 'STESURA', 'QUANTITATIVE'::public.activity_type, 'MT'::public.activity_unit, 200, true, 'PRODUCTION', true),
+  ('STESURA', 'FASCETTATURA CAVI', 'QUANTITATIVE'::public.activity_type, 'MT'::public.activity_unit, 950, true, 'PRODUCTION', true),
+  ('STESURA', 'RIPRESA CAVI', 'QUANTITATIVE'::public.activity_type, 'MT'::public.activity_unit, 200, true, 'PRODUCTION', true),
+  ('STESURA', 'VARI STESURA CAVI', 'QUANTITATIVE'::public.activity_type, 'MT'::public.activity_unit, 0.2, true, 'PRODUCTION', true),
+
+  -- =========================
+  -- COLLEGAMENTI E TEST (Rev04)
+  -- =========================
   ('COLLEGAMENTI E TEST', 'SISTEMAZIONE,PREPARAZIONE E SGUAINATURA DEL CAVO (CON PIN CONNETTORI CIRCOLARI)', 'QUANTITATIVE'::public.activity_type, 'PZ'::public.activity_unit, null, true, 'PRODUCTION', true),
   ('COLLEGAMENTI E TEST', 'COLLEGAMENTO PIN CONNETTORI CIRCOLARI', 'QUANTITATIVE'::public.activity_type, 'PZ'::public.activity_unit, 70, true, 'PRODUCTION', true),
   ('COLLEGAMENTI E TEST', 'COLLEGAMENTO PIN CONNETTORI DATA (30 PLUG)', 'QUANTITATIVE'::public.activity_type, 'PZ'::public.activity_unit, 240, true, 'PRODUCTION', true),
@@ -136,27 +192,25 @@ values
   ('COLLEGAMENTI E TEST', 'COLLEGAMENTO MORSETTIERA', 'QUANTITATIVE'::public.activity_type, 'PZ'::public.activity_unit, 90, true, 'PRODUCTION', true),
   ('COLLEGAMENTI E TEST', 'BATTITURA PERIMETRI', 'FORFAIT'::public.activity_type, 'COEFF'::public.activity_unit, 0.2, true, 'PRODUCTION', true),
   ('COLLEGAMENTI E TEST', 'VARIE COLLEGAMENTI', 'FORFAIT'::public.activity_type, 'COEFF'::public.activity_unit, 0.2, true, 'PRODUCTION', true),
-  ('MONTAGGIO (IMBARCO A MANO)', 'MONTAGGIO APPARECCHIATURA DA 0 KG A 15 KG', 'QUANTITATIVE'::public.activity_type, 'PZ'::public.activity_unit, 14, true, 'PRODUCTION', true),
-  ('MONTAGGIO', 'MONTAGGIO APPARECCHIATURA DA 16 KG A 50 KG', 'QUANTITATIVE'::public.activity_type, 'PZ'::public.activity_unit, 2, true, 'PRODUCTION', true),
-  ('MONTAGGIO', 'MONTAGGIO APPARECCHIATURA DA 51 KG A 150 KG', 'QUANTITATIVE'::public.activity_type, 'PZ'::public.activity_unit, 1, true, 'PRODUCTION', true),
-  ('MONTAGGIO', 'MONTAGGIO APPARECCHIATURA DA 151 KG A 350 KG', 'QUANTITATIVE'::public.activity_type, 'PZ'::public.activity_unit, 0.25, true, 'PRODUCTION', true),
-  ('MONTAGGIO', 'MONTAGGIO APPARECCHIATURA DA 351 KG A 1850 KG', 'QUANTITATIVE'::public.activity_type, 'PZ'::public.activity_unit, 0.125, true, 'PRODUCTION', true),
-  ('MONTAGGIO', 'VARIE MONTAGGI APPARECCHIATURE', 'QUANTITATIVE'::public.activity_type, 'PZ'::public.activity_unit, 0.2, true, 'PRODUCTION', true),
-  ('STESURA', 'STESURA', 'QUANTITATIVE'::public.activity_type, 'MT'::public.activity_unit, 500, true, 'PRODUCTION', true),
-  ('STESURA', 'FASCETTATURA CAVI', 'QUANTITATIVE'::public.activity_type, 'MT'::public.activity_unit, 500, true, 'PRODUCTION', true),
-  ('STESURA', 'RIPRESA CAVI', 'QUANTITATIVE'::public.activity_type, 'MT'::public.activity_unit, 250, true, 'PRODUCTION', true),
-  ('STESURA', 'VARI STESURA CAVI', 'QUANTITATIVE'::public.activity_type, 'MT'::public.activity_unit, 0.2, true, 'PRODUCTION', true),
+
+  -- =========================
+  -- CONSEGNE (Rev04)
+  -- =========================
   ('CONSEGNE', 'TARGHETTATURA CAVI', 'QUANTITATIVE'::public.activity_type, 'PZ'::public.activity_unit, 160, true, 'LOGISTICA', true),
   ('CONSEGNE', 'FASCETTATURA E MOIETTATURA (MISURATA IN MQ)', 'QUANTITATIVE'::public.activity_type, 'MQ'::public.activity_unit, 20, true, 'LOGISTICA', true),
   ('CONSEGNE', 'CHIUSURA KIEPE', 'QUANTITATIVE'::public.activity_type, 'PZ'::public.activity_unit, 3, true, 'LOGISTICA', true),
+
+  -- =========================
+  -- GESTIONE E VARIE (Rev04)
+  -- =========================
   ('GESTIONE E VARIE', 'RESPONSABILE DI CANTIERE E VICE', 'FORFAIT'::public.activity_type, 'NONE'::public.activity_unit, 0.2, true, 'GESTIONE', false),
   ('GESTIONE E VARIE', 'CAPO SQUADRA ELETTRICISTI', 'FORFAIT'::public.activity_type, 'NONE'::public.activity_unit, 0.2, true, 'GESTIONE', false),
   ('GESTIONE E VARIE', 'CAPO SQUADRA CARPENTIERE', 'FORFAIT'::public.activity_type, 'NONE'::public.activity_unit, 0.2, true, 'GESTIONE', false),
   ('GESTIONE E VARIE', 'GESTIONE DATI E MAGAZZINO', 'FORFAIT'::public.activity_type, 'NONE'::public.activity_unit, 0.2, true, 'GESTIONE', false),
   ('GESTIONE E VARIE', 'EXTRA,DCM', 'FORFAIT'::public.activity_type, 'NONE'::public.activity_unit, 0.2, true, 'GESTIONE', false),
   ('GESTIONE E VARIE', 'FORMAZIONE', 'FORFAIT'::public.activity_type, 'NONE'::public.activity_unit, 0.2, true, 'GESTIONE', false),
-  ('GESTIONE E VARIE', 'ASSENTI', 'QUALITATIVE'::public.activity_type, 'NONE'::public.activity_unit, 0.2, true, 'GESTIONE', false),
-  ('IMBARCHI', 'VARI IMBARCHI (LOGISTICA E TRASPORTO, APPARATI DA 16 A 1850 KG))', 'QUANTITATIVE'::public.activity_type, 'COEFF'::public.activity_unit, 1, true, 'LOGISTICA', true)
+  ('GESTIONE E VARIE', 'ASSENTI', 'QUALITATIVE'::public.activity_type, 'NONE'::public.activity_unit, 0.2, true, 'GESTIONE', false)
+
 on conflict (categoria, descrizione, unit)
 do update set
   activity_type = excluded.activity_type,
@@ -165,4 +219,3 @@ do update set
   kpi_group = excluded.kpi_group,
   is_productive = excluded.is_productive,
   updated_at = now();
-`;
