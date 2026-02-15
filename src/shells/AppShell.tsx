@@ -26,6 +26,7 @@ type ProfileLike = unknown;
 type AuthLike = {
   profile: ProfileLike | null;
   session: any | null;
+  uid?: string | null;
   signOut: (args: { reason: string }) => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -66,12 +67,10 @@ function getShipIdFromPath(pathname: string): string | null {
 const LAST_SHIP_KEY = "core:last-ship-id";
 
 // iOS “ghost tap” mitigation window.
-// On iOS (Safari/Chrome iOS), a delayed click/touch can replay after navigation.
-// We hardlock pointer events for this window to prevent tap-through.
 const TAP_HARDLOCK_MS = 1100;
 
 export default function AppShell(): JSX.Element {
-  const { profile, session, signOut, refresh } = useAuth() as unknown as AuthLike;
+  const { profile, session, signOut, refresh, uid } = useAuth() as unknown as AuthLike;
   const { resetShipContext } = useShip() as unknown as ShipCtxLike;
   const navigate = useNavigate();
   const location = useLocation();
@@ -146,6 +145,12 @@ export default function AppShell(): JSX.Element {
   const [opDropToken, setOpDropToken] = useState<number>(0);
 
   const outletCtx: OutletCtx = useMemo(() => ({ opDropToken }), [opDropToken]);
+
+  // ✅ CRITICAL: invalidate keep-alive cache on uid/role change
+  const keepAliveInvalidateKey = useMemo(() => {
+    const role = (profile as any)?.app_role;
+    return `${uid || "_"}::${typeof role === "string" ? role : "_"}`;
+  }, [uid, profile]);
 
   const [mobileNavOpen, setMobileNavOpen] = useState<boolean>(false);
   useEffect(() => {
@@ -403,12 +408,11 @@ export default function AppShell(): JSX.Element {
                 className={`${contentWrapClass} px-3 sm:px-4 pb-6 relative`}
                 style={{ touchAction: "manipulation" }}
               >
-                {/* Optional visual shield (not required for hardlock, but harmless). */}
                 {tapHardlock ? (
                   <div className="absolute inset-0 z-[999] bg-transparent" aria-hidden="true" />
                 ) : null}
 
-                <KeepAliveOutlet scopeKey="app" context={outletCtx} />
+                <KeepAliveOutlet scopeKey="app" context={outletCtx} invalidateKey={keepAliveInvalidateKey} />
               </div>
             </div>
           </main>

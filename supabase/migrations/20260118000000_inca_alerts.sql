@@ -183,7 +183,6 @@ end $$;
 -- SOURCE: 20260118_inca_rpcs.sql
 -- ------------------------------
 -- supabase/migrations/20260118_inca_rpcs.ts
-export const INCA_RPCS_SQL = `
 create or replace function public.inca_increment_rework(p_inca_file_id uuid, p_codes text[])
 returns void
 language plpgsql
@@ -219,6 +218,5 @@ begin
   where inca_file_id = p_inca_file_id
     and codice = any(p_codes);
 end $$;
-`;
 
 

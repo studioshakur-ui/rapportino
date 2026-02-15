@@ -62,7 +62,7 @@ export default function AdminShell(): JSX.Element {
   const [lang, setLang] = useState<Lang>("it");
 
   const nav = useNavigate();
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, uid } = useAuth();
 
   const displayEmail = useMemo(() => {
     const e = (profile as any)?.email;
@@ -80,6 +80,12 @@ export default function AdminShell(): JSX.Element {
   const items = useMemo(() => menuItems(location.pathname), [location.pathname]);
 
   const outletCtx: OutletCtx = useMemo(() => ({ lang, setLang }), [lang]);
+
+  // ✅ CRITICAL: invalidate keep-alive cache on uid/role change
+  const keepAliveInvalidateKey = useMemo(() => {
+    const role = (profile as any)?.app_role;
+    return `${uid || "_"}::${typeof role === "string" ? role : "_"}`;
+  }, [uid, profile]);
 
   return (
     <div className="min-h-screen bg-[#050910] text-slate-50 flex">
@@ -164,7 +170,11 @@ export default function AdminShell(): JSX.Element {
               </div>
 
               <div className="p-4 min-h-0 overflow-auto">
-                <KeepAliveOutlet scopeKey="admin" context={outletCtx} />
+                <KeepAliveOutlet
+                  scopeKey="admin"
+                  context={outletCtx}
+                  invalidateKey={keepAliveInvalidateKey}
+                />
               </div>
             </div>
           </main>

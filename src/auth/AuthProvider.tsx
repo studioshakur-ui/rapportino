@@ -1,207 +1,341 @@
 // src/auth/AuthProvider.tsx
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
-import type { Session, User } from "@supabase/supabase-js";
-import { supabase } from "../lib/supabaseClient";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import type { Session } from "@supabase/supabase-js";
+import { supabase, resetSupabaseAuthStorage } from "../lib/supabaseClient";
 
-export type AuthSignOutArgs = { reason: string };
+export type AuthStatus = "BOOTSTRAP" | "AUTHENTICATED" | "UNAUTHENTICATED" | "AUTH_ERROR";
 
-export type AuthContextValue = {
+export type Profile = {
+  id: string;
+  app_role?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  full_name?: string | null;
+  display_name?: string | null;
+  email?: string | null;
+  must_change_password?: boolean | null;
+  [k: string]: unknown;
+};
+
+export type SignOutOptions = { reason?: string };
+
+type AuthContextValue = {
+  status: AuthStatus;
   session: Session | null;
-  user: User | null;
-  profile: any | null;
-  isBootstrapping: boolean;
-  isAuthenticated: boolean;
+  uid: string | null;
+  profile: Profile | null;
+  error: unknown;
 
-  /** Forces a controlled refresh of the current session (if allowed). */
-  refresh: (opts?: { reason?: string }) => Promise<void>;
+  loading: boolean;
 
-  /** Hard sign-out: clears session + redirects to /login */
-  signOut: (args: AuthSignOutArgs) => Promise<void>;
+  // canon
+  authReady: boolean;
+
+  // legacy alias used in RequireRole.tsx
+  isReady: boolean;
+
+  // kept for backward-compat but MUST remain non-intrusive on laptop
+  rehydrating: boolean;
+
+  signOut: (opts?: SignOutOptions) => Promise<void>;
+  refresh: () => Promise<void>;
+  /**
+   * Best-effort profile re-hydration.
+   * IMPORTANT: does not flip UI into BOOTSTRAP and does not sign out.
+   */
+  refreshProfile: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-/**
- * Detects Supabase auth failures where the refresh token stored locally is no longer valid server-side.
- * Those cases must be treated as a hard logout (no "retry loop").
- */
-function isInvalidRefreshTokenError(err: unknown): boolean {
-  const raw = (err as any)?.message ?? (err as any)?.error_description ?? "";
-  const msg = String(raw || "");
+function isRefreshTokenError(err: unknown): boolean {
+  const e = err as any;
+  const msg = String(e?.message || e?.error_description || e?.error || "").toLowerCase();
   return (
-    msg.includes("Invalid Refresh Token") ||
-    msg.includes("Refresh Token Not Found") ||
-    msg.toLowerCase().includes("invalid refresh token") ||
-    msg.toLowerCase().includes("refresh token not found") ||
-    msg.toLowerCase().includes("refresh_token_not_found")
+    msg.includes("refresh token") ||
+    msg.includes("invalid refresh") ||
+    msg.includes("token not found") ||
+    msg.includes("refresh_token")
   );
 }
 
-/**
- * Optional but useful for preventing refresh storms during route transitions / heavy mounts.
- * We allow refresh only once the initial bootstrap succeeded.
- */
-function shouldAllowRefresh(allowRef: React.MutableRefObject<boolean>): boolean {
-  return allowRef.current === true;
+async function loadProfile(session: Session): Promise<Profile | null> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", session.user.id)
+    .maybeSingle();
+
+  if (error) throw error;
+  return (data as Profile | null) ?? null;
 }
 
-function hardRedirectToLogin(reason: string) {
-  const r = reason ? `?reason=${encodeURIComponent(reason)}` : "";
-  window.location.assign(`/login${r}`);
-}
-
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children }: { children: React.ReactNode }): JSX.Element {
+  /**
+   * LAPTOP-FIRST STABILITY RULE
+   * - No “rehydrate overlay”
+   * - No BOOTSTRAP after initial boot
+   * - Never null profile during token refresh
+   * - If network hiccups: keep UI stable; only hard logout on refresh-token errors
+   */
+  const [status, setStatus] = useState<AuthStatus>("BOOTSTRAP");
   const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<any | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [error, setError] = useState<unknown>(null);
 
-  const [isBootstrapping, setIsBootstrapping] = useState<boolean>(true);
+  // Must exist for old RequireAuth logic, but we keep it always non-intrusive
+  const [rehydrating] = useState<boolean>(false);
 
-  // Prevent concurrent hard-logout / multiple redirects.
-  const hardLogoutInFlightRef = useRef<boolean>(false);
+  // Avoid stale closure in onAuthStateChange
+  const profileRef = useRef<Profile | null>(null);
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
 
-  // Refresh is allowed only after the initial bootstrap succeeded.
-  const allowRefreshRef = useRef<boolean>(false);
+  const aliveRef = useRef(true);
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+    };
+  }, []);
 
-  // Used to avoid applying async state updates after unmount.
-  const aliveRef = useRef<boolean>(true);
+  const uid = session?.user?.id ?? null;
 
-  const hardLogout = async (reason: string): Promise<void> => {
-    if (hardLogoutInFlightRef.current) return;
-    hardLogoutInFlightRef.current = true;
+  const setUnauthed = useCallback(() => {
+    setStatus("UNAUTHENTICATED");
+    setSession(null);
+    setProfile(null);
+    setError(null);
+  }, []);
 
+  const hardResetToUnauthed = useCallback(() => {
+    resetSupabaseAuthStorage({ force: true });
+    setUnauthed();
+  }, [setUnauthed]);
+
+  const hydrateProfile = useCallback(
+    async (s: Session) => {
+      try {
+        const p = await loadProfile(s);
+        if (!aliveRef.current) return;
+
+        setProfile(p);
+        setError(null);
+
+        // Keep the user AUTHENTICATED (profile fetch is not auth)
+        setStatus((prev) => (prev === "BOOTSTRAP" ? "AUTHENTICATED" : prev));
+      } catch (e) {
+        if (!aliveRef.current) return;
+
+        if (isRefreshTokenError(e)) {
+          hardResetToUnauthed();
+          return;
+        }
+
+        // Non-fatal: keep UI stable; do NOT flip to AUTH_ERROR if already authenticated.
+        setError(e);
+
+        setStatus((prev) => {
+          if (prev === "BOOTSTRAP") return "AUTH_ERROR";
+          return prev;
+        });
+      }
+    },
+    [hardResetToUnauthed]
+  );
+
+  const setAuthedStable = useCallback((s: Session) => {
+    setSession(s);
+    setStatus("AUTHENTICATED");
+    setError(null);
+
+    // IMPORTANT: do NOT null the existing profile if it's the same user.
+    setProfile((prev) => {
+      if (!prev) return prev;
+      if (prev.id === s.user.id) return prev;
+      return null;
+    });
+  }, []);
+
+  const bootstrapAuth = useCallback(async () => {
     try {
-      // Try to sign out locally (won't fix invalid refresh by itself, but it clears runtime state).
-      await supabase.auth.signOut();
-    } catch {
-      // ignore
-    } finally {
-      // Defensive: clear local state to stop any UI that depends on it.
-      if (aliveRef.current) {
+      setStatus("BOOTSTRAP");
+      setError(null);
+
+      const { data, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError) {
+        if (isRefreshTokenError(sessionError)) {
+          hardResetToUnauthed();
+          return;
+        }
+        setStatus("AUTH_ERROR");
         setSession(null);
         setProfile(null);
-      }
-      allowRefreshRef.current = false;
-      setIsBootstrapping(false);
-
-      // Hard redirect to guarantee a clean app state (kills stale React/KeepAlive state).
-      hardRedirectToLogin(reason || "logout");
-    }
-  };
-
-  const bootstrap = async (): Promise<void> => {
-    setIsBootstrapping(true);
-
-    try {
-      const { data, error } = await supabase.auth.getSession();
-
-      if (error && isInvalidRefreshTokenError(error)) {
-        await hardLogout("invalid_refresh");
+        setError(sessionError);
         return;
       }
 
       const s = data?.session ?? null;
+      if (!s) {
+        setUnauthed();
+        return;
+      }
 
-      if (!aliveRef.current) return;
+      // READY IMMEDIATELY: do not block on profile
+      setAuthedStable(s);
 
-      setSession(s);
-      // Profile hydration can be added here if you already have it elsewhere.
-      // Keep it simple and non-blocking:
+      // hydrate async
+      void hydrateProfile(s);
+    } catch (e) {
+      if (isRefreshTokenError(e)) {
+        hardResetToUnauthed();
+        return;
+      }
+      setStatus("AUTH_ERROR");
+      setSession(null);
       setProfile(null);
-
-      // Allow refresh ONLY after a successful bootstrap.
-      allowRefreshRef.current = true;
-    } finally {
-      if (aliveRef.current) setIsBootstrapping(false);
+      setError(e);
     }
-  };
+  }, [hardResetToUnauthed, hydrateProfile, setAuthedStable, setUnauthed]);
 
   useEffect(() => {
-    aliveRef.current = true;
-    void bootstrap();
+    void bootstrapAuth();
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      // Supabase emits this when refresh fails. Never loop: hard logout.
-      if (event === "TOKEN_REFRESH_FAILED") {
-        await hardLogout("refresh_failed");
-        return;
+    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, s) => {
+      try {
+        if (!s) {
+          setUnauthed();
+          return;
+        }
+
+        // On token refresh / visibility quirks: keep profile stable
+        setAuthedStable(s);
+
+        const current = profileRef.current;
+        if (!current || current.id !== s.user.id) {
+          void hydrateProfile(s);
+        }
+      } catch (e) {
+        if (isRefreshTokenError(e)) {
+          hardResetToUnauthed();
+          return;
+        }
+
+        // Non-fatal once authenticated
+        setError(e);
+        setStatus((prev) => (prev === "BOOTSTRAP" ? "AUTH_ERROR" : prev));
       }
-
-      // Defensive: some environments surface invalid refresh through errors elsewhere,
-      // but if we receive session=null unexpectedly while we were authenticated,
-      // we prefer a clean login rather than a loop.
-      if (!newSession && session) {
-        // If we had a session and suddenly it's null, treat as session loss.
-        // This prevents “open then return” loops.
-        await hardLogout("session_lost");
-        return;
-      }
-
-      if (!aliveRef.current) return;
-
-      setSession(newSession ?? null);
-      // Do not force profile reload here unless you have a stable, cached fetch.
-      // Avoid triggering extra network calls in auth event loops.
     });
 
     return () => {
-      aliveRef.current = false;
-      sub.subscription.unsubscribe();
+      listener?.subscription?.unsubscribe?.();
     };
-    // Intentionally not including `session` in deps to avoid resubscribing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [bootstrapAuth, hydrateProfile, hardResetToUnauthed, setUnauthed, setAuthedStable]);
 
-  const refresh = async (opts?: { reason?: string }): Promise<void> => {
-    if (!shouldAllowRefresh(allowRefreshRef)) return;
-    if (hardLogoutInFlightRef.current) return;
+  const signOut = useCallback(
+    async (opts: SignOutOptions = {}) => {
+      try {
+        await supabase.auth.signOut();
+      } catch (e) {
+        console.warn("[AuthProvider] signOut warning:", e, opts);
+      } finally {
+        hardResetToUnauthed();
+      }
+    },
+    [hardResetToUnauthed]
+  );
 
+  /**
+   * Laptop rule: refresh MUST be silent (no BOOTSTRAP, no profile reset)
+   * - It’s a best-effort “keep alive” call, not a UI state transition.
+   */
+  const refresh = useCallback(async () => {
     try {
-      // Controlled refresh. If you configured supabaseClient with autoRefreshToken:false,
-      // this is the only place refresh should occur (except explicit sign-in).
-      const { data, error } = await supabase.auth.refreshSession();
-
-      if (error && isInvalidRefreshTokenError(error)) {
-        await hardLogout("refresh_invalid");
+      const { data, error: e1 } = await supabase.auth.getSession();
+      if (e1) {
+        if (isRefreshTokenError(e1)) hardResetToUnauthed();
         return;
       }
 
       const s = data?.session ?? null;
-      if (!aliveRef.current) return;
-      setSession(s);
-    } catch (err) {
-      if (isInvalidRefreshTokenError(err)) {
-        await hardLogout("refresh_invalid");
+      if (s) {
+        setAuthedStable(s);
+        const current = profileRef.current;
+        if (!current || current.id !== s.user.id) void hydrateProfile(s);
         return;
       }
-      // Non-auth failures: do not hard logout.
-      // You can add logging here if you want.
-    }
-  };
 
-  const signOut = async ({ reason }: AuthSignOutArgs): Promise<void> => {
-    await hardLogout(reason || "logout");
-  };
+      // no session -> try refreshSession once, still silent
+      const { data: r, error: e2 } = await supabase.auth.refreshSession();
+      if (e2) {
+        if (isRefreshTokenError(e2)) hardResetToUnauthed();
+        return;
+      }
+      const rs = r?.session ?? null;
+      if (rs) {
+        setAuthedStable(rs);
+        const current = profileRef.current;
+        if (!current || current.id !== rs.user.id) void hydrateProfile(rs);
+      }
+    } catch (e) {
+      if (isRefreshTokenError(e)) hardResetToUnauthed();
+    }
+  }, [hardResetToUnauthed, hydrateProfile, setAuthedStable]);
+
+  /**
+   * Force a profile re-hydration without affecting authenticated UI state.
+   * Used by role guards to recover from a missing/blocked profiles row.
+   */
+  const refreshProfile = useCallback(async () => {
+    try {
+      const s = session;
+      if (!s) return;
+      await hydrateProfile(s);
+    } catch (e) {
+      // hydrateProfile handles refresh-token errors; keep this silent.
+      console.warn("[AuthProvider] refreshProfile warning:", e);
+    }
+  }, [hydrateProfile, session]);
+
+  const authReady = status !== "BOOTSTRAP";
+  const loading = status === "BOOTSTRAP";
 
   const value = useMemo<AuthContextValue>(() => {
-    const user = session?.user ?? null;
-
     return {
+      status,
       session,
-      user,
+      uid,
       profile,
-      isBootstrapping,
-      isAuthenticated: Boolean(session?.user),
+      error,
 
-      refresh,
+      loading,
+      authReady,
+      isReady: authReady,
+
+      rehydrating,
+
       signOut,
+      refresh,
+      refreshProfile,
     };
-  }, [session, profile, isBootstrapping]);
+  }, [status, session, uid, profile, error, loading, authReady, rehydrating, signOut, refresh, refreshProfile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within <AuthProvider />");
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }
