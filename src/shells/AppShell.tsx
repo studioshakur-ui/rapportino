@@ -146,11 +146,58 @@ export default function AppShell(): JSX.Element {
 
   const outletCtx: OutletCtx = useMemo(() => ({ opDropToken }), [opDropToken]);
 
-  // ✅ CRITICAL: invalidate keep-alive cache on uid/role change
+  /**
+   * ✅ CRITICAL: invalidate keep-alive cache on:
+   * - uid change
+   * - role change
+   * - ship change (VERY important in CAPO because a lot of routes are ship-scoped)
+   */
   const keepAliveInvalidateKey = useMemo(() => {
     const role = (profile as any)?.app_role;
-    return `${uid || "_"}::${typeof role === "string" ? role : "_"}`;
-  }, [uid, profile]);
+    const r = typeof role === "string" ? role : "_";
+    const s = resolvedShipId ? String(resolvedShipId) : "_";
+    return `${uid || "_"}::${r}::${s}`;
+  }, [uid, profile, resolvedShipId]);
+
+  /**
+   * ✅ CAPO KEEP-ALIVE MUST BE SELECTIVE:
+   * ECharts/Recharts explode when cached pages are hidden via display:none.
+   * If we keep-alive those pages, you get "enter then exit" + rebound to module selector.
+   *
+   * We only keep-alive pages that benefit from state retention AND are stable under display:none:
+   * - Rapportino flow
+   * - Teams organizer
+   * - Core-drive / archive
+   *
+   * We EXCLUDE:
+   * - KPI operatori (ECharts)
+   * - Mega KPI stesura (ECharts)
+   * - INCA cockpit (Recharts)
+   * - Optionnel: module selector (safe either way; leaving it cached is ok, but we keep it normal)
+   */
+  const capoShouldCache = useMemo(() => {
+    return ({ pathname }: { pathname: string }) => {
+      if (!pathname.startsWith("/app")) return true;
+
+      // Exclude charts-heavy routes (these cause the bounce you reported)
+      if (pathname.startsWith("/app/kpi-operatori")) return false;
+      if (pathname.includes("/kpi-stesura")) return false;
+      if (pathname.includes("/inca")) return false;
+
+      // Optional hard exclusion: module selector (prevents any cache weirdness here)
+      // /app/ship/:shipId
+      const isModuleSelector = /^\/app\/ship\/[^/]+\/?$/.test(pathname);
+      if (isModuleSelector) return false;
+
+      // Keep-alive only the real heavy pages where state retention matters
+      if (pathname.includes("/rapportino")) return true;
+      if (pathname.includes("/teams")) return true;
+      if (pathname.startsWith("/app/core-drive") || pathname.startsWith("/app/archive")) return true;
+
+      // Default: no keep-alive (predictable)
+      return false;
+    };
+  }, []);
 
   const [mobileNavOpen, setMobileNavOpen] = useState<boolean>(false);
   useEffect(() => {
@@ -404,15 +451,18 @@ export default function AppShell(): JSX.Element {
             </div>
 
             <div className="flex-1 min-h-0 overflow-auto">
-              <div
-                className={`${contentWrapClass} px-3 sm:px-4 pb-6 relative`}
-                style={{ touchAction: "manipulation" }}
-              >
+              <div className={`${contentWrapClass} px-3 sm:px-4 pb-6 relative`} style={{ touchAction: "manipulation" }}>
                 {tapHardlock ? (
                   <div className="absolute inset-0 z-[999] bg-transparent" aria-hidden="true" />
                 ) : null}
 
-                <KeepAliveOutlet scopeKey="app" context={outletCtx} invalidateKey={keepAliveInvalidateKey} />
+                <KeepAliveOutlet
+                  scopeKey="app"
+                  context={outletCtx}
+                  invalidateKey={keepAliveInvalidateKey}
+                  // ✅ key fix: selective caching to avoid chart crashes + bounce
+                  shouldCache={({ pathname }) => capoShouldCache({ pathname })}
+                />
               </div>
             </div>
           </main>
