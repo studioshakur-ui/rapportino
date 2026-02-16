@@ -105,13 +105,13 @@ const COPY: Record<
     nodeSubs: ["Inserisce", "Valida", "Archivia", "Legge"],
 
     closureTitle: "CORE non è un software.",
-    closureSub: "È un organo operativo del cantiere.",
-    closureLine: "Il sistema si ferma. La decisione inizia.",
+    closureSub: "È il sistema operativo del cantiere.",
+    closureLine: "",
 
     footerLeft: "Accesso riservato a personale e partner autorizzati.",
     footerRight: "CORE · Operazioni di cantiere",
 
-    s2Title: "CORE · Control Layer",
+    s2Title: "CORE · Livello di Controllo",
     s2Subtitle: "Controlli automatici. Prove verificabili. Nessuna ricostruzione.",
 
     s2KickerRight: "Accesso per ruoli · Tracciabilità completa · Export firmato",
@@ -122,10 +122,10 @@ const COPY: Record<
       anomalies: "Anomalie",
     },
     s2Badges: {
-      identity: "ROLE-GATED",
-      operational: "LINE-PROVEN",
-      evidence: "AUDIT-READY",
-      anomalies: "TRACEABLE",
+      identity: "ACCESSO PER RUOLO",
+      operational: "TRACCIABILITÀ LINEARE",
+      evidence: "PRONTO PER AUDIT",
+      anomalies: "TRACCIABILE",
     },
     s2Identity: {
       title: "Identità & ruoli",
@@ -170,14 +170,14 @@ const COPY: Record<
       table: {
         cols: ["Evento", "Stato", "Responsabile"],
         rows: [
-          ["Anomalia", "Open", "Capo / Ufficio"],
-          ["Verifica", "In review", "Manager"],
-          ["Decisione", "Closed", "Direzione"],
+          ["Anomalia", "Aperta", "Capo / Ufficio"],
+          ["Verifica", "In verifica", "Manager"],
+          ["Decisione", "Chiusa", "Direzione"],
         ],
       },
     },
-    s2FooterLeft: "AUDIT-DEFENSIBLE",
-    s2FooterRight: "POLICY-DRIVEN",
+    s2FooterLeft: "DIFENDIBILE IN AUDIT",
+    s2FooterRight: "GUIDATO DA POLICY",
   },
   fr: {
     eyebrow: "Système opérationnel de chantier",
@@ -194,12 +194,12 @@ const COPY: Record<
 
     closureTitle: "CORE n’est pas un logiciel.",
     closureSub: "C’est un organe opérationnel du chantier.",
-    closureLine: "Quand le système s’arrête, la décision commence.",
+    closureLine: "",
 
     footerLeft: "Accès réservé au personnel et partenaires autorisés.",
     footerRight: "CORE · Opérations de chantier",
 
-    s2Title: "CORE · Control Layer",
+    s2Title: "CORE · Couche de Contrôle",
     s2Subtitle: "Contrôles automatiques. Preuves vérifiables. Aucune reconstruction.",
 
     s2KickerRight: "Accès par rôles · Traçabilité complète · Export signé",
@@ -210,10 +210,10 @@ const COPY: Record<
       anomalies: "Anomalies",
     },
     s2Badges: {
-      identity: "ROLE-GATED",
-      operational: "LINE-PROVEN",
-      evidence: "AUDIT-READY",
-      anomalies: "TRACEABLE",
+      identity: "ACCÈS PAR RÔLE",
+      operational: "TRAÇABILITÉ LINÉAIRE",
+      evidence: "PRÊT POUR AUDIT",
+      anomalies: "TRAÇABLE",
     },
     s2Identity: {
       title: "Identité & rôles",
@@ -258,14 +258,14 @@ const COPY: Record<
       table: {
         cols: ["Événement", "Statut", "Responsable"],
         rows: [
-          ["Anomalie", "Open", "Capo / Ufficio"],
-          ["Revue", "In review", "Manager"],
-          ["Décision", "Closed", "Direzione"],
+          ["Anomalie", "Ouverte", "Capo / Ufficio"],
+          ["Revue", "En revue", "Manager"],
+          ["Décision", "Clôturée", "Direzione"],
         ],
       },
     },
-    s2FooterLeft: "AUDIT-DEFENSIBLE",
-    s2FooterRight: "POLICY-DRIVEN",
+    s2FooterLeft: "DÉFENDABLE EN AUDIT",
+    s2FooterRight: "GUIDÉ PAR POLITIQUE",
   },
   en: {
     eyebrow: "Operational shipyard system",
@@ -282,7 +282,7 @@ const COPY: Record<
 
     closureTitle: "CORE is not software.",
     closureSub: "It is an operational organ of the shipyard.",
-    closureLine: "When the system stops, the decision begins.",
+    closureLine: "",
 
     footerLeft: "Restricted access to staff and authorized partners.",
     footerRight: "CORE · Shipyard operations",
@@ -342,7 +342,7 @@ const COPY: Record<
     },
     s2Anomalies: {
       title: "Anomalies & claims",
-      body: "Anomalies trigger a traceable flow: open, review, decision, close.",
+      body: "Anomalies trigger a traceable flow: opening, review, decision, closure.",
       table: {
         cols: ["Event", "Status", "Owner"],
         rows: [
@@ -361,101 +361,70 @@ function cx(...xs: Array<string | false | null | undefined>): string {
   return xs.filter(Boolean).join(" ");
 }
 
-function safeGetInitialLang(): Lang {
-  if (typeof window === "undefined") return "it";
+function getPreferredLang(): Lang {
   try {
-    const v = window.localStorage.getItem("core-lang");
-    if (v === "it" || v === "fr" || v === "en") return v;
+    const stored = (window.localStorage.getItem("core:lang") || "").toLowerCase();
+    if (LANGS.includes(stored as Lang)) return stored as Lang;
   } catch {
     // ignore
   }
+
+  const nav = (navigator?.language || "it").toLowerCase();
+  if (nav.startsWith("fr")) return "fr";
+  if (nav.startsWith("en")) return "en";
   return "it";
 }
 
+function setPreferredLang(x: Lang): void {
+  try {
+    window.localStorage.setItem("core:lang", x);
+  } catch {
+    // ignore
+  }
+}
+
 export default function Landing(): JSX.Element {
-  useEffect(() => {
-    document.documentElement.classList.add("dark");
-  }, []);
-
-  const [lang, setLang] = useState<Lang>(() => safeGetInitialLang());
-  const t = COPY[lang];
+  const [lang, setLang] = useState<Lang>(() => getPreferredLang());
 
   useEffect(() => {
-    try {
-      window.localStorage.setItem("core-lang", lang);
-    } catch {
-      // ignore
-    }
+    setPreferredLang(lang);
   }, [lang]);
 
+  const t = useMemo(() => COPY[lang], [lang]);
+
   const accessHref = useMemo(() => {
-    const subject = encodeURIComponent("Richiesta accesso CORE");
-    const body = encodeURIComponent(
-      "Buongiorno,\n\nVorrei richiedere l’accesso a CORE.\n\nNome:\nRuolo:\nCantiere/Sito:\nTelefono:\n\nGrazie."
-    );
-    return `mailto:info@core.local?subject=${subject}&body=${body}`;
+    // Keep a simple mailto for now (can be swapped with a form later).
+    return "mailto:access@conit.org?subject=CORE%20Access%20Request";
   }, []);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
-      {/* BACKDROP (clean, no seasonal modes) */}
-      <div
-        className="pointer-events-none fixed inset-0"
-        style={{
-          backgroundImage: `
-            radial-gradient(1200px 620px at 14% 18%, rgba(56,189,248,0.08), transparent 62%),
-            radial-gradient(900px 520px at 78% 22%, rgba(16,185,129,0.05), transparent 64%),
-            radial-gradient(900px 520px at 48% 86%, rgba(139,92,246,0.035), transparent 66%),
-            linear-gradient(to bottom, rgba(2,6,23,0.0), rgba(2,6,23,0.48))
-          `,
-        }}
-      />
-
-      {/* GRAIN (very subtle) */}
-      <div
-        className="pointer-events-none fixed inset-0 opacity-[0.045]"
-        style={{
-          backgroundImage: `
-            repeating-linear-gradient(
-              0deg,
-              rgba(255,255,255,0.20) 0px,
-              rgba(255,255,255,0.20) 1px,
-              rgba(0,0,0,0.20) 2px,
-              rgba(0,0,0,0.20) 3px
-            )
-          `,
-        }}
-      />
-
-      {/* NAV */}
-      <div className="relative z-10 mx-auto max-w-6xl px-6 pt-7">
-        <div className="flex items-center justify-between">
+      {/* TOP BAR */}
+      <div className="relative z-20 border-b border-slate-800/60">
+        <div className="mx-auto max-w-6xl px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className={cx("inline-flex items-center gap-2 rounded-full border px-3 py-1.5", headerPill)}>
-              <span className={cx("inline-flex h-5 w-5 items-center justify-center rounded-full", themeIconBg)}>
+            <div className={cx("inline-flex items-center gap-2 rounded-full border px-3 py-1.5", headerPill)}>
+              <span className={cx("inline-flex h-6 w-6 items-center justify-center rounded-full", themeIconBg)}>
                 <span className="h-2 w-2 rounded-full bg-sky-400" />
               </span>
-              <span className="text-[11px] uppercase tracking-[0.22em] text-slate-300">CORE</span>
-            </span>
-
-            <span className="hidden sm:block text-[11px] uppercase tracking-[0.26em] text-slate-500">
-              {t.eyebrow}
-            </span>
+              <span className="text-[11px] uppercase tracking-[0.28em] text-slate-300">CORE</span>
+              <span className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Sistema operativo di cantiere</span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center rounded-full border border-slate-800 bg-slate-950/45 p-1">
-              {LANGS.map((l) => (
+          <div className="flex items-center gap-4">
+            <div className="inline-flex items-center rounded-full border border-slate-800 bg-slate-950/40 p-1">
+              {LANGS.map((x) => (
                 <button
-                  key={l}
+                  key={x}
                   type="button"
+                  onClick={() => setLang(x)}
                   className={cx(
-                    "rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.22em] transition",
-                    l === lang ? "bg-slate-900 text-slate-100" : "text-slate-500 hover:text-slate-200"
+                    "rounded-full px-3 py-1.5 text-[11px] uppercase tracking-[0.24em] transition",
+                    x === lang ? "bg-slate-900 text-slate-100" : "text-slate-500 hover:text-slate-200"
                   )}
-                  onClick={() => setLang(l)}
                 >
-                  {l.toUpperCase()}
+                  {x.toUpperCase()}
                 </button>
               ))}
             </div>
@@ -501,7 +470,7 @@ export default function Landing(): JSX.Element {
           </div>
 
           <div className="lg:col-span-7">
-          <ElectricFlowPanel t={{ spec: t.spec, nodes: t.nodes, nodeSubs: t.nodeSubs }} />
+            <ElectricFlowPanel t={{ spec: t.spec, nodes: t.nodes, nodeSubs: t.nodeSubs }} />
           </div>
         </div>
       </div>
@@ -519,7 +488,7 @@ export default function Landing(): JSX.Element {
             <br />
             {t.closureSub}
           </div>
-          <div className="mt-4 text-lg text-slate-500">{t.closureLine}</div>
+          {t.closureLine ? <div className="mt-4 text-lg text-slate-500">{t.closureLine}</div> : null}
         </div>
 
         <div className="mt-16 flex items-center justify-between border-t border-slate-800/70 pt-6 text-[12px] text-slate-500">

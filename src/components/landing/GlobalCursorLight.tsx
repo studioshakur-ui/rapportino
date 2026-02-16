@@ -6,7 +6,7 @@ import React, { useEffect } from "react";
  * Goals:
  * - One subtle light that follows the cursor across the entire landing.
  * - No React re-renders on pointermove (RAF + CSS vars).
- * - Emits a small event bus so other components can react by proximity (e.g. CORE AI badge).
+ * - Emits a small event bus so other components can react by proximity.
  */
 
 export type CorePointerEventDetail = {
@@ -61,7 +61,11 @@ export function GlobalCursorLight({ target }: Props): JSX.Element {
       root.style.setProperty("--core-my", `${Math.round(yp * 100)}%`);
       root.style.setProperty("--core-active", String(active));
 
-      window.dispatchEvent(new CustomEvent<CorePointerEventDetail>("core:pointer", { detail: { x: lastX, y: lastY } }));
+      window.dispatchEvent(
+        new CustomEvent<CorePointerEventDetail>("core:pointer", {
+          detail: { x: lastX, y: lastY },
+        })
+      );
     };
 
     const schedule = () => {
