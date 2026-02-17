@@ -133,8 +133,8 @@ const COPY: Record<
       table: {
         cols: ["Controllo", "Condizione", "Esito"],
         rows: [
-          ["Role gate", "Ruolo non autorizzato", "BLOCK"],
-          ["Scope", "Ship non assegnata", "BLOCK"],
+          ["Accesso per ruolo", "Ruolo non autorizzato", "BLOCK"],
+          ["Perimetro", "Nave non assegnata", "BLOCK"],
           ["Periodo", "Data fuori range", "WARN"],
         ],
       },
@@ -149,7 +149,7 @@ const COPY: Record<
         s2K: "Azione",
         s2V: "Spiegazione richiesta",
         s3K: "Esito",
-        s3V: "WARN · EXPLAIN",
+        s3V: "WARN · MOTIVA",
       },
     },
     s2Evidence: {
@@ -158,21 +158,21 @@ const COPY: Record<
       table: {
         cols: ["Prova", "Formato", "Garanzia"],
         rows: [
-          ["Rapportino", "PDF", "Versioning"],
+          ["Rapportino", "PDF", "Versionamento"],
           ["CORE Drive", "SHA-256", "Integrità"],
-          ["Freeze", "Read-only", "Non alterabile"],
+          ["Blocco", "Sola lettura", "Non alterabile"],
         ],
       },
     },
     s2Anomalies: {
-      title: "Anomalie & claims",
+      title: "Anomalie & reclami",
       body: "Le anomalie generano un flusso tracciato: apertura, verifica, decisione e chiusura.",
       table: {
         cols: ["Evento", "Stato", "Responsabile"],
         rows: [
-          ["Anomalia", "Aperta", "Capo / Ufficio"],
-          ["Verifica", "In verifica", "Manager"],
-          ["Decisione", "Chiusa", "Direzione"],
+          ["Anomalia", "Aperta", "CAPO / UFFICIO"],
+          ["Verifica", "In verifica", "MANAGER"],
+          ["Decisione", "Chiusa", "DIREZIONE"],
         ],
       },
     },
@@ -193,14 +193,14 @@ const COPY: Record<
     nodeSubs: ["Saisit", "Valide", "Archive", "Lit"],
 
     closureTitle: "CORE n’est pas un logiciel.",
-    closureSub: "C’est un organe opérationnel du chantier.",
+    closureSub: "C’est le système opérationnel du chantier.",
     closureLine: "",
 
     footerLeft: "Accès réservé au personnel et partenaires autorisés.",
     footerRight: "CORE · Opérations de chantier",
 
     s2Title: "CORE · Couche de Contrôle",
-    s2Subtitle: "Contrôles automatiques. Preuves vérifiables. Aucune reconstruction.",
+    s2Subtitle: "Contrôles. Preuves. Aucune reconstruction.",
 
     s2KickerRight: "Accès par rôles · Traçabilité complète · Export signé",
     s2Tabs: {
@@ -217,7 +217,7 @@ const COPY: Record<
     },
     s2Identity: {
       title: "Identité & rôles",
-      body: "Chaque action est autorisée uniquement au bon rôle. Pas d’ambiguïté entre CAPO, UFFICIO et DIREZIONE.",
+      body: "Accès par rôle. Zéro ambiguïté CAPO / UFFICIO / DIREZIONE.",
       table: {
         cols: ["Contrôle", "Condition", "Résultat"],
         rows: [
@@ -229,7 +229,7 @@ const COPY: Record<
     },
     s2Operational: {
       title: "Indice",
-      body: "Écarts expliqués par heures et activités.",
+      body: "Écarts justifiés par heures et activités.",
       chartTitle: "Cohérence (échantillon)",
       signals: {
         s1K: "Signal",
@@ -237,16 +237,16 @@ const COPY: Record<
         s2K: "Action",
         s2V: "Explication requise",
         s3K: "Résultat",
-        s3V: "WARN · EXPLAIN",
+        s3V: "WARN · EXPLICATION",
       },
     },
     s2Evidence: {
       title: "Preuves",
-      body: "Chaque décision est appuyée par des preuves versionnées et des documents gelés, toujours consultables.",
+      body: "Décisions appuyées par preuves versionnées et documents gelés.",
       table: {
         cols: ["Preuve", "Format", "Garantie"],
         rows: [
-          ["Rapport", "PDF", "Versioning"],
+          ["Rapport", "PDF", "Versionnage"],
           ["CORE Drive", "SHA-256", "Intégrité"],
           ["Gel", "Lecture seule", "Non modifiable"],
         ],
@@ -254,13 +254,13 @@ const COPY: Record<
     },
     s2Anomalies: {
       title: "Anomalies & réclamations",
-      body: "Les anomalies déclenchent un flux traçable : ouverture, revue, décision, clôture.",
+      body: "Flux traçable : ouverture → revue → décision → clôture.",
       table: {
         cols: ["Événement", "Statut", "Responsable"],
         rows: [
-          ["Anomalie", "Ouverte", "Capo / Ufficio"],
-          ["Revue", "En revue", "Manager"],
-          ["Décision", "Clôturée", "Direzione"],
+          ["Anomalie", "Ouverte", "CAPO / UFFICIO"],
+          ["Revue", "En revue", "MANAGER"],
+          ["Décision", "Clôturée", "DIREZIONE"],
         ],
       },
     },
@@ -281,7 +281,7 @@ const COPY: Record<
     nodeSubs: ["Inputs", "Validates", "Archives", "Reads"],
 
     closureTitle: "CORE is not software.",
-    closureSub: "It is an operational organ of the shipyard.",
+    closureSub: "It is the operational system of the shipyard.",
     closureLine: "",
 
     footerLeft: "Restricted access to staff and authorized partners.",
@@ -346,9 +346,9 @@ const COPY: Record<
       table: {
         cols: ["Event", "Status", "Owner"],
         rows: [
-          ["Anomaly", "Open", "Capo / Ufficio"],
-          ["Review", "In review", "Manager"],
-          ["Decision", "Closed", "Direzione"],
+          ["Anomaly", "Open", "CAPO / UFFICIO"],
+          ["Review", "In review", "MANAGER"],
+          ["Decision", "Closed", "DIREZIONE"],
         ],
       },
     },
@@ -394,7 +394,9 @@ export default function Landing(): JSX.Element {
 
   const accessHref = useMemo(() => {
     // Keep a simple mailto for now (can be swapped with a form later).
-    return "mailto:access@conit.org?subject=CORE%20Access%20Request";
+    const email = (import.meta.env.VITE_CORE_ACCESS_EMAIL as string | undefined) ?? "access@conit.org";
+    const subject = "CORE Access Request";
+    return `mailto:${email}?subject=${encodeURIComponent(subject)}`;
   }, []);
 
   return (
@@ -408,7 +410,7 @@ export default function Landing(): JSX.Element {
                 <span className="h-2 w-2 rounded-full bg-sky-400" />
               </span>
               <span className="text-[11px] uppercase tracking-[0.28em] text-slate-300">CORE</span>
-              <span className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Sistema operativo di cantiere</span>
+              <span className="text-[11px] uppercase tracking-[0.28em] text-slate-500">{t.eyebrow}</span>
             </div>
           </div>
 
