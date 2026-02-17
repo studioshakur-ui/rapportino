@@ -133,8 +133,8 @@ const COPY: Record<
       table: {
         cols: ["Controllo", "Condizione", "Esito"],
         rows: [
-          ["Role gate", "Ruolo non autorizzato", "BLOCK"],
-          ["Scope", "Ship non assegnata", "BLOCK"],
+          ["Accesso per ruolo", "Ruolo non autorizzato", "BLOCK"],
+          ["Perimetro", "Nave non assegnata", "BLOCK"],
           ["Periodo", "Data fuori range", "WARN"],
         ],
       },
@@ -149,7 +149,7 @@ const COPY: Record<
         s2K: "Azione",
         s2V: "Spiegazione richiesta",
         s3K: "Esito",
-        s3V: "WARN · EXPLAIN",
+        s3V: "WARN · MOTIVA",
       },
     },
     s2Evidence: {
@@ -158,21 +158,21 @@ const COPY: Record<
       table: {
         cols: ["Prova", "Formato", "Garanzia"],
         rows: [
-          ["Rapportino", "PDF", "Versioning"],
+          ["Rapportino", "PDF", "Versionamento"],
           ["CORE Drive", "SHA-256", "Integrità"],
-          ["Freeze", "Read-only", "Non alterabile"],
+          ["Blocco", "Sola lettura", "Non alterabile"],
         ],
       },
     },
     s2Anomalies: {
-      title: "Anomalie & claims",
+      title: "Anomalie & reclami",
       body: "Le anomalie generano un flusso tracciato: apertura, verifica, decisione e chiusura.",
       table: {
         cols: ["Evento", "Stato", "Responsabile"],
         rows: [
-          ["Anomalia", "Aperta", "Capo / Ufficio"],
-          ["Verifica", "In verifica", "Manager"],
-          ["Decisione", "Chiusa", "Direzione"],
+          ["Anomalia", "Aperta", "CAPO / UFFICIO"],
+          ["Verifica", "In verifica", "MANAGER"],
+          ["Decisione", "Chiusa", "DIREZIONE"],
         ],
       },
     },
@@ -180,102 +180,93 @@ const COPY: Record<
     s2FooterRight: "GUIDATO DA POLICY",
   },
   fr: {
-  eyebrow: "Système opérationnel de chantier",
-  title: "CORE",
-  subtitle: "contrôle opérationnel du chantier.",
-  valueLines: ["Rapportini validés.", "Preuves consultables."],
-  accessNote: "Accès réservé · visibilité par rôles autorisés",
-  ctaPrimary: "Accéder",
-  ctaSecondary: "Demander l’accès",
+    eyebrow: "Système opérationnel de chantier",
+    title: "CORE",
+    subtitle: "contrôle opérationnel du chantier.",
+    valueLines: ["Rapportini validés.", "Preuves consultables."],
+    accessNote: "Accès réservé · visibilité par rôles autorisés",
+    ctaPrimary: "Accéder",
+    ctaSecondary: "Demander l’accès",
 
-  spec: "Un seul flux · Une seule donnée · Aucune reconstruction",
-  nodes: ["CAPO", "UFFICIO", "CORE DRIVE", "DIREZIONE"],
-  nodeSubs: ["Saisit", "Valide", "Archive", "Lit"],
+    spec: "Un seul flux · Une seule donnée · Aucune reconstruction",
+    nodes: ["CAPO", "UFFICIO", "CORE DRIVE", "DIREZIONE"],
+    nodeSubs: ["Saisit", "Valide", "Archive", "Lit"],
 
-  closureTitle: "CORE n’est pas un logiciel.",
-  closureSub: "C’est le système opérationnel du chantier.",
-  closureLine: "",
+    closureTitle: "CORE n’est pas un logiciel.",
+    closureSub: "C’est le système opérationnel du chantier.",
+    closureLine: "",
 
-  footerLeft: "Accès réservé au personnel et partenaires autorisés.",
-  footerRight: "CORE · Opérations de chantier",
+    footerLeft: "Accès réservé au personnel et partenaires autorisés.",
+    footerRight: "CORE · Opérations de chantier",
 
-  // ===== SECTION 2 =====
+    s2Title: "CORE · Couche de Contrôle",
+    s2Subtitle: "Contrôles. Preuves. Aucune reconstruction.",
 
-  s2Title: "CORE · Couche de Contrôle",
-  s2Subtitle: "Contrôles. Preuves. Aucune reconstruction.",
-
-  s2KickerRight: "Accès par rôles · Traçabilité complète · Export signé",
-
-  s2Tabs: {
-    identity: "Identité",
-    operational: "Opérationnel",
-    evidence: "Preuves",
-    anomalies: "Anomalies",
-  },
-
-  s2Badges: {
-    identity: "ACCÈS PAR RÔLE",
-    operational: "TRACCIABILITÉ LINÉAIRE",
-    evidence: "PRÊT POUR AUDIT",
-    anomalies: "TRAÇABLE",
-  },
-
-  s2Identity: {
-    title: "Identité & rôles",
-    body: "Accès par rôle. Zéro ambiguïté CAPO / UFFICIO / DIREZIONE.",
-    table: {
-      cols: ["Contrôle", "Condition", "Résultat"],
-      rows: [
-        ["Accès par rôle", "Rôle non autorisé", "BLOCK"],
-        ["Périmètre", "Navire non assigné", "BLOCK"],
-        ["Période", "Date hors plage", "WARN"],
-      ],
+    s2KickerRight: "Accès par rôles · Traçabilité complète · Export signé",
+    s2Tabs: {
+      identity: "Identité",
+      operational: "Opérationnel",
+      evidence: "Preuves",
+      anomalies: "Anomalies",
     },
-  },
-
-  s2Operational: {
-    title: "Indice",
-    body: "Écarts justifiés par heures et activités.",
-    chartTitle: "Cohérence (échantillon)",
-    signals: {
-      s1K: "Signal",
-      s1V: "Écart prévu/produit",
-      s2K: "Action",
-      s2V: "Explication requise",
-      s3K: "Résultat",
-      s3V: "WARN · EXPLAIN",
+    s2Badges: {
+      identity: "ACCÈS PAR RÔLE",
+      operational: "TRAÇABILITÉ LINÉAIRE",
+      evidence: "PRÊT POUR AUDIT",
+      anomalies: "TRAÇABLE",
     },
-  },
-
-  s2Evidence: {
-    title: "Preuves",
-    body: "Décisions appuyées par preuves versionnées et documents gelés.",
-    table: {
-      cols: ["Preuve", "Format", "Garantie"],
-      rows: [
-        ["Rapport", "PDF", "Versioning"],
-        ["CORE Drive", "SHA-256", "Intégrité"],
-        ["Gel", "Lecture seule", "Non modifiable"],
-      ],
+    s2Identity: {
+      title: "Identité & rôles",
+      body: "Accès par rôle. Zéro ambiguïté CAPO / UFFICIO / DIREZIONE.",
+      table: {
+        cols: ["Contrôle", "Condition", "Résultat"],
+        rows: [
+          ["Accès par rôle", "Rôle non autorisé", "BLOCK"],
+          ["Périmètre", "Navire non assigné", "BLOCK"],
+          ["Période", "Date hors plage", "WARN"],
+        ],
+      },
     },
-  },
-
-  s2Anomalies: {
-    title: "Anomalies & réclamations",
-    body: "Flux traçable : ouverture → revue → décision → clôture.",
-    table: {
-      cols: ["Événement", "Statut", "Responsable"],
-      rows: [
-        ["Anomalie", "Ouverte", "Capo / Ufficio"],
-        ["Revue", "En revue", "Manager"],
-        ["Décision", "Clôturée", "Direzione"],
-      ],
+    s2Operational: {
+      title: "Indice",
+      body: "Écarts justifiés par heures et activités.",
+      chartTitle: "Cohérence (échantillon)",
+      signals: {
+        s1K: "Signal",
+        s1V: "Écart prévu/produit",
+        s2K: "Action",
+        s2V: "Explication requise",
+        s3K: "Résultat",
+        s3V: "WARN · EXPLICATION",
+      },
     },
+    s2Evidence: {
+      title: "Preuves",
+      body: "Décisions appuyées par preuves versionnées et documents gelés.",
+      table: {
+        cols: ["Preuve", "Format", "Garantie"],
+        rows: [
+          ["Rapport", "PDF", "Versionnage"],
+          ["CORE Drive", "SHA-256", "Intégrité"],
+          ["Gel", "Lecture seule", "Non modifiable"],
+        ],
+      },
+    },
+    s2Anomalies: {
+      title: "Anomalies & réclamations",
+      body: "Flux traçable : ouverture → revue → décision → clôture.",
+      table: {
+        cols: ["Événement", "Statut", "Responsable"],
+        rows: [
+          ["Anomalie", "Ouverte", "CAPO / UFFICIO"],
+          ["Revue", "En revue", "MANAGER"],
+          ["Décision", "Clôturée", "DIREZIONE"],
+        ],
+      },
+    },
+    s2FooterLeft: "DÉFENDABLE EN AUDIT",
+    s2FooterRight: "GUIDÉ PAR POLITIQUE",
   },
-
-  s2FooterLeft: "DÉFENDABLE EN AUDIT",
-  s2FooterRight: "GUIDÉ PAR POLITIQUE",
-},
   en: {
     eyebrow: "Operational shipyard system",
     title: "CORE",
@@ -290,7 +281,7 @@ const COPY: Record<
     nodeSubs: ["Inputs", "Validates", "Archives", "Reads"],
 
     closureTitle: "CORE is not software.",
-    closureSub: "It is an operational organ of the shipyard.",
+    closureSub: "It is the operational system of the shipyard.",
     closureLine: "",
 
     footerLeft: "Restricted access to staff and authorized partners.",
@@ -355,9 +346,9 @@ const COPY: Record<
       table: {
         cols: ["Event", "Status", "Owner"],
         rows: [
-          ["Anomaly", "Open", "Capo / Ufficio"],
-          ["Review", "In review", "Manager"],
-          ["Decision", "Closed", "Direzione"],
+          ["Anomaly", "Open", "CAPO / UFFICIO"],
+          ["Review", "In review", "MANAGER"],
+          ["Decision", "Closed", "DIREZIONE"],
         ],
       },
     },
@@ -403,7 +394,9 @@ export default function Landing(): JSX.Element {
 
   const accessHref = useMemo(() => {
     // Keep a simple mailto for now (can be swapped with a form later).
-    return "mailto:access@conit.org?subject=CORE%20Access%20Request";
+    const email = (import.meta.env.VITE_CORE_ACCESS_EMAIL as string | undefined) ?? "access@conit.org";
+    const subject = "CORE Access Request";
+    return `mailto:${email}?subject=${encodeURIComponent(subject)}`;
   }, []);
 
   return (
@@ -417,7 +410,7 @@ export default function Landing(): JSX.Element {
                 <span className="h-2 w-2 rounded-full bg-sky-400" />
               </span>
               <span className="text-[11px] uppercase tracking-[0.28em] text-slate-300">CORE</span>
-              <span className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Sistema operativo di cantiere</span>
+              <span className="text-[11px] uppercase tracking-[0.28em] text-slate-500">{t.eyebrow}</span>
             </div>
           </div>
 
