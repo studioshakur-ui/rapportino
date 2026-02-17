@@ -16,13 +16,128 @@ type IncaFileRow = {
   file_name: string | null;
   file_type: string | null;
   uploaded_at: string | null;
+  group_key?: string | null;
+  previous_inca_file_id?: string | null;
+  import_run_id?: string | null;
+  content_hash?: string | null;
 };
 
+type IncaHeadRow = {
+  /** HEAD id: this is the only selectable id for cockpit */
+  id: string;
+  costr: string | null;
+  commessa: string | null;
+  project_code: string | null;
+  /** Head file name (kept stable by design) */
+  file_name: string | null;
+  file_type: string | null;
+  /** Head uploaded_at (historical) */
+  uploaded_at: string | null;
+  /** Latest upload timestamp inside the group (what the user actually cares about) */
+  last_uploaded_at: string | null;
+  /** Number of uploads in the group */
+  uploads_count: number;
+};
+
+function safeLower(s: string | null | undefined): string {
+  return (s ?? "").trim().toLowerCase();
+}
+
+function deriveGroupKey(r: IncaFileRow): string {
+  const g = (r.group_key ?? "").trim();
+  if (g) return g.toLowerCase();
+  // Fallback for legacy rows where group_key might be NULL.
+  return `${safeLower(r.costr)}|${safeLower(r.commessa)}|${safeLower(r.project_code)}`;
+}
+
+function parseIsoDateOrNull(s: string | null | undefined): number | null {
+  if (!s) return null;
+  const t = Date.parse(s);
+  return Number.isFinite(t) ? t : null;
+}
+
+function computeHeads(raw: IncaFileRow[]): {
+  heads: IncaHeadRow[];
+  uploadToHeadId: Record<string, string>;
+} {
+  const byGroup = new Map<string, IncaFileRow[]>();
+  const uploadToHeadId: Record<string, string> = {};
+
+  for (const r of raw) {
+    const g = deriveGroupKey(r);
+    const arr = byGroup.get(g);
+    if (arr) arr.push(r);
+    else byGroup.set(g, [r]);
+  }
+
+  const heads: IncaHeadRow[] = [];
+
+  for (const [, rows] of byGroup) {
+    // Compute head candidate:
+    // 1) Prefer explicit HEAD (previous_inca_file_id IS NULL)
+    // 2) Otherwise pick the oldest upload as a conservative fallback
+    const explicitHeads = rows.filter((r) => !r.previous_inca_file_id);
+
+    const pickOldest = (list: IncaFileRow[]): IncaFileRow => {
+      let best = list[0];
+      let bestT = parseIsoDateOrNull(best.uploaded_at) ?? Number.POSITIVE_INFINITY;
+      for (const r of list) {
+        const t = parseIsoDateOrNull(r.uploaded_at) ?? Number.POSITIVE_INFINITY;
+        if (t < bestT) {
+          best = r;
+          bestT = t;
+        }
+      }
+      return best;
+    };
+
+    const headRow = explicitHeads.length > 0 ? pickOldest(explicitHeads) : pickOldest(rows);
+
+    // Latest upload timestamp in this group (UX signal)
+    let lastUpload: IncaFileRow | null = null;
+    let lastT = Number.NEGATIVE_INFINITY;
+    for (const r of rows) {
+      const t = parseIsoDateOrNull(r.uploaded_at);
+      if (t !== null && t > lastT) {
+        lastT = t;
+        lastUpload = r;
+      }
+    }
+
+    const headId = headRow.id;
+    for (const r of rows) uploadToHeadId[r.id] = headId;
+
+    heads.push({
+      id: headId,
+      costr: headRow.costr,
+      commessa: headRow.commessa,
+      project_code: headRow.project_code,
+      file_name: headRow.file_name,
+      file_type: headRow.file_type,
+      uploaded_at: headRow.uploaded_at,
+      last_uploaded_at: lastUpload?.uploaded_at ?? headRow.uploaded_at ?? null,
+      uploads_count: rows.length,
+    });
+  }
+
+  // Sort by last upload desc (what users expect)
+  heads.sort((a, b) => {
+    const ta = parseIsoDateOrNull(a.last_uploaded_at) ?? 0;
+    const tb = parseIsoDateOrNull(b.last_uploaded_at) ?? 0;
+    return tb - ta;
+  });
+
+  return { heads, uploadToHeadId };
+}
+
 export default function UfficioIncaHub(): JSX.Element {
-  const [files, setFiles] = useState<IncaFileRow[]>([]);
+  const [files, setFiles] = useState<IncaHeadRow[]>([]);
   const [loadingFiles, setLoadingFiles] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Map any uploaded inca_file_id -> HEAD id (stable dataset id)
+  const uploadToHeadIdRef = useRef<Record<string, string>>({});
 
   // Persist selection across module navigation + refresh, and keep URL stable.
   const [selectedFileId, setSelectedFileId] = usePersistedSearchParam(
@@ -64,7 +179,7 @@ export default function UfficioIncaHub(): JSX.Element {
   }, []);
 
   const ensureValidSelection = useCallback(
-    (list: IncaFileRow[], preferredId: string): string => {
+    (list: IncaHeadRow[], preferredId: string): string => {
       const pid = (preferredId || "").trim();
       if (pid && list.some((f) => f.id === pid)) return pid;
       return list.length > 0 ? list[0].id : "";
@@ -78,10 +193,14 @@ export default function UfficioIncaHub(): JSX.Element {
       setError(null);
 
       try {
-        const list = await loadFiles();
-        setFiles(list);
+        const raw = await loadFiles();
+        const { heads, uploadToHeadId } = computeHeads(raw);
+        uploadToHeadIdRef.current = uploadToHeadId;
+        setFiles(heads);
 
-        const nextId = ensureValidSelection(list, opts?.forceSelectId ?? selectedFileId);
+        const forced = (opts?.forceSelectId ?? "").trim();
+        const forcedHead = forced ? uploadToHeadIdRef.current[forced] || forced : "";
+        const nextId = ensureValidSelection(heads, forcedHead || selectedFileId);
         if (nextId !== selectedFileId) setSelectedFileId(nextId);
       } catch (err) {
         // eslint-disable-next-line no-console
@@ -104,12 +223,17 @@ export default function UfficioIncaHub(): JSX.Element {
       setError(null);
 
       try {
-        const list = await loadFiles();
+        const raw = await loadFiles();
         if (!alive) return;
 
-        setFiles(list);
+        const { heads, uploadToHeadId } = computeHeads(raw);
+        uploadToHeadIdRef.current = uploadToHeadId;
+        setFiles(heads);
 
-        const nextId = ensureValidSelection(list, selectedFileId);
+        // If URL/storage contains a non-head id, remap it to the proper HEAD.
+        const preferred = (selectedFileId || "").trim();
+        const preferredHead = preferred ? uploadToHeadIdRef.current[preferred] || preferred : "";
+        const nextId = ensureValidSelection(heads, preferredHead);
         if (nextId !== selectedFileId) setSelectedFileId(nextId);
       } catch (err) {
         // eslint-disable-next-line no-console
@@ -130,7 +254,7 @@ export default function UfficioIncaHub(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadFiles, ensureValidSelection, setSelectedFileId]);
 
-  const selectedFile = useMemo<IncaFileRow | null>(() => {
+  const selectedFile = useMemo<IncaHeadRow | null>(() => {
     return files.find((f) => f.id === selectedFileId) || null;
   }, [files, selectedFileId]);
 
@@ -226,7 +350,7 @@ export default function UfficioIncaHub(): JSX.Element {
                 Vista sintetica
               </div>
             </div>
-            <div className="text-[11px] text-slate-500">{files.length} file</div>
+            <div className="text-[11px] text-slate-500">{files.length} dataset</div>
           </div>
 
           <div className="mt-3 rounded-xl border border-slate-800 bg-slate-950/35 px-3 py-3">
@@ -255,7 +379,7 @@ export default function UfficioIncaHub(): JSX.Element {
               File INCA caricati
             </div>
             <div className="text-[12px] text-slate-400">
-              Seleziona un file → Apri cockpit.
+              Vista canonica (HEAD only): 1 dataset attivo per progetto.
             </div>
           </div>
 
@@ -283,7 +407,7 @@ export default function UfficioIncaHub(): JSX.Element {
                 <th className="px-4 py-2">Progetto</th>
                 <th className="px-4 py-2">Nome file</th>
                 <th className="px-4 py-2">Tipo</th>
-                <th className="px-4 py-2">Importato</th>
+                <th className="px-4 py-2">Ultimo upload</th>
               </tr>
             </thead>
 
@@ -312,12 +436,17 @@ export default function UfficioIncaHub(): JSX.Element {
                     </td>
                     <td className="px-4 py-2 text-[12px] text-slate-200">
                       {f.file_name || "—"}
+                      {f.uploads_count > 1 ? (
+                        <span className="ml-2 text-[11px] text-slate-500">
+                          · {f.uploads_count} uploads
+                        </span>
+                      ) : null}
                     </td>
                     <td className="px-4 py-2 text-[12px] text-slate-400">
                       {f.file_type || "—"}
                     </td>
                     <td className="px-4 py-2 text-[12px] text-slate-500">
-                      {f.uploaded_at ? new Date(f.uploaded_at).toLocaleString() : "—"}
+                      {f.last_uploaded_at ? new Date(f.last_uploaded_at).toLocaleString() : "—"}
                     </td>
                   </tr>
                 );
@@ -342,6 +471,11 @@ export default function UfficioIncaHub(): JSX.Element {
                 {selectedFile.costr || "—"} · {selectedFile.commessa || "—"}
               </span>{" "}
               <span className="text-slate-500">· {selectedFile.file_name || "—"}</span>
+              {selectedFile.last_uploaded_at ? (
+                <span className="ml-2 text-slate-600">
+                  · ultimo upload {new Date(selectedFile.last_uploaded_at).toLocaleString()}
+                </span>
+              ) : null}
             </div>
 
             <button
@@ -365,7 +499,8 @@ export default function UfficioIncaHub(): JSX.Element {
           clearIncaImportDraft();
           setImportOpen(false);
 
-          // No hard reload. Refresh data and keep the new selection.
+          // No hard reload. Refresh data and force-select the proper HEAD dataset.
+          // If the import returned a non-head upload id, we remap it to its HEAD.
           await refreshFiles({ forceSelectId: newId || undefined });
         }}
       />
@@ -378,4 +513,3 @@ export default function UfficioIncaHub(): JSX.Element {
     </div>
   );
 }
- 

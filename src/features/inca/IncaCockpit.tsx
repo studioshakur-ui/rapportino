@@ -20,9 +20,134 @@ type IncaFileRow = {
   id: string;
   costr: string | null;
   commessa: string | null;
+  project_code?: string | null;
+  group_key?: string | null;
+  previous_inca_file_id?: string | null;
+
   file_name: string | null;
   uploaded_at: string | null;
 };
+
+type IncaHeadRow = {
+  id: string; // HEAD id
+  costr: string | null;
+  commessa: string | null;
+  project_code: string | null;
+  group_key: string;
+
+  head_file_name: string | null;
+  head_uploaded_at: string | null;
+
+  // UX: latest upload timestamp in the group
+  last_uploaded_at: string | null;
+  uploads_count: number;
+
+  // archive list (including head as well, but we keep a separate section anyway)
+  uploads: IncaFileRow[];
+};
+
+function safeLower(s: string | null | undefined): string {
+  return (s ?? "").trim().toLowerCase();
+}
+
+function parseIsoDateOrNull(s: string | null | undefined): number | null {
+  if (!s) return null;
+  const t = Date.parse(s);
+  return Number.isFinite(t) ? t : null;
+}
+
+function deriveGroupKey(r: IncaFileRow): string {
+  const g = (r.group_key ?? "").trim();
+  if (g) return g.toLowerCase();
+  // Fallback for legacy rows where group_key might be NULL.
+  return `${safeLower(r.costr)}|${safeLower(r.commessa)}|${safeLower(r.project_code ?? "")}`;
+}
+
+function pickOldest(list: IncaFileRow[]): IncaFileRow {
+  let best = list[0];
+  let bestT = parseIsoDateOrNull(best.uploaded_at) ?? Number.POSITIVE_INFINITY;
+  for (const r of list) {
+    const t = parseIsoDateOrNull(r.uploaded_at) ?? Number.POSITIVE_INFINITY;
+    if (t < bestT) {
+      best = r;
+      bestT = t;
+    }
+  }
+  return best;
+}
+
+function computeHeads(raw: IncaFileRow[]): {
+  heads: IncaHeadRow[];
+  uploadToHeadId: Record<string, string>;
+  byId: Record<string, IncaFileRow>;
+} {
+  const byId: Record<string, IncaFileRow> = {};
+  for (const r of raw) byId[r.id] = r;
+
+  const byGroup = new Map<string, IncaFileRow[]>();
+  for (const r of raw) {
+    const g = deriveGroupKey(r);
+    const arr = byGroup.get(g);
+    if (arr) arr.push(r);
+    else byGroup.set(g, [r]);
+  }
+
+  const uploadToHeadId: Record<string, string> = {};
+  const heads: IncaHeadRow[] = [];
+
+  for (const [groupKey, rows] of byGroup) {
+    // head selection rule:
+    // 1) prefer explicit head (previous_inca_file_id is null)
+    // 2) else fallback to oldest in the group
+    const explicitHeads = rows.filter((r) => !r.previous_inca_file_id);
+    const headRow = explicitHeads.length > 0 ? pickOldest(explicitHeads) : pickOldest(rows);
+
+    // last upload timestamp (UX)
+    let lastUpload: IncaFileRow | null = null;
+    let lastT = Number.NEGATIVE_INFINITY;
+    for (const r of rows) {
+      const t = parseIsoDateOrNull(r.uploaded_at);
+      if (t !== null && t > lastT) {
+        lastT = t;
+        lastUpload = r;
+      }
+    }
+
+    const headId = headRow.id;
+    for (const r of rows) uploadToHeadId[r.id] = headId;
+
+    // keep uploads sorted desc for archive view
+    const uploadsSorted = [...rows].sort((a, b) => {
+      const ta = parseIsoDateOrNull(a.uploaded_at) ?? 0;
+      const tb = parseIsoDateOrNull(b.uploaded_at) ?? 0;
+      return tb - ta;
+    });
+
+    heads.push({
+      id: headId,
+      costr: headRow.costr,
+      commessa: headRow.commessa,
+      project_code: (headRow.project_code ?? null) as any,
+      group_key: groupKey,
+
+      head_file_name: headRow.file_name,
+      head_uploaded_at: headRow.uploaded_at,
+
+      last_uploaded_at: lastUpload?.uploaded_at ?? headRow.uploaded_at ?? null,
+      uploads_count: rows.length,
+      uploads: uploadsSorted,
+    });
+  }
+
+  // sort heads by last upload desc
+  heads.sort((a, b) => {
+    const ta = parseIsoDateOrNull(a.last_uploaded_at) ?? 0;
+    const tb = parseIsoDateOrNull(b.last_uploaded_at) ?? 0;
+    return tb - ta;
+  });
+
+  return { heads, uploadToHeadId, byId };
+}
 
 // =============================
 // SITUAZIONE semantics (CANON)
@@ -63,13 +188,6 @@ function formatMeters(v: unknown): string {
   return new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 }).format(n);
 }
 
-function formatDateIT(value: unknown): string {
-  if (!value) return "—";
-  const d = new Date(String(value));
-  if (Number.isNaN(d.getTime())) return String(value);
-  return d.toLocaleDateString("it-IT");
-}
-
 function norm(v: unknown): string {
   return String(v ?? "").trim();
 }
@@ -85,42 +203,19 @@ function isNonPosatoAtom(a: SituazioneAtom): boolean {
   return a === "T" || a === "R" || a === "B" || a === "L";
 }
 
-function colorForSituazione(code: SituazioneFilterCode): string {
-  switch (code) {
-    case "P":
-      return "#34d399";
-    case "T":
-      return "#38bdf8";
-    case "R":
-      return "#fbbf24";
-    case "B":
-      return "#e879f9";
-    case "L":
-      return "#94a3b8";
-    case "E":
-      return "#fb7185";
-    case "NP":
-    default:
-      return "#a855f7";
-  }
-}
-
-function tipoCavoLabel(r: IncaCavoRow): string {
-  const t = norm(r?.tipo);
-  if (t) return t;
-  const m = norm((r as any)?.marca_cavo);
-  if (m) return m;
-  return "—";
-}
-
 export default function IncaCockpit(props: IncaCockpitProps) {
   const navigate = useNavigate();
   const mode: IncaCockpitMode = props.mode ?? "page";
 
-  // Filters
-  const [fileId, setFileId] = useState<string>(props.fileId ?? "");
-  const [files, setFiles] = useState<IncaFileRow[]>([]);
+  // User selection = may be HEAD or ARCHIVE upload
+  const [selectedUploadId, setSelectedUploadId] = useState<string>(props.fileId ?? "");
 
+  // HEAD resolution
+  const [heads, setHeads] = useState<IncaHeadRow[]>([]);
+  const [uploadToHeadId, setUploadToHeadId] = useState<Record<string, string>>({});
+  const [byId, setById] = useState<Record<string, IncaFileRow>>({});
+
+  // Filters
   const [query, setQuery] = useState<string>("");
   const [situazioni, setSituazioni] = useState<SituazioneFilterCode[]>([]);
   const [apparatoDa, setApparatoDa] = useState<string>("");
@@ -151,10 +246,35 @@ export default function IncaCockpit(props: IncaCockpitProps) {
   useEffect(() => {
     const v = (props.fileId ?? "").trim();
     if (!v) return;
-    setFileId(v);
+    setSelectedUploadId(v);
   }, [props.fileId]);
 
-  // 1) load files
+  const effectiveHeadId = useMemo(() => {
+    const id = (selectedUploadId || "").trim();
+    if (!id) return "";
+    return uploadToHeadId[id] || id;
+  }, [selectedUploadId, uploadToHeadId]);
+
+  const chosenUpload = useMemo(() => {
+    const id = (selectedUploadId || "").trim();
+    if (!id) return null;
+    return byId[id] || null;
+  }, [byId, selectedUploadId]);
+
+  const chosenHead = useMemo(() => {
+    const id = (effectiveHeadId || "").trim();
+    if (!id) return null;
+    return heads.find((h) => h.id === id) || null;
+  }, [heads, effectiveHeadId]);
+
+  const isArchiveSelection = useMemo(() => {
+    const sid = (selectedUploadId || "").trim();
+    const hid = (effectiveHeadId || "").trim();
+    if (!sid || !hid) return false;
+    return sid !== hid;
+  }, [selectedUploadId, effectiveHeadId]);
+
+  // 1) load files (raw) -> compute heads + archive mapping
   useEffect(() => {
     let alive = true;
 
@@ -165,22 +285,33 @@ export default function IncaCockpit(props: IncaCockpitProps) {
       try {
         const { data, error: e } = await supabase
           .from("inca_files")
-          .select("id,costr,commessa,file_name,uploaded_at")
+          .select("id,costr,commessa,project_code,group_key,previous_inca_file_id,file_name,uploaded_at")
           .order("uploaded_at", { ascending: false })
-          .limit(200);
+          .limit(500);
 
         if (e) throw e;
         if (!alive) return;
 
-        const list: IncaFileRow[] = Array.isArray(data) ? (data as IncaFileRow[]) : [];
-        setFiles(list);
+        const raw: IncaFileRow[] = Array.isArray(data) ? (data as IncaFileRow[]) : [];
+        const computed = computeHeads(raw);
 
-        // IMPORTANT (CNCS): never silently fall back to the "latest" file.
-        // If no fileId is selected, the cockpit stays in "no selection" state.
+        setHeads(computed.heads);
+        setUploadToHeadId(computed.uploadToHeadId);
+        setById(computed.byId);
+
+        // IMPORTANT (CNCS): never silently fall back to "latest".
+        // If selectedUploadId is empty, keep "no selection".
+        // If selectedUploadId exists but does not exist anymore, clear it.
+        const cur = (selectedUploadId || "").trim();
+        if (cur && !computed.byId[cur] && !computed.heads.some((h) => h.id === cur)) {
+          setSelectedUploadId("");
+        }
       } catch (err) {
         console.error("[IncaCockpit] loadFiles error:", err);
         if (!alive) return;
-        setFiles([]);
+        setHeads([]);
+        setUploadToHeadId({});
+        setById({});
         setError("Impossibile caricare la lista file INCA.");
       } finally {
         if (!alive) return;
@@ -195,13 +326,13 @@ export default function IncaCockpit(props: IncaCockpitProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 2) load cavi by fileId (batched) — source VIEW: inca_cavi_with_last_posa_and_capo_v1
+  // 2) load cavi by effective HEAD id (batched) — source VIEW: inca_cavi_with_last_posa_and_capo_v1
   useEffect(() => {
     let alive = true;
     const ac = new AbortController();
 
     async function loadCavi() {
-      if (!fileId) {
+      if (!effectiveHeadId) {
         setLoading(false);
         setError(null);
         setSelectedCable(null);
@@ -252,7 +383,7 @@ export default function IncaCockpit(props: IncaCockpitProps) {
                 "capo_label",
               ].join(",")
             )
-            .eq("inca_file_id", fileId)
+            .eq("inca_file_id", effectiveHeadId)
             .order("codice", { ascending: true })
             .range(from, to)
             .abortSignal(ac.signal);
@@ -286,9 +417,9 @@ export default function IncaCockpit(props: IncaCockpitProps) {
       alive = false;
       ac.abort();
     };
-  }, [fileId, loadInfo.maxPages, loadInfo.pageSize]);
+  }, [effectiveHeadId, loadInfo.maxPages, loadInfo.pageSize]);
 
-  // Apparato maps computed on FILE SCOPE
+  // Apparato maps computed on FILE SCOPE (HEAD dataset)
   const apparatoPMaps = useMemo(() => computeApparatoPMaps(cavi as any), [cavi]);
 
   // Base scope for pills: file scope + query + apparato exact
@@ -404,16 +535,6 @@ export default function IncaCockpit(props: IncaCockpitProps) {
     }, 0);
   }, [filteredCavi]);
 
-  const chosenFile = useMemo(() => (files || []).find((x) => x.id === fileId) || null, [files, fileId]);
-
-  function toggleSituazione(code: SituazioneFilterCode) {
-    setSituazioni((prev) => {
-      if (!prev.length) return [code];
-      const has = prev.includes(code);
-      return has ? prev.filter((x) => x !== code) : [...prev, code];
-    });
-  }
-
   function clearFilters() {
     setQuery("");
     setSituazioni([]);
@@ -435,22 +556,14 @@ export default function IncaCockpit(props: IncaCockpitProps) {
     setApparatoPopoverOpen(true);
   }
 
-  const topAppDa = useMemo(() => {
-    const items = Array.from(apparatoPMaps.da.entries()).map(([name, st]) => ({ name, ...st }));
-    items.sort((a: any, b: any) => (b.total || 0) - (a.total || 0));
-    return items.slice(0, 8);
-  }, [apparatoPMaps.da]);
-
-  const topAppA = useMemo(() => {
-    const items = Array.from(apparatoPMaps.a.entries()).map(([name, st]) => ({ name, ...st }));
-    items.sort((a: any, b: any) => (b.total || 0) - (a.total || 0));
-    return items.slice(0, 8);
-  }, [apparatoPMaps.a]);
-
   const headerTitle = useMemo(() => {
-    if (!chosenFile) return "Seleziona un file";
-    return `COSTR ${chosenFile.costr || "—"} · COMMESSA ${chosenFile.commessa || "—"}`;
-  }, [chosenFile]);
+    if (!chosenHead) return "Seleziona un file";
+    return `COSTR ${chosenHead.costr || "—"} · COMMESSA ${chosenHead.commessa || "—"}`;
+  }, [chosenHead]);
+
+  if (loadingFiles) {
+    return <LoadingScreen message="Caricamento cockpit INCA…" />;
+  }
 
   return (
     <div className="p-3">
@@ -460,7 +573,19 @@ export default function IncaCockpit(props: IncaCockpitProps) {
           <div className="min-w-0">
             <div className="text-[11px] uppercase tracking-wide text-slate-500">INCA · Cockpit</div>
             <div className="text-2xl font-semibold text-slate-50 leading-tight truncate">{headerTitle}</div>
-            <div className="text-[12px] text-slate-400 mt-1 truncate">{chosenFile ? chosenFile.file_name || "—" : "—"}</div>
+
+            <div className="text-[12px] text-slate-400 mt-1 truncate">
+              {chosenUpload ? (chosenUpload.file_name || "—") : "—"}
+            </div>
+
+            {chosenHead && (
+              <div className="text-[11px] text-slate-500 mt-1 truncate">
+                Dataset attivo (HEAD): <span className="text-slate-300">{chosenHead.head_file_name || "—"}</span>
+                {chosenHead.last_uploaded_at ? (
+                  <span className="text-slate-600"> · ultimo upload {new Date(chosenHead.last_uploaded_at).toLocaleString()}</span>
+                ) : null}
+              </div>
+            )}
           </div>
 
           <div className="flex items-start gap-2">
@@ -496,6 +621,14 @@ export default function IncaCockpit(props: IncaCockpitProps) {
             </div>
           </div>
         </div>
+
+        {/* Archive banner */}
+        {isArchiveSelection && chosenUpload && chosenHead && (
+          <div className="mt-3 rounded-xl border border-amber-700/50 bg-amber-950/25 px-3 py-2 text-[12px] text-amber-200">
+            Stai auditando un <b>upload storico</b> ({chosenUpload.file_name || chosenUpload.id}).
+            Il cockpit mostra il <b>dataset attivo (HEAD)</b> per evitare incoerenze.
+          </div>
+        )}
 
         {/* Signals (max 6) */}
         <div className="mt-3 grid grid-cols-2 md:grid-cols-6 gap-2">
@@ -535,20 +668,46 @@ export default function IncaCockpit(props: IncaCockpitProps) {
           <div className="space-y-3">
             <div>
               <label className="text-[12px] text-slate-400 block mb-1">File INCA</label>
+
               <select
-                value={fileId}
-                onChange={(e) => setFileId(e.target.value)}
+                value={selectedUploadId}
+                onChange={(e) => setSelectedUploadId(e.target.value)}
                 className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[13px] text-slate-100"
               >
                 <option value="" disabled>
-                  {(files || []).length ? "Seleziona un file…" : "Nessun file disponibile"}
+                  {(heads || []).length ? "Seleziona un dataset / upload…" : "Nessun file disponibile"}
                 </option>
-                {(files || []).map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {(f.costr || "—") + " · " + (f.commessa || "—") + " · " + (f.file_name || "file")}
-                  </option>
-                ))}
+
+                <optgroup label="Dataset attivi (HEAD)">
+                  {(heads || []).map((h) => (
+                    <option key={h.id} value={h.id}>
+                      {(h.costr || "—") + " · " + (h.commessa || "—") + " · " + (h.head_file_name || "HEAD")}
+                    </option>
+                  ))}
+                </optgroup>
+
+                <optgroup label="Archivio upload (audit)">
+                  {(heads || []).flatMap((h) =>
+                    (h.uploads || []).map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {(u.costr || "—") +
+                          " · " +
+                          (u.commessa || "—") +
+                          " · " +
+                          (u.file_name || "upload") +
+                          "  [audit]"}
+                      </option>
+                    ))
+                  )}
+                </optgroup>
               </select>
+
+              {chosenHead && (
+                <div className="mt-2 text-[11px] text-slate-500">
+                  Dataset attivo usato dal cockpit:{" "}
+                  <span className="text-slate-300 font-semibold">{chosenHead.head_file_name || chosenHead.id}</span>
+                </div>
+              )}
             </div>
 
             <div>
@@ -582,13 +741,7 @@ export default function IncaCockpit(props: IncaCockpitProps) {
               </div>
             </div>
 
-            {error && (
-              <div className="rounded-xl border border-amber-700 bg-amber-900/30 px-3 py-2 text-[12px] text-amber-200">
-                {error}
-              </div>
-            )}
-
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between gap-2">
               <button
                 type="button"
                 onClick={clearFilters}
@@ -597,146 +750,65 @@ export default function IncaCockpit(props: IncaCockpitProps) {
                 Reset
               </button>
 
-              <div className="ml-auto text-[11px] text-slate-500">
-                Filtri attivi:{" "}
-                <span className="text-slate-200 font-semibold">
-                  {(situazioni.length ? 1 : 0) + (query ? 1 : 0) + (apparatoDa ? 1 : 0) + (apparatoA ? 1 : 0)}
-                </span>
-              </div>
+              <div className="text-[11px] text-slate-500">Filtri attivi: {situazioni.length}</div>
             </div>
           </div>
         </div>
 
-        {/* Pills */}
-        <div className="lg:col-span-8 rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
-          <div className="text-[11px] text-slate-500 uppercase tracking-wide mb-2">Pills (quick filters)</div>
-
-          {/* Situazioni pills */}
-          <div className="flex flex-wrap gap-2">
-            {distribBase.map((d) => {
-              const active = situazioni.includes(d.code);
-              return (
-                <button
-                  key={d.code}
-                  type="button"
-                  onClick={() => toggleSituazione(d.code)}
-                  className={[
-                    "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[12px]",
-                    active ? "border-slate-600 bg-slate-900/60 text-slate-100" : "border-slate-800 bg-slate-950/60 text-slate-300",
-                  ].join(" ")}
-                  title={d.label}
-                >
-                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: colorForSituazione(d.code) }} />
-                  <span className="font-semibold">{d.code}</span>
-                  <span className="text-slate-400 tabular-nums">{d.count}</span>
-                </button>
-              );
-            })}
+        {/* Pills + Table */}
+        <div className="lg:col-span-8 space-y-3">
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
+            <div className="text-[11px] text-slate-500 uppercase tracking-wide mb-2">Pills (Quick filters)</div>
+            <div className="flex flex-wrap gap-2">
+              {distribBase.map((it) => (
+                <CodicePill
+                  key={it.code}
+                  label={it.code}
+                  title={it.label}
+                  count={it.count}
+                  active={situazioni.includes(it.code)}
+                  color={undefined}
+                  onClick={() => {
+                    setSituazioni((prev) => {
+                      const has = prev.includes(it.code);
+                      if (has) return prev.filter((x) => x !== it.code);
+                      return [...prev, it.code];
+                    });
+                  }}
+                />
+              ))}
+            </div>
           </div>
 
-          {/* Apparato pills (2 boxes) */}
-          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-2">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wide mb-2">Top Apparato DA</div>
-              <div className="flex flex-wrap gap-2">
-                {topAppDa.map((it: any) => (
-                  <ApparatoPill
-                    key={`da-${it.name}`}
-                    side="DA"
-                    value={it.name}
-                    stats={it}
-                    disabled={false}
-                    onClick={() => setApparatoDa(it.name)}
-                  />
-                ))}
-                {topAppDa.length === 0 && <div className="text-[12px] text-slate-500">—</div>}
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-2">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wide mb-2">Top Apparato A</div>
-              <div className="flex flex-wrap gap-2">
-                {topAppA.map((it: any) => (
-                  <ApparatoPill
-                    key={`a-${it.name}`}
-                    side="A"
-                    value={it.name}
-                    stats={it}
-                    disabled={false}
-                    onClick={() => setApparatoA(it.name)}
-                  />
-                ))}
-                {topAppA.length === 0 && <div className="text-[12px] text-slate-500">—</div>}
-              </div>
-            </div>
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/40 overflow-hidden">
+            {loading ? (
+              <div className="p-6 text-[12px] text-slate-400">Caricamento…</div>
+            ) : error ? (
+              <div className="p-6 text-[12px] text-amber-200">{error}</div>
+            ) : (
+              <IncaCaviTable
+                rows={filteredCavi}
+                viewMode={viewMode}
+                onChangeViewMode={setViewMode}
+                selectedId={selectedCable?.id || null}
+                onSelectRow={(r) => setSelectedCable(r)}
+              />
+            )}
           </div>
         </div>
       </div>
 
-      {/* NEW: Power table with 3 views */}
-      <div className="mt-3">
-        <IncaCaviTable
-          rows={filteredCavi}
-          loading={loading}
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-          onRowClick={(r) => setSelectedCable(r)}
-          title="Cavi"
-        />
-      </div>
-
-      {/* Details panel */}
-      {selectedCable && (
-        <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-[11px] text-slate-500 uppercase tracking-wide">Dettaglio cavo</div>
-              <div className="text-lg font-semibold text-slate-50">{selectedCable.codice ?? "—"}</div>
-              <div className="text-[12px] text-slate-400">{(selectedCable as any).descrizione || "—"}</div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setSelectedCable(null)}
-              className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[12px] text-slate-200"
-            >
-              Chiudi
-            </button>
-          </div>
-
-          <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-2">
-            <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wide">Data posa (ultimo)</div>
-              <div className="text-[13px] text-slate-100 font-semibold">{selectedCable.data_posa ? formatDateIT(selectedCable.data_posa) : "—"}</div>
-            </div>
-
-            <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wide">Capo</div>
-              <div className="text-[13px] text-slate-100 font-semibold">{norm(selectedCable.capo_label) || "—"}</div>
-            </div>
-
-            <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wide">Metri</div>
-              <div className="text-[13px] text-slate-100 font-semibold">
-                teo {formatMeters(selectedCable.metri_teo)} · dis {formatMeters(selectedCable.metri_dis)}
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wide">Tipo cavo</div>
-              <div className="text-[13px] text-slate-100 font-semibold">{tipoCavoLabel(selectedCable)}</div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Apparato popover */}
       <ApparatoCaviPopover
         open={apparatoPopoverOpen}
-        anchorRect={apparatoAnchorRect}
-        incaFileId={fileId}
         side={apparatoPopoverSide}
-        apparato={apparatoPopoverName}
+        apparatoName={apparatoPopoverName}
+        anchorRect={apparatoAnchorRect}
         onClose={() => setApparatoPopoverOpen(false)}
+        onSelect={(name) => {
+          if (apparatoPopoverSide === "DA") setApparatoDa(name);
+          else setApparatoA(name);
+        }}
+        maps={apparatoPMaps as any}
       />
     </div>
   );

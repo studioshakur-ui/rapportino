@@ -180,93 +180,102 @@ const COPY: Record<
     s2FooterRight: "GUIDATO DA POLICY",
   },
   fr: {
-    eyebrow: "Système opérationnel de chantier",
-    title: "CORE",
-    subtitle: "contrôle opérationnel du chantier.",
-    valueLines: ["Rapportini validés.", "Preuves consultables."],
-    accessNote: "Accès réservé · visibilité par rôles autorisés",
-    ctaPrimary: "Accéder",
-    ctaSecondary: "Demander l’accès",
+  eyebrow: "Système opérationnel de chantier",
+  title: "CORE",
+  subtitle: "contrôle opérationnel du chantier.",
+  valueLines: ["Rapportini validés.", "Preuves consultables."],
+  accessNote: "Accès réservé · visibilité par rôles autorisés",
+  ctaPrimary: "Accéder",
+  ctaSecondary: "Demander l’accès",
 
-    spec: "Un seul flux · Une seule donnée · Aucune reconstruction",
-    nodes: ["CAPO", "UFFICIO", "CORE DRIVE", "DIREZIONE"],
-    nodeSubs: ["Saisit", "Valide", "Archive", "Lit"],
+  spec: "Un seul flux · Une seule donnée · Aucune reconstruction",
+  nodes: ["CAPO", "UFFICIO", "CORE DRIVE", "DIREZIONE"],
+  nodeSubs: ["Saisit", "Valide", "Archive", "Lit"],
 
-    closureTitle: "CORE n’est pas un logiciel.",
-    closureSub: "C’est un organe opérationnel du chantier.",
-    closureLine: "",
+  closureTitle: "CORE n’est pas un logiciel.",
+  closureSub: "C’est le système opérationnel du chantier.",
+  closureLine: "",
 
-    footerLeft: "Accès réservé au personnel et partenaires autorisés.",
-    footerRight: "CORE · Opérations de chantier",
+  footerLeft: "Accès réservé au personnel et partenaires autorisés.",
+  footerRight: "CORE · Opérations de chantier",
 
-    s2Title: "CORE · Couche de Contrôle",
-    s2Subtitle: "Contrôles automatiques. Preuves vérifiables. Aucune reconstruction.",
+  // ===== SECTION 2 =====
 
-    s2KickerRight: "Accès par rôles · Traçabilité complète · Export signé",
-    s2Tabs: {
-      identity: "Identité",
-      operational: "Opérationnel",
-      evidence: "Preuves",
-      anomalies: "Anomalies",
-    },
-    s2Badges: {
-      identity: "ACCÈS PAR RÔLE",
-      operational: "TRAÇABILITÉ LINÉAIRE",
-      evidence: "PRÊT POUR AUDIT",
-      anomalies: "TRAÇABLE",
-    },
-    s2Identity: {
-      title: "Identité & rôles",
-      body: "Chaque action est autorisée uniquement au bon rôle. Pas d’ambiguïté entre CAPO, UFFICIO et DIREZIONE.",
-      table: {
-        cols: ["Contrôle", "Condition", "Résultat"],
-        rows: [
-          ["Accès par rôle", "Rôle non autorisé", "BLOCK"],
-          ["Périmètre", "Navire non assigné", "BLOCK"],
-          ["Période", "Date hors plage", "WARN"],
-        ],
-      },
-    },
-    s2Operational: {
-      title: "Indice",
-      body: "Écarts expliqués par heures et activités.",
-      chartTitle: "Cohérence (échantillon)",
-      signals: {
-        s1K: "Signal",
-        s1V: "Écart prévu/produit",
-        s2K: "Action",
-        s2V: "Explication requise",
-        s3K: "Résultat",
-        s3V: "WARN · EXPLAIN",
-      },
-    },
-    s2Evidence: {
-      title: "Preuves",
-      body: "Chaque décision est appuyée par des preuves versionnées et des documents gelés, toujours consultables.",
-      table: {
-        cols: ["Preuve", "Format", "Garantie"],
-        rows: [
-          ["Rapport", "PDF", "Versioning"],
-          ["CORE Drive", "SHA-256", "Intégrité"],
-          ["Gel", "Lecture seule", "Non modifiable"],
-        ],
-      },
-    },
-    s2Anomalies: {
-      title: "Anomalies & réclamations",
-      body: "Les anomalies déclenchent un flux traçable : ouverture, revue, décision, clôture.",
-      table: {
-        cols: ["Événement", "Statut", "Responsable"],
-        rows: [
-          ["Anomalie", "Ouverte", "Capo / Ufficio"],
-          ["Revue", "En revue", "Manager"],
-          ["Décision", "Clôturée", "Direzione"],
-        ],
-      },
-    },
-    s2FooterLeft: "DÉFENDABLE EN AUDIT",
-    s2FooterRight: "GUIDÉ PAR POLITIQUE",
+  s2Title: "CORE · Couche de Contrôle",
+  s2Subtitle: "Contrôles. Preuves. Aucune reconstruction.",
+
+  s2KickerRight: "Accès par rôles · Traçabilité complète · Export signé",
+
+  s2Tabs: {
+    identity: "Identité",
+    operational: "Opérationnel",
+    evidence: "Preuves",
+    anomalies: "Anomalies",
   },
+
+  s2Badges: {
+    identity: "ACCÈS PAR RÔLE",
+    operational: "TRACCIABILITÉ LINÉAIRE",
+    evidence: "PRÊT POUR AUDIT",
+    anomalies: "TRAÇABLE",
+  },
+
+  s2Identity: {
+    title: "Identité & rôles",
+    body: "Accès par rôle. Zéro ambiguïté CAPO / UFFICIO / DIREZIONE.",
+    table: {
+      cols: ["Contrôle", "Condition", "Résultat"],
+      rows: [
+        ["Accès par rôle", "Rôle non autorisé", "BLOCK"],
+        ["Périmètre", "Navire non assigné", "BLOCK"],
+        ["Période", "Date hors plage", "WARN"],
+      ],
+    },
+  },
+
+  s2Operational: {
+    title: "Indice",
+    body: "Écarts justifiés par heures et activités.",
+    chartTitle: "Cohérence (échantillon)",
+    signals: {
+      s1K: "Signal",
+      s1V: "Écart prévu/produit",
+      s2K: "Action",
+      s2V: "Explication requise",
+      s3K: "Résultat",
+      s3V: "WARN · EXPLAIN",
+    },
+  },
+
+  s2Evidence: {
+    title: "Preuves",
+    body: "Décisions appuyées par preuves versionnées et documents gelés.",
+    table: {
+      cols: ["Preuve", "Format", "Garantie"],
+      rows: [
+        ["Rapport", "PDF", "Versioning"],
+        ["CORE Drive", "SHA-256", "Intégrité"],
+        ["Gel", "Lecture seule", "Non modifiable"],
+      ],
+    },
+  },
+
+  s2Anomalies: {
+    title: "Anomalies & réclamations",
+    body: "Flux traçable : ouverture → revue → décision → clôture.",
+    table: {
+      cols: ["Événement", "Statut", "Responsable"],
+      rows: [
+        ["Anomalie", "Ouverte", "Capo / Ufficio"],
+        ["Revue", "En revue", "Manager"],
+        ["Décision", "Clôturée", "Direzione"],
+      ],
+    },
+  },
+
+  s2FooterLeft: "DÉFENDABLE EN AUDIT",
+  s2FooterRight: "GUIDÉ PAR POLITIQUE",
+},
   en: {
     eyebrow: "Operational shipyard system",
     title: "CORE",
