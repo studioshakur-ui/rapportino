@@ -25,6 +25,7 @@ type ParsedCable = {
   metri_teo: number | null;
   metri_dis: number | null;
   situazione: string | null; // L/P/T/R/B/E or null (legacy NP)
+  progress_percent: number | null;
 };
 
 function json(status: number, body: unknown) {
@@ -64,21 +65,31 @@ function safeNumber(v: unknown): number | null {
   return n;
 }
 
-function normalizeSituazione(raw: unknown): { value: string | null; nonStandard?: string } {
+function normalizeSituazione(raw: unknown): { value: string | null; progress_percent: number | null; nonStandard?: string } {
   const s0 = String(raw ?? "").trim().toUpperCase();
   // Canon: empty cell means "L" (Libero / cavo disponibile)
-  if (!s0) return { value: "L" };
+  if (!s0) return { value: "L", progress_percent: null };
+
+  // Canonical mapping requested:
+  // - Excel 'P' => situazione 'P' + progress 100
+  // - Excel '5' => situazione 'P' + progress 50
+  // - Excel '7' => situazione 'P' + progress 70
+  if (s0 === "P") return { value: "P", progress_percent: 100 };
+  if (s0 === "5") return { value: "P", progress_percent: 50 };
+  if (s0 === "7") return { value: "P", progress_percent: 70 };
 
   const s = s0[0];
-  if (["L", "P", "T", "R", "B", "E"].includes(s)) return { value: s };
+  if (["L", "P", "T", "R", "B", "E"].includes(s)) {
+    return { value: s, progress_percent: s === "P" ? 100 : null };
+  }
 
-  if (s0.includes("POS")) return { value: "P" };
-  if (s0.includes("DA") && s0.includes("POS")) return { value: "T" };
-  if (s0.includes("RIP")) return { value: "R" };
-  if (s0.includes("BLO")) return { value: "B" };
-  if (s0.includes("ESEG")) return { value: "E" };
+  if (s0.includes("POS")) return { value: "P", progress_percent: 100 };
+  if (s0.includes("DA") && s0.includes("POS")) return { value: "T", progress_percent: null };
+  if (s0.includes("RIP")) return { value: "R", progress_percent: null };
+  if (s0.includes("BLO")) return { value: "B", progress_percent: null };
+  if (s0.includes("ESEG")) return { value: "E", progress_percent: null };
 
-  return { value: "L", nonStandard: s0 };
+  return { value: "L", progress_percent: null, nonStandard: s0 };
 }
 
 function buildGroupKey(costr: string, commessa: string, projectCode: string) {
@@ -237,7 +248,7 @@ function parseXlsxCables(arrayBuffer: ArrayBuffer) {
     );
 
     const statoRaw = pickFirst(row, ["STATO_CANTIERE", "SITUAZIONE", "STATO", "STATO_INCA"]);
-    const { value: situazione, nonStandard } = normalizeSituazione(statoRaw);
+    const { value: situazione, progress_percent, nonStandard } = normalizeSituazione(statoRaw);
     if (nonStandard) nonStandardStatuses.add(nonStandard);
 
     parsed.push({
@@ -257,6 +268,7 @@ function parseXlsxCables(arrayBuffer: ArrayBuffer) {
       metri_teo: metriTeo,
       metri_dis: metriDis,
       situazione,
+      progress_percent,
     });
   }
 
@@ -631,6 +643,7 @@ serve(
       metri_teo: c.metri_teo,
       metri_dis: c.metri_dis,
       situazione: c.situazione,
+      progress_percent: c.progress_percent,
     }));
 
     for (let i = 0; i < payload.length; i += 1000) {

@@ -916,73 +916,10 @@ serve(
       }
     }
 
-    const payload = uniqueCables.map((c) => {
-      const prev = prevBy.get(c.codice) ?? null;
-      const merged = mergeNonDestructive(prev, c);
-      return {
-        inca_file_id: headId,
-        costr,
-        commessa,
-        codice: merged.codice,
-        codice_inca: merged.codice_inca,
-        marca_cavo: merged.marca_cavo,
-        descrizione: merged.descrizione,
-        tipo: merged.tipo,
-        sezione: merged.sezione,
-        livello_disturbo: merged.livello_disturbo,
-        stato_tec: merged.stato_tec,
-        stato_cantiere: merged.stato_cantiere,
-        impianto: merged.impianto,
-        zona_da: merged.zona_da,
-        zona_a: merged.zona_a,
-        apparato_da: merged.apparato_da,
-        apparato_a: merged.apparato_a,
-        descrizione_da: merged.descrizione_da,
-        descrizione_a: merged.descrizione_a,
-        metri_teo: merged.metri_teo,
-        metri_dis: merged.metri_dis,
-        wbs: merged.wbs,
-        pagina_pdf: merged.pagina_pdf,
-        situazione: merged.situazione,
-        progress_percent: (merged as any).progress_percent ?? null,
-      };
-    });
-
-    // UPSERT chunks
-    for (let i = 0; i < payload.length; i += 1000) {
-      const chunk = payload.slice(i, i + 1000);
-      const up = await admin.from("inca_cavi").upsert(chunk as any, { onConflict: "inca_file_id,codice" });
-      if (up.error) return json(500, { ok: false, error: "inca_cavi upsert failed", detail: up.error.message });
-    }
-
-    // Stamp imported rows
-    for (let i = 0; i < importedCodes.length; i += 500) {
-      const codesChunk = importedCodes.slice(i, i + 500);
-      const stamp = await admin
-        .from("inca_cavi")
-        .update({
-          missing_in_latest_import: false,
-          last_seen_in_import_at: nowIso,
-          last_import_id: runId,
-          flag_changed_in_source: false,
-        } as any)
-        .eq("inca_file_id", headId)
-        .in("codice", codesChunk);
-
-      if (stamp.error) console.warn("inca_cavi stamp-import failed:", stamp.error.message);
-    }
-
-    // Mark changed rows
-    const changedCodes = diff.changed.map((x) => x.codice);
-    for (let i = 0; i < changedCodes.length; i += 500) {
-      const codesChunk = changedCodes.slice(i, i + 500);
-      const mark = await admin
-        .from("inca_cavi")
-        .update({ flag_changed_in_source: true, last_import_id: runId } as any)
-        .eq("inca_file_id", headId)
-        .in("codice", codesChunk);
-      if (mark.error) console.warn("inca_cavi mark-changed failed:", mark.error.message);
-    }
+    // OPTION B (HEAD-ONLY): we do NOT mutate the head dataset.
+    // - Head remains the stable truth shown in cockpit.
+    // - The uploaded dataset is stored as an ARCHIVE file (previous_inca_file_id=headId) + its own inca_cavi.
+    // - We still compute a diff vs head to drive the audit UI.
 
     return json(200, {
       ok: true,

@@ -94,13 +94,17 @@ const COPY: Record<
   it: {
     eyebrow: "Sistema operativo di cantiere",
     title: "CORE",
-    subtitle: "controllo operativo del cantiere.",
-    valueLines: ["Rapportini validati.", "Evidenze consultabili."],
-    accessNote: "Accesso riservato · visibilità per ruoli autorizzati",
+    // ✅ plus premium (et évite la répétition avec l’eyebrow)
+    subtitle: "Sistema operativo del cantiere.",
+    // ✅ on coupe le bruit (ça fait “SaaS slogans”)
+    valueLines: [],
+    // ✅ on coupe l’admin note sur landing
+    accessNote: "",
     ctaPrimary: "Accedi",
     ctaSecondary: "Richiedi accesso",
 
-    spec: "Un solo flusso · Un solo dato · Nessuna ricostruzione",
+    // ✅ une seule fois, plus court
+    spec: "Un solo flusso · Un solo dato",
     nodes: ["CAPO", "UFFICIO", "CORE DRIVE", "DIREZIONE"],
     nodeSubs: ["Inserisce", "Valida", "Archivia", "Legge"],
 
@@ -108,11 +112,13 @@ const COPY: Record<
     closureSub: "È il sistema operativo del cantiere.",
     closureLine: "",
 
-    footerLeft: "Accesso riservato a personale e partner autorizzati.",
+    // ✅ footer ultra-minimal
+    footerLeft: "",
     footerRight: "CORE · Operazioni di cantiere",
 
     s2Title: "CORE · Livello di Controllo",
-    s2Subtitle: "Controlli automatici. Prove verificabili. Nessuna ricostruzione.",
+    // ✅ on enlève la répétition “nessuna ricostruzione”
+    s2Subtitle: "",
 
     s2KickerRight: "Accesso per ruoli · Tracciabilità completa · Export firmato",
     s2Tabs: {
@@ -179,16 +185,17 @@ const COPY: Record<
     s2FooterLeft: "DIFENDIBILE IN AUDIT",
     s2FooterRight: "GUIDATO DA POLICY",
   },
+
   fr: {
     eyebrow: "Système opérationnel de chantier",
     title: "CORE",
-    subtitle: "contrôle opérationnel du chantier.",
-    valueLines: ["Rapportini validés.", "Preuves consultables."],
-    accessNote: "Accès réservé · visibilité par rôles autorisés",
+    subtitle: "Système opérationnel du chantier.",
+    valueLines: [],
+    accessNote: "",
     ctaPrimary: "Accéder",
     ctaSecondary: "Demander l’accès",
 
-    spec: "Un seul flux · Une seule donnée · Aucune reconstruction",
+    spec: "Un seul flux · Une seule donnée",
     nodes: ["CAPO", "UFFICIO", "CORE DRIVE", "DIREZIONE"],
     nodeSubs: ["Saisit", "Valide", "Archive", "Lit"],
 
@@ -196,11 +203,11 @@ const COPY: Record<
     closureSub: "C’est le système opérationnel du chantier.",
     closureLine: "",
 
-    footerLeft: "Accès réservé au personnel et partenaires autorisés.",
+    footerLeft: "",
     footerRight: "CORE · Opérations de chantier",
 
     s2Title: "CORE · Couche de Contrôle",
-    s2Subtitle: "Contrôles. Preuves. Aucune reconstruction.",
+    s2Subtitle: "",
 
     s2KickerRight: "Accès par rôles · Traçabilité complète · Export signé",
     s2Tabs: {
@@ -267,16 +274,17 @@ const COPY: Record<
     s2FooterLeft: "DÉFENDABLE EN AUDIT",
     s2FooterRight: "GUIDÉ PAR POLITIQUE",
   },
+
   en: {
     eyebrow: "Operational shipyard system",
     title: "CORE",
-    subtitle: "operational control of the shipyard.",
-    valueLines: ["Validated reports.", "Consultable evidence."],
-    accessNote: "Restricted access · authorized roles",
+    subtitle: "Operational system of the shipyard.",
+    valueLines: [],
+    accessNote: "",
     ctaPrimary: "Login",
     ctaSecondary: "Request access",
 
-    spec: "One flow · One data · No reconstruction",
+    spec: "One flow · One data",
     nodes: ["CAPO", "UFFICIO", "CORE DRIVE", "DIREZIONE"],
     nodeSubs: ["Inputs", "Validates", "Archives", "Reads"],
 
@@ -284,11 +292,11 @@ const COPY: Record<
     closureSub: "It is the operational system of the shipyard.",
     closureLine: "",
 
-    footerLeft: "Restricted access to staff and authorized partners.",
+    footerLeft: "",
     footerRight: "CORE · Shipyard operations",
 
     s2Title: "CORE · Control Layer",
-    s2Subtitle: "Automatic controls. Verifiable evidence. No reconstruction.",
+    s2Subtitle: "",
 
     s2KickerRight: "Role access · Full traceability · Signed export",
     s2Tabs: {
@@ -442,18 +450,14 @@ export default function Landing(): JSX.Element {
       <div className="relative z-10 mx-auto max-w-6xl px-6 pt-16 pb-16">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
           <div className="lg:col-span-5">
-            <div className="text-[11px] uppercase tracking-[0.26em] text-slate-500">{t.eyebrow}</div>
+            {/* ✅ supprimé : eyebrow répété ici */}
 
             <div className="mt-4">
               <CoreWordmark title={t.title} />
               <div className="mt-3 text-xl text-slate-300">{t.subtitle}</div>
             </div>
 
-            <div className="mt-10 space-y-4 text-2xl text-slate-100">
-              {t.valueLines.map((x) => (
-                <div key={x}>{x}</div>
-              ))}
-            </div>
+            {/* ✅ supprimé : valueLines (bruit) */}
 
             <div className="mt-10 flex items-center gap-4">
               <Link to="/login" className={cx("rounded-full px-7 py-3 text-sm font-semibold", buttonPrimary)}>
@@ -468,7 +472,7 @@ export default function Landing(): JSX.Element {
               </a>
             </div>
 
-            <div className="mt-4 text-sm text-slate-500">{t.accessNote}</div>
+            {/* ✅ supprimé : accessNote (admin noise) */}
           </div>
 
           <div className="lg:col-span-7">
@@ -493,8 +497,8 @@ export default function Landing(): JSX.Element {
           {t.closureLine ? <div className="mt-4 text-lg text-slate-500">{t.closureLine}</div> : null}
         </div>
 
-        <div className="mt-16 flex items-center justify-between border-t border-slate-800/70 pt-6 text-[12px] text-slate-500">
-          <div>{t.footerLeft}</div>
+        {/* ✅ footer minimal : on enlève le texte admin */}
+        <div className="mt-16 flex items-center justify-end border-t border-slate-800/70 pt-6 text-[12px] text-slate-500">
           <div>{t.footerRight}</div>
         </div>
       </div>

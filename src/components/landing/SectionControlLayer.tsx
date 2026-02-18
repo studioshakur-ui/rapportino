@@ -35,7 +35,6 @@ type T = {
     title: string;
     body: string;
     chartTitle: string;
-    // Three compact “signals” under the chart.
     signals: {
       s1K: string;
       s1V: string;
@@ -110,8 +109,6 @@ function useIsCoarsePointer(): boolean {
 }
 
 function buildOperationalChartOption(): Record<string, unknown> {
-  // Minimal, deterministic curves that rise and cross.
-  // No tooltip, no axes, no animation: “instrument-grade”.
   const x = ["L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8"];
   const planned = [12, 18, 26, 34, 42, 50, 58, 66];
   const produced = [8, 16, 28, 38, 46, 52, 56, 60];
@@ -334,7 +331,6 @@ export function ControlLayerSection({ t }: Props): JSX.Element {
   const [active, setActive] = useState(0);
   const hoverLockRef = useRef(false);
 
-  // Auto-advance ONLY on desktop pointer and only if motion is allowed.
   useEffect(() => {
     if (reduceMotion) return;
     if (coarse) return;
@@ -345,7 +341,6 @@ export function ControlLayerSection({ t }: Props): JSX.Element {
     return () => window.clearInterval(id);
   }, [coarse, reduceMotion, slides.length]);
 
-  // Local mouse vars for subtle edge light (section-only), without React re-render.
   const rootRef = useRef<HTMLDivElement | null>(null);
   const rafRef = useRef<number | null>(null);
   useEffect(() => {
@@ -371,7 +366,6 @@ export function ControlLayerSection({ t }: Props): JSX.Element {
     };
   }, []);
 
-  // Mobile slider (scroll-snap). Tabs scroll to the right slide.
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const onScrollRaf = useRef<number | null>(null);
   const syncActiveFromScroll = () => {
@@ -395,20 +389,20 @@ export function ControlLayerSection({ t }: Props): JSX.Element {
 
   const activeSlide = slides[active] ?? slides[0];
 
+  const hasSubtitle = Boolean((t.s2Subtitle || "").trim());
+  const hasKickerRight = Boolean((t.s2KickerRight || "").trim());
+  const hasFooters = Boolean((t.s2FooterLeft || "").trim() || (t.s2FooterRight || "").trim());
+
   return (
     <RevealOnScroll className="relative">
       <div
         ref={rootRef}
         className="rounded-3xl border border-slate-800/70 bg-slate-950/25 backdrop-blur p-7 md:p-9"
         style={{
-          // fallback for edge light
-          // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
           ["--cl-mx" as unknown as string]: "50%",
-          // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
           ["--cl-my" as unknown as string]: "35%",
         }}
       >
-        {/* Minimal motion: one rare “surge” only (not a continuous dash) */}
         <style>{`
           @keyframes clSurge {
             0% { opacity: 0; }
@@ -425,20 +419,24 @@ export function ControlLayerSection({ t }: Props): JSX.Element {
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
           <div>
             <div className="text-3xl md:text-4xl font-semibold tracking-tight text-slate-100">{t.s2Title}</div>
-            <div className="mt-2 text-base text-slate-400 max-w-2xl">{t.s2Subtitle}</div>
+
+            {/* ✅ Bruit supprimé si vide (comme dans ton COPY) */}
+            {hasSubtitle ? <div className="mt-2 text-base text-slate-400 max-w-2xl">{t.s2Subtitle}</div> : null}
           </div>
 
-          <div className="text-[11px] uppercase tracking-[0.26em] text-slate-500">{t.s2KickerRight}</div>
+          {/* ✅ KickerRight : souvent redondant → affiché uniquement si non vide */}
+          {hasKickerRight ? (
+            <div className="text-[11px] uppercase tracking-[0.26em] text-slate-500">{t.s2KickerRight}</div>
+          ) : null}
         </div>
 
-        {/* Tabs (works both mobile + desktop) */}
         <div className="mt-6 flex items-center gap-2 overflow-x-auto pb-1">
           {slides.map((s, idx) => (
             <TabButton key={s.key} label={s.tabLabel} active={idx === active} onClick={() => scrollToIndex(idx)} />
           ))}
         </div>
 
-        {/* Desktop: instrument panel */}
+        {/* Desktop */}
         <div className="mt-6 hidden lg:grid grid-cols-12 gap-6">
           <div className="col-span-4 space-y-3">
             {slides.map((s, idx) => {
@@ -460,13 +458,8 @@ export function ControlLayerSection({ t }: Props): JSX.Element {
                     isActive ? "border-sky-500/28 bg-slate-950/55" : "border-slate-800 bg-slate-950/38 hover:border-slate-700"
                   )}
                 >
-                  <div className="relative z-10 flex items-center justify-between gap-3">
-                    <div className="text-[12px] uppercase tracking-[0.24em] text-slate-400">{s.title}</div>
-                    <span className="shrink-0 inline-flex items-center rounded-full border border-slate-800 bg-slate-950/55 px-3 py-1.5">
-                      <span className="text-[10px] uppercase tracking-[0.22em] text-slate-400">{s.badge}</span>
-                    </span>
-                  </div>
-                  <div className="relative z-10 mt-2 text-sm text-slate-300 leading-relaxed">{s.body}</div>
+                  {/* ✅ On enlève badge + body à gauche (doublon avec panneau de droite) */}
+                  <div className="text-[12px] uppercase tracking-[0.24em] text-slate-300">{s.title}</div>
                 </button>
               );
             })}
@@ -474,7 +467,6 @@ export function ControlLayerSection({ t }: Props): JSX.Element {
 
           <div className="col-span-8">
             <div className="relative rounded-2xl border border-slate-800 bg-slate-950/35 backdrop-blur p-6 shadow-[0_28px_90px_rgba(2,6,23,0.62)]">
-              {/* Ultra subtle edge light */}
               <div
                 aria-hidden="true"
                 className="pointer-events-none absolute -inset-px rounded-2xl"
@@ -489,7 +481,6 @@ export function ControlLayerSection({ t }: Props): JSX.Element {
                 }}
               />
 
-              {/* Rare surge line */}
               <svg
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-0 rounded-2xl"
@@ -526,22 +517,22 @@ export function ControlLayerSection({ t }: Props): JSX.Element {
                 />
               )}
 
-              <div className="relative z-10 mt-5 flex items-center justify-between">
-                <span className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{t.s2FooterLeft}</span>
-                <span className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{t.s2FooterRight}</span>
-              </div>
+              {/* ✅ footer de panneau affiché seulement si non vide */}
+              {hasFooters ? (
+                <div className="relative z-10 mt-5 flex items-center justify-between">
+                  <span className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{t.s2FooterLeft}</span>
+                  <span className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{t.s2FooterRight}</span>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
 
-        {/* Mobile: true slides (scroll-snap) */}
+        {/* Mobile */}
         <div className="mt-6 lg:hidden">
           <div
             ref={scrollerRef}
-            className={cx(
-              "overflow-x-auto snap-x snap-mandatory",
-              "-mx-7 px-7" // align with section padding
-            )}
+            className={cx("overflow-x-auto snap-x snap-mandatory", "-mx-7 px-7")}
             onScroll={() => {
               if (onScrollRaf.current != null) return;
               onScrollRaf.current = requestAnimationFrame(() => {
@@ -554,7 +545,6 @@ export function ControlLayerSection({ t }: Props): JSX.Element {
               {slides.map((s) => (
                 <div key={s.key} className="min-w-full snap-start">
                   <div className="relative rounded-2xl border border-slate-800 bg-slate-950/35 backdrop-blur p-6 shadow-[0_28px_90px_rgba(2,6,23,0.62)]">
-                    {/* Subtle edge light */}
                     <div
                       aria-hidden="true"
                       className="pointer-events-none absolute -inset-px rounded-2xl"
@@ -569,7 +559,6 @@ export function ControlLayerSection({ t }: Props): JSX.Element {
                       }}
                     />
 
-                    {/* Rare surge only if motion allowed */}
                     {!reduceMotion && (
                       <svg
                         aria-hidden="true"
@@ -608,17 +597,19 @@ export function ControlLayerSection({ t }: Props): JSX.Element {
                       />
                     )}
 
-                    <div className="relative z-10 mt-5 flex items-center justify-between">
-                      <span className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{t.s2FooterLeft}</span>
-                      <span className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{t.s2FooterRight}</span>
-                    </div>
+                    {/* ✅ footer mobile aussi conditionnel */}
+                    {hasFooters ? (
+                      <div className="relative z-10 mt-5 flex items-center justify-between">
+                        <span className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{t.s2FooterLeft}</span>
+                        <span className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{t.s2FooterRight}</span>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* tiny pagination hint */}
           <div className="mt-3 flex items-center justify-center gap-2">
             {slides.map((_, idx) => (
               <button
