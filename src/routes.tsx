@@ -47,6 +47,7 @@ import UfficioRapportiniList from "./ufficio/UfficioRapportiniList";
 import UfficioRapportinoDetail from "./ufficio/UfficioRapportinoDetail";
 import UfficioIncaHub from "./ufficio/UfficioIncaHub";
 import UfficioIncaDiffPage from "./ufficio/UfficioIncaDiffPage";
+import UfficioIncaAuditPage from "./ufficio/UfficioIncaAuditPage";
 
 // DIREZIONE
 import DirectionDashboard from "./components/DirectionDashboard";
@@ -176,6 +177,7 @@ export default function AppRoutes(): JSX.Element {
         <Route path="inca-hub" element={<UfficioIncaHub />} />
 
         <Route path="inca-diff" element={<UfficioIncaDiffPage />} />
+        <Route path="inca-audit" element={<UfficioIncaAuditPage />} />
 
         {/* CORE DRIVE */}
         <Route path="core-drive" element={<ArchivePage />} />

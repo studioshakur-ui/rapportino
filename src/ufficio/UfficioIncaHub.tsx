@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 
 import LoadingScreen from "../components/LoadingScreen";
@@ -478,13 +479,22 @@ export default function UfficioIncaHub(): JSX.Element {
               ) : null}
             </div>
 
-            <button
-              type="button"
-              onClick={() => setCockpitOpen(true)}
-              className="rounded-xl border border-sky-500/70 bg-sky-500/15 px-3 py-2 text-[12px] text-sky-100 hover:bg-sky-500/20"
-            >
-              Apri cockpit
-            </button>
+            <div className="flex items-center gap-2">
+              <Link
+                to={`/ufficio/inca-audit?headId=${encodeURIComponent(selectedFileId || "")}`}
+                className="rounded-xl border border-slate-700/70 bg-white/5 px-3 py-2 text-[12px] font-semibold text-slate-200 hover:bg-white/10"
+              >
+                Audit archives
+              </Link>
+
+              <button
+                type="button"
+                onClick={() => setCockpitOpen(true)}
+                className="rounded-xl border border-sky-500/70 bg-sky-500/15 px-3 py-2 text-[12px] text-sky-100 hover:bg-sky-500/20"
+              >
+                Apri cockpit (HEAD)
+              </button>
+            </div>
           </div>
         )}
       </div>

@@ -40,6 +40,10 @@ type ParsedCable = {
   // Canon: nullable. null == L (and contributes to NP)
   situazione: "P" | "T" | "R" | "B" | "E" | null;
   situazione_raw: string | null;
+
+  // Progress derived from stato cantiere (5 => 50%, 7 => 70%, P => 100%).
+  // NOTE: when progress is 50/70, situazione must be treated as P in UI.
+  progress_percent: 50 | 70 | 100 | null;
 };
 
 type DiffItem = {
@@ -115,6 +119,27 @@ function normalizeSituazione(raw: unknown): { value: ParsedCable["situazione"]; 
   return { value: null, raw: s0 };
 }
 
+function normalizeProgressFromStatoCantiere(raw: unknown): {
+  progress: ParsedCable["progress_percent"];
+  situazione: ParsedCable["situazione"];
+  raw: string | null;
+} {
+  const s0 = String(raw ?? "").trim().toUpperCase();
+  if (!s0) return { progress: null, situazione: null, raw: null };
+
+  // Confirmed rule (user):
+  // - Excel shows 5 => progress 50% (situazione must be P)
+  // - Excel shows 7 => progress 70% (situazione must be P)
+  // - Excel shows P => progress 100% (situazione P)
+  // - Otherwise: canonical mapping for T/R/B/E/L
+  if (s0 === "5" || s0.startsWith("5 ") || s0.startsWith("5%")) return { progress: 50, situazione: "P", raw: s0 };
+  if (s0 === "7" || s0.startsWith("7 ") || s0.startsWith("7%")) return { progress: 70, situazione: "P", raw: s0 };
+  if (s0[0] === "P") return { progress: 100, situazione: "P", raw: s0 };
+
+  const { value, raw: r } = normalizeSituazione(s0);
+  return { progress: null, situazione: value, raw: r };
+}
+
 function buildGroupKey(costr: string, commessa: string, projectCode: string) {
   const a = normText(costr).toLowerCase();
   const b = normText(commessa).toLowerCase();
@@ -169,7 +194,8 @@ function parseXlsxCables(arrayBuffer: ArrayBuffer) {
 
   const headerKeyScore = (k: string): number => {
     if (k === "MARCA_CAVO" || k === "MARCA" || k === "MARCA_PEZZO" || k === "CODICE" || k === "CODICE_CAVO") return 6;
-    if (k === "STATO_CANTIERE" || k === "SITUAZIONE" || k === "SITUAZIONE_CAVO" || k === "STATO") return 6;
+    // Status column is mandatory for our naval-grade sync rules (P/T/R/B/E + progress 5/7).
+    if (k === "STATO_CANTIERE" || k === "SITUAZIONE" || k === "SITUAZIONE_CAVO" || k === "STATO") return 7;
     if (k.startsWith("LUNGHEZZA")) return 2;
     if (k === "TIPO" || k === "TIPO_CAVO" || k === "SEZIONE") return 1;
     if (k === "WBS") return 1;
@@ -217,6 +243,8 @@ function parseXlsxCables(arrayBuffer: ArrayBuffer) {
 
   const parsed: ParsedCable[] = [];
   const nonStandardSituazioneRaw = new Set<string>();
+  const seenCodici = new Set<string>();
+  const duplicateCodici = new Set<string>();
 
   for (const r of rows) {
     const row = buildRowCanonical(r);
@@ -224,6 +252,9 @@ function parseXlsxCables(arrayBuffer: ArrayBuffer) {
     const codiceRaw = pickFirst(row, ["MARCA_CAVO", "MARCA", "MARCA_PEZZO", "CODICE", "CODICE_CAVO", "CAVO"]);
     const codice = normText(codiceRaw);
     if (!codice) continue;
+
+    if (seenCodici.has(codice)) duplicateCodici.add(codice);
+    else seenCodici.add(codice);
 
     const codiceInca = normText(pickFirst(row, ["CODICE_CAVO", "CODICE_INCA"])) || null;
     const marcaCavo = normText(pickFirst(row, ["MARCA_CAVO", "MARCA"])) || null;
@@ -234,12 +265,12 @@ function parseXlsxCables(arrayBuffer: ArrayBuffer) {
     const livelloDisturbo = normText(pickFirst(row, ["LIVELLO_DISTURBO"])) || null;
 
     const statoTec = normText(pickFirst(row, ["STATO_TEC"])) || null;
-    const statoCantiere = normText(pickFirst(row, ["STATO_CANTIERE"])) || null;
+    const statoCantiereRaw = normText(pickFirst(row, ["STATO_CANTIERE"])) || null;
 
-    // Situazione: by canon, we prioritize STATO_CANTIERE if it looks like P/T/R/B/E/L.
+    // Stato cantiere is also the source of progress (5/7/P). We keep raw + normalized.
     const rawSitCandidate = pickFirst(row, ["STATO_CANTIERE", "SITUAZIONE_CAVO", "SITUAZIONE", "STATO"]);
-    const { value: situazione, raw: situazioneRaw } = normalizeSituazione(rawSitCandidate);
-    if (situazioneRaw && situazione === null && situazioneRaw !== "L") nonStandardSituazioneRaw.add(situazioneRaw);
+    const { progress: progressPercent, situazione, raw: situazioneRaw } = normalizeProgressFromStatoCantiere(rawSitCandidate);
+    if (situazioneRaw && progressPercent === null && situazione === null && situazioneRaw !== "L") nonStandardSituazioneRaw.add(situazioneRaw);
 
     const impianto = normText(pickFirst(row, ["IMPIANTO", "PLANT"])) || null;
 
@@ -267,7 +298,7 @@ function parseXlsxCables(arrayBuffer: ArrayBuffer) {
       sezione,
       livello_disturbo: livelloDisturbo || null,
       stato_tec: statoTec || null,
-      stato_cantiere: statoCantiere || null,
+      stato_cantiere: statoCantiereRaw || null,
       impianto,
       zona_da: zonaDa,
       zona_a: zonaA,
@@ -281,6 +312,7 @@ function parseXlsxCables(arrayBuffer: ArrayBuffer) {
       pagina_pdf: paginaPdf,
       situazione,
       situazione_raw: situazioneRaw,
+      progress_percent: progressPercent,
     });
   }
 
@@ -290,6 +322,7 @@ function parseXlsxCables(arrayBuffer: ArrayBuffer) {
     totalRows: rows.length,
     cables: parsed,
     nonStandardSituazioneRaw: [...nonStandardSituazioneRaw],
+    duplicateCodici: [...duplicateCodici].sort(),
   };
 }
 
@@ -304,9 +337,121 @@ function computeCounts(cables: ParsedCable[]) {
   return counts;
 }
 
+function computeProgressCounts(cables: ParsedCable[]) {
+  const out: Record<string, number> = { p50: 0, p70: 0, p100: 0, pNull: 0 };
+  for (const c of cables) {
+    if (c.progress_percent === 50) out.p50 += 1;
+    else if (c.progress_percent === 70) out.p70 += 1;
+    else if (c.progress_percent === 100) out.p100 += 1;
+    else out.pNull += 1;
+  }
+  return out;
+}
+
+function dedupeByCodice(cables: ParsedCable[]) {
+  // If the same codice appears multiple times in the XLSX, we must collapse it.
+  // Strategy: keep the row that has more non-empty data; keep MAX progress.
+  const score = (c: ParsedCable) => {
+    let s = 0;
+    const bump = (v: unknown) => {
+      if (v === null || v === undefined) return;
+      if (typeof v === "string" && !v.trim()) return;
+      s += 1;
+    };
+    bump(c.codice_inca);
+    bump(c.marca_cavo);
+    bump(c.descrizione);
+    bump(c.tipo);
+    bump(c.sezione);
+    bump(c.livello_disturbo);
+    bump(c.stato_tec);
+    bump(c.stato_cantiere);
+    bump(c.impianto);
+    bump(c.zona_da);
+    bump(c.zona_a);
+    bump(c.apparato_da);
+    bump(c.apparato_a);
+    bump(c.descrizione_da);
+    bump(c.descrizione_a);
+    if (c.metri_teo != null) s += 1;
+    if (c.metri_dis != null) s += 1;
+    bump(c.wbs);
+    bump(c.pagina_pdf);
+    bump(c.situazione);
+    if (c.progress_percent != null) s += 1;
+    return s;
+  };
+
+  const by = new Map<string, ParsedCable>();
+  const duplicates: string[] = [];
+
+  const keepStr = (a: string | null, b: string | null) => {
+    const as = (a ?? "").trim();
+    if (as) return a;
+    const bs = (b ?? "").trim();
+    if (bs) return b;
+    return null;
+  };
+
+  for (const c of cables) {
+    const k = c.codice;
+    const prev = by.get(k);
+    if (!prev) {
+      by.set(k, c);
+      continue;
+    }
+
+    duplicates.push(k);
+
+    const a = prev;
+    const b = c;
+    const best = score(b) > score(a) ? b : a;
+    const other = best === a ? b : a;
+
+    const merged: ParsedCable = {
+      ...best,
+      codice_inca: keepStr(best.codice_inca, other.codice_inca),
+      marca_cavo: keepStr(best.marca_cavo, other.marca_cavo),
+      descrizione: keepStr(best.descrizione, other.descrizione),
+      tipo: keepStr(best.tipo, other.tipo),
+      sezione: keepStr(best.sezione, other.sezione),
+      livello_disturbo: keepStr(best.livello_disturbo, other.livello_disturbo),
+      stato_tec: keepStr(best.stato_tec, other.stato_tec),
+      stato_cantiere: keepStr(best.stato_cantiere, other.stato_cantiere),
+      impianto: keepStr(best.impianto, other.impianto),
+      zona_da: keepStr(best.zona_da, other.zona_da),
+      zona_a: keepStr(best.zona_a, other.zona_a),
+      apparato_da: keepStr(best.apparato_da, other.apparato_da),
+      apparato_a: keepStr(best.apparato_a, other.apparato_a),
+      descrizione_da: keepStr(best.descrizione_da, other.descrizione_da),
+      descrizione_a: keepStr(best.descrizione_a, other.descrizione_a),
+      wbs: keepStr(best.wbs, other.wbs),
+      pagina_pdf: keepStr(best.pagina_pdf, other.pagina_pdf),
+      metri_teo: best.metri_teo ?? other.metri_teo ?? null,
+      metri_dis: best.metri_dis ?? other.metri_dis ?? null,
+      progress_percent: (Math.max(best.progress_percent ?? 0, other.progress_percent ?? 0) || null) as any,
+    };
+
+    if (best.situazione === "P" || other.situazione === "P") merged.situazione = "P";
+    else merged.situazione = best.situazione ?? other.situazione ?? null;
+
+    by.set(k, merged);
+  }
+
+  duplicates.sort();
+  const distinct = [...new Set(duplicates)];
+  return {
+    unique: [...by.values()],
+    duplicateCount: duplicates.length,
+    duplicateDistinct: distinct.length,
+    sampleCodici: distinct.slice(0, 50),
+  };
+}
+
 function toDbComparable(c: ParsedCable) {
   return {
     situazione: c.situazione,
+    progress_percent: c.progress_percent,
     metri_teo: c.metri_teo,
     metri_dis: c.metri_dis,
     tipo: c.tipo,
@@ -419,6 +564,9 @@ function mergeNonDestructive(prev: any | null, incoming: ParsedCable) {
     pagina_pdf: keep(incoming.pagina_pdf, prev?.pagina_pdf),
 
     situazione: keepSituazione(incoming.situazione, prev?.situazione),
+
+    // progress: do not overwrite with null.
+    progress_percent: (incoming.progress_percent ?? prev?.progress_percent ?? null) as any,
   };
 }
 
@@ -469,10 +617,15 @@ serve(
     const parsed = parseXlsxCables(ab);
     if (parsed.cables.length === 0) return json(400, { ok: false, error: "Nessun cavo trovato nel XLSX." });
 
-    const counts = computeCounts(parsed.cables);
+    // Deduplicate same-codice rows inside the XLSX (safety: avoid insert/upsert conflicts).
+    const dedup = dedupeByCodice(parsed.cables);
+    const uniqueCables = dedup.unique;
+
+    const counts = computeCounts(uniqueCables);
+    const progressCounts = computeProgressCounts(uniqueCables);
 
     const groupKey = buildGroupKey(costr, commessa, projectCode);
-    const sorted = [...parsed.cables].sort((a, b) => a.codice.localeCompare(b.codice));
+    const sorted = [...uniqueCables].sort((a, b) => a.codice.localeCompare(b.codice));
     const canonLines = sorted.map((c) =>
       [
         c.codice,
@@ -480,6 +633,7 @@ serve(
         c.metri_teo ?? "",
         c.metri_dis ?? "",
         c.situazione ?? "",
+        c.progress_percent ?? "",
         c.tipo || "",
         c.sezione || "",
         c.livello_disturbo || "",
@@ -493,14 +647,15 @@ serve(
     );
     const contentHash = await sha256Hex(canonLines.join("\n"));
 
-    // HEAD STABLE: prefer previous_inca_file_id IS NULL (head), otherwise oldest by uploaded_at.
+    // HEAD STABLE: prefer previous_inca_file_id IS NULL (head).
+    // Fallback rule: if projectCode changed (group_key mismatch), still try to match by costr/commessa.
     const headRes = await admin
       .from("inca_files")
-      .select("id,ship_id,content_hash,file_name,uploaded_at,previous_inca_file_id,import_run_id")
-      .eq("group_key", groupKey)
+      .select("id,ship_id,content_hash,file_name,uploaded_at,previous_inca_file_id,import_run_id,group_key,costr,commessa,project_code")
       .eq("file_type", "XLSX")
+      .or(`group_key.eq.${groupKey},and(costr.eq.${costr},commessa.eq.${commessa})`)
       .order("uploaded_at", { ascending: true })
-      .limit(50);
+      .limit(80);
 
     if (headRes.error) return json(500, { ok: false, error: "inca_files read failed", detail: headRes.error.message });
 
@@ -564,8 +719,9 @@ serve(
         skipped: true,
         reason: "DUPLICATE_CONTENT_HASH",
         headIncaFileId: headId,
-        total: parsed.cables.length,
+        total: uniqueCables.length,
         counts,
+        progressCounts,
         groupKey,
         contentHash,
         previous: { headIncaFileId: headId, contentHash: previousHash, isDuplicate: true },
@@ -576,7 +732,7 @@ serve(
     const prevRowsRes = await admin
       .from("inca_cavi")
       .select(
-        "codice,codice_inca,marca_cavo,descrizione,tipo,sezione,livello_disturbo,stato_tec,stato_cantiere,impianto,zona_da,zona_a,apparato_da,apparato_a,descrizione_da,descrizione_a,metri_teo,metri_dis,wbs,pagina_pdf,situazione",
+        "codice,codice_inca,marca_cavo,descrizione,tipo,sezione,livello_disturbo,stato_tec,stato_cantiere,impianto,zona_da,zona_a,apparato_da,apparato_a,descrizione_da,descrizione_a,metri_teo,metri_dis,wbs,pagina_pdf,situazione,progress_percent",
       )
       .eq("inca_file_id", headId);
 
@@ -611,10 +767,11 @@ serve(
         pagina_pdf: r.pagina_pdf ?? null,
         situazione: (r.situazione === "P" || r.situazione === "T" || r.situazione === "R" || r.situazione === "B" || r.situazione === "E") ? r.situazione : null,
         situazione_raw: null,
+        progress_percent: (r.progress_percent === 50 || r.progress_percent === 70 || r.progress_percent === 100) ? r.progress_percent : null,
       });
     }
 
-    const diff = diffCables(previousCables, parsed.cables, headId, headId);
+    const diff = diffCables(previousCables, uniqueCables, headId, headId);
 
     // Create import run (diff+summary are computed vs HEAD PRE state)
     const runIns = await admin
@@ -634,8 +791,14 @@ serve(
           sheetName: parsed.sheetName,
           headerRowIndex0: parsed.headerRowIndex0,
           totalRows: parsed.totalRows,
-          totalCables: parsed.cables.length,
+          totalCables: uniqueCables.length,
           counts,
+          progressCounts,
+          duplicates: {
+            duplicateCount: dedup.duplicateCount,
+            duplicateDistinct: dedup.duplicateDistinct,
+            sampleCodici: dedup.sampleCodici,
+          },
           nonStandardSituazioneRaw: parsed.nonStandardSituazioneRaw,
           isDuplicate,
           note,
@@ -673,10 +836,87 @@ serve(
       if (missAll.error) console.warn("inca_cavi mark-missing failed:", missAll.error.message);
     }
 
-    const importedCodes = parsed.cables.map((c) => c.codice).filter(Boolean);
+    const importedCodes = uniqueCables.map((c) => c.codice).filter(Boolean);
 
     // Prepare UPSERT payload with non-destructive merge
-    const payload = parsed.cables.map((c) => {
+    // 0) Create ARCHIVE snapshot (immutable) so the user can always audit / verify old INCA.
+    // HEAD stays stable and is updated in place.
+    let archiveIncaFileId: string | null = null;
+    {
+      const shipId = String((head as any).ship_id);
+      const insArchive = await admin
+        .from("inca_files")
+        .insert({
+          ship_id: shipId,
+          costr,
+          commessa,
+          project_code: projectCode || null,
+          file_name: fileName,
+          file_type: "XLSX",
+          note,
+          uploaded_by: user.id,
+          file_path: null,
+          group_key: groupKey,
+          content_hash: contentHash,
+          previous_inca_file_id: headId,
+          import_run_id: runId,
+        })
+        .select("id")
+        .single();
+
+      if (!insArchive.error && insArchive.data?.id) {
+        archiveIncaFileId = String(insArchive.data.id);
+
+        const archivePayload = uniqueCables.map((c) => ({
+          inca_file_id: archiveIncaFileId,
+          costr,
+          commessa,
+          codice: c.codice,
+          codice_inca: c.codice_inca,
+          marca_cavo: c.marca_cavo,
+          descrizione: c.descrizione,
+          tipo: c.tipo,
+          sezione: c.sezione,
+          livello_disturbo: c.livello_disturbo,
+          stato_tec: c.stato_tec,
+          stato_cantiere: c.stato_cantiere,
+          impianto: c.impianto,
+          zona_da: c.zona_da,
+          zona_a: c.zona_a,
+          apparato_da: c.apparato_da,
+          apparato_a: c.apparato_a,
+          descrizione_da: c.descrizione_da,
+          descrizione_a: c.descrizione_a,
+          metri_teo: c.metri_teo,
+          metri_dis: c.metri_dis,
+          wbs: c.wbs,
+          pagina_pdf: c.pagina_pdf,
+          situazione: c.situazione,
+          progress_percent: c.progress_percent,
+          progress_side: null,
+        }));
+
+        let okArchive = true;
+        for (let i = 0; i < archivePayload.length; i += 1000) {
+          const chunk = archivePayload.slice(i, i + 1000);
+          const ins = await admin.from("inca_cavi").insert(chunk as any);
+          if (ins.error) {
+            okArchive = false;
+            console.warn("inca_cavi insert archive failed:", ins.error.message);
+            break;
+          }
+        }
+
+        if (!okArchive) {
+          await admin.from("inca_files").delete().eq("id", archiveIncaFileId);
+          archiveIncaFileId = null;
+        }
+      } else {
+        console.warn("inca_files insert archive failed:", insArchive.error?.message);
+      }
+    }
+
+    const payload = uniqueCables.map((c) => {
       const prev = prevBy.get(c.codice) ?? null;
       const merged = mergeNonDestructive(prev, c);
       return {
@@ -704,6 +944,7 @@ serve(
         wbs: merged.wbs,
         pagina_pdf: merged.pagina_pdf,
         situazione: merged.situazione,
+        progress_percent: (merged as any).progress_percent ?? null,
       };
     });
 
@@ -746,9 +987,11 @@ serve(
     return json(200, {
       ok: true,
       headIncaFileId: headId,
+      archiveIncaFileId,
       importRunId: runId,
-      total: parsed.cables.length,
+      total: uniqueCables.length,
       counts,
+      progressCounts,
       groupKey,
       contentHash,
       diff: {
@@ -761,6 +1004,11 @@ serve(
         headerRowIndex0: parsed.headerRowIndex0,
         totalRows: parsed.totalRows,
         nonStandardSituazioneRaw: parsed.nonStandardSituazioneRaw,
+        duplicates: {
+          duplicateCount: dedup.duplicateCount,
+          duplicateDistinct: dedup.duplicateDistinct,
+          sampleCodici: dedup.sampleCodici,
+        },
       },
     });
   }),

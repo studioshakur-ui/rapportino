@@ -15,6 +15,7 @@ export type IncaCavoRow = {
 
   // status
   situazione: string | null;
+  progress_percent?: number | null;
   stato_cantiere?: string | null;
   stato_tec?: string | null;
 
@@ -77,6 +78,18 @@ type SituazioneAtom = (typeof SITUAZIONI_ATOM_ORDER)[number];
 
 function norm(v: unknown): string {
   return String(v ?? "").trim();
+}
+
+function progressLabel(progressPercent: number | null | undefined, situazione: string | null | undefined): string {
+  const p = typeof progressPercent === "number" ? progressPercent : null;
+  if (p === 50) return "5";
+  if (p === 70) return "7";
+  if (p === 100) return "P";
+
+  // Fallback: if situazione is P but progress is null, treat as 100%.
+  const s = norm(situazione).toUpperCase();
+  if (s === "P") return "P";
+  return "—";
 }
 
 function fmtMeters(v: number | null | undefined): string {
@@ -211,6 +224,43 @@ export default function IncaCaviTable({
               style={{ color: colorForSituazione(a) }}
             >
               {a}
+            </span>
+          );
+        },
+      },
+      {
+        id: "progress",
+        label: "Prog.",
+        width: "72px",
+        sortValue: (r) => {
+          const p = typeof (r as any)?.progress_percent === "number" ? Number((r as any).progress_percent) : -1;
+          return p;
+        },
+        render: (r) => {
+          const label = progressLabel((r as any)?.progress_percent, (r as any)?.situazione);
+          const is50 = label === "5";
+          const is70 = label === "7";
+          const isP = label === "P";
+          const tone = isP
+            ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200"
+            : is70
+              ? "border-sky-300/25 bg-sky-400/10 text-sky-200"
+              : is50
+                ? "border-amber-300/25 bg-amber-400/10 text-amber-200"
+                : "border-slate-700/70 bg-white/5 text-slate-400";
+
+          const title =
+            label === "—"
+              ? "Progress non disponibile"
+              : label === "P"
+                ? "Progress 100% (P)"
+                : label === "7"
+                  ? "Progress 70% (Excel=7)"
+                  : "Progress 50% (Excel=5)";
+
+          return (
+            <span title={title} className={`inline-flex items-center justify-center rounded-full border px-2 py-0.5 text-[12px] font-semibold ${tone}`}>
+              {label}
             </span>
           );
         },
