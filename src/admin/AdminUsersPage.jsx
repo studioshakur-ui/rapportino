@@ -1,4 +1,5 @@
-// src/admin/AdminUsersPage.jsx
+// @ts-nocheck
+// src/admin/AdminUsersPage.tsx
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useOutletContext } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
@@ -50,13 +51,11 @@ function normalizeRpcError(err) {
 function normalizeDateInput(v) {
   const s = (v ?? "").toString().trim();
   if (!s) return "";
-  // accept YYYY-MM-DD; otherwise return raw and let input complain
   return s;
 }
 
 function formatDateForInput(d) {
   if (!d) return "";
-  // d can be "YYYY-MM-DD" already
   const s = String(d);
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
   return s.slice(0, 10);
@@ -92,6 +91,9 @@ export default function AdminUsersPage() {
   const [page, setPage] = useState(persisted?.page ?? 1);
 
   const [settingPwdId, setSettingPwdId] = useState(persisted?.settingPwdId ?? null);
+
+  // Delete/Suspend running state
+  const [deletingUserId, setDeletingUserId] = useState(persisted?.deletingUserId ?? null);
 
   // CAPO->MANAGER assignments (view)
   const [assignMap, setAssignMap] = useState(() => {
@@ -143,6 +145,7 @@ export default function AdminUsersPage() {
       roleFilter,
       page,
       settingPwdId,
+      deletingUserId,
       assignMap: Array.from(assignMap.entries()),
       savingAssignCapoId,
 
@@ -182,6 +185,7 @@ export default function AdminUsersPage() {
     roleFilter,
     page,
     settingPwdId,
+    deletingUserId,
     assignMap,
     savingAssignCapoId,
 
@@ -222,10 +226,10 @@ export default function AdminUsersPage() {
     });
   }, [rows, q, roleFilter]);
 
-  const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)),
-    [filtered.length]
-  );
+  const totalPages = useMemo(() => {
+    const n = Math.ceil((filtered?.length || 0) / PAGE_SIZE);
+    return Math.max(1, n);
+  }, [filtered]);
 
   const pageRows = useMemo(() => {
     const p = Math.min(Math.max(1, page), totalPages);
@@ -233,15 +237,13 @@ export default function AdminUsersPage() {
     return filtered.slice(start, start + PAGE_SIZE);
   }, [filtered, page, totalPages]);
 
-  useEffect(() => setPage(1), [q, roleFilter]);
-
   const loadUsers = useCallback(async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from("profiles")
         .select(
-          "id,email,full_name,display_name,app_role,default_costr,default_commessa,allowed_cantieri,must_change_password,updated_at,created_at"
+          "id,email,full_name,display_name,app_role,default_costr,default_commessa,allowed_cantieri,must_change_password,created_at,updated_at"
         )
         .order("created_at", { ascending: false })
         .limit(2000);
@@ -250,7 +252,7 @@ export default function AdminUsersPage() {
       setRows(data || []);
     } catch (e) {
       console.error("[AdminUsersPage] loadUsers error:", e);
-      // keep persisted rows
+      setRows([]);
     } finally {
       setLoading(false);
     }
@@ -278,7 +280,6 @@ export default function AdminUsersPage() {
       setAssignMap(m);
     } catch (e) {
       console.error("[AdminUsersPage] loadAssignments error:", e);
-      // keep existing assignMap
     }
   }, []);
 
@@ -297,7 +298,6 @@ export default function AdminUsersPage() {
       setOpRows(data || []);
     } catch (e) {
       console.error("[AdminUsersPage] loadOperators error:", e);
-      // keep existing opRows
     } finally {
       setOpLoading(false);
     }
@@ -387,6 +387,98 @@ export default function AdminUsersPage() {
     }
   };
 
+  const confirmSuspend = (targetEmail) => {
+    const typed = window.prompt(
+      `SUSPEND account.\n\nType the exact email to confirm:\n${targetEmail}\n\n(Leave blank to cancel)`
+    );
+    if (!typed) return false;
+    return typed.trim().toLowerCase() === String(targetEmail || "").trim().toLowerCase();
+  };
+
+  const confirmHardDelete = (targetEmail) => {
+    const typed1 = window.prompt(`HARD DELETE (DANGEROUS).\n\nType DELETE to proceed.\n\n(Leave blank to cancel)`);
+    if (!typed1) return false;
+    if (typed1.trim() !== "DELETE") return false;
+
+    const typed2 = window.prompt(
+      `FINAL CONFIRMATION.\n\nType the exact email to hard-delete:\n${targetEmail}\n\n(Leave blank to cancel)`
+    );
+    if (!typed2) return false;
+
+    return typed2.trim().toLowerCase() === String(targetEmail || "").trim().toLowerCase();
+  };
+
+  const onSuspendUser = async (r) => {
+    if (!r?.id) return;
+    if (!confirmSuspend(r.email)) {
+      setCreateMsg({ ok: false, text: "Suspend cancelled." });
+      return;
+    }
+
+    setCreateMsg(null);
+    setDeletingUserId(r.id);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-delete-user", {
+        body: { user_id: r.id, mode: "suspend", reason: "Admin suspend" },
+      });
+
+      if (error) {
+        setCreateMsg({ ok: false, text: `Suspend failed: ${error.message}` });
+        return;
+      }
+      if (!data?.ok) {
+        setCreateMsg({ ok: false, text: `Suspend failed: ${data?.error || "unknown"}` });
+        return;
+      }
+
+      setCreateMsg({ ok: true, text: `Suspended: ${r.email}` });
+      await loadUsers();
+      await loadAssignments();
+    } catch (e) {
+      console.error("[AdminUsersPage] suspend unexpected:", e);
+      setCreateMsg({ ok: false, text: `Suspend failed: ${e?.message || String(e)}` });
+    } finally {
+      setDeletingUserId(null);
+    }
+  };
+
+  const onHardDeleteUser = async (r) => {
+    if (!r?.id) return;
+    if (!confirmHardDelete(r.email)) {
+      setCreateMsg({ ok: false, text: "Hard delete cancelled." });
+      return;
+    }
+
+    setCreateMsg(null);
+    setDeletingUserId(r.id);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-delete-user", {
+        body: { user_id: r.id, mode: "hard_delete", reason: "Admin hard delete" },
+      });
+
+      if (error) {
+        setCreateMsg({ ok: false, text: `Hard delete failed: ${error.message}` });
+        return;
+      }
+      if (!data?.ok) {
+        setCreateMsg({ ok: false, text: `Hard delete failed: ${data?.error || "unknown"}` });
+        return;
+      }
+
+      // If profile couldn't be deleted, it may be anonymized; UI will refresh anyway.
+      setCreateMsg({ ok: true, text: `Hard delete executed: ${r.email}` });
+      await loadUsers();
+      await loadAssignments();
+    } catch (e) {
+      console.error("[AdminUsersPage] hard delete unexpected:", e);
+      setCreateMsg({ ok: false, text: `Hard delete failed: ${e?.message || String(e)}` });
+    } finally {
+      setDeletingUserId(null);
+    }
+  };
+
   // IMPORTANT: RPC args are p_capo_id / p_manager_id
   const onAssignManager = async (capoId, managerIdOrNull) => {
     if (!capoId) return;
@@ -429,78 +521,15 @@ export default function AdminUsersPage() {
     }
   };
 
-  const copy = async (txt) => {
-    try {
-      await navigator.clipboard.writeText(txt);
-    } catch {
-      // ignore
-    }
-  };
-
-  const hardResetPageState = () => {
-    setEmail("");
-    setAppRole("CAPO");
-    setFullName("");
-    setDisplayName("");
-    setDefaultCostr("");
-    setDefaultCommessa("");
-    setAllowedCantieri("");
-
-    setCreating(false);
-    setCreateMsg(null);
-
-    setLastPassword(null);
-    setLastPasswordEmail(null);
-
-    setQ("");
-    setRoleFilter("ALL");
-    setPage(1);
-
-    setSettingPwdId(null);
-
-    setAssignMap(new Map());
-    setSavingAssignCapoId(null);
-
-    // operators quality
-    setOpQ("");
-    setOpOnlyIncomplete(true);
-    setOpModalOpen(false);
-    setOpSaving(false);
-    setOpEditId(null);
-    setOpEditLegacyName("");
-    setOpEditDisplayName("");
-    setOpEditCognome("");
-    setOpEditNome("");
-    setOpEditBirthDate("");
-    setOpEditOperatorCode("");
-
-    try {
-      sessionStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // ignore
-    }
-  };
-
-  const managers = useMemo(() => {
-    return (rows || [])
-      .filter((r) => r.app_role === "MANAGER")
-      .map((r) => ({
-        id: r.id,
-        label: r.display_name || r.email || String(r.id).slice(0, 8),
-      }))
-      .sort((a, b) => a.label.localeCompare(b.label, "it"));
-  }, [rows]);
-
-  // ===== Operators UI helpers =====
   const opFiltered = useMemo(() => {
     const qq = safeLower(opQ);
     return (opRows || []).filter((r) => {
       if (opOnlyIncomplete && r.is_identity_incomplete !== true) return false;
       if (!qq) return true;
       const hay =
-        safeLower(r.display_name) +
-        " " +
         safeLower(r.legacy_name) +
+        " " +
+        safeLower(r.display_name) +
         " " +
         safeLower(r.cognome) +
         " " +
@@ -513,154 +542,114 @@ export default function AdminUsersPage() {
     });
   }, [opRows, opQ, opOnlyIncomplete]);
 
-  const opIncompleteCount = useMemo(() => {
-    return (opRows || []).reduce((acc, r) => acc + (r.is_identity_incomplete === true ? 1 : 0), 0);
-  }, [opRows]);
-
-  const openOperatorFix = (r) => {
-    setCreateMsg(null);
-    setOpEditId(r?.id || null);
-    setOpEditLegacyName(r?.legacy_name || "");
-    setOpEditDisplayName(r?.display_name || "");
-    setOpEditCognome(r?.cognome || "");
-    setOpEditNome(r?.nome || "");
-    setOpEditBirthDate(formatDateForInput(r?.birth_date || ""));
-    setOpEditOperatorCode(r?.operator_code || "");
+  const openOperatorModal = (r) => {
+    setOpEditId(r.id);
+    setOpEditLegacyName(r.legacy_name || "");
+    setOpEditDisplayName(r.display_name || "");
+    setOpEditCognome(r.cognome || "");
+    setOpEditNome(r.nome || "");
+    setOpEditBirthDate(formatDateForInput(r.birth_date || ""));
+    setOpEditOperatorCode(r.operator_code || "");
     setOpModalOpen(true);
   };
 
-  const closeOperatorFix = () => {
-    if (opSaving) return;
+  const closeOperatorModal = () => {
     setOpModalOpen(false);
+    setOpEditId(null);
   };
 
   const onSaveOperatorIdentity = async () => {
     if (!opEditId) return;
-    setCreateMsg(null);
     setOpSaving(true);
+    setCreateMsg(null);
 
     try {
       const payload = {
-        p_operator_id: opEditId,
-        p_cognome: (opEditCognome || "").trim(),
-        p_nome: (opEditNome || "").trim(),
+        p_id: opEditId,
+        p_display_name: opEditDisplayName.trim() || null,
+        p_cognome: opEditCognome.trim() || null,
+        p_nome: opEditNome.trim() || null,
         p_birth_date: normalizeDateInput(opEditBirthDate) || null,
-        p_operator_code: (opEditOperatorCode || "").trim() || null,
+        p_operator_code: opEditOperatorCode.trim() || null,
       };
 
-      const { data, error } = await supabase.rpc("admin_set_operator_identity", payload);
+      const { data, error } = await supabase.rpc("admin_upsert_operator_identity", payload);
 
       if (error) {
-        setCreateMsg({ ok: false, text: `Save operatore failed: ${normalizeRpcError(error)}` });
+        console.error("[AdminUsersPage] onSaveOperatorIdentity rpc error:", error);
+        setCreateMsg({ ok: false, text: `Save failed: ${normalizeRpcError(error)}` });
         return;
       }
 
-      // data is the updated operators row (per SQL)
-      setCreateMsg({ ok: true, text: "Operatore aggiornato (identità enregistrée)." });
+      if (!data?.ok) {
+        setCreateMsg({ ok: false, text: `Save failed: ${data?.error || "unknown"}` });
+        return;
+      }
 
+      setCreateMsg({ ok: true, text: "Operatore aggiornato." });
       setOpModalOpen(false);
       await loadOperators();
     } catch (e) {
       console.error("[AdminUsersPage] onSaveOperatorIdentity unexpected:", e);
-      setCreateMsg({ ok: false, text: `Save operatore failed: ${e?.message || String(e)}` });
+      setCreateMsg({ ok: false, text: `Save failed: ${e?.message || String(e)}` });
     } finally {
       setOpSaving(false);
     }
   };
 
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(String(text || ""));
+    } catch {
+      // ignore
+    }
+  };
+
   return (
-    <div className="p-4 sm:p-5">
-      {/* CREATE USER */}
-      <div className="border border-slate-800 rounded-2xl bg-slate-950/40 p-4 sm:p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-              {t(lang, "CREATE_USER")}
-            </div>
-            <div className="text-xs text-slate-400 mt-1">
-              Fase test: crea account + genera password test (Core!####) con cambio obbligatorio al primo login.
-            </div>
-          </div>
+    <div style={{ padding: 16 }}>
+      <h2 style={{ margin: "0 0 8px 0" }}>{t(lang, "ADMIN_USERS_TITLE")}</h2>
+      <div style={{ color: "#666", marginBottom: 12 }}>{t(lang, "ADMIN_USERS_SUBTITLE")}</div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                loadUsers();
-                loadAssignments();
-                loadOperators();
-              }}
-              className="text-[12px] px-3 py-1.5 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50"
-              title="Ricarica utenti, assegnazioni e operatori"
-            >
-              Refresh
-            </button>
-
-            <button
-              type="button"
-              onClick={hardResetPageState}
-              className="text-[12px] px-3 py-1.5 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50"
-              title="Reset UI + clear sessionStorage snapshot"
-            >
-              {t(lang, "RESET")}
+      {/* Password banner */}
+      {lastPassword && (
+        <div
+          style={{
+            border: "1px solid #f0c36d",
+            background: "#fff8e1",
+            padding: 12,
+            borderRadius: 8,
+            marginBottom: 12,
+          }}
+        >
+          <div style={{ fontWeight: 700, marginBottom: 6 }}>Password test (da comunicare)</div>
+          <div style={{ fontSize: 13, marginBottom: 6 }}>{lastPasswordEmail ? `Email: ${lastPasswordEmail}` : null}</div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <code style={{ padding: "6px 8px", background: "#fff", borderRadius: 6, border: "1px solid #eee" }}>
+              {lastPassword}
+            </code>
+            <button onClick={() => copyToClipboard(lastPassword)} style={{ padding: "6px 10px" }}>
+              COPY
             </button>
           </div>
         </div>
+      )}
 
-        {createMsg && (
-          <div
-            className={[
-              "mt-4 text-[13px] rounded-xl px-3 py-2 border",
-              createMsg.ok
-                ? "text-emerald-200 bg-emerald-900/20 border-emerald-800"
-                : "text-amber-200 bg-amber-900/30 border-amber-800",
-            ].join(" ")}
-          >
-            {createMsg.text}
-          </div>
-        )}
-
-        {lastPassword && (
-          <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950/30 p-3">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-              Password test (da comunicare)
-            </div>
-            <div className="mt-1 flex items-center justify-between gap-3">
-              <div className="flex flex-col">
-                <div className="text-sm text-slate-200">{lastPasswordEmail || "—"}</div>
-                <div className="text-2xl font-mono tracking-[0.18em] text-slate-50">{lastPassword}</div>
-                <div className="text-xs text-slate-400 mt-1">L’utente dovrà cambiarla al primo accesso.</div>
-              </div>
-              <button
-                type="button"
-                onClick={() => copy(lastPassword)}
-                className="text-[12px] px-3 py-2 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50"
-              >
-                {t(lang, "COPY")}
-              </button>
-            </div>
-          </div>
-        )}
-
-        <form onSubmit={onCreate} className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+      {/* Create form */}
+      <form onSubmit={onCreate} style={{ border: "1px solid #eee", padding: 12, borderRadius: 10, marginBottom: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 160px", gap: 10 }}>
           <div>
-            <label className="block text-[12px] mb-1 text-slate-300">{t(lang, "EMAIL")}</label>
+            <label style={{ display: "block", fontSize: 12, color: "#666" }}>{t(lang, "EMAIL")}</label>
             <input
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              type="email"
-              required
-              className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+              placeholder="nome.cognome@..."
+              style={{ width: "100%", padding: 8 }}
             />
           </div>
 
           <div>
-            <label className="block text-[12px] mb-1 text-slate-300">{t(lang, "ROLE")}</label>
-            <select
-              value={appRole}
-              onChange={(e) => setAppRole(e.target.value)}
-              className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
-            >
+            <label style={{ display: "block", fontSize: 12, color: "#666" }}>{t(lang, "ROLE")}</label>
+            <select value={appRole} onChange={(e) => setAppRole(e.target.value)} style={{ width: "100%", padding: 8 }}>
               <option value="CAPO">CAPO</option>
               <option value="UFFICIO">UFFICIO</option>
               <option value="MANAGER">MANAGER</option>
@@ -670,536 +659,279 @@ export default function AdminUsersPage() {
           </div>
 
           <div>
-            <label className="block text-[12px] mb-1 text-slate-300">{t(lang, "FULL_NAME")}</label>
+            <label style={{ display: "block", fontSize: 12, color: "#666" }}>{t(lang, "FULL_NAME")}</label>
+            <input value={fullName} onChange={(e) => setFullName(e.target.value)} style={{ width: "100%", padding: 8 }} />
+          </div>
+
+          <div>
+            <label style={{ display: "block", fontSize: 12, color: "#666" }}>{t(lang, "DISPLAY_NAME")}</label>
+            <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} style={{ width: "100%", padding: 8 }} />
+          </div>
+
+          <div>
+            <label style={{ display: "block", fontSize: 12, color: "#666" }}>{t(lang, "DEFAULT_COSTR")}</label>
             <input
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              type="text"
-              className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+              value={defaultCostr}
+              onChange={(e) => setDefaultCostr(e.target.value)}
+              placeholder="SDC / ..."
+              style={{ width: "100%", padding: 8 }}
             />
           </div>
 
           <div>
-            <label className="block text-[12px] mb-1 text-slate-300">{t(lang, "DISPLAY_NAME")}</label>
+            <label style={{ display: "block", fontSize: 12, color: "#666" }}>{t(lang, "DEFAULT_COMMESSA")}</label>
             <input
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              type="text"
-              className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+              value={defaultCommessa}
+              onChange={(e) => setDefaultCommessa(e.target.value)}
+              placeholder="006368 / ..."
+              style={{ width: "100%", padding: 8 }}
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[12px] mb-1 text-slate-300">{t(lang, "DEFAULT_COSTR")}</label>
-              <input
-                value={defaultCostr}
-                onChange={(e) => setDefaultCostr(e.target.value)}
-                type="text"
-                className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
-              />
-            </div>
-            <div>
-              <label className="block text-[12px] mb-1 text-slate-300">{t(lang, "DEFAULT_COMMESSA")}</label>
-              <input
-                value={defaultCommessa}
-                onChange={(e) => setDefaultCommessa(e.target.value)}
-                type="text"
-                className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
-              />
-            </div>
-          </div>
-
-          <div className="md:col-span-2">
-            <label className="block text-[12px] mb-1 text-slate-300">{t(lang, "ALLOWED_CANTIERI")}</label>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={{ display: "block", fontSize: 12, color: "#666" }}>{t(lang, "ALLOWED_CANTIERI")}</label>
             <input
               value={allowedCantieri}
               onChange={(e) => setAllowedCantieri(e.target.value)}
-              type="text"
-              placeholder="es: RIVA_TRIGOSO, MUGGIANO, MONFALCONE"
-              className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+              placeholder="La Spezia, Monfalcone, ..."
+              style={{ width: "100%", padding: 8 }}
             />
           </div>
+        </div>
 
-          <div className="md:col-span-2 flex items-center justify-end gap-2 pt-1">
-            <button
-              type="submit"
-              disabled={creating}
-              className="text-[12px] px-4 py-2 rounded-full border border-emerald-600 text-emerald-100 hover:bg-emerald-600/15 disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {creating ? t(lang, "CREATING") : t(lang, "SUBMIT_CREATE")}
-            </button>
-          </div>
-        </form>
+        <div style={{ marginTop: 10, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <button type="submit" disabled={creating} style={{ padding: "8px 12px" }}>
+            {creating ? t(lang, "CREATING") : t(lang, "CREATE")}
+          </button>
+
+          {createMsg && <div style={{ color: createMsg.ok ? "#137333" : "#c5221f", fontWeight: 600 }}>{createMsg.text}</div>}
+        </div>
+      </form>
+
+      {/* Filters */}
+      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
+        <input
+          value={q}
+          onChange={(e) => {
+            setQ(e.target.value);
+            setPage(1);
+          }}
+          placeholder={t(lang, "SEARCH")}
+          style={{ padding: 8, minWidth: 240 }}
+        />
+        <select
+          value={roleFilter}
+          onChange={(e) => {
+            setRoleFilter(e.target.value);
+            setPage(1);
+          }}
+          style={{ padding: 8 }}
+        >
+          <option value="ALL">{t(lang, "ALL")}</option>
+          <option value="CAPO">CAPO</option>
+          <option value="UFFICIO">UFFICIO</option>
+          <option value="MANAGER">MANAGER</option>
+          <option value="DIREZIONE">DIREZIONE</option>
+          <option value="ADMIN">ADMIN</option>
+        </select>
+
+        <button
+          onClick={() => {
+            loadUsers();
+            loadAssignments();
+            loadOperators();
+          }}
+          style={{ padding: "8px 12px" }}
+        >
+          {t(lang, "REFRESH")}
+        </button>
+
+        <div style={{ color: "#666" }}>{loading ? t(lang, "LOADING") : `${filtered.length} ${t(lang, "USERS")}`}</div>
       </div>
 
-      {/* USERS LIST */}
-      <div className="mt-4 border border-slate-800 rounded-2xl bg-slate-950/20 p-4 sm:p-5">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{t(lang, "USERS_LIST")}</div>
-            <div className="text-xs text-slate-400 mt-1">{loading ? "Loading…" : `${filtered.length} users`}</div>
-          </div>
+      {/* List */}
+      <div style={{ border: "1px solid #eee", borderRadius: 10, overflow: "hidden" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 120px 1fr 1fr 280px", background: "#fafafa" }}>
+          <div style={{ padding: 10, fontWeight: 700 }}>{t(lang, "EMAIL")}</div>
+          <div style={{ padding: 10, fontWeight: 700 }}>{t(lang, "DISPLAY_NAME")}</div>
+          <div style={{ padding: 10, fontWeight: 700 }}>{t(lang, "ROLE")}</div>
+          <div style={{ padding: 10, fontWeight: 700 }}>{t(lang, "DEFAULT_COSTR")}</div>
+          <div style={{ padding: 10, fontWeight: 700 }}>{t(lang, "DEFAULT_COMMESSA")}</div>
+          <div style={{ padding: 10, fontWeight: 700 }}>{t(lang, "ACTIONS")}</div>
+        </div>
 
-          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder={t(lang, "SEARCH")}
-              className="w-full sm:w-72 rounded-xl border px-3 py-2 text-[13px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
-            />
+        {pageRows.map((r) => {
+          const managerTxt = (() => {
+            const asg = assignMap.get(r.id);
+            return asg?.manager_display_name || asg?.manager_email || "";
+          })();
 
-            <select
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-              className="w-full sm:w-44 rounded-xl border px-3 py-2 text-[13px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+          const busy = deletingUserId === r.id;
+
+          return (
+            <div
+              key={r.id}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1.4fr 1fr 120px 1fr 1fr 280px",
+                borderTop: "1px solid #eee",
+                alignItems: "center",
+              }}
             >
-              <option value="ALL">ALL</option>
-              <option value="CAPO">CAPO</option>
-              <option value="UFFICIO">UFFICIO</option>
-              <option value="MANAGER">MANAGER</option>
-              <option value="DIREZIONE">DIREZIONE</option>
-              <option value="ADMIN">ADMIN</option>
-            </select>
-          </div>
-        </div>
+              <div style={{ padding: 10, fontSize: 13 }}>{r.email}</div>
+              <div style={{ padding: 10, fontSize: 13 }}>{r.display_name || r.full_name}</div>
+              <div style={{ padding: 10, fontSize: 13, fontWeight: 700 }}>{r.app_role}</div>
+              <div style={{ padding: 10, fontSize: 13 }}>{r.default_costr || ""}</div>
+              <div style={{ padding: 10, fontSize: 13 }}>{r.default_commessa || ""}</div>
 
-        <div className="mt-4 overflow-x-auto border border-slate-800 rounded-xl">
-          <table className="min-w-[1280px] w-full text-[12px]">
-            <thead className="bg-slate-900/60 text-slate-300">
-              <tr className="text-left">
-                <th className="px-3 py-2">{t(lang, "EMAIL")}</th>
-                <th className="px-3 py-2">{t(lang, "NAME")}</th>
-                <th className="px-3 py-2">{t(lang, "ROLE")}</th>
-                <th className="px-3 py-2">Onboarding</th>
-                <th className="px-3 py-2">Manager (solo CAPO)</th>
-                <th className="px-3 py-2">{t(lang, "ID")}</th>
-                <th className="px-3 py-2">{t(lang, "ACTIONS")}</th>
-              </tr>
-            </thead>
+              <div style={{ padding: 10, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <button onClick={() => onSetPassword(r.id)} disabled={settingPwdId === r.id || busy} style={{ padding: "6px 10px" }}>
+                  {settingPwdId === r.id ? "..." : "Set pwd"}
+                </button>
 
-            <tbody className="divide-y divide-slate-800">
-              {loading ? (
-                <tr>
-                  <td className="px-3 py-3 text-slate-500" colSpan={7}>
-                    Loading…
-                  </td>
-                </tr>
-              ) : pageRows.length === 0 ? (
-                <tr>
-                  <td className="px-3 py-3 text-slate-500" colSpan={7}>
-                    {t(lang, "NO_ROWS")}
-                  </td>
-                </tr>
-              ) : (
-                pageRows.map((r) => {
-                  const isSetting = settingPwdId === r.id;
-                  const onboarding = r.must_change_password === true;
-                  const isCapo = r.app_role === "CAPO";
+                <button onClick={() => onSuspendUser(r)} disabled={busy} style={{ padding: "6px 10px" }}>
+                  {busy ? "..." : "Suspend"}
+                </button>
 
-                  const assign = isCapo ? assignMap.get(r.id) : null;
-                  const assignedLabel =
-                    assign?.manager_display_name ||
-                    assign?.manager_email ||
-                    (assign?.manager_id ? String(assign.manager_id).slice(0, 8) + "…" : null);
+                <button onClick={() => onHardDeleteUser(r)} disabled={busy} style={{ padding: "6px 10px", border: "1px solid #c5221f" }}>
+                  {busy ? "..." : "Delete"}
+                </button>
 
-                  const isSavingAssign = savingAssignCapoId === r.id;
-
-                  return (
-                    <tr key={r.id} className="text-slate-200 hover:bg-slate-900/30">
-                      <td className="px-3 py-2">{r.email}</td>
-
-                      <td className="px-3 py-2">
-                        <div className="flex flex-col">
-                          <span className="font-medium">{r.display_name || "-"}</span>
-                          <span className="text-slate-500">{r.full_name || ""}</span>
-                        </div>
-                      </td>
-
-                      <td className="px-3 py-2">
-                        <span className="px-2 py-0.5 rounded-full border border-slate-700 text-[11px]">
-                          {r.app_role}
-                        </span>
-                      </td>
-
-                      <td className="px-3 py-2">
-                        {onboarding ? (
-                          <span className="px-2 py-0.5 rounded-full border border-amber-700/50 bg-amber-500/10 text-amber-200 text-[11px]">
-                            MUST CHANGE
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded-full border border-slate-700 text-slate-400 text-[11px]">
-                            OK
-                          </span>
-                        )}
-                      </td>
-
-                      <td className="px-3 py-2">
-                        {!isCapo ? (
-                          <span className="text-slate-600">—</span>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={[
-                                "px-2 py-0.5 rounded-full border text-[11px] whitespace-nowrap",
-                                assignedLabel
-                                  ? "border-emerald-700/40 bg-emerald-500/10 text-emerald-200"
-                                  : "border-slate-700 text-slate-400",
-                              ].join(" ")}
-                              title={assignedLabel || "Non assegnato"}
-                            >
-                              {assignedLabel || "Non assegnato"}
-                            </span>
-
-                            <select
-                              className="h-8 rounded-xl border border-slate-800 bg-slate-950 px-2 text-[12px] text-slate-100"
-                              disabled={isSavingAssign || managers.length === 0}
-                              value={assign?.manager_id || ""}
-                              onChange={(e) => {
-                                const v = e.target.value || "";
-                                onAssignManager(r.id, v || null);
-                              }}
-                              title="Assegna CAPO a MANAGER"
-                            >
-                              <option value="">— Rimuovi</option>
-                              {managers.map((m) => (
-                                <option key={m.id} value={m.id}>
-                                  {m.label}
-                                </option>
-                              ))}
-                            </select>
-
-                            {isSavingAssign ? <span className="text-[11px] text-slate-500">Save…</span> : null}
-                          </div>
-                        )}
-                      </td>
-
-                      <td className="px-3 py-2 font-mono text-[11px] text-slate-400">
-                        {String(r.id).slice(0, 8)}…
-                      </td>
-
-                      <td className="px-3 py-2">
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => copy(r.email)}
-                            className="px-2 py-1 rounded-xl border border-slate-800 text-slate-200 hover:bg-slate-900/50"
-                          >
-                            {t(lang, "COPY")}
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => copy(r.id)}
-                            className="px-2 py-1 rounded-xl border border-slate-800 text-slate-200 hover:bg-slate-900/50"
-                          >
-                            ID
-                          </button>
-
-                          <button
-                            type="button"
-                            disabled={isSetting}
-                            onClick={() => onSetPassword(r.id)}
-                            className="px-2 py-1 rounded-xl border border-emerald-700 text-emerald-100 hover:bg-emerald-800/10 disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Genera password test (Core!####) e forza cambio password al primo login"
-                          >
-                            {isSetting ? "Set…" : "Set password test"}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="mt-4 flex items-center justify-between">
-          <div className="text-[12px] text-slate-500">
-            {t(lang, "PAGE")} {Math.min(Math.max(1, page), totalPages)} / {totalPages}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page <= 1}
-              className="text-[12px] px-3 py-1.5 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {t(lang, "PREV")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages}
-              className="text-[12px] px-3 py-1.5 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {t(lang, "NEXT")}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* ===== OPERATORS QUALITY (ADMIN) ===== */}
-      <div className="mt-4 border border-slate-800 rounded-2xl bg-slate-950/20 p-4 sm:p-5">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Operatori — Qualità identità</div>
-            <div className="text-xs text-slate-400 mt-1 flex items-center gap-2">
-              {opLoading ? (
-                "Loading…"
-              ) : (
-                <>
-                  <span>{opRows.length} operatori</span>
-                  <span className="text-slate-700">•</span>
-                  <span
-                    className={[
-                      "px-2 py-0.5 rounded-full border text-[11px]",
-                      opIncompleteCount > 0
-                        ? "border-amber-700/50 bg-amber-500/10 text-amber-200"
-                        : "border-slate-700 text-slate-400",
-                    ].join(" ")}
-                  >
-                    Incompleti: {opIncompleteCount}
-                  </span>
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-            <input
-              value={opQ}
-              onChange={(e) => setOpQ(e.target.value)}
-              placeholder="Search operatore (nome, code, key)…"
-              className="w-full sm:w-72 rounded-xl border px-3 py-2 text-[13px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
-            />
-
-            <button
-              type="button"
-              onClick={() => setOpOnlyIncomplete((v) => !v)}
-              className={[
-                "text-[12px] px-3 py-2 rounded-full border",
-                opOnlyIncomplete
-                  ? "border-amber-700/60 bg-amber-500/10 text-amber-200"
-                  : "border-slate-800 text-slate-200 hover:bg-slate-900/50",
-              ].join(" ")}
-              title="Toggle: mostra solo incompleti"
-            >
-              {opOnlyIncomplete ? "Solo incompleti" : "Tutti"}
-            </button>
-
-            <button
-              type="button"
-              onClick={loadOperators}
-              className="text-[12px] px-3 py-2 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50"
-              title="Ricarica operatori"
-            >
-              Refresh
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-4 overflow-x-auto border border-slate-800 rounded-xl">
-          <table className="min-w-[1100px] w-full text-[12px]">
-            <thead className="bg-slate-900/60 text-slate-300">
-              <tr className="text-left">
-                <th className="px-3 py-2">Operatore</th>
-                <th className="px-3 py-2">Identità</th>
-                <th className="px-3 py-2">Code</th>
-                <th className="px-3 py-2">Key</th>
-                <th className="px-3 py-2">Stato</th>
-                <th className="px-3 py-2">ID</th>
-                <th className="px-3 py-2">Azioni</th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-slate-800">
-              {opLoading ? (
-                <tr>
-                  <td className="px-3 py-3 text-slate-500" colSpan={7}>
-                    Loading…
-                  </td>
-                </tr>
-              ) : opFiltered.length === 0 ? (
-                <tr>
-                  <td className="px-3 py-3 text-slate-500" colSpan={7}>
-                    Nessun operatore.
-                  </td>
-                </tr>
-              ) : (
-                opFiltered.slice(0, 250).map((r) => {
-                  const incomplete = r.is_identity_incomplete === true;
-                  return (
-                    <tr key={r.id} className="text-slate-200 hover:bg-slate-900/30">
-                      <td className="px-3 py-2">
-                        <div className="flex flex-col">
-                          <span className="font-medium">{r.display_name || "—"}</span>
-                          <span className="text-slate-500">legacy: {r.legacy_name || "—"}</span>
-                        </div>
-                      </td>
-
-                      <td className="px-3 py-2">
-                        <div className="flex flex-col">
-                          <span className="text-slate-200">
-                            {(r.cognome || "—") + " " + (r.nome || "—")}
-                          </span>
-                          <span className="text-slate-500">{r.birth_date ? String(r.birth_date) : "—"}</span>
-                        </div>
-                      </td>
-
-                      <td className="px-3 py-2 font-mono text-[11px] text-slate-300">{r.operator_code || "—"}</td>
-                      <td className="px-3 py-2 font-mono text-[11px] text-slate-300">{r.operator_key || "—"}</td>
-
-                      <td className="px-3 py-2">
-                        {incomplete ? (
-                          <span className="px-2 py-0.5 rounded-full border border-amber-700/50 bg-amber-500/10 text-amber-200 text-[11px]">
-                            INCOMPLETO
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded-full border border-emerald-700/40 bg-emerald-500/10 text-emerald-200 text-[11px]">
-                            OK
-                          </span>
-                        )}
-                      </td>
-
-                      <td className="px-3 py-2 font-mono text-[11px] text-slate-400">
-                        {String(r.id).slice(0, 8)}…
-                      </td>
-
-                      <td className="px-3 py-2">
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => copy(r.id)}
-                            className="px-2 py-1 rounded-xl border border-slate-800 text-slate-200 hover:bg-slate-900/50"
-                          >
-                            ID
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => openOperatorFix(r)}
-                            className={[
-                              "px-2 py-1 rounded-xl border",
-                              incomplete
-                                ? "border-amber-700/60 bg-amber-500/10 text-amber-200 hover:bg-amber-500/15"
-                                : "border-slate-800 text-slate-200 hover:bg-slate-900/50",
-                            ].join(" ")}
-                          >
-                            Fix identité
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="mt-3 text-[11px] text-slate-500">
-          Note: l’UI affiche max 250 lignes (anti-lag). Utilise la recherche + filtre “Solo incompleti”.
-        </div>
-      </div>
-
-      {/* ===== MODAL: FIX OPERATOR IDENTITY ===== */}
-      {opModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/70"
-            onClick={closeOperatorFix}
-            role="button"
-            tabIndex={-1}
-            aria-label="Close"
-          />
-          <div className="relative w-full max-w-xl rounded-2xl border border-slate-800 bg-slate-950 p-4 sm:p-5 shadow-2xl">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Fix identité opérateur</div>
-                <div className="mt-1 text-sm text-slate-100 font-medium">{opEditDisplayName || "—"}</div>
-                <div className="mt-0.5 text-xs text-slate-500">legacy: {opEditLegacyName || "—"}</div>
+                {r.app_role === "CAPO" && <span style={{ fontSize: 12, color: "#666" }}>{managerTxt ? `MANAGER: ${managerTxt}` : "MANAGER: —"}</span>}
               </div>
+            </div>
+          );
+        })}
 
-              <button
-                type="button"
-                onClick={closeOperatorFix}
-                disabled={opSaving}
-                className="text-[12px] px-3 py-1.5 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50 disabled:opacity-60 disabled:cursor-not-allowed"
-              >
+        {!loading && pageRows.length === 0 && <div style={{ padding: 12, color: "#666" }}>{t(lang, "NO_RESULTS")}</div>}
+      </div>
+
+      {/* Pagination */}
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10 }}>
+        <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} style={{ padding: "6px 10px" }}>
+          {"<"}
+        </button>
+        <div style={{ color: "#666" }}>
+          {page} / {totalPages}
+        </div>
+        <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages} style={{ padding: "6px 10px" }}>
+          {">"}
+        </button>
+      </div>
+
+      {/* Operators quality (admin) */}
+      <div style={{ marginTop: 26 }}>
+        <h3 style={{ margin: "0 0 8px 0" }}>Operators Quality</h3>
+
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
+          <input value={opQ} onChange={(e) => setOpQ(e.target.value)} placeholder="Search operator..." style={{ padding: 8, minWidth: 240 }} />
+          <label style={{ display: "flex", gap: 8, alignItems: "center", color: "#444" }}>
+            <input type="checkbox" checked={opOnlyIncomplete} onChange={(e) => setOpOnlyIncomplete(e.target.checked)} />
+            Only incomplete
+          </label>
+          <button onClick={loadOperators} style={{ padding: "8px 12px" }}>
+            Refresh operators
+          </button>
+          <div style={{ color: "#666" }}>{opLoading ? "Loading..." : `${opFiltered.length} operators`}</div>
+        </div>
+
+        <div style={{ border: "1px solid #eee", borderRadius: 10, overflow: "hidden" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 120px 160px", background: "#fafafa" }}>
+            <div style={{ padding: 10, fontWeight: 700 }}>Legacy</div>
+            <div style={{ padding: 10, fontWeight: 700 }}>Display</div>
+            <div style={{ padding: 10, fontWeight: 700 }}>Incomplete</div>
+            <div style={{ padding: 10, fontWeight: 700 }}>Actions</div>
+          </div>
+
+          {opFiltered.slice(0, 200).map((r) => (
+            <div
+              key={r.id}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr 120px 160px",
+                borderTop: "1px solid #eee",
+                alignItems: "center",
+              }}
+            >
+              <div style={{ padding: 10, fontSize: 13 }}>{r.legacy_name}</div>
+              <div style={{ padding: 10, fontSize: 13 }}>{r.display_name}</div>
+              <div style={{ padding: 10, fontSize: 13, fontWeight: 700 }}>{r.is_identity_incomplete ? "YES" : "NO"}</div>
+              <div style={{ padding: 10 }}>
+                <button onClick={() => openOperatorModal(r)} style={{ padding: "6px 10px" }}>
+                  Edit
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Operator modal */}
+      {opModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.35)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+            zIndex: 9999,
+          }}
+          onClick={closeOperatorModal}
+        >
+          <div
+            style={{ width: 720, maxWidth: "100%", background: "#fff", borderRadius: 12, padding: 14 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+              <div style={{ fontWeight: 800 }}>Edit operator</div>
+              <button onClick={closeOperatorModal} style={{ padding: "6px 10px" }}>
                 Close
               </button>
             </div>
 
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div style={{ marginTop: 10, color: "#666", fontSize: 13 }}>Legacy: {opEditLegacyName}</div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 12 }}>
               <div>
-                <label className="block text-[12px] mb-1 text-slate-300">Cognome *</label>
-                <input
-                  value={opEditCognome}
-                  onChange={(e) => setOpEditCognome(e.target.value)}
-                  type="text"
-                  className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
-                />
+                <label style={{ display: "block", fontSize: 12, color: "#666" }}>Display name</label>
+                <input value={opEditDisplayName} onChange={(e) => setOpEditDisplayName(e.target.value)} style={{ width: "100%", padding: 8 }} />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: 12, color: "#666" }}>Operator code</label>
+                <input value={opEditOperatorCode} onChange={(e) => setOpEditOperatorCode(e.target.value)} style={{ width: "100%", padding: 8 }} />
               </div>
 
               <div>
-                <label className="block text-[12px] mb-1 text-slate-300">Nome *</label>
-                <input
-                  value={opEditNome}
-                  onChange={(e) => setOpEditNome(e.target.value)}
-                  type="text"
-                  className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
-                />
+                <label style={{ display: "block", fontSize: 12, color: "#666" }}>Cognome</label>
+                <input value={opEditCognome} onChange={(e) => setOpEditCognome(e.target.value)} style={{ width: "100%", padding: 8 }} />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: 12, color: "#666" }}>Nome</label>
+                <input value={opEditNome} onChange={(e) => setOpEditNome(e.target.value)} style={{ width: "100%", padding: 8 }} />
               </div>
 
               <div>
-                <label className="block text-[12px] mb-1 text-slate-300">Data di nascita *</label>
+                <label style={{ display: "block", fontSize: 12, color: "#666" }}>Birth date</label>
                 <input
                   value={opEditBirthDate}
                   onChange={(e) => setOpEditBirthDate(e.target.value)}
-                  type="date"
-                  className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[12px] mb-1 text-slate-300">Operator code (optionnel)</label>
-                <input
-                  value={opEditOperatorCode}
-                  onChange={(e) => setOpEditOperatorCode(e.target.value)}
-                  type="text"
-                  className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+                  placeholder="YYYY-MM-DD"
+                  style={{ width: "100%", padding: 8 }}
                 />
               </div>
             </div>
 
-            <div className="mt-4 flex items-center justify-between gap-3">
-              <div className="text-xs text-slate-500">
-                Requis: Cognome, Nome, Date de naissance. (Bloquage DB sur insert/update hors service_role/postgres)
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={closeOperatorFix}
-                  disabled={opSaving}
-                  className="text-[12px] px-3 py-2 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={onSaveOperatorIdentity}
-                  disabled={opSaving}
-                  className="text-[12px] px-4 py-2 rounded-full border border-emerald-700 text-emerald-100 hover:bg-emerald-800/10 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {opSaving ? "Save…" : "Save identité"}
-                </button>
-              </div>
+            <div style={{ marginTop: 12, display: "flex", gap: 10, alignItems: "center" }}>
+              <button onClick={onSaveOperatorIdentity} disabled={opSaving} style={{ padding: "8px 12px" }}>
+                {opSaving ? "Saving..." : "Save"}
+              </button>
             </div>
           </div>
         </div>
-      ) : null}
+      )}
     </div>
   );
 }

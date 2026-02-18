@@ -59,6 +59,12 @@ export type IncaCaviTableProps = {
   onViewModeChange: (m: IncaTableViewMode) => void;
   onRowClick?: (row: IncaCavoRow) => void;
 
+  /**
+   * Optional: allow parent to visually highlight a selected row.
+   * Purely a UI concern; selection state is owned by the parent.
+   */
+  selectedRowId?: string | null;
+
   // Optional: show a compact header or let parent own it
   title?: string;
 };
@@ -98,8 +104,6 @@ function fmtMeters(v: number | null | undefined): string {
   return new Intl.NumberFormat("it-IT").format(n);
 }
 
-
-
 function fmtDate(v: unknown): string {
   if (v === null || v === undefined) return "—";
   const s = String(v).trim();
@@ -111,6 +115,7 @@ function fmtDate(v: unknown): string {
   }
   return new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" }).format(d);
 }
+
 function toAtom(v: unknown): SituazioneAtom {
   const s = norm(v).toUpperCase();
   if (!s) return "L";
@@ -189,6 +194,7 @@ export default function IncaCaviTable({
   viewMode,
   onViewModeChange,
   onRowClick,
+  selectedRowId = null,
   title = "Cavi",
 }: IncaCaviTableProps) {
   const [sortId, setSortId] = useState<string>("codice");
@@ -517,7 +523,10 @@ export default function IncaCaviTable({
               {sortedRows.map((r) => (
                 <tr
                   key={r.id}
-                  className="border-b border-slate-900/80 cursor-pointer hover:bg-slate-950/60"
+                  className={[
+                    "border-b border-slate-900/80 cursor-pointer hover:bg-slate-950/60",
+                    selectedRowId && r.id === selectedRowId ? "bg-slate-950/70 ring-1 ring-slate-700/60" : "",
+                  ].join(" ")}
                   onClick={() => onRowClick?.(r)}
                 >
                   {visibleCols.map((c) => (

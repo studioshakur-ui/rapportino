@@ -258,7 +258,7 @@ export default function IncaCockpit(props: IncaCockpitProps) {
 
   const chosenUpload = useMemo(() => {
     const id = (selectedUploadId || "").trim();
-    if (!id) return null;
+        if (!id) return null;
     return byId[id] || null;
   }, [byId, selectedUploadId]);
 
@@ -366,6 +366,7 @@ export default function IncaCockpit(props: IncaCockpitProps) {
                 "livello_disturbo",
                 "impianto",
                 "situazione",
+                "progress_percent",
                 "stato_cantiere",
                 "stato_tec",
                 "zona_da",
@@ -519,7 +520,7 @@ export default function IncaCockpit(props: IncaCockpitProps) {
     () => filteredCavi.reduce((acc, r) => acc + (isNonPosatoAtom(toAtom((r as any)?.situazione)) ? 1 : 0), 0),
     [filteredCavi]
   );
-  const prodPercent = useMemo(() => (totalCavi ? (pCount / totalCavi) * 100 : 0), [pCount, totalCavi]);
+    const prodPercent = useMemo(() => (totalCavi ? (pCount / totalCavi) * 100 : 0), [pCount, totalCavi]);
 
   const totalMetri = useMemo(() => {
     return (filteredCavi || []).reduce((acc, r) => {
@@ -790,9 +791,9 @@ export default function IncaCockpit(props: IncaCockpitProps) {
               <IncaCaviTable
                 rows={filteredCavi}
                 viewMode={viewMode}
-                onChangeViewMode={setViewMode}
-                selectedId={selectedCable?.id || null}
-                onSelectRow={(r) => setSelectedCable(r)}
+                onViewModeChange={setViewMode}
+                selectedRowId={selectedCable?.id || null}
+                onRowClick={(r) => setSelectedCable(r)}
               />
             )}
           </div>
