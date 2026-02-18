@@ -74,17 +74,14 @@ function computeHeads(raw: IncaFileRow[]): {
   const heads: IncaHeadRow[] = [];
 
   for (const [, rows] of byGroup) {
-    // Compute head candidate:
-    // 1) Prefer explicit HEAD (previous_inca_file_id IS NULL)
-    // 2) Otherwise pick the oldest upload as a conservative fallback
-    const explicitHeads = rows.filter((r) => !r.previous_inca_file_id);
-
-    const pickOldest = (list: IncaFileRow[]): IncaFileRow => {
+    // HEAD semantics (CORE): the dataset "HEAD" is the *latest* upload in the group.
+    // `previous_inca_file_id` is lineage for diffing only; it must NOT drive head selection.
+    const pickLatest = (list: IncaFileRow[]): IncaFileRow => {
       let best = list[0];
-      let bestT = parseIsoDateOrNull(best.uploaded_at) ?? Number.POSITIVE_INFINITY;
+      let bestT = parseIsoDateOrNull(best.uploaded_at) ?? Number.NEGATIVE_INFINITY;
       for (const r of list) {
-        const t = parseIsoDateOrNull(r.uploaded_at) ?? Number.POSITIVE_INFINITY;
-        if (t < bestT) {
+        const t = parseIsoDateOrNull(r.uploaded_at) ?? Number.NEGATIVE_INFINITY;
+        if (t > bestT) {
           best = r;
           bestT = t;
         }
@@ -92,18 +89,7 @@ function computeHeads(raw: IncaFileRow[]): {
       return best;
     };
 
-    const headRow = explicitHeads.length > 0 ? pickOldest(explicitHeads) : pickOldest(rows);
-
-    // Latest upload timestamp in this group (UX signal)
-    let lastUpload: IncaFileRow | null = null;
-    let lastT = Number.NEGATIVE_INFINITY;
-    for (const r of rows) {
-      const t = parseIsoDateOrNull(r.uploaded_at);
-      if (t !== null && t > lastT) {
-        lastT = t;
-        lastUpload = r;
-      }
-    }
+    const headRow = pickLatest(rows);
 
     const headId = headRow.id;
     for (const r of rows) uploadToHeadId[r.id] = headId;
@@ -116,7 +102,8 @@ function computeHeads(raw: IncaFileRow[]): {
       file_name: headRow.file_name,
       file_type: headRow.file_type,
       uploaded_at: headRow.uploaded_at,
-      last_uploaded_at: lastUpload?.uploaded_at ?? headRow.uploaded_at ?? null,
+      // "last" == head, by definition
+      last_uploaded_at: headRow.uploaded_at ?? null,
       uploads_count: rows.length,
     });
   }

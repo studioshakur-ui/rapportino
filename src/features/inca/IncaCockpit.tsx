@@ -76,6 +76,19 @@ function pickOldest(list: IncaFileRow[]): IncaFileRow {
   return best;
 }
 
+function pickLatest(list: IncaFileRow[]): IncaFileRow {
+  let best = list[0];
+  let bestT = parseIsoDateOrNull(best.uploaded_at) ?? Number.NEGATIVE_INFINITY;
+  for (const r of list) {
+    const t = parseIsoDateOrNull(r.uploaded_at) ?? Number.NEGATIVE_INFINITY;
+    if (t > bestT) {
+      best = r;
+      bestT = t;
+    }
+  }
+  return best;
+}
+
 function computeHeads(raw: IncaFileRow[]): {
   heads: IncaHeadRow[];
   uploadToHeadId: Record<string, string>;
@@ -96,22 +109,9 @@ function computeHeads(raw: IncaFileRow[]): {
   const heads: IncaHeadRow[] = [];
 
   for (const [groupKey, rows] of byGroup) {
-    // head selection rule:
-    // 1) prefer explicit head (previous_inca_file_id is null)
-    // 2) else fallback to oldest in the group
-    const explicitHeads = rows.filter((r) => !r.previous_inca_file_id);
-    const headRow = explicitHeads.length > 0 ? pickOldest(explicitHeads) : pickOldest(rows);
-
-    // last upload timestamp (UX)
-    let lastUpload: IncaFileRow | null = null;
-    let lastT = Number.NEGATIVE_INFINITY;
-    for (const r of rows) {
-      const t = parseIsoDateOrNull(r.uploaded_at);
-      if (t !== null && t > lastT) {
-        lastT = t;
-        lastUpload = r;
-      }
-    }
+    // HEAD semantics (CORE): the dataset "HEAD" is the *latest* upload in the group.
+    // `previous_inca_file_id` is lineage for diffing only; it must NOT drive head selection.
+    const headRow = pickLatest(rows);
 
     const headId = headRow.id;
     for (const r of rows) uploadToHeadId[r.id] = headId;
@@ -133,7 +133,8 @@ function computeHeads(raw: IncaFileRow[]): {
       head_file_name: headRow.file_name,
       head_uploaded_at: headRow.uploaded_at,
 
-      last_uploaded_at: lastUpload?.uploaded_at ?? headRow.uploaded_at ?? null,
+      // "last" == head, by definition
+      last_uploaded_at: headRow.uploaded_at ?? null,
       uploads_count: rows.length,
       uploads: uploadsSorted,
     });
