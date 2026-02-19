@@ -1,5 +1,5 @@
 // src/admin/AdminShell.tsx
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { KeepAliveOutlet } from "../utils/KeepAliveOutlet";
 
@@ -87,6 +87,92 @@ export default function AdminShell(): JSX.Element {
     return `${uid || "_"}::${typeof role === "string" ? role : "_"}`;
   }, [uid, profile]);
 
+  /**
+   * ✅ ADMIN KEEP-ALIVE MUST BE SELECTIVE
+   * KeepAlive hides inactive views via display:none. Some pages (planning/audit/charts)
+   * can become unstable when cached.
+   */
+  const adminShouldCache = useMemo(() => {
+    return ({ pathname }: { pathname: string }) => {
+      if (!pathname.startsWith("/admin")) return true;
+
+      // Exclude heavy/graph-like or scroll-complex pages
+      if (pathname.startsWith("/admin/planning")) return false;
+      if (pathname.startsWith("/admin/audit")) return false;
+      if (pathname.startsWith("/admin/core-drive")) return false;
+      if (pathname.startsWith("/admin/archive")) return false;
+
+      // Stable consoles
+      if (pathname.startsWith("/admin/users")) return true;
+      if (pathname.startsWith("/admin/operators")) return true;
+      if (pathname.startsWith("/admin/perimetri")) return true;
+      if (pathname.startsWith("/admin/catalogo")) return true;
+      if (pathname.startsWith("/admin/assignments")) return true;
+
+      // Default: no keep-alive (predictable)
+      return false;
+    };
+  }, []);
+
+  // iOS/trackpad “ghost tap” mitigation window.
+  const TAP_HARDLOCK_MS = 900;
+  const [tapHardlock, setTapHardlock] = useState<boolean>(false);
+
+  useEffect(() => {
+    const pathname = location.pathname || "";
+    if (!pathname.startsWith("/admin")) return;
+
+    setTapHardlock(true);
+
+    const root = document.documentElement;
+    const prevPointerEvents = root.style.pointerEvents;
+    root.style.pointerEvents = "none";
+
+    const tmr = window.setTimeout(() => {
+      root.style.pointerEvents = prevPointerEvents;
+      setTapHardlock(false);
+    }, TAP_HARDLOCK_MS);
+
+    return () => {
+      window.clearTimeout(tmr);
+      root.style.pointerEvents = prevPointerEvents;
+      setTapHardlock(false);
+    };
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!tapHardlock) return;
+
+    const stop = (e: Event) => {
+      try {
+        e.preventDefault();
+        e.stopPropagation();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (e as any).stopImmediatePropagation?.();
+      } catch {
+        // ignore
+      }
+    };
+
+    window.addEventListener("touchstart", stop, true);
+    window.addEventListener("touchend", stop, true);
+    window.addEventListener("pointerdown", stop, true);
+    window.addEventListener("pointerup", stop, true);
+    window.addEventListener("mousedown", stop, true);
+    window.addEventListener("mouseup", stop, true);
+    window.addEventListener("click", stop, true);
+
+    return () => {
+      window.removeEventListener("touchstart", stop, true);
+      window.removeEventListener("touchend", stop, true);
+      window.removeEventListener("pointerdown", stop, true);
+      window.removeEventListener("pointerup", stop, true);
+      window.removeEventListener("mousedown", stop, true);
+      window.removeEventListener("mouseup", stop, true);
+      window.removeEventListener("click", stop, true);
+    };
+  }, [tapHardlock]);
+
   return (
     <div className="min-h-screen bg-[#050910] text-slate-50 flex">
       <div className="mx-auto max-w-7xl w-full flex-1 min-h-0 px-4 py-6">
@@ -169,11 +255,12 @@ export default function AdminShell(): JSX.Element {
                 </div>
               </div>
 
-              <div className="p-4 min-h-0 overflow-auto">
+              <div className="p-4 min-h-0 flex-1" style={{ touchAction: "manipulation" }}>
                 <KeepAliveOutlet
                   scopeKey="admin"
                   context={outletCtx}
                   invalidateKey={keepAliveInvalidateKey}
+                  shouldCache={adminShouldCache as any}
                 />
               </div>
             </div>

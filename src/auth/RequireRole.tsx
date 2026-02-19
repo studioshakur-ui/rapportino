@@ -46,16 +46,38 @@ export default function RequireRole({ allow, allowed, children }: RequireRolePro
 
   const roles: string[] = Array.isArray(allowed) ? allowed : Array.isArray(allow) ? allow : [];
 
+  const isAdminRoute = useMemo(() => {
+    const p = location.pathname || "";
+    return p.startsWith("/admin");
+  }, [location.pathname]);
+
   const retryKey = useMemo(() => {
     const r = roles.join(",") || "_";
     const u = uid || "_";
+    // IMPORTANT: admin routes change often; do NOT key the retry by pathname.
+    // Also bump version to avoid old poisoned values.
+    if (isAdminRoute) return `core:role-guard-retry:v2:${u}:${r}:admin`;
     const path = location.pathname || "/";
     return `core:role-guard-retry:v1:${u}:${r}:${path}`;
-  }, [roles, uid, location.pathname]);
+  }, [roles, uid, location.pathname, isAdminRoute]);
 
   const [retryAttempted, setRetryAttempted] = useState<boolean>(() => {
     try {
-      return sessionStorage.getItem(retryKey) === "1";
+      const v = sessionStorage.getItem(retryKey);
+      if (!v) return false;
+
+      // Admin retry has a short TTL to avoid "hard reset" poisoning.
+      if (isAdminRoute) {
+        const triedAt = Number(v);
+        if (!Number.isFinite(triedAt)) return false;
+        const ttlMs = 15_000;
+        const now = Date.now();
+        const ok = now - triedAt < ttlMs;
+        if (!ok) sessionStorage.removeItem(retryKey);
+        return ok;
+      }
+
+      return v === "1";
     } catch {
       return false;
     }
@@ -63,20 +85,49 @@ export default function RequireRole({ allow, allowed, children }: RequireRolePro
 
   useEffect(() => {
     try {
-      setRetryAttempted(sessionStorage.getItem(retryKey) === "1");
+      const v = sessionStorage.getItem(retryKey);
+      if (!v) {
+        setRetryAttempted(false);
+        return;
+      }
+
+      if (isAdminRoute) {
+        const triedAt = Number(v);
+        if (!Number.isFinite(triedAt)) {
+          setRetryAttempted(false);
+          return;
+        }
+        const ttlMs = 15_000;
+        const now = Date.now();
+        const ok = now - triedAt < ttlMs;
+        if (!ok) {
+          sessionStorage.removeItem(retryKey);
+          setRetryAttempted(false);
+          return;
+        }
+        setRetryAttempted(true);
+        return;
+      }
+
+      setRetryAttempted(v === "1");
     } catch {
       setRetryAttempted(false);
     }
-  }, [retryKey]);
+  }, [retryKey, isAdminRoute]);
 
   const markRetryAttempted = useCallback(() => {
     try {
-      sessionStorage.setItem(retryKey, "1");
+      if (isAdminRoute) {
+        // Store timestamp; short TTL is enforced on read.
+        sessionStorage.setItem(retryKey, String(Date.now()));
+      } else {
+        sessionStorage.setItem(retryKey, "1");
+      }
     } catch {
       // ignore
     }
     setRetryAttempted(true);
-  }, [retryKey]);
+  }, [retryKey, isAdminRoute]);
 
   // Best-effort recovery: if profile is missing or role mismatches, retry ONE time.
   useEffect(() => {
