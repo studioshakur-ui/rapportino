@@ -1,5 +1,5 @@
 // src/pages/CapoPresentation.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState  } from "react";
 import { Link } from "react-router-dom";
 
 import { supabase } from "../lib/supabaseClient";
@@ -204,3 +204,4 @@ export default function CapoPresentation(): JSX.Element {
     </div>
   );
 }
+

@@ -1,6 +1,6 @@
 // src/components/direzione/kpiDetails/KpiDetailsCommon.jsx
 import React from "react";
-import { useCoreI18n } from "../../../i18n/CoreI18n";
+import { useCoreI18n } from "../../../i18n/coreI18n";
 
 function cn(...p) {
   return p.filter(Boolean).join(" ");

@@ -1,6 +1,6 @@
 // src/admin/users/components/InviteUserDialog.tsx
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import type { AppRole } from "../hooks/useAdminUsersData";
 import { cn } from "./ui";
 
@@ -85,7 +85,7 @@ export default function InviteUserDialog(props: {
   }, [canSubmit, busy, onSubmit, email, role, fullName, displayName, defaultCostr, defaultCommessa, allowedCantieri]);
 
   const onKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
+    (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "enter") void submit();
     },

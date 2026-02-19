@@ -1,7 +1,7 @@
 // src/components/RapportinoSheet.tsx
 // Print-only Rapportino (1 page, A4 landscape) + discrete CORE signature footer.
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState  } from "react";
 import { useAuth } from "../auth/AuthProvider";
 import { supabase } from "../lib/supabaseClient";
 

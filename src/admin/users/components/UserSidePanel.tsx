@@ -1,6 +1,6 @@
 // src/admin/users/components/UserSidePanel.tsx
 
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import type { ProfileRow } from "../hooks/useAdminUsersData";
 import { cn, formatDateShort, initialsFromName } from "./ui";
 

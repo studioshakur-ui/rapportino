@@ -1,6 +1,5 @@
 // src/features/direzione/dashboard/components/DirezioneFilters.tsx
 
-import React from "react";
 
 import type { DirezioneFilters } from "../types";
 

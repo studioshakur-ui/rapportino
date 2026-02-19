@@ -1,5 +1,5 @@
 // src/pages/CapoTeamOrganizerPage.tsx
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState  } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { useShip } from "../context/ShipContext";

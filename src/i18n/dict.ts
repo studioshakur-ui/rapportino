@@ -59,4 +59,6 @@ export const dict = {
   },
 };
 
+export type LoginKey = keyof (typeof dict)["it"];
+
 void (dict satisfies Record<Lang, Record<string, string>>);

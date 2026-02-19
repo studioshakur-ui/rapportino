@@ -3,10 +3,10 @@
 // Direction Dashboard (Direzione) — KPI strip + charts + drill-down modal.
 // Refactor 2026-02: split monolith into feature modules under src/features/direzione/dashboard.
 
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState  } from "react";
 
 import { useAuth } from "../auth/AuthProvider";
-import { useCoreI18n } from "../i18n/CoreI18n";
+import { useCoreI18n } from "../i18n/coreI18n";
 
 import DirezioneHeader from "../features/direzione/dashboard/components/DirezioneHeader";
 import DirezioneFilters from "../features/direzione/dashboard/components/DirezioneFilters";
@@ -152,3 +152,4 @@ export default function DirectionDashboard({ isDark = true }: { isDark?: boolean
     </div>
   );
 }
+

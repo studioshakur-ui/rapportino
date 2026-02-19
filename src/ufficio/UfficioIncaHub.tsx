@@ -1,11 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState  } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 
 import LoadingScreen from "../components/LoadingScreen";
 import IncaCockpitModal from "../features/inca/IncaCockpitModal";
 // IMPORTANT: explicit extension to avoid resolving legacy IncaImportModal.jsx
-import IncaImportModal from "../features/inca/IncaImportModal.tsx";
+import IncaImportModal from "../features/inca/IncaImportModal";
 import { clearIncaImportDraft, readIncaImportDraft } from "../features/inca/incaImportDraft";
 import { usePersistedSearchParam } from "../utils/usePersistedSearchParam";
 
@@ -510,3 +510,4 @@ export default function UfficioIncaHub(): JSX.Element {
     </div>
   );
 }
+

@@ -90,7 +90,7 @@ export function useAdminUsersData() {
             .order("created_at", { ascending: false })
             .limit(2000);
           if (retry.error) throw retry.error;
-          setRows((retry.data as ProfileRow[]) || []);
+          setRows((retry.data as unknown as ProfileRow[]) || []);
           setLoading(false);
           return;
         }
@@ -98,7 +98,7 @@ export function useAdminUsersData() {
       }
 
       if (preferWith) supportsDisabledAtRef.current = true;
-      setRows((data as ProfileRow[]) || []);
+      setRows((data as unknown as ProfileRow[]) || []);
     } catch (e: any) {
       console.error("[useAdminUsersData] loadUsers error:", e);
       setRows([]);

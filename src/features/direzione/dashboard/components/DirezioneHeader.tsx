@@ -1,6 +1,5 @@
 // src/features/direzione/dashboard/components/DirezioneHeader.tsx
 
-import React from "react";
 
 import LangSwitcher from "../../../../components/shell/LangSwitcher";
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState  } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { supabase } from "../lib/supabaseClient";
@@ -359,3 +359,4 @@ export default function UfficioIncaAuditPage(): JSX.Element {
     </div>
   );
 }
+

@@ -1,6 +1,6 @@
 // src/admin/users/components/PasswordBanner.tsx
 
-import React, { useCallback, useState } from "react";
+import { useCallback, useState } from "react";
 import { cn } from "./ui";
 
 export default function PasswordBanner(props: { password: string; email?: string | null; onDismiss?: () => void }) {

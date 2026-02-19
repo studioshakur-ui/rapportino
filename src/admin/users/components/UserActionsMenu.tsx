@@ -1,6 +1,6 @@
 // src/admin/users/components/UserActionsMenu.tsx
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "./ui";
 
 export type UserAction = "reset_pwd" | "suspend" | "hard_delete";

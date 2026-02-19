@@ -1,6 +1,6 @@
 // src/features/direzione/dashboard/components/DirezioneKpiModal.tsx
 
-import React, { useMemo } from "react";
+import { useMemo  } from "react";
 
 import Modal from "../../../../ui/Modal";
 
@@ -37,29 +37,41 @@ export default function DirezioneKpiModal({
   const subtitle = useMemo(() => getKpiModalSubtitle(filters, t), [filters, t]);
 
   const body = useMemo(() => {
+    const sumPrevAlloc = (dataset.prodDailyCurrent || []).reduce((acc, r) => acc + Number(r?.previsto_alloc || 0), 0);
+    const sumProdAlloc = (dataset.prodDailyCurrent || []).reduce((acc, r) => acc + Number(r?.prodotto_alloc || 0), 0);
+    const sumHoursIndexed = (dataset.prodDailyCurrent || []).reduce((acc, r) => acc + Number(r?.ore_indexed || 0), 0);
+    const productivityIndex = sumPrevAlloc > 0 ? sumProdAlloc / sumPrevAlloc : null;
+
     switch (activeKpi) {
       case KPI_IDS.RAPPORTINI:
         return (
           <KpiRapportiniDetails
-            rapportini={dataset.rapportiniCurrent}
+            rapportini={dataset.rapportiniCurrent as unknown as any[]}
             dateFrom={filters.dateFrom}
             dateTo={filters.dateTo}
           />
         );
       case KPI_IDS.RIGHE:
-        return <KpiRigheDetails produzioniAgg={dataset.produzioniAggCurrent} />;
+        return <KpiRigheDetails produzioniAgg={dataset.produzioniAggCurrent as unknown as any[]} />;
       case KPI_IDS.PROD:
-        return <KpiProdIndexDetails prodDaily={dataset.prodDailyCurrent} dateFrom={filters.dateFrom} dateTo={filters.dateTo} />;
+        return (
+          <KpiProdIndexDetails
+            sumPrevAlloc={sumPrevAlloc}
+            sumProdAlloc={sumProdAlloc}
+            sumHoursIndexed={sumHoursIndexed}
+            productivityIndex={productivityIndex}
+          />
+        );
       case KPI_IDS.INCA_PREV:
       case KPI_IDS.INCA_REAL:
         return (
           <KpiIncaDetails
-            incaTeorico={dataset.incaChantier}
-            mode={activeKpi === KPI_IDS.INCA_REAL ? "REAL" : "PREV"}
+            incaChantier={dataset.incaChantier}
+            mode={activeKpi === KPI_IDS.INCA_REAL ? "DIS" : "REF"}
           />
         );
       case KPI_IDS.RITARDI:
-        return <KpiRitardiCapiDetails capiDelayDaily={dataset.capiDelayDaily} dateFrom={filters.dateFrom} dateTo={filters.dateTo} />;
+        return <KpiRitardiCapiDetails capiDelayDaily={dataset.capiDelayDaily as unknown as any[]} />;
       case KPI_IDS.ORE:
         return <KpiHoursDetails hoursFacts={dataset.hoursFactsCurrent} dateFrom={filters.dateFrom} dateTo={filters.dateTo} />;
       default:

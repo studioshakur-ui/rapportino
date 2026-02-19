@@ -1,0 +1,108 @@
+src/admin/AdminCatalogoPage.tsx(2,8): error TS6133: 'React' is declared but its value is never read.
+src/admin/AdminPerimetersPage.tsx(2,8): error TS6133: 'React' is declared but its value is never read.
+src/auth/IdleSessionManager.tsx(2,8): error TS6133: 'React' is declared but its value is never read.
+src/auth/IdleSessionManager.tsx(198,14): error TS18047: 'owner' is possibly 'null'.
+src/auth/RequireRole.tsx(2,8): error TS6133: 'React' is declared but its value is never read.
+src/capo/CapoRoleSelector.tsx(2,1): error TS6133: 'React' is declared but its value is never read.
+src/capo/CapoTodayOperatorsPanel.tsx(6,8): error TS6133: 'React' is declared but its value is never read.
+src/components/core-drive/rapportini/CoreDriveRapportiniV1.tsx(2,8): error TS6133: 'React' is declared but its value is never read.
+src/components/DirectionDashboard.tsx(6,8): error TS6133: 'React' is declared but its value is never read.
+src/components/direzione/kpiDetails/KpiHoursDetails.tsx(4,8): error TS6133: 'React' is declared but its value is never read.
+src/components/direzione/kpiDetails/KpiIncaDetails.tsx(7,8): error TS6133: 'React' is declared but its value is never read.
+src/components/direzione/kpiDetails/KpiIncaDetails.tsx(63,36): error TS2554: Expected 1 arguments, but got 2.
+src/components/direzione/kpiDetails/KpiIncaDetails.tsx(64,36): error TS2554: Expected 1 arguments, but got 2.
+src/components/direzione/kpiDetails/KpiProdIndexDetails.tsx(9,1): error TS6133: 'React' is declared but its value is never read.
+src/components/landing/CoreWordmark.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/components/landing/ElectricFlowPanel.tsx(17,10): error TS6133: 'cx' is declared but its value is never read.
+src/components/landing/SectionControlLayer.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/components/rapportino/page/ToastOverlay.tsx(2,1): error TS6133: 'React' is declared but its value is never read.
+src/components/rapportino/page/useProductivityIndexMap.ts(63,23): error TS2339: Property 'operator_id' does not exist on type 'never'.
+src/components/rapportino/page/useProductivityIndexMap.ts(63,46): error TS2339: Property 'operator_id' does not exist on type 'never'.
+src/components/rapportino/page/useProductivityIndexMap.ts(66,30): error TS2339: Property 'categoria' does not exist on type 'never'.
+src/components/rapportino/page/useProductivityIndexMap.ts(67,31): error TS2339: Property 'descrizione' does not exist on type 'never'.
+src/components/rapportino/page/useProductivityIndexMap.ts(70,25): error TS2339: Property 'productivity_index' does not exist on type 'never'.
+src/components/rapportino/RapportinoTable.tsx(161,21): error TS6133: 'isIncomplete' is declared but its value is never read.
+src/components/RapportinoSheet.tsx(4,8): error TS6133: 'React' is declared but its value is never read.
+src/features/direzione/dashboard/components/DirezioneCharts.tsx(3,1): error TS6133: 'React' is declared but its value is never read.
+src/features/direzione/dashboard/components/DirezioneCharts.tsx(44,13): error TS2322: Type 'TimelinePoint[]' is not assignable to type 'never[]'.
+  Type 'TimelinePoint' is not assignable to type 'never'.
+src/features/direzione/dashboard/components/DirezioneCharts.tsx(82,13): error TS2322: Type 'ProdTrendPoint[]' is not assignable to type 'never[]'.
+  Type 'ProdTrendPoint' is not assignable to type 'never'.
+src/features/direzione/dashboard/components/DirezioneCharts.tsx(85,22): error TS2322: Type '{ key: string; name: string; stroke: string; }' is not assignable to type 'never'.
+src/features/direzione/dashboard/components/DirezioneFilters.tsx(3,1): error TS6133: 'React' is declared but its value is never read.
+src/features/direzione/dashboard/components/DirezioneHeader.tsx(3,1): error TS6133: 'React' is declared but its value is never read.
+src/features/direzione/dashboard/components/DirezioneKpiModal.tsx(3,8): error TS6133: 'React' is declared but its value is never read.
+src/features/direzione/dashboard/components/DirezioneKpiModal.tsx(44,13): error TS2322: Type 'RapportinoHeaderRow[]' is not assignable to type 'never[]'.
+  Type 'RapportinoHeaderRow' is not assignable to type 'never'.
+src/features/direzione/dashboard/components/DirezioneKpiModal.tsx(50,33): error TS2322: Type 'ProduzioniAggRow[]' is not assignable to type 'never[]'.
+  Type 'ProduzioniAggRow' is not assignable to type 'never'.
+src/features/direzione/dashboard/components/DirezioneKpiModal.tsx(52,37): error TS2322: Type '{ prodDaily: ProdDailyRow[]; dateFrom: string; dateTo: string; }' is not assignable to type 'IntrinsicAttributes & KpiProdIndexDetailsProps'.
+  Property 'prodDaily' does not exist on type 'IntrinsicAttributes & KpiProdIndexDetailsProps'.
+src/features/direzione/dashboard/components/DirezioneKpiModal.tsx(58,13): error TS2322: Type '"REAL" | "PREV"' is not assignable to type '"REF" | "DIS" | undefined'.
+  Type '"REAL"' is not assignable to type '"REF" | "DIS" | undefined'.
+src/features/direzione/dashboard/components/DirezioneKpiModal.tsx(62,39): error TS2322: Type 'DelayDailyRow[]' is not assignable to type 'never[]'.
+  Type 'DelayDailyRow' is not assignable to type 'never'.
+src/features/direzione/dashboard/components/DirezioneKpiStrip.tsx(3,1): error TS6133: 'React' is declared but its value is never read.
+src/features/inca/IncaCaviTable.tsx(141,10): error TS6133: 'formatMeters' is declared but its value is never read.
+src/features/inca/IncaCaviTable.tsx(147,10): error TS6133: 'formatDateIT' is declared but its value is never read.
+src/features/inca/IncaCockpit.tsx(376,63): error TS2352: Conversion of type 'GenericStringError[]' to type 'IncaCavoRow[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ error: true; } & String' is missing the following properties from type 'IncaCavoRow': id, codice, situazione
+src/features/inca/IncaCockpitModal.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/features/inca/IncaImportModal.tsx(2,8): error TS6133: 'React' is declared but its value is never read.
+src/features/inca/IncaPills.tsx(21,6): error TS6196: 'Situazione' is declared but never used.
+src/features/inca/phase2/ColumnChooser.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/features/inca/phase2/FilterBuilder.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/features/inca/phase2/IncaDataGrid.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/features/kpi/components/MegaKpiCapoStesuraPanel.tsx(2,8): error TS6133: 'React' is declared but its value is never read.
+src/features/kpi/pages/CapoMegaKpiStesura.tsx(2,8): error TS6133: 'React' is declared but its value is never read.
+src/pages/CapoModuleSelector.tsx(2,8): error TS6133: 'React' is declared but its value is never read.
+src/pages/CapoModuleSelector.tsx(122,48): error TS2345: Argument of type '"slate"' is not assignable to parameter of type 'PillTone | undefined'.
+src/pages/CapoModuleSelector.tsx(198,48): error TS2345: Argument of type '"fuchsia"' is not assignable to parameter of type 'PillTone | undefined'.
+src/pages/CapoModuleSelector.tsx(231,48): error TS2345: Argument of type '"slate"' is not assignable to parameter of type 'PillTone | undefined'.
+src/pages/CapoPresentation.tsx(2,8): error TS6133: 'React' is declared but its value is never read.
+src/pages/CapoPresentation.tsx(47,53): error TS2345: Argument of type '() => { id: null; row_index: number; categoria: string; descrizione: string; operatori: string; tempo: string; previsto: string; prodotto: string; note: string; }[]' is not assignable to parameter of type 'RapportinoRow[] | (() => RapportinoRow[])'.
+  Type '() => { id: null; row_index: number; categoria: string; descrizione: string; operatori: string; tempo: string; previsto: string; prodotto: string; note: string; }[]' is not assignable to type '() => RapportinoRow[]'.
+    Type '{ id: null; row_index: number; categoria: string; descrizione: string; operatori: string; tempo: string; previsto: string; prodotto: string; note: string; }[]' is not assignable to type 'RapportinoRow[]'.
+      Type '{ id: null; row_index: number; categoria: string; descrizione: string; operatori: string; tempo: string; previsto: string; prodotto: string; note: string; }' is not assignable to type 'RapportinoRow'.
+        Types of property 'id' are incompatible.
+          Type 'null' is not assignable to type 'string | undefined'.
+src/pages/CapoPresentation.tsx(72,19): error TS2345: Argument of type '{ id: null; row_index: number; categoria: string; descrizione: string; operatori: string; tempo: string; previsto: string; prodotto: string; note: string; }[]' is not assignable to parameter of type 'SetStateAction<RapportinoRow[]>'.
+  Type '{ id: null; row_index: number; categoria: string; descrizione: string; operatori: string; tempo: string; previsto: string; prodotto: string; note: string; }[]' is not assignable to type 'RapportinoRow[]'.
+    Type '{ id: null; row_index: number; categoria: string; descrizione: string; operatori: string; tempo: string; previsto: string; prodotto: string; note: string; }' is not assignable to type 'RapportinoRow'.
+      Types of property 'id' are incompatible.
+        Type 'null' is not assignable to type 'string | undefined'.
+src/pages/CapoPresentation.tsx(88,19): error TS2345: Argument of type '{ id: null; row_index: number; categoria: string; descrizione: string; operatori: string; tempo: string; previsto: string; prodotto: string; note: string; }[]' is not assignable to parameter of type 'SetStateAction<RapportinoRow[]>'.
+  Type '{ id: null; row_index: number; categoria: string; descrizione: string; operatori: string; tempo: string; previsto: string; prodotto: string; note: string; }[]' is not assignable to type 'RapportinoRow[]'.
+    Type '{ id: null; row_index: number; categoria: string; descrizione: string; operatori: string; tempo: string; previsto: string; prodotto: string; note: string; }' is not assignable to type 'RapportinoRow'.
+      Types of property 'id' are incompatible.
+        Type 'null' is not assignable to type 'string | undefined'.
+src/pages/CapoPresentation.tsx(186,16): error TS2739: Type '{ costr: string; commessa: string; reportDate: string; capoName: any; readOnly: true; }' is missing the following properties from type '{ costr: any; commessa: any; reportDate: any; capoName: any; onChangeCostr: any; onChangeCommessa: any; onChangeDate: any; readOnly?: boolean | undefined; }': onChangeCostr, onChangeCommessa, onChangeDate
+src/pages/CapoRoleSelector.tsx(2,1): error TS6133: 'React' is declared but its value is never read.
+src/pages/CapoTeamOrganizerPage.tsx(2,8): error TS6133: 'React' is declared but its value is never read.
+src/pages/CapoTeamOrganizerPage.tsx(514,46): error TS2345: Argument of type '"emerald" | "slate"' is not assignable to parameter of type 'PillTone | undefined'.
+  Type '"slate"' is not assignable to type 'PillTone | undefined'.
+src/pages/CapoTeamOrganizerPage.tsx(517,46): error TS2345: Argument of type '"slate"' is not assignable to parameter of type 'PillTone | undefined'.
+src/pages/CapoTeamOrganizerPage.tsx(596,50): error TS2345: Argument of type '"slate"' is not assignable to parameter of type 'PillTone | undefined'.
+src/pages/CapoTeamOrganizerPage.tsx(643,56): error TS2345: Argument of type '"slate"' is not assignable to parameter of type 'PillTone | undefined'.
+src/pages/CapoTeamOrganizerPage.tsx(649,58): error TS2345: Argument of type '"emerald" | "rose" | "violet" | "slate"' is not assignable to parameter of type 'PillTone | undefined'.
+  Type '"slate"' is not assignable to type 'PillTone | undefined'.
+src/pages/CapoTeamOrganizerPage.tsx(743,62): error TS2345: Argument of type '"slate"' is not assignable to parameter of type 'PillTone | undefined'.
+src/pages/CapoTeamOrganizerPage.tsx(747,64): error TS2345: Argument of type '"emerald" | "rose" | "violet" | "slate"' is not assignable to parameter of type 'PillTone | undefined'.
+  Type '"slate"' is not assignable to type 'PillTone | undefined'.
+src/pages/CorePresentation.tsx(2,8): error TS6133: 'React' is declared but its value is never read.
+src/pages/CorePresentation.tsx(207,16): error TS2739: Type '{ costr: string; commessa: string; reportDate: string; capoName: any; readOnly: true; }' is missing the following properties from type '{ costr: any; commessa: any; reportDate: any; capoName: any; onChangeCostr: any; onChangeCommessa: any; onChangeDate: any; readOnly?: boolean | undefined; }': onChangeCostr, onChangeCommessa, onChangeDate
+src/shells/AppShell.tsx(2,8): error TS6133: 'React' is declared but its value is never read.
+src/shells/DirectionShell.tsx(2,8): error TS6133: 'React' is declared but its value is never read.
+src/shells/DirectionShell.tsx(12,1): error TS6133: 'KeepAliveOutlet' is declared but its value is never read.
+src/shells/DirectionShell.tsx(150,17): error TS6133: 'setTheme' is declared but its value is never read.
+src/shells/ManagerShell.tsx(2,8): error TS6133: 'React' is declared but its value is never read.
+src/shells/ManagerShell.tsx(3,10): error TS6133: 'Outlet' is declared but its value is never read.
+src/shells/UfficioShell.tsx(2,8): error TS6133: 'React' is declared but its value is never read.
+src/shells/UfficioShell.tsx(3,10): error TS6133: 'Outlet' is declared but its value is never read.
+src/shells/UfficioShell.tsx(129,63): error TS2322: Type '"ship"' is not assignable to type 'NavIconName'.
+src/ufficio/UfficioIncaAuditPage.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/ufficio/UfficioIncaDiffPage.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/ufficio/UfficioIncaDiffPage.tsx(151,9): error TS6133: 'runB' is declared but its value is never read.
+src/ufficio/UfficioIncaHub.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/ufficio/UfficioRapportiniList.tsx(120,64): error TS2345: Argument of type 'string | null | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.

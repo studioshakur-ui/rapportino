@@ -1,5 +1,4 @@
 // src/components/rapportino/page/ToastOverlay.tsx
-import React from "react";
 
 type Toast = {
   type?: "info" | "success" | "error";
@@ -61,3 +60,4 @@ export default function ToastOverlay({
     </div>
   );
 }
+

@@ -1,6 +1,6 @@
 // src/admin/users/components/DangerConfirmDialog.tsx
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { cn } from "./ui";
 
 export type DangerMode = "suspend" | "hard_delete";
@@ -42,7 +42,7 @@ export default function DangerConfirmDialog(props: {
   }, [canConfirm, busy, onConfirm, reason]);
 
   const onKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
+    (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "enter") void confirm();
     },

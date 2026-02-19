@@ -26,7 +26,8 @@ type ParsedCable = {
   descrizione_a: string | null;
   metri_teo: number | null;
   metri_dis: number | null;
-  situazione: string | null; // L/P/T/R/B/E or null (legacy NP)
+  // Canon: DB stores L as NULL. Atomic states: P/T/R/B/E + NULL.
+  situazione: "P" | "T" | "R" | "B" | "E" | null;
   progress_percent: number | null;
 };
 
@@ -81,10 +82,14 @@ function safeNumber(v: unknown): number | null {
   return n;
 }
 
-function normalizeSituazione(raw: unknown): { value: string | null; progress_percent: number | null; nonStandard?: string } {
+function normalizeSituazione(raw: unknown): {
+  value: ParsedCable["situazione"];
+  progress_percent: number | null;
+  nonStandard?: string;
+} {
   const s0 = String(raw ?? "").trim().toUpperCase();
-  // Canon: empty cell means "L" (Libero / cavo disponibile)
-  if (!s0) return { value: "L", progress_percent: null };
+  // Canon: empty cell means "L" but must be stored as NULL
+  if (!s0) return { value: null, progress_percent: null };
 
   // Canonical mapping requested:
   // - Excel 'P' => situazione 'P' + progress 100
@@ -95,9 +100,9 @@ function normalizeSituazione(raw: unknown): { value: string | null; progress_per
   if (s0 === "7") return { value: "P", progress_percent: 70 };
 
   const s = s0[0];
-  if (["L", "P", "T", "R", "B", "E"].includes(s)) {
-    return { value: s, progress_percent: s === "P" ? 100 : null };
-  }
+  // Explicit L must be stored as NULL
+  if (s === "L") return { value: null, progress_percent: null };
+  if (s === "P" || s === "T" || s === "R" || s === "B" || s === "E") return { value: s, progress_percent: s === "P" ? 100 : null };
 
   if (s0.includes("POS")) return { value: "P", progress_percent: 100 };
   if (s0.includes("DA") && s0.includes("POS")) return { value: "T", progress_percent: null };
@@ -105,7 +110,8 @@ function normalizeSituazione(raw: unknown): { value: string | null; progress_per
   if (s0.includes("BLO")) return { value: "B", progress_percent: null };
   if (s0.includes("ESEG")) return { value: "E", progress_percent: null };
 
-  return { value: "L", progress_percent: null, nonStandard: s0 };
+  // Unknown -> treat as L (NULL) but surface the raw value for audit.
+  return { value: null, progress_percent: null, nonStandard: s0 };
 }
 
 function buildGroupKey(costr: string, commessa: string, projectCode: string) {
@@ -299,19 +305,24 @@ function parseXlsxCables(arrayBuffer: ArrayBuffer) {
 }
 
 function computeCounts(cables: ParsedCable[]) {
-  // Canon: we store atomic states L/R/T/B/P/E.
-  // NP is a derived view: NP = L + R + T + B.
+  // Canon:
+  // - DB stores L as NULL (never store 'L' as text)
+  // - NP = (L + T + B + R) = (NULL + T + B + R)
   const counts: Record<string, number> = { L: 0, R: 0, T: 0, B: 0, P: 0, E: 0, NP: 0 };
   for (const c of cables) {
-    const s = String(c.situazione ?? "").trim().toUpperCase();
-    if (s === "L" || s === "R" || s === "T" || s === "B" || s === "P" || s === "E") {
-      counts[s] += 1;
-    } else {
-      // Defensive fallback: treat unknown as L (available), and surface nonStandardStatuses separately.
+    const s = c.situazione;
+    if (s === null) {
       counts.L += 1;
+      continue;
     }
+    if (s === "R" || s === "T" || s === "B" || s === "P" || s === "E") {
+      counts[s] += 1;
+      continue;
+    }
+    // Defensive fallback: treat unknown as L (NULL).
+    counts.L += 1;
   }
-  counts.NP = counts.L + counts.R + counts.T + counts.B;
+  counts.NP = counts.L + counts.T + counts.B + counts.R;
   return counts;
 }
 

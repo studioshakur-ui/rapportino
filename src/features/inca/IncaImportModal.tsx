@@ -1,5 +1,5 @@
 // src/features/inca/IncaImportModal.tsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState  } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { useIncaImporter } from "./useIncaImporter";
 import { corePills, cardSurface } from "../../ui/designSystem";
@@ -514,3 +514,4 @@ function Input({ label, value, onChange, placeholder }: InputProps): JSX.Element
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import { useEffect  } from "react";
 
 import IncaCockpit from "./IncaCockpit";
 
@@ -58,3 +58,4 @@ export default function IncaCockpitModal({ open, incaFileId, onClose }: IncaCock
     </div>
   );
 }
+

@@ -9,7 +9,7 @@ import { useAdminUsersPersist } from "./hooks/useAdminUsersPersist";
 
 import UsersToolbar from "./components/UsersToolbar";
 import UsersTable from "./components/UsersTable";
-import UserSidePanel from "./components/UserSidePanel";
+import UserDrawer from "./components/UserDrawer";
 import InviteUserDialog from "./components/InviteUserDialog";
 import DangerConfirmDialog, { type DangerMode } from "./components/DangerConfirmDialog";
 import PasswordBanner from "./components/PasswordBanner";
@@ -236,62 +236,59 @@ export default function AdminUsersPage(): JSX.Element {
         onInvite={() => setInviteOpen(true)}
       />
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 min-h-0">
-        <div className="xl:col-span-8 min-h-0 flex flex-col gap-3">
-          <UsersTable
-            rows={ui.pageRows}
-            loading={loading}
-            selectedUserId={selectedUserId}
-            onSelect={onRowSelect}
-            onAction={onAction}
-          />
+      <div className="min-h-0 flex flex-col gap-3">
+        <UsersTable
+          rows={ui.pageRows}
+          loading={loading}
+          selectedUserId={selectedUserId}
+          onSelect={onRowSelect}
+          onAction={onAction}
+        />
 
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-[12px] text-slate-400">
-              Page <span className="text-slate-200 font-semibold">{ui.page}</span> /{" "}
-              <span className="text-slate-200 font-semibold">{ui.totalPages}</span> — {ui.filtered.length} results
-              <span className="ml-2 text-slate-500">(PAGE_SIZE={PAGE_SIZE})</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={onPrev}
-                disabled={ui.page <= 1}
-                className={
-                  ui.page <= 1
-                    ? "rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-[12px] font-semibold text-slate-600"
-                    : "rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[12px] font-semibold text-slate-200 hover:bg-slate-900/40"
-                }
-              >
-                Prev
-              </button>
-              <button
-                type="button"
-                onClick={onNext}
-                disabled={ui.page >= ui.totalPages}
-                className={
-                  ui.page >= ui.totalPages
-                    ? "rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-[12px] font-semibold text-slate-600"
-                    : "rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[12px] font-semibold text-slate-200 hover:bg-slate-900/40"
-                }
-              >
-                Next
-              </button>
-            </div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-[12px] text-slate-400">
+            Page <span className="text-slate-200 font-semibold">{ui.page}</span> /{" "}
+            <span className="text-slate-200 font-semibold">{ui.totalPages}</span> — {ui.filtered.length} results
+            <span className="ml-2 text-slate-500">(PAGE_SIZE={PAGE_SIZE})</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onPrev}
+              disabled={ui.page <= 1}
+              className={
+                ui.page <= 1
+                  ? "rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-[12px] font-semibold text-slate-600"
+                  : "rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[12px] font-semibold text-slate-200 hover:bg-slate-900/40"
+              }
+            >
+              Prev
+            </button>
+            <button
+              type="button"
+              onClick={onNext}
+              disabled={ui.page >= ui.totalPages}
+              className={
+                ui.page >= ui.totalPages
+                  ? "rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-[12px] font-semibold text-slate-600"
+                  : "rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[12px] font-semibold text-slate-200 hover:bg-slate-900/40"
+              }
+            >
+              Next
+            </button>
           </div>
         </div>
-
-        <div className="xl:col-span-4 min-h-0">
-          <UserSidePanel
-            user={selectedUser}
-            onClose={onCloseSide}
-            onResetPwd={onSideResetPwd}
-            onSuspend={onSideSuspend}
-            onHardDelete={onSideHardDelete}
-            busy={dangerBusy}
-          />
-        </div>
       </div>
+
+      <UserDrawer
+        open={!!selectedUser}
+        user={selectedUser}
+        onClose={onCloseSide}
+        onResetPwd={onSideResetPwd}
+        onSuspend={onSideSuspend}
+        onHardDelete={onSideHardDelete}
+        busy={dangerBusy}
+      />
 
       <InviteUserDialog open={inviteOpen} onClose={() => setInviteOpen(false)} onSubmit={onInvite} busy={inviteBusy} />
 

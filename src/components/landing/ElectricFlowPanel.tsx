@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
 type T = {
   spec: string;
@@ -12,10 +12,6 @@ type Props = {
 
 function clamp(n: number, a: number, b: number): number {
   return Math.max(a, Math.min(b, n));
-}
-
-function cx(...xs: Array<string | false | null | undefined>): string {
-  return xs.filter(Boolean).join(" ");
 }
 
 const FALLBACK_T: T = {
@@ -169,7 +165,7 @@ export function ElectricFlowPanel({ t }: Props): JSX.Element {
           {
             ["--mx" as unknown as string]: `${Math.round(p.x * 100)}%`,
             ["--my" as unknown as string]: `${Math.round(p.y * 100)}%`,
-          } as React.CSSProperties
+          } as CSSProperties
         }
       >
         <div aria-hidden="true" className="coreEdgeLight" />

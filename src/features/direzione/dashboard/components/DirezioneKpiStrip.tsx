@@ -1,6 +1,5 @@
 // src/features/direzione/dashboard/components/DirezioneKpiStrip.tsx
 
-import React from "react";
 
 import KpiCard from "../../../../components/ui/KpiCard";
 import { formatNumberIT } from "../../../../components/charts";

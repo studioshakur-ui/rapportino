@@ -47,14 +47,15 @@ export function t(lang: LangT | string, key: string, fallback = "—"): string {
   const safeLang = (["it", "fr", "en"] as const).includes(lang as any)
     ? (lang as LangT)
     : ("it" as LangT);
+  const dictByLang = dictionaries as Record<LangT, Record<string, string>>;
 
   const k = String(key || "").trim();
   if (!k) return fallback;
 
-  const fromLang = dictionaries?.[safeLang]?.[k];
+  const fromLang = dictByLang?.[safeLang]?.[k];
   if (typeof fromLang === "string" && fromLang.trim()) return fromLang;
 
-  const fromIt = dictionaries?.it?.[k];
+  const fromIt = dictByLang?.it?.[k];
   if (typeof fromIt === "string" && fromIt.trim()) return fromIt;
 
   return fallback;

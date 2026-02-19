@@ -1,6 +1,6 @@
 // src/components/direzione/kpiDetails/KpiRigheDetails.jsx
 import React, { useMemo } from "react";
-import { useCoreI18n } from "../../../i18n/CoreI18n";
+import { useCoreI18n } from "../../../i18n/coreI18n";
 import { KpiEmptyState, KpiSection } from "./KpiDetailsCommon";
 
 export default function KpiRigheDetails({ produzioniAgg = [] }) {

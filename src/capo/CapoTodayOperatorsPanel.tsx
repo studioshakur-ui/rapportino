@@ -3,7 +3,7 @@
 // UX upgrade (no regression): visual intelligence for "present in report" + worked hours.
 // Reads a lightweight summary written by RapportinoPage in localStorage.
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState  } from "react";
 import { useLocation, useParams } from "react-router-dom";
 
 import { supabase } from "../lib/supabaseClient";

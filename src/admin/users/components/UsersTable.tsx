@@ -1,6 +1,6 @@
 // src/admin/users/components/UsersTable.tsx
 
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import type { ProfileRow } from "../hooks/useAdminUsersData";
 import { cn, formatDateShort, initialsFromName } from "./ui";
 import UserActionsMenu, { type UserAction } from "./UserActionsMenu";

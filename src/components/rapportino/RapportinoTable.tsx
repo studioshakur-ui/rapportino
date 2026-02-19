@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import { useMemo, type DragEvent } from "react";
 
 import { cn } from "../../ui/cn";
 import { splitLinesKeepEmpties } from "../../utils/text";
@@ -58,7 +58,7 @@ function prettyMultiline(value: any): string {
   return filtered.join("\n");
 }
 
-function readDroppedOperator(e: React.DragEvent): { id?: string; name?: string } | null {
+function readDroppedOperator(e: DragEvent): { id?: string; name?: string } | null {
   try {
     const raw = e.dataTransfer.getData("application/json");
     if (raw) {
@@ -158,7 +158,7 @@ export default function RapportinoTable({
 
               const hasOperators = isCanonical ? canonItems.length > 0 : legacyHasOps;
               const hasValues = hasNonZeroNumber(r.previsto) || hasNonZeroNumber(r.prodotto) || hasAnyTempoValue(r.tempo);
-              const isIncomplete = hasOperators !== hasValues;
+              void hasValues;
               const catKey = norm((r as any)?.categoria);
               const descText = String((r as any)?.descrizione_attivita ?? (r as any)?.descrizione ?? "");
               const descKey = norm(descText);

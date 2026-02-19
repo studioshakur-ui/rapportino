@@ -1,6 +1,5 @@
 // src/features/direzione/dashboard/components/DirezioneCharts.tsx
 
-import React from "react";
 
 import {
   CoreBarLineCombo,
@@ -41,7 +40,7 @@ export default function DirezioneCharts({
         <CoreChartCard isDark={isDark} title="Timeline" subtitle="Bar: Ritardi Capi · Line: Rapportini">
           <CoreBarLineCombo
             loading={loading}
-            data={timelineData}
+            data={timelineData as unknown as any[]}
             height={260}
             xKey="label"
             barKey="capi_ritardo"
@@ -79,10 +78,10 @@ export default function DirezioneCharts({
         >
           <CoreLineChart
             loading={loading}
-            data={prodTrend}
+            data={prodTrend as unknown as any[]}
             height={280}
             xKey="label"
-            yLines={[{ key: "indice", name: "Indice", stroke: CORE_CHART_THEME.warning }]}
+            yLines={[{ key: "indice", name: "Indice", stroke: CORE_CHART_THEME.warning }] as any}
             emptyHint="Nessun dato produttività nella finestra."
           />
           <div className="mt-2 text-[11px] text-slate-500">

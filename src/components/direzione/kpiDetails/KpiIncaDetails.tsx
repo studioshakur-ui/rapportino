@@ -4,9 +4,9 @@
 // Canonical baseline for chantier: metri_ref = greatest(metri_teo, metri_dis)
 // View source: public.direzione_inca_chantier_v1
 
-import React, { useMemo } from "react";
+import { useMemo  } from "react";
 
-import { useCoreI18n } from "../../../i18n/CoreI18n";
+import { useCoreI18n } from "../../../i18n/coreI18n";
 import { KpiEmptyState, KpiSection } from "./KpiDetailsCommon";
 import { formatNumberIt } from "../direzioneUtils";
 
@@ -60,8 +60,8 @@ export default function KpiIncaDetails({ incaChantier = [], mode = "REF" }: KpiI
 
   const subtitle =
     mode === "DIS"
-      ? t("DETAILS_INCA_REAL_SUB", "INCA (audit): metri_dis")
-      : t("DETAILS_INCA_PREV_SUB", "INCA (chantier): baseline metri_ref");
+      ? t("DETAILS_INCA_REAL_SUB")
+      : t("DETAILS_INCA_PREV_SUB");
 
   return (
     <div>
@@ -117,3 +117,4 @@ export default function KpiIncaDetails({ incaChantier = [], mode = "REF" }: KpiI
     </div>
   );
 }
+

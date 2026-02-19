@@ -1,5 +1,5 @@
 // src/admin/AdminPerimetersPage.tsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState  } from "react";
 
 import { supabase } from "../lib/supabaseClient";
 import { getInitialLang, t } from "../i18n/coreI18n";
@@ -654,3 +654,4 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
     </div>
   );
 }
+

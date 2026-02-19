@@ -1,5 +1,5 @@
 // src/shells/UfficioShell.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState  } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthProvider";
@@ -207,3 +207,4 @@ export default function UfficioShell(): JSX.Element {
     </div>
   );
 }
+

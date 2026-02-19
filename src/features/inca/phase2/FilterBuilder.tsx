@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState  } from "react";
 import { IncaFilter } from "./types";
 
 export default function FilterBuilder({

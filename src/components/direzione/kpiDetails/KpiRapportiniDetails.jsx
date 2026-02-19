@@ -1,6 +1,6 @@
 // src/components/direzione/kpiDetails/KpiRapportiniDetails.jsx
 import React, { useMemo } from "react";
-import { useCoreI18n } from "../../../i18n/CoreI18n";
+import { useCoreI18n } from "../../../i18n/coreI18n";
 import { KpiEmptyState, KpiMetaLine, KpiSection } from "./KpiDetailsCommon";
 import { formatDateLabelIt } from "../direzioneUtils";
 

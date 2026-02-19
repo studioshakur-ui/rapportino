@@ -1,6 +1,12 @@
 // supabase/functions/_shared/incaRules.ts
 
-export type Situazione = "L" | "R" | "T" | "B" | "P" | "E";
+/**
+ * Canon (Feb 2026):
+ * - DB stores L as NULL (never store 'L' as text).
+ * - Atomic stored states are: T, B, R, P, E, and NULL (== L).
+ * - KPI bucket NP = (L + T + B + R).
+ */
+export type Situazione = "R" | "T" | "B" | "P" | "E" | null;
 export type Severity = "INFO" | "WARN" | "BLOCK";
 
 export type ChangeType =
@@ -29,7 +35,7 @@ export type IncaEvent = {
 };
 
 export function isSituazione(v: unknown): v is Situazione {
-  return v === "L" || v === "R" || v === "T" || v === "B" || v === "P" || v === "E";
+  return v === null || v === "R" || v === "T" || v === "B" || v === "P" || v === "E";
 }
 
 /**
@@ -38,12 +44,25 @@ export function isSituazione(v: unknown): v is Situazione {
  * - otherwise use first char upper (R/T/B/P/E)
  */
 export function mapStatoCantiereToSituazione(raw: unknown): Situazione {
-  const s = String(raw ?? "").trim().toUpperCase();
-  if (!s) return "L";
-  const c = s[0];
+  const s0 = String(raw ?? "").trim().toUpperCase();
+  if (!s0) return null; // L
+
+  // Explicit L must be stored as NULL.
+  if (s0[0] === "L") return null;
+
+  // Excel canonical mapping (first char)
+  const c = s0[0];
   if (c === "R" || c === "T" || c === "B" || c === "P" || c === "E") return c;
-  // Hard fallback: treat unknown as L but mark in payload elsewhere if needed.
-  return "L";
+
+  // Soft mapping
+  if (s0.includes("POS")) return "P";
+  if (s0.includes("TAG")) return "T";
+  if (s0.includes("RIP") || s0.includes("RIF") || s0.includes("RIC")) return "R";
+  if (s0.includes("BLO")) return "B";
+  if (s0.includes("ELI")) return "E";
+
+  // Unknown -> treat as L (NULL). Caller should record the non-standard raw.
+  return null;
 }
 
 export function classifySituazioneTransition(args: {
@@ -54,7 +73,8 @@ export function classifySituazioneTransition(args: {
   const { oldSit, newSit, flaggedBySource } = args;
 
   // New cable handled elsewhere
-  if (!oldSit) return null;
+  // NOTE: oldSit can be NULL (== L) and is a valid prior state.
+  if (oldSit === undefined) return null;
 
   // Forbidden transitions (validated by user)
   if ((oldSit === "T" && newSit === "R") || (oldSit === "P" && newSit === "R")) {
@@ -75,9 +95,10 @@ export function classifySituazioneTransition(args: {
   }
 
   // Rework after posato (validated)
-  if (oldSit === "P" && (newSit === "L" || newSit === "B")) {
+  // - P -> L is stored as P -> NULL
+  if (oldSit === "P" && (newSit === null || newSit === "B")) {
     return {
-      changeType: newSit === "L" ? "REWORK_TO_LIBERO" : "REWORK_TO_BLOCCATO",
+      changeType: newSit === null ? "REWORK_TO_LIBERO" : "REWORK_TO_BLOCCATO",
       severity: "WARN",
     };
   }
@@ -93,7 +114,7 @@ export function classifySituazioneTransition(args: {
 
 export function classifyDisappearance(oldSit: Situazione | null | undefined): { changeType: ChangeType; severity: Severity } {
   // validated: disappearance is acceptable mainly for L/B
-  if (oldSit === "L" || oldSit === "B" || oldSit === "E") {
+  if (oldSit === null || oldSit === "B" || oldSit === "E") {
     return { changeType: "DISAPPEARED_ALLOWED", severity: "INFO" };
   }
   return { changeType: "DISAPPEARED_UNEXPECTED", severity: "BLOCK" };

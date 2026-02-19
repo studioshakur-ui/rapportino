@@ -1,11 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import LoadingScreen from "../../components/LoadingScreen";
 import { supabase } from "../../lib/supabaseClient";
 
-import ApparatoCaviPopover from "./ApparatoCaviPopover";
-import { ApparatoPill, CodicePill, computeApparatoPMaps } from "../inca/IncaPills";
+import { CodicePill } from "../inca/IncaPills";
 import IncaCaviTable, { type IncaCavoRow, type IncaTableViewMode } from "./IncaCaviTable";
 
 export type IncaCockpitMode = "page" | "modal";
@@ -61,19 +60,6 @@ function deriveGroupKey(r: IncaFileRow): string {
   if (g) return g.toLowerCase();
   // Fallback for legacy rows where group_key might be NULL.
   return `${safeLower(r.costr)}|${safeLower(r.commessa)}|${safeLower(r.project_code ?? "")}`;
-}
-
-function pickOldest(list: IncaFileRow[]): IncaFileRow {
-  let best = list[0];
-  let bestT = parseIsoDateOrNull(best.uploaded_at) ?? Number.POSITIVE_INFINITY;
-  for (const r of list) {
-    const t = parseIsoDateOrNull(r.uploaded_at) ?? Number.POSITIVE_INFINITY;
-    if (t < bestT) {
-      best = r;
-      bestT = t;
-    }
-  }
-  return best;
 }
 
 function pickLatest(list: IncaFileRow[]): IncaFileRow {
@@ -235,12 +221,6 @@ export default function IncaCockpit(props: IncaCockpitProps) {
 
   // Selection
   const [selectedCable, setSelectedCable] = useState<IncaCavoRow | null>(null);
-
-  // UI — apparato popover
-  const [apparatoPopoverOpen, setApparatoPopoverOpen] = useState<boolean>(false);
-  const [apparatoPopoverSide, setApparatoPopoverSide] = useState<"DA" | "A">("DA");
-  const [apparatoPopoverName, setApparatoPopoverName] = useState<string>("");
-  const [apparatoAnchorRect, setApparatoAnchorRect] = useState<DOMRect | null>(null);
 
   const loadInfo = useMemo(() => ({ pageSize: 1000, maxPages: 200 }), []);
 
@@ -422,9 +402,6 @@ export default function IncaCockpit(props: IncaCockpitProps) {
     };
   }, [effectiveHeadId, loadInfo.maxPages, loadInfo.pageSize]);
 
-  // Apparato maps computed on FILE SCOPE (HEAD dataset)
-  const apparatoPMaps = useMemo(() => computeApparatoPMaps(cavi as any), [cavi]);
-
   // Base scope for pills: file scope + query + apparato exact
   const baseByQuery = useMemo(() => {
     const q = (query || "").trim().toLowerCase();
@@ -543,20 +520,6 @@ export default function IncaCockpit(props: IncaCockpitProps) {
     setSituazioni([]);
     setApparatoDa("");
     setApparatoA("");
-  }
-
-  function openApparatoPopover(e: React.MouseEvent, side: "DA" | "A", apparatoName: string) {
-    const name = String(apparatoName || "").trim();
-    if (!name) return;
-
-    const rect = (e?.currentTarget as HTMLElement | null)?.getBoundingClientRect
-      ? (e.currentTarget as HTMLElement).getBoundingClientRect()
-      : null;
-
-    setApparatoAnchorRect(rect);
-    setApparatoPopoverSide(side);
-    setApparatoPopoverName(name);
-    setApparatoPopoverOpen(true);
   }
 
   const headerTitle = useMemo(() => {
@@ -766,11 +729,9 @@ export default function IncaCockpit(props: IncaCockpitProps) {
               {distribBase.map((it) => (
                 <CodicePill
                   key={it.code}
-                  label={it.code}
+                  value={`${it.code} (${it.count})`}
                   title={it.label}
-                  count={it.count}
-                  active={situazioni.includes(it.code)}
-                  color={undefined}
+                  className={situazioni.includes(it.code) ? "border-sky-500/40 bg-sky-500/10 text-sky-100" : ""}
                   onClick={() => {
                     setSituazioni((prev) => {
                       const has = prev.includes(it.code);
@@ -800,19 +761,6 @@ export default function IncaCockpit(props: IncaCockpitProps) {
           </div>
         </div>
       </div>
-
-      <ApparatoCaviPopover
-        open={apparatoPopoverOpen}
-        side={apparatoPopoverSide}
-        apparatoName={apparatoPopoverName}
-        anchorRect={apparatoAnchorRect}
-        onClose={() => setApparatoPopoverOpen(false)}
-        onSelect={(name) => {
-          if (apparatoPopoverSide === "DA") setApparatoDa(name);
-          else setApparatoA(name);
-        }}
-        maps={apparatoPMaps as any}
-      />
     </div>
   );
 }

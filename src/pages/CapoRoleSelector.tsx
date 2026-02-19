@@ -1,5 +1,4 @@
 // src/pages/CapoRoleSelector.tsx
-import React from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useShip } from "../context/ShipContext";
 import { corePills } from "../ui/designSystem";
@@ -116,3 +115,4 @@ export default function CapoRoleSelector(): JSX.Element {
     </div>
   );
 }
+

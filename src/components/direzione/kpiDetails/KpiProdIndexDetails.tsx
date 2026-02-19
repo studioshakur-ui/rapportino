@@ -6,9 +6,8 @@
 //   - Formula: indice = Σ(realizzato_alloc) / Σ(previsto_alloc)
 //   - Allocations are prorata per line: tempo_hours / sum_line_hours (facts v4)
 
-import React from "react";
 
-import { useCoreI18n } from "../../../i18n/CoreI18n";
+import { useCoreI18n } from "../../../i18n/coreI18n";
 import { KpiMetaLine, KpiSection } from "./KpiDetailsCommon";
 import { formatIndexIt, formatNumberIt } from "../direzioneUtils";
 
@@ -46,3 +45,4 @@ export default function KpiProdIndexDetails({
     </div>
   );
 }
+

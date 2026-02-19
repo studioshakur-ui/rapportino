@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { headerPill, themeIconBg, buttonPrimary } from "../ui/designSystem";
@@ -392,6 +392,7 @@ function setPreferredLang(x: Lang): void {
 }
 
 export default function Landing(): JSX.Element {
+  const isDark = true;
   const [lang, setLang] = useState<Lang>(() => getPreferredLang());
 
   useEffect(() => {
@@ -413,8 +414,8 @@ export default function Landing(): JSX.Element {
       <div className="relative z-20 border-b border-slate-800/60">
         <div className="mx-auto max-w-6xl px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className={cx("inline-flex items-center gap-2 rounded-full border px-3 py-1.5", headerPill)}>
-              <span className={cx("inline-flex h-6 w-6 items-center justify-center rounded-full", themeIconBg)}>
+            <div className={cx("inline-flex items-center gap-2 rounded-full border px-3 py-1.5", headerPill(isDark))}>
+              <span className={cx("inline-flex h-6 w-6 items-center justify-center rounded-full", themeIconBg(isDark))}>
                 <span className="h-2 w-2 rounded-full bg-sky-400" />
               </span>
               <span className="text-[11px] uppercase tracking-[0.28em] text-slate-300">CORE</span>
@@ -439,7 +440,7 @@ export default function Landing(): JSX.Element {
               ))}
             </div>
 
-            <Link to="/login" className={cx("rounded-full px-5 py-2 text-sm font-semibold", buttonPrimary)}>
+            <Link to="/login" className={cx("rounded-full px-5 py-2 text-sm font-semibold", buttonPrimary(isDark))}>
               {t.ctaPrimary}
             </Link>
           </div>
@@ -460,7 +461,7 @@ export default function Landing(): JSX.Element {
             {/* ✅ supprimé : valueLines (bruit) */}
 
             <div className="mt-10 flex items-center gap-4">
-              <Link to="/login" className={cx("rounded-full px-7 py-3 text-sm font-semibold", buttonPrimary)}>
+              <Link to="/login" className={cx("rounded-full px-7 py-3 text-sm font-semibold", buttonPrimary(isDark))}>
                 {t.ctaPrimary}
               </Link>
 

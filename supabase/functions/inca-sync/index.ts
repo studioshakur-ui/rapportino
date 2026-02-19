@@ -846,15 +846,10 @@ serve(
       }
     }
 
-    // Mark all as missing, then stamp imported ones
-    const nowIso = new Date().toISOString();
+    // IMPORTANT (Option B: HEAD-ONLY):
+    // We MUST NOT mutate head dataset rows (including missing_in_latest_import).
+    // Any missing/changed computation is done via diff vs head.
 
-    {
-      const missAll = await admin.from("inca_cavi").update({ missing_in_latest_import: true } as any).eq("inca_file_id", headId);
-      if (missAll.error) console.warn("inca_cavi mark-missing failed:", missAll.error.message);
-    }
-
-    const importedCodes = uniqueCables.map((c) => c.codice).filter(Boolean);
 
     // Prepare UPSERT payload with non-destructive merge
     // 0) Create ARCHIVE snapshot (immutable) so the user can always audit / verify old INCA.

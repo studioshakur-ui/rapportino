@@ -1,5 +1,5 @@
 // /src/components/core-drive/rapportini/CoreDriveRapportiniV1.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState  } from "react";
 import { useAuth } from "../../../auth/AuthProvider";
 
 import Badge from "../ui/Badge";
@@ -732,3 +732,4 @@ function Field({ label, value, mono = false }: { label: string; value: string; m
     </div>
   );
 }
+

@@ -3,7 +3,7 @@
 // Design System CORE – High-tech Tesla / Blueprint DNA
 // SHAKUR ENGINEERING · 2025
 
-export type PillTone = "neutral" | "sky" | "emerald" | "amber" | "rose" | "violet";
+export type PillTone = "neutral" | "sky" | "emerald" | "amber" | "rose" | "violet" | "slate" | "fuchsia";
 export type IconTone = "neutral" | "sky" | "emerald";
 
 // ------------------------------
@@ -94,6 +94,12 @@ export function corePills(isDark: boolean, tone: PillTone = "neutral", extra: st
     violet: isDark
       ? "bg-violet-900/30 border-violet-600/50 text-violet-300"
       : "bg-violet-100 border-violet-300 text-violet-700",
+
+    slate: isDark ? "bg-slate-900 border-slate-700 text-slate-300" : "bg-slate-100 border-slate-300 text-slate-700",
+
+    fuchsia: isDark
+      ? "bg-fuchsia-900/30 border-fuchsia-600/50 text-fuchsia-300"
+      : "bg-fuchsia-100 border-fuchsia-300 text-fuchsia-700",
   };
 
   return [base, tones[tone] || tones.neutral, extra].join(" ");

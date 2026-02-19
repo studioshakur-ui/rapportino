@@ -1,4 +1,3 @@
-import React from "react";
 import { IncaColumn } from "./types";
 
 export default function IncaDataGrid({

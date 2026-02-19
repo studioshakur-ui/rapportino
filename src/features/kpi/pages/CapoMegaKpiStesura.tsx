@@ -1,5 +1,5 @@
 // src/features/kpi/pages/CapoMegaKpiStesura.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState  } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
@@ -428,3 +428,4 @@ export default function CapoMegaKpiStesura({ isDark = true }: { isDark?: boolean
     </div>
   );
 }
+

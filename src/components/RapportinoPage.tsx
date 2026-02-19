@@ -7,7 +7,7 @@ import { formatDisplayName } from "../utils/formatHuman";
 
 import LoadingScreen from "./LoadingScreen";
 import RapportinoHeader from "./rapportino/RapportinoHeader";
-import RapportinoTable from "./rapportino/RapportinoTable.tsx";
+import RapportinoTable from "./rapportino/RapportinoTable";
 import RapportinoIncaCaviSection from "./RapportinoIncaCaviSection";
 
 import CatalogModal from "./rapportino/modals/CatalogModal";

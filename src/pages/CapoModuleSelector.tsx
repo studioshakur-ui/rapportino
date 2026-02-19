@@ -1,5 +1,5 @@
 // src/pages/CapoModuleSelector.tsx
-import React, { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef  } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useShip, type Ship } from "../context/ShipContext";
 import { corePills } from "../ui/designSystem";

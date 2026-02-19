@@ -1,8 +1,8 @@
 // src/components/direzione/kpiDetails/KpiHoursDetails.tsx
 // Direction (Direzione) — Drill-down KPI "Ore lavoro" basato su direzione_operator_facts_v1.
 
-import React, { useMemo } from "react";
-import { useCoreI18n } from "../../../i18n/CoreI18n";
+import { useMemo  } from "react";
+import { useCoreI18n } from "../../../i18n/coreI18n";
 import { KpiEmptyState, KpiMetaLine, KpiSection } from "./KpiDetailsCommon";
 import { formatNumberIT } from "../../charts/coreChartTheme";
 
@@ -104,3 +104,4 @@ export default function KpiHoursDetails({
     </div>
   );
 }
+

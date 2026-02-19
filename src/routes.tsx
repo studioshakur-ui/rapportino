@@ -34,7 +34,7 @@ import CapoPresencePage from "./capo/simple/CapoPresencePage";
 import RapportinoSheet from "./components/RapportinoSheet";
 
 // ADMIN
-import AdminUsersPage from "./admin/AdminUsersPage";
+import AdminUsersPage from "./admin/users/AdminUsersPage";
 import AdminOperatorsPage from "./admin/AdminOperatorsPage";
 import AdminCatalogoPage from "./admin/AdminCatalogoPage";
 import AdminPlanningPage from "./admin/AdminPlanningPage";
@@ -218,7 +218,7 @@ export default function AppRoutes(): JSX.Element {
 
         {/* Canonical routes */}
         <Route path="assignments" element={<ManagerAssignments />} />
-        <Route path="capi-cantieri" element={<ManagerCapoShipPlanning isDark={true} />} />
+        <Route path="capi-cantieri" element={<ManagerCapoShipPlanning />} />
         <Route path="core-drive" element={<ArchivePage />} />
 
         {/* Aliases */}

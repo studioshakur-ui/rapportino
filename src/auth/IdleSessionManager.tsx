@@ -1,5 +1,5 @@
 // src/auth/IdleSessionManager.tsx
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState  } from "react";
 
 type LogoutReason = string;
 
@@ -195,7 +195,7 @@ export default function IdleSessionManager({
   const maybeAcquireWarningOwnership = useCallback((): boolean => {
     const owner = getWarningOwner();
     if (isWarningOwnerValid(owner)) {
-      return owner.tabId === TAB_ID;
+      return owner?.tabId === TAB_ID;
     }
 
     const base = lastActivityAtRef.current || readLastActivityAt() || nowMs();
@@ -571,3 +571,4 @@ export default function IdleSessionManager({
     </div>
   );
 }
+

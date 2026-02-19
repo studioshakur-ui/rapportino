@@ -1,5 +1,5 @@
 // src/shells/ManagerShell.tsx
-import React, { useMemo } from "react";
+import { useMemo  } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthProvider";
@@ -163,3 +163,4 @@ export default function ManagerShell() {
     </div>
   );
 }
+

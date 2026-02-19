@@ -70,7 +70,7 @@ export default function UsersToolbar(props: {
                   "border-sky-400/45 bg-sky-500/10 text-sky-100 hover:bg-sky-500/15"
                 )}
               >
-                Invite
+                + Crea
               </button>
             </div>
           </div>

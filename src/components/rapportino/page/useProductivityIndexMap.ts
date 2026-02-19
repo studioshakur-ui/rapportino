@@ -57,7 +57,7 @@ export function useProductivityIndexMap({
 
   const map = useMemo(() => {
     const m = new Map<string, number>();
-    const arr = Array.isArray(familyRows) ? familyRows : [];
+    const arr: AnyRow[] = Array.isArray(familyRows) ? (familyRows as unknown as AnyRow[]) : [];
 
     for (const r of arr) {
       const opId = r?.operator_id ? String(r.operator_id).trim() : "";
