@@ -258,7 +258,7 @@ export default function IncaCockpit(props: IncaCockpitProps) {
 
   const chosenUpload = useMemo(() => {
     const id = (selectedUploadId || "").trim();
-        if (!id) return null;
+    if (!id) return null;
     return byId[id] || null;
   }, [byId, selectedUploadId]);
 
@@ -327,7 +327,7 @@ export default function IncaCockpit(props: IncaCockpitProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 2) load cavi by effective HEAD id (batched) — source VIEW: inca_cavi_with_last_posa_and_capo_v1
+  // 2) load cavi by effective HEAD id (batched) — source VIEW: inca_cavi_with_last_posa_and_capo_v2
   useEffect(() => {
     let alive = true;
     const ac = new AbortController();
@@ -354,7 +354,7 @@ export default function IncaCockpit(props: IncaCockpitProps) {
           const to = from + loadInfo.pageSize - 1;
 
           const { data, error: e } = await supabase
-            .from("inca_cavi_with_last_posa_and_capo_v1")
+            .from("inca_cavi_with_last_posa_and_capo_v2")
             .select(
               [
                 "id",
@@ -381,6 +381,7 @@ export default function IncaCockpit(props: IncaCockpitProps) {
                 "livello",
                 "wbs",
                 "pagina_pdf",
+                "raw",
                 "data_posa",
                 "capo_label",
               ].join(",")
@@ -520,7 +521,7 @@ export default function IncaCockpit(props: IncaCockpitProps) {
     () => filteredCavi.reduce((acc, r) => acc + (isNonPosatoAtom(toAtom((r as any)?.situazione)) ? 1 : 0), 0),
     [filteredCavi]
   );
-    const prodPercent = useMemo(() => (totalCavi ? (pCount / totalCavi) * 100 : 0), [pCount, totalCavi]);
+  const prodPercent = useMemo(() => (totalCavi ? (pCount / totalCavi) * 100 : 0), [pCount, totalCavi]);
 
   const totalMetri = useMemo(() => {
     return (filteredCavi || []).reduce((acc, r) => {

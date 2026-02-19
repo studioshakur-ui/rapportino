@@ -10,6 +10,8 @@ type ImportMode = "DRY_RUN" | "COMMIT" | "ENRICH_TIPO";
 
 type ParsedCable = {
   codice: string;
+  /** Raw canonicalized XLSX row (all columns preserved). */
+  raw: Record<string, unknown>;
   codice_inca: string | null;
   marca_cavo: string | null;
   descrizione: string | null;
@@ -37,6 +39,20 @@ function json(status: number, body: unknown) {
 
 function normText(v: unknown): string {
   return String(v ?? "").trim();
+}
+
+/**
+ * Canonicalize cable codes so joins remain stable across imports.
+ * - trim
+ * - normalize unicode
+ * - collapse any whitespace run to a single space
+ */
+function normalizeCodice(v: unknown): string {
+  const s = String(v ?? "")
+    .replace(/\u00A0/g, " ")
+    .normalize("NFKC")
+    .trim();
+  return s.replace(/\s+/g, " ");
 }
 
 function asUuidOrNull(v: unknown): string | null {
@@ -217,7 +233,7 @@ function parseXlsxCables(arrayBuffer: ArrayBuffer) {
     const row = buildRowCanonical(r);
 
     const codiceRaw = pickFirst(row, ["MARCA_CAVO", "MARCA", "MARCA_PEZZO", "CODICE", "CODICE_CAVO", "CAVO"]);
-    const codice = normText(codiceRaw);
+    const codice = normalizeCodice(codiceRaw);
     if (!codice) continue;
 
     const codiceInca = normText(pickFirst(row, ["CODICE_CAVO", "CODICE_INCA"])) || null;
@@ -253,6 +269,7 @@ function parseXlsxCables(arrayBuffer: ArrayBuffer) {
 
     parsed.push({
       codice,
+      raw: row,
       codice_inca: codiceInca || null,
       marca_cavo: marcaCavo,
       descrizione,
@@ -466,7 +483,8 @@ serve(
 
       if (!prevErr && Array.isArray(prevRows)) {
         previousCables = prevRows.map((r: any) => ({
-          codice: String(r.codice),
+          codice: normalizeCodice(r.codice),
+          raw: {},
           codice_inca: r.codice_inca ?? null,
           marca_cavo: r.marca_cavo ?? null,
           descrizione: r.descrizione ?? null,
@@ -628,6 +646,7 @@ serve(
       costr,
       commessa,
       codice: c.codice,
+      raw: c.raw,
       codice_inca: c.codice_inca,
       marca_cavo: c.marca_cavo,
       descrizione: c.descrizione,

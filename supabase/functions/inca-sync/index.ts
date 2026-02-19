@@ -9,6 +9,8 @@ import { corsHeaders, withCors } from "../_shared/cors.ts";
 
 type ParsedCable = {
   codice: string;
+  /** Raw canonicalized XLSX row (all columns preserved). */
+  raw: Record<string, unknown>;
   codice_inca: string | null;
   marca_cavo: string | null;
   descrizione: string | null;
@@ -70,6 +72,20 @@ function json(status: number, body: unknown) {
 
 function normText(v: unknown): string {
   return String(v ?? "").trim();
+}
+
+/**
+ * Canonicalize cable codes so that joins remain stable across imports.
+ * - trim
+ * - normalize unicode
+ * - collapse any whitespace run to a single space
+ */
+function normalizeCodice(v: unknown): string {
+  const s = String(v ?? "")
+    .replace(/\u00A0/g, " ")
+    .normalize("NFKC")
+    .trim();
+  return s.replace(/\s+/g, " ");
 }
 
 function asUuidOrNull(v: unknown): string | null {
@@ -250,7 +266,7 @@ function parseXlsxCables(arrayBuffer: ArrayBuffer) {
     const row = buildRowCanonical(r);
 
     const codiceRaw = pickFirst(row, ["MARCA_CAVO", "MARCA", "MARCA_PEZZO", "CODICE", "CODICE_CAVO", "CAVO"]);
-    const codice = normText(codiceRaw);
+    const codice = normalizeCodice(codiceRaw);
     if (!codice) continue;
 
     if (seenCodici.has(codice)) duplicateCodici.add(codice);
@@ -291,6 +307,7 @@ function parseXlsxCables(arrayBuffer: ArrayBuffer) {
 
     parsed.push({
       codice,
+      raw: row,
       codice_inca: codiceInca || null,
       marca_cavo: marcaCavo,
       descrizione,
@@ -742,10 +759,11 @@ serve(
     const prevBy = new Map<string, any>();
     const previousCables: ParsedCable[] = [];
     for (const r of prevRows as any[]) {
-      const codice = String(r.codice);
+      const codice = normalizeCodice(r.codice);
       prevBy.set(codice, r);
       previousCables.push({
         codice,
+        raw: {},
         codice_inca: r.codice_inca ?? null,
         marca_cavo: r.marca_cavo ?? null,
         descrizione: r.descrizione ?? null,

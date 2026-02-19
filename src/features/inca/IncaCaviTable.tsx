@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 
-export type IncaTableViewMode = "standard" | "chantier" | "controle";
+export type IncaTableViewMode = "standard" | "audit";
 
 export type IncaCavoRow = {
   id: string;
@@ -40,6 +40,9 @@ export type IncaCavoRow = {
   // terrain (from your VIEW)
   data_posa?: string | null;
   capo_label?: string | null;
+
+  /** Raw canonicalized XLSX row (all columns preserved). */
+  raw?: Record<string, unknown> | null;
 };
 
 type Column<T> = {
@@ -68,6 +71,17 @@ export type IncaCaviTableProps = {
   // Optional: show a compact header or let parent own it
   title?: string;
 };
+
+function asText(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  try {
+    return JSON.stringify(v);
+  } catch {
+    return String(v);
+  }
+}
 
 // =============================
 // SITUAZIONE semantics (CANON)
@@ -104,6 +118,8 @@ function fmtMeters(v: number | null | undefined): string {
   return new Intl.NumberFormat("it-IT").format(n);
 }
 
+
+
 function fmtDate(v: unknown): string {
   if (v === null || v === undefined) return "—";
   const s = String(v).trim();
@@ -115,7 +131,6 @@ function fmtDate(v: unknown): string {
   }
   return new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" }).format(d);
 }
-
 function toAtom(v: unknown): SituazioneAtom {
   const s = norm(v).toUpperCase();
   if (!s) return "L";
@@ -199,6 +214,24 @@ export default function IncaCaviTable({
 }: IncaCaviTableProps) {
   const [sortId, setSortId] = useState<string>("codice");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  // Excel-like column control (incl. raw XLSX columns)
+  const [columnsOpen, setColumnsOpen] = useState(false);
+  const [rawSearch, setRawSearch] = useState("");
+  const [visibleRawKeys, setVisibleRawKeys] = useState<string[]>([]);
+
+  const rawKeys = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of rows.slice(0, 50)) {
+      const obj = (r as any)?.raw;
+      if (!obj || typeof obj !== "object") continue;
+      for (const k of Object.keys(obj)) {
+        if (!k) continue;
+        s.add(k);
+      }
+    }
+    return [...s].sort((a, b) => a.localeCompare(b));
+  }, [rows]);
 
   const columns = useMemo<Column<IncaCavoRow>[]>(() => {
     const base: Column<IncaCavoRow>[] = [
@@ -312,11 +345,10 @@ export default function IncaCaviTable({
       },
     ];
 
-    if (viewMode === "standard") return base;
+    let out: Column<IncaCavoRow>[] = base;
 
-    if (viewMode === "chantier") {
-      const chantier: Column<IncaCavoRow>[] = [
-        ...base.slice(0, 3), // codice, situ, stato cantiere
+    if (viewMode === "audit") {
+      const auditExtras: Column<IncaCavoRow>[] = [
         {
           id: "da_a",
           label: "DA → A",
@@ -332,21 +364,6 @@ export default function IncaCaviTable({
               </div>
             </div>
           ),
-        },
-        {
-          id: "descr_da",
-          label: "Descr. DA",
-          width: "260px",
-          sortValue: (r) => norm(r.descrizione_da).toLowerCase(),
-          render: (r) => <span className="text-[12px] text-slate-400">{norm(r.descrizione_da) || "—"}</span>,
-          hideOnMobile: true,
-        },
-        {
-          id: "descr_a",
-          label: "Descr. A",
-          width: "260px",
-          sortValue: (r) => norm(r.descrizione_a).toLowerCase(),
-          render: (r) => <span className="text-[12px] text-slate-400">{norm(r.descrizione_a) || "—"}</span>,
           hideOnMobile: true,
         },
         {
@@ -373,67 +390,74 @@ export default function IncaCaviTable({
           render: (r) => <span className="text-[12px] text-slate-300">{norm(r.livello_disturbo) || "—"}</span>,
           hideOnMobile: true,
         },
-        ...base.filter((c) => ["metri_ref", "data_posa", "capo"].includes(c.id)),
+        {
+          id: "metri_teo",
+          label: "m teo",
+          width: "90px",
+          sortValue: (r) => Number(r.metri_teo) || 0,
+          render: (r) => <span className="text-[12px] text-slate-200 tabular-nums">{fmtMeters(Number(r.metri_teo) || 0)}</span>,
+          hideOnMobile: true,
+        },
+        {
+          id: "metri_dis",
+          label: "m dis",
+          width: "90px",
+          sortValue: (r) => Number(r.metri_dis) || 0,
+          render: (r) => <span className="text-[12px] text-slate-200 tabular-nums">{fmtMeters(Number(r.metri_dis) || 0)}</span>,
+          hideOnMobile: true,
+        },
+        {
+          id: "wbs",
+          label: "WBS",
+          width: "160px",
+          sortValue: (r) => norm(r.wbs).toLowerCase(),
+          render: (r) => <span className="text-[12px] text-slate-300">{norm(r.wbs) || "—"}</span>,
+          hideOnMobile: true,
+        },
+        {
+          id: "stato_tec",
+          label: "Tec",
+          width: "120px",
+          sortValue: (r) => norm(r.stato_tec).toLowerCase(),
+          render: (r) => <span className="text-[12px] text-slate-300">{norm(r.stato_tec) || "—"}</span>,
+          hideOnMobile: true,
+        },
+        {
+          id: "impianto",
+          label: "Impianto",
+          width: "140px",
+          sortValue: (r) => norm(r.impianto).toLowerCase(),
+          render: (r) => <span className="text-[12px] text-slate-300">{norm(r.impianto) || "—"}</span>,
+          hideOnMobile: true,
+        },
+        {
+          id: "livello",
+          label: "Livello",
+          width: "100px",
+          sortValue: (r) => norm(r.livello).toLowerCase(),
+          render: (r) => <span className="text-[12px] text-slate-300">{norm(r.livello) || "—"}</span>,
+          hideOnMobile: true,
+        },
       ];
 
-      return chantier;
+      out = [...base, ...auditExtras];
     }
 
-    // controle
-    const controle: Column<IncaCavoRow>[] = [
-      ...base,
-      {
-        id: "metri_teo",
-        label: "m teo",
-        width: "90px",
-        sortValue: (r) => Number(r.metri_teo) || 0,
-        render: (r) => <span className="text-[12px] text-slate-200 tabular-nums">{fmtMeters(Number(r.metri_teo) || 0)}</span>,
+    // Raw columns (opt-in, Excel-like). We append at the end to keep stable core columns.
+    if (visibleRawKeys.length > 0) {
+      const rawCols: Column<IncaCavoRow>[] = visibleRawKeys.map((k) => ({
+        id: `raw:${k}`,
+        label: k,
+        width: "180px",
+        sortValue: (r) => asText((r as any)?.raw?.[k]).toLowerCase(),
+        render: (r) => <span className="text-[12px] text-slate-300">{asText((r as any)?.raw?.[k]) || "—"}</span>,
         hideOnMobile: true,
-      },
-      {
-        id: "metri_dis",
-        label: "m dis",
-        width: "90px",
-        sortValue: (r) => Number(r.metri_dis) || 0,
-        render: (r) => <span className="text-[12px] text-slate-200 tabular-nums">{fmtMeters(Number(r.metri_dis) || 0)}</span>,
-        hideOnMobile: true,
-      },
-      {
-        id: "wbs",
-        label: "WBS",
-        width: "160px",
-        sortValue: (r) => norm(r.wbs).toLowerCase(),
-        render: (r) => <span className="text-[12px] text-slate-300">{norm(r.wbs) || "—"}</span>,
-        hideOnMobile: true,
-      },
-      {
-        id: "stato_tec",
-        label: "Tec",
-        width: "120px",
-        sortValue: (r) => norm(r.stato_tec).toLowerCase(),
-        render: (r) => <span className="text-[12px] text-slate-300">{norm(r.stato_tec) || "—"}</span>,
-        hideOnMobile: true,
-      },
-      {
-        id: "impianto",
-        label: "Impianto",
-        width: "140px",
-        sortValue: (r) => norm(r.impianto).toLowerCase(),
-        render: (r) => <span className="text-[12px] text-slate-300">{norm(r.impianto) || "—"}</span>,
-        hideOnMobile: true,
-      },
-      {
-        id: "livello",
-        label: "Livello",
-        width: "100px",
-        sortValue: (r) => norm(r.livello).toLowerCase(),
-        render: (r) => <span className="text-[12px] text-slate-300">{norm(r.livello) || "—"}</span>,
-        hideOnMobile: true,
-      },
-    ];
+      }));
+      out = [...out, ...rawCols];
+    }
 
-    return controle;
-  }, [viewMode]);
+    return out;
+  }, [viewMode, visibleRawKeys]);
 
   const sortedRows = useMemo(() => {
     const col = columns.find((c) => c.id === sortId);
@@ -483,10 +507,78 @@ export default function IncaCaviTable({
 
         <div className="flex items-center gap-2">
           <Pill label="Standard" active={viewMode === "standard"} onClick={() => onViewModeChange("standard")} />
-          <Pill label="Chantier" active={viewMode === "chantier"} onClick={() => onViewModeChange("chantier")} />
-          <Pill label="Contrôle" active={viewMode === "controle"} onClick={() => onViewModeChange("controle")} />
+          <Pill label="Audit" active={viewMode === "audit"} onClick={() => onViewModeChange("audit")} />
+
+          <button
+            type="button"
+            onClick={() => setColumnsOpen((v) => !v)}
+            className="ml-1 inline-flex items-center gap-2 rounded-full border border-slate-700/70 bg-white/5 px-3 py-1 text-[12px] text-slate-300 hover:bg-white/10"
+            title="Choisir les colonnes (incl. colonnes XLSX raw)"
+          >
+            Colonnes
+            <span className="text-slate-500">({visibleRawKeys.length})</span>
+          </button>
         </div>
       </div>
+
+      {columnsOpen && (
+        <div className="border-b border-slate-800 bg-slate-950/60 px-3 py-3">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-[11px] uppercase tracking-wide text-slate-500">Colonnes XLSX (raw)</div>
+              <button
+                type="button"
+                onClick={() => {
+                  setVisibleRawKeys([]);
+                  setRawSearch("");
+                }}
+                className="text-[12px] text-slate-400 hover:text-slate-200"
+              >
+                Reset
+              </button>
+            </div>
+
+            <input
+              value={rawSearch}
+              onChange={(e) => setRawSearch(e.target.value)}
+              placeholder="Rechercher une colonne…"
+              className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[12px] text-slate-200 placeholder:text-slate-600 outline-none"
+            />
+
+            <div className="max-h-[220px] overflow-auto rounded-xl border border-slate-800 bg-slate-950/40">
+              <div className="p-2 grid grid-cols-1 md:grid-cols-2 gap-1">
+                {rawKeys
+                  .filter((k) => (rawSearch.trim() ? k.toLowerCase().includes(rawSearch.trim().toLowerCase()) : true))
+                  .slice(0, 300)
+                  .map((k) => {
+                    const checked = visibleRawKeys.includes(k);
+                    return (
+                      <label key={k} className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-white/5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            const next = e.target.checked
+                              ? [...visibleRawKeys, k]
+                              : visibleRawKeys.filter((x) => x !== k);
+                            setVisibleRawKeys(next);
+                          }}
+                        />
+                        <span className="text-[12px] text-slate-300 truncate" title={k}>
+                          {k}
+                        </span>
+                      </label>
+                    );
+                  })}
+              </div>
+            </div>
+
+            <div className="text-[11px] text-slate-500">
+              Astuce: active uniquement les colonnes utiles. Les colonnes “raw” viennent directement de l’XLSX et sont conservées en base (audit).
+            </div>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="px-3 py-10 text-center text-[12px] text-slate-500">Caricamento…</div>
