@@ -1,8 +1,7 @@
 // src/features/kpi/pages/DirectionOperatorKPI.jsx
-import React from "react";
 import { OperatorProductivityKpiPanel } from "../components";
 
-export default function DirectionOperatorKPI({ isDark = true }) {
+export default function DirectionOperatorKPI({ isDark = true }: { isDark?: boolean }) {
   return (
     <OperatorProductivityKpiPanel
       scope="DIRECTION"

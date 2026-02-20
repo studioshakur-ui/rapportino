@@ -1,5 +1,5 @@
 // src/components/charts/DirezioneChartsSection.jsx
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import { cn } from "../../ui/cn";
 import { useCoreI18n } from "../../i18n/coreI18n";
 import EChart from "./EChart";
@@ -11,10 +11,17 @@ import EChart from "./EChart";
  * - lisibles
  * - contraste renforcé (“allumer les lampes”)
  */
+type TrendData = { x?: unknown[]; y?: unknown[]; min?: unknown; max?: unknown } | null;
+type IncaData = { labels?: unknown[]; previsti?: unknown[]; realizzati?: unknown[]; posati?: unknown[] } | null;
+
 export default function DirezioneChartsSection({
   isDark = true,
   trend = null, // { x: [date], y: [number], min?:, max?: }
   inca = null, // { labels:[], previsti:[], realizzati:[], posati:[] }
+}: {
+  isDark?: boolean;
+  trend?: TrendData;
+  inca?: IncaData;
 }) {
   const { t } = useCoreI18n();
 

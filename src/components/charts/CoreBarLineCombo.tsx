@@ -1,7 +1,7 @@
 // /src/components/charts/CoreBarLineCombo.jsx
 // CORE / CNCS — Recharts Combo (bars + line) for timeline KPIs
 
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -16,28 +16,37 @@ import {
 import { CORE_CHART_THEME, formatNumberIT, safeText, coreTooltipStyle } from "./coreChartTheme";
 import { CoreEmpty, CoreLoading } from "./CoreEmptyState";
 
-/**
- * @typedef {object} CoreBarLineComboProps
- * @property {unknown[]=} data
- * @property {number=} height
- * @property {boolean=} loading
- * @property {boolean=} empty
- * @property {string=} emptyLabel
- * @property {string=} emptyHint
- * @property {boolean=} isDark
- * @property {string=} xKey
- * @property {string=} barKey
- * @property {string=} barName
- * @property {string=} barColor
- * @property {string=} lineKey
- * @property {string=} lineName
- * @property {string=} lineColor
- * @property {boolean=} showLegend
- * @property {(label: unknown, payload: unknown[]) => string=} labelFormatter
- * @property {string=} className
- */
+type CoreBarLineComboProps = {
+  data?: unknown[];
+  height?: number;
+  loading?: boolean;
+  empty?: boolean;
+  emptyLabel?: string;
+  emptyHint?: string;
+  isDark?: boolean;
+  xKey?: string;
+  barKey?: string;
+  barName?: string;
+  barColor?: string;
+  lineKey?: string;
+  lineName?: string;
+  lineColor?: string;
+  showLegend?: boolean;
+  labelFormatter?: (label: unknown, payload: unknown[]) => string;
+  className?: string;
+};
 
-function TooltipContent({ active, payload, label, labelFormatter }) {
+function TooltipContent({
+  active,
+  payload,
+  label,
+  labelFormatter,
+}: {
+  active?: boolean;
+  payload?: Array<{ name?: unknown; value?: unknown }> | null;
+  label?: unknown;
+  labelFormatter?: (label: unknown, payload: unknown[]) => string;
+}) {
   const t = CORE_CHART_THEME;
   if (!active || !payload || !payload.length) return null;
 
@@ -62,7 +71,6 @@ function TooltipContent({ active, payload, label, labelFormatter }) {
   );
 }
 
-/** @param {CoreBarLineComboProps} props */
 export default function CoreBarLineCombo({
   data = [],
   height = 240,
@@ -85,7 +93,7 @@ export default function CoreBarLineCombo({
   showLegend = true,
   labelFormatter,
   className = "",
-}) {
+}: CoreBarLineComboProps) {
   const t = CORE_CHART_THEME;
 
   const computedEmpty = useMemo(() => {

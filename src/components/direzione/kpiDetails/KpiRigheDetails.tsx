@@ -1,16 +1,11 @@
 // src/components/direzione/kpiDetails/KpiRigheDetails.jsx
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import { useCoreI18n } from "../../../i18n/coreI18n";
 import { KpiEmptyState, KpiSection } from "./KpiDetailsCommon";
 
-/**
- * @typedef {import("../../../features/direzione/dashboard/types").ProduzioniAggRow} ProduzioniAggRow
- */
+type ProduzioniAggRow = import("../../../features/direzione/dashboard/types").ProduzioniAggRow;
 
-/**
- * @param {{ produzioniAgg?: ProduzioniAggRow[] }} props
- */
-export default function KpiRigheDetails({ produzioniAgg = [] }) {
+export default function KpiRigheDetails({ produzioniAgg = [] }: { produzioniAgg?: ProduzioniAggRow[] }) {
   const { t } = useCoreI18n();
 
   const rows = useMemo(() => {

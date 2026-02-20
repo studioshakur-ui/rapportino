@@ -1,9 +1,9 @@
 // src/components/kpi/KpiDetailsModal.jsx
-import React from "react";
-import CenterModal from "../overlay/CenterModal";
-import { cn } from "../../ui/cn";
-import { useCoreI18n } from "../../i18n/coreI18n";
-import { formatNumberIT, safeText } from "../../ui/format";
+import type { ReactNode } from "react";
+import CenterModal from "../../../components/overlay/CenterModal";
+import { cn } from "../../../ui/cn";
+import { useCoreI18n } from "../../../i18n/coreI18n";
+import { formatNumberIT, safeText } from "../../../ui/format";
 
 /**
  * Modal KPI Tesla-X
@@ -12,10 +12,34 @@ import { formatNumberIT, safeText } from "../../ui/format";
  * - lisible
  * - sections nettes
  */
-export default function KpiDetailsModal({ open, onClose, kpiKey, payload, isDark = true }) {
+type SummaryPair = {
+  label?: unknown;
+  value?: unknown;
+  kind?: unknown;
+  maxFrac?: number;
+};
+type KpiDetailsPayload = {
+  summaryPairs?: SummaryPair[];
+  rulesText?: ReactNode;
+  notesText?: ReactNode;
+};
+
+export default function KpiDetailsModal({
+  open,
+  onClose,
+  kpiKey,
+  payload,
+  isDark = true,
+}: {
+  open: boolean;
+  onClose?: () => void;
+  kpiKey?: string;
+  payload?: KpiDetailsPayload | null;
+  isDark?: boolean;
+}) {
   const { t } = useCoreI18n();
 
-  const titleByKey = {
+  const titleByKey: Record<string, string> = {
     rapportini: t("KPI_RAPPORTINI"),
     righe: t("KPI_RIGHE_ATTIVITA"),
     prod_index: t("KPI_INDICE_PROD"),
@@ -24,7 +48,7 @@ export default function KpiDetailsModal({ open, onClose, kpiKey, payload, isDark
     ritardi: t("KPI_RITARDI_CAPI"),
   };
 
-  const title = titleByKey[kpiKey] || t("KPI_DETAILS_TITLE");
+  const title = titleByKey[String(kpiKey || "")] || t("KPI_DETAILS_TITLE");
 
   const box = cn(
     "rounded-2xl border p-4",

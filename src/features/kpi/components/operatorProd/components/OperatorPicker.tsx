@@ -1,8 +1,10 @@
 // src/components/kpi/operatorProd/components/OperatorPicker.jsx
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import { useI18n } from "../../../../../i18n/I18nProvider";
 import { cn } from "../utils/kpiUi";
 import { uniq } from "../utils/kpiHelpers";
+
+type OperatorRow = { operator_id?: string; operator_name?: string };
 
 export function OperatorPicker({
   isDark,
@@ -32,6 +34,30 @@ export function OperatorPicker({
 
   selectedIds,
   setSelectedIds,
+}: {
+  isDark: boolean;
+  loading: boolean;
+  error?: string | null;
+  scope: unknown;
+  dateFrom: string;
+  dateTo: string;
+  setDateFrom: (value: string) => void;
+  setDateTo: (value: string) => void;
+  showCostrCommessaFilters: boolean;
+  lockCostr?: boolean;
+  lockCommessa?: boolean;
+  costrFilter: string;
+  setCostrFilter: (value: string) => void;
+  commessaFilter: string;
+  setCommessaFilter: (value: string) => void;
+  costrOptions: string[];
+  commessaOptions: string[];
+  operatorsCount: number;
+  filteredOperators: OperatorRow[];
+  search: string;
+  setSearch: (value: string) => void;
+  selectedIds: string[];
+  setSelectedIds: (next: string[] | ((prev: string[]) => string[])) => void;
 }) {
   const { t } = useI18n();
 
@@ -67,13 +93,13 @@ export function OperatorPicker({
   const selectedSet = useMemo(() => new Set(selectedIds || []), [selectedIds]);
 
   const selectAllFiltered = () => {
-    const ids = (filteredOperators || []).map((o) => o.operator_id).filter(Boolean);
+    const ids = (filteredOperators || []).map((o) => o.operator_id).filter(Boolean) as string[];
     setSelectedIds((prev) => uniq([...(prev || []), ...ids]));
   };
 
   const clearSelection = () => setSelectedIds([]);
 
-  const toggleOperator = (id) => {
+  const toggleOperator = (id: string) => {
     if (!id) return;
     setSelectedIds((prev) => {
       const set = new Set(prev || []);
@@ -159,7 +185,12 @@ export function OperatorPicker({
             </div>
           </div>
 
-          <div className="text-[11px] text-slate-400">{t("KPI_OPPROD_TOTAL_IN_RANGE", { n: operatorsCount })}</div>
+          <div className="text-[11px] text-slate-400">
+            {(t as unknown as (key: string, params?: Record<string, unknown>) => string)(
+              "KPI_OPPROD_TOTAL_IN_RANGE",
+              { n: operatorsCount }
+            )}
+          </div>
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -170,10 +201,18 @@ export function OperatorPicker({
             {t("KPI_OPPROD_CLEAR")}
           </button>
 
-          <span className="ml-auto text-[11px] text-slate-400">{t("KPI_OPPROD_SELECTED_N", { n: selectedIds.length })}</span>
+          <span className="ml-auto text-[11px] text-slate-400">
+            {(t as unknown as (key: string, params?: Record<string, unknown>) => string)("KPI_OPPROD_SELECTED_N", {
+              n: selectedIds.length,
+            })}
+          </span>
         </div>
 
-        <div className="mt-2 text-[11px] text-slate-400">{t("KPI_OPPROD_SCOPE_ACTIVE", { scope })}</div>
+        <div className="mt-2 text-[11px] text-slate-400">
+          {(t as unknown as (key: string, params?: Record<string, unknown>) => string)("KPI_OPPROD_SCOPE_ACTIVE", {
+            scope,
+          })}
+        </div>
 
         <div className="mt-3">
           <input
@@ -193,6 +232,7 @@ export function OperatorPicker({
             <ul className="space-y-1">
               {filteredOperators.map((o) => {
                 const id = o.operator_id;
+                if (!id) return null;
                 const checked = selectedSet.has(id);
 
                 return (

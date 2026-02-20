@@ -1,5 +1,5 @@
 // src/components/kpi/OperatorProductivityKpiPanel.jsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../../../auth/AuthProvider";
 import { useI18n } from "../../../i18n/I18nProvider";
 import { normalizeScope } from "./operatorProd/utils/kpiHelpers";
@@ -10,24 +10,26 @@ import { OperatorPicker } from "./operatorProd/components/OperatorPicker";
 import { OperatorResultsGrid } from "./operatorProd/components/OperatorResultsGrid";
 import { OperatorDetailsModal } from "./operatorProd/components/OperatorDetailsModal";
 
-function toISODate(d) {
+type FamilyRow = Record<string, unknown>;
+
+function toISODate(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const da = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${da}`;
 }
 
-function loadJSON(key, fallback) {
+function loadJSON<T>(key: string, fallback: T): T {
   try {
     const raw = window.localStorage.getItem(key);
     if (!raw) return fallback;
-    return JSON.parse(raw);
+    return JSON.parse(raw) as T;
   } catch {
     return fallback;
   }
 }
 
-function saveJSON(key, value) {
+function saveJSON(key: string, value: unknown): void {
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
   } catch {
@@ -41,7 +43,15 @@ function saveJSON(key, value) {
  * - Rendu en table avec colonnes déduites dynamiquement.
  * - Si aucun champ standard, on affiche une table “keys” lisible.
  */
-function FamiliesResultsTable({ isDark, loading, rows }) {
+function FamiliesResultsTable({
+  isDark,
+  loading,
+  rows,
+}: {
+  isDark: boolean;
+  loading: boolean;
+  rows: FamilyRow[] | null | undefined;
+}) {
   const safeRows = Array.isArray(rows) ? rows : [];
 
   const columns = useMemo(() => {
@@ -70,7 +80,7 @@ function FamiliesResultsTable({ isDark, loading, rows }) {
       "n",
     ];
 
-    const rank = (k) => {
+    const rank = (k: string) => {
       const i = priority.indexOf(k);
       return i === -1 ? 999 : i;
     };
@@ -81,7 +91,7 @@ function FamiliesResultsTable({ isDark, loading, rows }) {
       .slice(0, 10); // limite pour éviter un tableau illisible
   }, [safeRows]);
 
-  const fmt = (v) => {
+  const fmt = (v: unknown): string => {
     if (v === null || v === undefined) return "";
     if (typeof v === "number") {
       // format simple, sans locale agressive
@@ -182,6 +192,16 @@ export default function OperatorProductivityKpiPanel({
   fixedCommessa = null,
   lockCostr = false,
   lockCommessa = false,
+}: {
+  scope?: unknown;
+  isDark?: boolean;
+  title?: string;
+  kicker?: string;
+  showCostrCommessaFilters?: boolean;
+  fixedCostr?: unknown;
+  fixedCommessa?: unknown;
+  lockCostr?: boolean;
+  lockCommessa?: boolean;
 }) {
   const { profile } = useAuth();
   const { t } = useI18n();
@@ -202,7 +222,7 @@ export default function OperatorProductivityKpiPanel({
   const KICKER = kicker ?? t("KPI_OPPROD_KICKER");
 
   // Tabs: "SINTESI" | "FAMIGLIE"
-  const [view, setView] = useState(() => {
+  const [view, setView] = useState<"SINTESI" | "FAMIGLIE">(() => {
     try {
       const raw = window.localStorage.getItem(STORAGE_VIEW_KEY);
       return raw === "FAMIGLIE" ? "FAMIGLIE" : "SINTESI";
@@ -220,12 +240,12 @@ export default function OperatorProductivityKpiPanel({
   }, [STORAGE_VIEW_KEY, view]);
 
   // Date window
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
 
   // Optional filters
-  const [costrFilter, setCostrFilter] = useState(() => (fixedCostr ? String(fixedCostr) : ""));
-  const [commessaFilter, setCommessaFilter] = useState(() => (fixedCommessa ? String(fixedCommessa) : ""));
+  const [costrFilter, setCostrFilter] = useState<string>(() => (fixedCostr ? String(fixedCostr) : ""));
+  const [commessaFilter, setCommessaFilter] = useState<string>(() => (fixedCommessa ? String(fixedCommessa) : ""));
 
   // Enforce locked filters (if provided)
   useEffect(() => {
@@ -245,13 +265,13 @@ export default function OperatorProductivityKpiPanel({
   }, [lockCommessa, fixedCommessa]);
 
   // Selection
-  const [search, setSearch] = useState("");
-  const [selectedIds, setSelectedIds] = useState(() => loadJSON(STORAGE_KEY, []));
+  const [search, setSearch] = useState<string>("");
+  const [selectedIds, setSelectedIds] = useState<string[]>(() => loadJSON<string[]>(STORAGE_KEY, []));
 
   // Modal
-  const [openOperatorId, setOpenOperatorId] = useState(null);
+  const [openOperatorId, setOpenOperatorId] = useState<string | null>(null);
 
-  const didInitRange = useRef(false);
+  const didInitRange = useRef<boolean>(false);
 
   useEffect(() => {
     if (didInitRange.current) return;
@@ -451,7 +471,7 @@ export default function OperatorProductivityKpiPanel({
           loading={loading}
           perOperator={perOperator}
           totalsSelected={totalsSelected}
-          onOpenOperator={(operatorId) => setOpenOperatorId(operatorId)}
+          onOpenOperator={(operatorId: string) => setOpenOperatorId(operatorId)}
         />
       ) : (
         <FamiliesResultsTable isDark={isDark} loading={loading} rows={familyRows} />

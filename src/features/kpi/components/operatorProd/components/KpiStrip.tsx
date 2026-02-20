@@ -1,9 +1,20 @@
 // src/components/kpi/operatorProd/components/KpiStrip.jsx
-import React from "react";
 import { useI18n } from "../../../../../i18n/I18nProvider";
 import { cn, formatNumber } from "../utils/kpiUi";
 
-export function KpiStrip({ isDark, loading, perOperatorCount, totalsSelected }) {
+type TotalsSelected = { sumOre?: number; sumPrev?: number; idx?: number | null };
+
+export function KpiStrip({
+  isDark,
+  loading,
+  perOperatorCount,
+  totalsSelected,
+}: {
+  isDark: boolean;
+  loading: boolean;
+  perOperatorCount: number;
+  totalsSelected: TotalsSelected;
+}) {
   const { t } = useI18n();
 
   const cardBase = cn(

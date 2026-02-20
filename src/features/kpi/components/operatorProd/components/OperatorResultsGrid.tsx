@@ -1,9 +1,31 @@
 // src/components/kpi/operatorProd/components/OperatorResultsGrid.jsx
-import React from "react";
 import { useI18n } from "../../../../../i18n/I18nProvider";
 import { cn, formatNumber, haloByIndex, pickAccent, toneByIndex } from "../utils/kpiUi";
 
-export function OperatorResultsGrid({ isDark, loading, perOperator, totalsSelected, onOpenOperator }) {
+type OperatorRow = {
+  operator_id?: string;
+  operator_name?: string;
+  productivity_index_range?: number | null;
+  ore_sum?: number;
+  previsto_eff_sum?: number;
+  prodotto_sum?: number;
+  days_active?: number;
+};
+type TotalsSelected = { sumOre?: number; sumPrev?: number; sumProd?: number; idx?: number | null };
+
+export function OperatorResultsGrid({
+  isDark,
+  loading,
+  perOperator,
+  totalsSelected,
+  onOpenOperator,
+}: {
+  isDark: boolean;
+  loading: boolean;
+  perOperator: OperatorRow[];
+  totalsSelected: TotalsSelected;
+  onOpenOperator: (id: string) => void;
+}) {
   const { t } = useI18n();
 
   const cardBase = cn(
@@ -39,13 +61,15 @@ export function OperatorResultsGrid({ isDark, loading, perOperator, totalsSelect
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                 {perOperator.map((r) => {
                   const idx = r.productivity_index_range;
+                  const operatorId = r.operator_id;
+                  if (!operatorId) return null;
                   const tone = toneByIndex(idx, isDark);
 
                   return (
                     <button
-                      key={r.operator_id}
+                      key={operatorId}
                       type="button"
-                      onClick={() => onOpenOperator(r.operator_id)}
+                      onClick={() => onOpenOperator(operatorId)}
                       className={cn(
                         "text-left rounded-3xl border p-4 transition relative overflow-hidden",
                         isDark ? "border-slate-800 bg-slate-950/35 hover:bg-slate-900/40" : "border-slate-200 bg-white hover:bg-slate-50",

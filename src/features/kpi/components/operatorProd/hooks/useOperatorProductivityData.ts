@@ -3,6 +3,23 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../../../../lib/supabaseClient";
 import { safeText, toNumber, uniq } from "../utils/kpiHelpers";
 
+type GlobalRow = {
+  report_date: string | null;
+  operator_id: string | null;
+  operator_name: string;
+  ore: number;
+  previsto_eff: number;
+  prodotto: number;
+  productivity_index: number | null;
+  costr: unknown;
+  commessa: unknown;
+  manager_id: unknown;
+};
+type FamilyRow = GlobalRow & {
+  categoria: string;
+  descrizione: string;
+};
+
 export function useOperatorProductivityData({
   profileId,
   scope,
@@ -13,12 +30,22 @@ export function useOperatorProductivityData({
   commessaFilter,
   selectedIds,
   search,
+}: {
+  profileId: unknown;
+  scope: unknown;
+  dateFrom: string | null;
+  dateTo: string | null;
+  showCostrCommessaFilters: boolean;
+  costrFilter: string | null;
+  commessaFilter: string | null;
+  selectedIds: string[] | null;
+  search: string;
 }) {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const [globalRows, setGlobalRows] = useState([]);
-  const [familyRows, setFamilyRows] = useState([]);
+  const [globalRows, setGlobalRows] = useState<GlobalRow[]>([]);
+  const [familyRows, setFamilyRows] = useState<FamilyRow[]>([]);
 
   // Load
   useEffect(() => {
@@ -28,8 +55,9 @@ export function useOperatorProductivityData({
     let alive = true;
     const ac = new AbortController();
 
-    function normalizeGlobal(rows) {
-      return (rows || []).map((r) => ({
+    function normalizeGlobal(rows: unknown): GlobalRow[] {
+      const list = Array.isArray(rows) ? rows : [];
+      return list.map((r) => ({
         report_date: r?.report_date ? String(r.report_date) : null,
         operator_id: r?.operator_id || null,
         operator_name: safeText(r?.operator_name),
@@ -43,8 +71,9 @@ export function useOperatorProductivityData({
       }));
     }
 
-    function normalizeFamily(rows) {
-      return (rows || []).map((r) => ({
+    function normalizeFamily(rows: unknown): FamilyRow[] {
+      const list = Array.isArray(rows) ? rows : [];
+      return list.map((r) => ({
         report_date: r?.report_date ? String(r.report_date) : null,
         operator_id: r?.operator_id || null,
         operator_name: safeText(r?.operator_name),
@@ -60,7 +89,7 @@ export function useOperatorProductivityData({
       }));
     }
 
-    async function loadFromView({ view, kind }) {
+    async function loadFromView({ view, kind }: { view: string; kind: "GLOBAL" | "FAMILY" }) {
       const isV3 = String(view).endsWith("_v3");
 
       if (kind === "GLOBAL") {
@@ -87,8 +116,9 @@ export function useOperatorProductivityData({
           if (commessaFilter) q = q.eq("commessa", commessaFilter);
         }
 
-        if (selectedIds?.length > 0 && selectedIds.length <= 250) {
-          q = q.in("operator_id", selectedIds);
+        const ids = Array.isArray(selectedIds) ? selectedIds : [];
+        if (ids.length > 0 && ids.length <= 250) {
+          q = q.in("operator_id", ids);
         }
 
         const { data, error } = await q;
@@ -119,8 +149,9 @@ export function useOperatorProductivityData({
         if (commessaFilter) q = q.eq("commessa", commessaFilter);
       }
 
-      if (selectedIds?.length > 0 && selectedIds.length <= 250) {
-        q = q.in("operator_id", selectedIds);
+      const ids = Array.isArray(selectedIds) ? selectedIds : [];
+      if (ids.length > 0 && ids.length <= 250) {
+        q = q.in("operator_id", ids);
       }
 
       const { data, error } = await q;
@@ -128,15 +159,18 @@ export function useOperatorProductivityData({
       return normalizeFamily(data);
     }
 
-    async function loadWithFallback({ views, kind }) {
+    async function loadWithFallback<T>({ views, kind }: { views: string[]; kind: "GLOBAL" | "FAMILY" }): Promise<{
+      view: string | null;
+      rows: T[];
+    }> {
       let lastErr = null;
       for (const view of views) {
         try {
-          const rows = await loadFromView({ view, kind });
+          const rows = (await loadFromView({ view, kind })) as T[];
           return { view, rows };
         } catch (e) {
-          const msg = String(e?.message || "");
-          const code = String(e?.code || "");
+          const msg = String((e as { message?: unknown } | null | undefined)?.message || "");
+          const code = String((e as { code?: unknown } | null | undefined)?.code || "");
           lastErr = e;
           // Fallback only for "relation does not exist" cases.
           const isMissingRelation =
@@ -156,8 +190,8 @@ export function useOperatorProductivityData({
         const globalViews = ["kpi_operator_global_day_v3", "kpi_operator_global_day_v2"];
         const familyViews = ["kpi_operator_family_day_v3", "kpi_operator_family_day_v2"];
 
-        const gRes = await loadWithFallback({ views: globalViews, kind: "GLOBAL" });
-        const fRes = await loadWithFallback({ views: familyViews, kind: "FAMILY" });
+        const gRes = await loadWithFallback<GlobalRow>({ views: globalViews, kind: "GLOBAL" });
+        const fRes = await loadWithFallback<FamilyRow>({ views: familyViews, kind: "FAMILY" });
 
         if (!alive) return;
         setGlobalRows(Array.isArray(gRes.rows) ? gRes.rows : []);
@@ -166,7 +200,7 @@ export function useOperatorProductivityData({
         console.error("[useOperatorProductivityData] load error:", e);
         if (!alive) return;
         setError(
-          e?.message ||
+          (e as { message?: string } | null | undefined)?.message ||
             "Errore nel caricamento KPI operatori. Verifica view kpi_operator_global_day_v2/v3 / kpi_operator_family_day_v2/v3 e RLS."
         );
         setGlobalRows([]);
@@ -195,7 +229,7 @@ export function useOperatorProductivityData({
   ]);
 
   const operators = useMemo(() => {
-    const m = new Map();
+    const m = new Map<string, { operator_id: string; operator_name: string }>();
     (globalRows || []).forEach((r) => {
       const id = r?.operator_id || null;
       if (!id) return;
@@ -217,10 +251,17 @@ export function useOperatorProductivityData({
     return (operators || []).filter((o) => String(o.operator_name || "").toLowerCase().includes(q));
   }, [operators, search]);
 
-  const selectedSet = useMemo(() => new Set(selectedIds || []), [selectedIds]);
+    const selectedSet = useMemo(() => new Set(selectedIds || []), [selectedIds]);
 
   const perOperator = useMemo(() => {
-    const m = new Map();
+    const m = new Map<string, {
+      operator_id: string;
+      operator_name: string;
+      ore_sum: number;
+      prodotto_sum: number;
+      previsto_eff_sum: number;
+      days_set: Set<string>;
+    }>();
 
     (globalRows || []).forEach((r) => {
       const opId = r?.operator_id || null;
@@ -278,7 +319,13 @@ export function useOperatorProductivityData({
   }, [globalRows, selectedSet]);
 
   const perOperatorFamilies = useMemo(() => {
-    const byOp = new Map();
+    const byOp = new Map<string, Map<string, {
+      categoria: string;
+      descrizione: string;
+      ore_sum: number;
+      prodotto_sum: number;
+      previsto_eff_sum: number;
+    }>>();
 
     (familyRows || []).forEach((r) => {
       const opId = r?.operator_id || null;
@@ -295,6 +342,7 @@ export function useOperatorProductivityData({
 
       if (!byOp.has(opId)) byOp.set(opId, new Map());
       const m = byOp.get(opId);
+      if (!m) return;
 
       const cur =
         m.get(key) || {
@@ -312,7 +360,14 @@ export function useOperatorProductivityData({
       m.set(key, cur);
     });
 
-    const out = new Map();
+      const out = new Map<string, Array<{
+        categoria: string;
+        descrizione: string;
+        ore_sum: number;
+        prodotto_sum: number;
+        previsto_eff_sum: number;
+        productivity_index: number | null;
+      }>>();
     byOp.forEach((m, opId) => {
       const arr = Array.from(m.values()).map((x) => ({
         ...x,

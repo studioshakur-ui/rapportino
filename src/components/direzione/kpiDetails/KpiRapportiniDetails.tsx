@@ -1,23 +1,26 @@
 // src/components/direzione/kpiDetails/KpiRapportiniDetails.jsx
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import { useCoreI18n } from "../../../i18n/coreI18n";
 import { KpiEmptyState, KpiMetaLine, KpiSection } from "./KpiDetailsCommon";
 import { formatDateLabelIt } from "../direzioneUtils";
 
-/**
- * @typedef {import("../../../features/direzione/dashboard/types").RapportinoHeaderRow} RapportinoHeaderRow
- */
+type RapportinoHeaderRow = import("../../../features/direzione/dashboard/types").RapportinoHeaderRow;
 
-/**
- * @param {{ rapportini?: RapportinoHeaderRow[]; dateFrom?: string; dateTo?: string }} props
- */
-export default function KpiRapportiniDetails({ rapportini = [], dateFrom, dateTo }) {
+export default function KpiRapportiniDetails({
+  rapportini = [],
+  dateFrom,
+  dateTo,
+}: {
+  rapportini?: RapportinoHeaderRow[];
+  dateFrom?: string;
+  dateTo?: string;
+}) {
   const { t } = useCoreI18n();
 
   const rows = useMemo(() => {
     return (rapportini || [])
       .slice()
-      .sort((a, b) => new Date(a.report_date) - new Date(b.report_date));
+      .sort((a, b) => new Date(a.report_date).getTime() - new Date(b.report_date).getTime());
   }, [rapportini]);
 
   return (

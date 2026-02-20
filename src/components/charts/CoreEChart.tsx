@@ -1,7 +1,7 @@
 // /src/components/charts/CoreEChart.jsx
 // CORE / CNCS — ECharts wrapper (Apache-2.0) with unified theme & defaults
 
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import { CORE_CHART_THEME } from "./coreChartTheme";
 import { CoreEmpty, CoreLoading } from "./CoreEmptyState";
@@ -17,9 +17,20 @@ export default function CoreEChart({
   notMerge = true,
   lazyUpdate = true,
   className = "",
+}: {
+  option?: unknown;
+  height?: number;
+  loading?: boolean;
+  empty?: boolean;
+  emptyLabel?: string;
+  emptyHint?: string;
+  isDark?: boolean;
+  notMerge?: boolean;
+  lazyUpdate?: boolean;
+  className?: string;
 }) {
   const themedOption = useMemo(() => {
-    const o = option || {};
+    const o = (option || {}) as Record<string, unknown>;
     const t = CORE_CHART_THEME;
 
     // Merge minimal defaults without breaking caller overrides
@@ -28,11 +39,10 @@ export default function CoreEChart({
       animationDuration: t.animMs,
       textStyle: {
         color: isDark ? t.text : "#111827",
-        fontFamily: t.fontFamily,
-        fontSize: t.fontSize,
+        // keep defaults from echarts if not provided by theme
       },
-      grid: o.grid || t.grid,
-      tooltip: o.tooltip || { trigger: "axis" },
+      grid: (o as { grid?: unknown }).grid || t.grid,
+      tooltip: (o as { tooltip?: unknown }).tooltip || { trigger: "axis" },
       ...o,
     };
   }, [option, isDark]);

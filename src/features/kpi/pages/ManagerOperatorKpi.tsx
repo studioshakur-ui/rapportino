@@ -1,9 +1,8 @@
 // /src/pages/ManagerOperatorKpi.jsx
-import React from "react";
 import { OperatorProductivityKpiPanel } from "../components";
 
 
-export default function ManagerOperatorKpi({ isDark = true }) {
+export default function ManagerOperatorKpi({ isDark = true }: { isDark?: boolean }) {
   return (
     <OperatorProductivityKpiPanel
       scope="MANAGER"

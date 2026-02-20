@@ -1,20 +1,16 @@
 // src/components/direzione/kpiDetails/KpiRitardiCapiDetails.jsx
-import React from "react";
 import { useCoreI18n } from "../../../i18n/coreI18n";
 import { KpiEmptyState, KpiSection } from "./KpiDetailsCommon";
 import { formatDateLabelIt } from "../direzioneUtils";
 
-/**
- * @typedef {import("../../../features/direzione/dashboard/types").DelayDailyRow} DelayDailyRow
- */
+type DelayDailyRow = import("../../../features/direzione/dashboard/types").DelayDailyRow;
 
-/**
- * @param {{ capiDelayDaily?: DelayDailyRow[] }} props
- */
-export default function KpiRitardiCapiDetails({ capiDelayDaily = [] }) {
+export default function KpiRitardiCapiDetails({ capiDelayDaily = [] }: { capiDelayDaily?: DelayDailyRow[] }) {
   const { t } = useCoreI18n();
 
-  const rows = (capiDelayDaily || []).slice().sort((a, b) => new Date(a.report_date) - new Date(b.report_date));
+  const rows = (capiDelayDaily || [])
+    .slice()
+    .sort((a, b) => new Date(String(a.report_date)).getTime() - new Date(String(b.report_date)).getTime());
 
   return (
     <div>

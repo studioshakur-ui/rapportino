@@ -1,10 +1,6 @@
 // src/components/kpi/KpiCard.jsx
-import React from "react";
-import CenterModal from "../../../components/overlay/CenterModal";
+import type { ReactNode } from "react";
 import { cn } from "../../../ui/cn";
-import { useCoreI18n } from "../../../i18n/coreI18n";
-import { formatNumberIT, safeText } from "../../../ui/format";
-
 
 export default function KpiCard({
   label,
@@ -14,6 +10,14 @@ export default function KpiCard({
   onClick,
   isDark = true,
   hint,
+}: {
+  label?: ReactNode;
+  value?: ReactNode;
+  sub?: ReactNode;
+  tone?: string;
+  onClick?: () => void;
+  isDark?: boolean;
+  hint?: ReactNode;
 }) {
   const toneBorder =
     tone === "sky"
@@ -55,7 +59,7 @@ export default function KpiCard({
         if (!onClick) return;
         if (e.key === "Enter" || e.key === " ") onClick();
       }}
-      aria-label={label}
+      aria-label={typeof label === "string" ? label : undefined}
     >
       <div className="flex items-start justify-between gap-3">
         <div className={cn("text-[11px] uppercase tracking-[0.18em]", isDark ? "text-slate-500" : "text-slate-600")}>

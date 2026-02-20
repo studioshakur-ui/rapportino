@@ -1,7 +1,26 @@
 // src/components/kpi/operatorProd/components/OperatorDetailsModal.jsx
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useI18n } from "../../../../../i18n/I18nProvider";
 import { cn, formatNumber, haloByIndex, pickAccent, toneByIndex } from "../utils/kpiUi";
+
+type OperatorRow = {
+  operator_id?: string | number;
+  operator_name?: string;
+  productivity_index_range?: number | null;
+  previsto_eff_sum?: number;
+  prodotto_sum?: number;
+  ore_sum?: number;
+  days_active?: number;
+};
+type FamilyRow = {
+  categoria?: unknown;
+  descrizione?: unknown;
+  produttivita?: unknown;
+  productivity_index?: number | null;
+  ore_sum?: number;
+  previsto_eff_sum?: number;
+  prodotto_sum?: number;
+};
 
 export function OperatorDetailsModal({
   isDark,
@@ -11,6 +30,14 @@ export function OperatorDetailsModal({
   totalHours,
   nonIndexedHours,
   onClose,
+}: {
+  isDark: boolean;
+  open: boolean;
+  operator: OperatorRow | null;
+  families: FamilyRow[];
+  totalHours: number;
+  nonIndexedHours: number;
+  onClose?: () => void;
 }) {
   const { t } = useI18n();
   const [tab, setTab] = useState("SUMMARY");
@@ -33,7 +60,7 @@ export function OperatorDetailsModal({
     isDark ? "bg-slate-950/70 border-b border-slate-800/70" : "bg-white border-b border-slate-200"
   );
 
-  const tabBtn = (active) =>
+  const tabBtn = (active: boolean) =>
     cn(
       "px-3 py-1.5 rounded-full border text-[11px] uppercase tracking-[0.16em] transition",
       active

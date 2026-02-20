@@ -12,8 +12,17 @@ export function useOperatorTotalHours({
   costrFilter,
   commessaFilter,
   selectedIds,
+}: {
+  profileId: unknown;
+  scope: unknown;
+  dateFrom: string | null;
+  dateTo: string | null;
+  showCostrCommessaFilters: boolean;
+  costrFilter: string | null;
+  commessaFilter: string | null;
+  selectedIds: string[] | null;
 }) {
-  const [totalHoursMap, setTotalHoursMap] = useState(() => new Map());
+  const [totalHoursMap, setTotalHoursMap] = useState<Map<string, number>>(() => new Map());
 
   useEffect(() => {
     if (!profileId) return;
@@ -39,14 +48,15 @@ export function useOperatorTotalHours({
           if (commessaFilter) q = q.eq("commessa", commessaFilter);
         }
 
-        if (selectedIds?.length > 0 && selectedIds.length <= 250) {
-          q = q.in("operator_id", selectedIds);
+        const ids = Array.isArray(selectedIds) ? selectedIds : [];
+        if (ids.length > 0 && ids.length <= 250) {
+          q = q.in("operator_id", ids);
         }
 
         const { data, error } = await q;
         if (error) throw error;
 
-        const m = new Map();
+        const m = new Map<string, number>();
         (data || []).forEach((r) => {
           const op = r?.operator_id || null;
           if (!op) return;

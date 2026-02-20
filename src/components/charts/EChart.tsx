@@ -1,5 +1,16 @@
 // src/components/charts/EChart.jsx
-import React, { useMemo } from "react";
+import { useMemo } from "react";
+import type { CSSProperties } from "react";
+
+declare const require: (id: string) => { default?: unknown } | unknown;
+
+type EChartsComponent = (props: {
+  option?: unknown;
+  style?: CSSProperties;
+  className?: string;
+  notMerge?: boolean;
+  lazyUpdate?: boolean;
+}) => JSX.Element;
 
 /**
  * Wrapper ECharts:
@@ -9,12 +20,21 @@ import React, { useMemo } from "react";
  * IMPORTANT: pour activer les “super graphes”, installe/assure:
  *   npm i echarts echarts-for-react
  */
-export default function EChart({ option, style, className }) {
+export default function EChart({
+  option,
+  style,
+  className,
+}: {
+  option?: unknown;
+  style?: CSSProperties;
+  className?: string;
+}) {
   // Lazy require: évite crash build si lib absente.
-  const ReactECharts = useMemo(() => {
+  const ReactECharts = useMemo<EChartsComponent | null>(() => {
     try {
       // eslint-disable-next-line global-require, import/no-extraneous-dependencies
-      return require("echarts-for-react").default;
+      const mod = require("echarts-for-react") as { default?: unknown } | null;
+      return (mod?.default || mod) as EChartsComponent;
     } catch {
       return null;
     }

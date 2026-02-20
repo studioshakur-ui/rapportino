@@ -1,13 +1,17 @@
 // /src/components/charts/CoreEmptyState.jsx
 // CORE / CNCS — Standard Empty / Loading states for charts
 
-import React from "react";
-
-function cn(...parts) {
+function cn(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(" ");
 }
 
-export function CoreLoading({ label = "Caricamento…", isDark = true }) {
+export function CoreLoading({
+  label = "Caricamento…",
+  isDark = true,
+}: {
+  label?: string;
+  isDark?: boolean;
+}) {
   return (
     <div
       className={cn(
@@ -22,7 +26,15 @@ export function CoreLoading({ label = "Caricamento…", isDark = true }) {
   );
 }
 
-export function CoreEmpty({ label = "Nessun dato", hint, isDark = true }) {
+export function CoreEmpty({
+  label = "Nessun dato",
+  hint,
+  isDark = true,
+}: {
+  label?: string;
+  hint?: string;
+  isDark?: boolean;
+}) {
   return (
     <div
       className={cn(

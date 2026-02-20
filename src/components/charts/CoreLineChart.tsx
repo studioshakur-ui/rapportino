@@ -1,7 +1,7 @@
 // /src/components/charts/CoreLineChart.jsx
 // CORE / CNCS — Recharts Line wrapper (MIT) with unified theme & tooltip
 
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -21,38 +21,52 @@ import {
 } from "./coreChartTheme";
 import { CoreEmpty, CoreLoading } from "./CoreEmptyState";
 
-/**
- * @typedef {object} CoreLineChartLine
- * @property {string} key
- * @property {string=} name
- * @property {string=} stroke
- */
+type CoreLineChartLine = {
+  key: string;
+  name?: string;
+  stroke?: string;
+};
 
-/**
- * @typedef {object} CoreLineChartProps
- * @property {unknown[]=} data
- * @property {number=} height
- * @property {boolean=} loading
- * @property {boolean=} empty
- * @property {string=} emptyLabel
- * @property {string=} emptyHint
- * @property {boolean=} isDark
- * @property {string=} xKey
- * @property {CoreLineChartLine[]=} yLines
- * @property {boolean=} showLegend
- * @property {(label: unknown, payload: unknown[]) => string=} labelFormatter
- * @property {(value: unknown, index: number) => string=} xTickFormatter
- * @property {(value: unknown, index: number) => string=} yTickFormatter
- * @property {unknown=} yDomain
- * @property {string=} className
- */
+type CoreLineChartProps = {
+  data?: unknown[];
+  height?: number;
+  loading?: boolean;
+  empty?: boolean;
+  emptyLabel?: string;
+  emptyHint?: string;
+  isDark?: boolean;
+  xKey?: string;
+  yLines?: CoreLineChartLine[];
+  showLegend?: boolean;
+  labelFormatter?: (label: unknown, payload: unknown[]) => string;
+  xTickFormatter?: (value: unknown, index: number) => string;
+  yTickFormatter?: (value: unknown, index: number) => string;
+  yDomain?: unknown;
+  className?: string;
+};
 
-function defaultTickFormatter(v) {
+type YDomain =
+  | [number | "auto" | "dataMin" | "dataMax", number | "auto" | "dataMin" | "dataMax"]
+  | ["auto", "auto"]
+  | [number, number]
+  | undefined;
+
+function defaultTickFormatter(v: unknown): string {
   if (typeof v === "string") return v;
   return formatNumberIT(v, 2);
 }
 
-function TooltipContent({ active, payload, label, labelFormatter }) {
+function TooltipContent({
+  active,
+  payload,
+  label,
+  labelFormatter,
+}: {
+  active?: boolean;
+  payload?: Array<{ name?: unknown; value?: unknown }> | null;
+  label?: unknown;
+  labelFormatter?: (label: unknown, payload: unknown[]) => string;
+}) {
   const t = CORE_CHART_THEME;
   if (!active || !payload || !payload.length) return null;
 
@@ -77,7 +91,6 @@ function TooltipContent({ active, payload, label, labelFormatter }) {
   );
 }
 
-/** @param {CoreLineChartProps} props */
 export default function CoreLineChart({
   data = [],
   height = 240,
@@ -98,13 +111,13 @@ export default function CoreLineChart({
   yTickFormatter,
   yDomain, // e.g. [0, "auto"] or ["auto", "auto"]
   className = "",
-}) {
+}: CoreLineChartProps) {
   const t = CORE_CHART_THEME;
 
   const computedEmpty = useMemo(() => {
     if (empty) return true;
     if (loading) return false;
-    return !data || data.length === 0 || yLines.every((l) => data.every((r) => toNumber(r?.[l.key]) === 0));
+    return !data || data.length === 0 || yLines.every((l) => data.every((r) => toNumber((r as Record<string, unknown>)?.[l.key]) === 0));
   }, [empty, loading, data, yLines]);
 
   if (loading) return <CoreLoading isDark={isDark} />;
@@ -128,7 +141,7 @@ export default function CoreLineChart({
             tick={axisTick}
             axisLine={{ stroke: t.axisLine }}
             tickLine={{ stroke: t.axisLine }}
-            domain={yDomain}
+            domain={yDomain as YDomain}
             tickFormatter={yTickFormatter || defaultTickFormatter}
           />
           <Tooltip content={<TooltipContent labelFormatter={labelFormatter} />} />

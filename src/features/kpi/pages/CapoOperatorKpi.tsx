@@ -1,15 +1,15 @@
 // src/features/kpi/pages/CapoOperatorKpi.jsx
-import React, { useEffect, useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import OperatorProductivityKpiPanel from "../components/OperatorProductivityKpiPanel";
 import { useShip } from "../../../context/ShipContext";
 
-function cn(...parts) {
+function cn(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(" ");
 }
 
-export default function CapoOperatorKpi({ isDark = true }) {
+export default function CapoOperatorKpi({ isDark = true }: { isDark?: boolean }) {
   const navigate = useNavigate();
   const location = useLocation();
 
