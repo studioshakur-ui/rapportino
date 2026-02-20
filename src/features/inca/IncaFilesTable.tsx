@@ -1,17 +1,29 @@
 // src/inca/IncaFilesTable.jsx
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
-function formatDate(iso) {
+type IncaFile = {
+  id?: string | number;
+  costr?: string;
+  commessa?: string;
+  project_code?: string;
+  file_name?: string;
+  file_type?: string;
+  cavi_count?: number | null;
+  uploaded_at?: string;
+  note?: string;
+};
+
+function formatDate(iso: unknown): string {
   if (!iso) return '—';
   try {
-    const d = new Date(iso);
+    const d = new Date(String(iso));
     return d.toLocaleDateString('it-IT', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
     });
   } catch {
-    return iso;
+    return String(iso);
   }
 }
 
@@ -23,6 +35,14 @@ export default function IncaFilesTable({
   onSelectFile,
   onRefresh,
   onOpenCockpit, // ⬅️ nouveau (optionnel)
+}: {
+  files?: IncaFile[];
+  loading: boolean;
+  refreshing: boolean;
+  selectedFileId?: string | number | null;
+  onSelectFile?: (id: string | number) => void;
+  onRefresh?: () => void;
+  onOpenCockpit?: (file: IncaFile) => void;
 }) {
   const [search, setSearch] = useState('');
   const [costrFilter, setCostrFilter] = useState('');
@@ -32,7 +52,7 @@ export default function IncaFilesTable({
       return { filtered: [], distinctCostr: [] };
     }
 
-    const norm = (v) => (v || '').toString().toLowerCase();
+    const norm = (v: unknown) => (v || '').toString().toLowerCase();
 
     const distinctCostrSet = new Set(
       files
@@ -143,7 +163,7 @@ export default function IncaFilesTable({
               return (
                 <tr
                   key={f.id}
-                  onClick={() => onSelectFile && onSelectFile(f.id)}
+                  onClick={() => onSelectFile && f.id != null && onSelectFile(f.id)}
                   onDoubleClick={() =>
                     onOpenCockpit && onOpenCockpit(f)
                   }

@@ -1,16 +1,37 @@
 // src/inca/AppCaviModal.jsx
-import React, { useEffect, useMemo } from "react";
+import { useEffect, useMemo } from "react";
+import type { MouseEvent } from "react";
 
-const SITU_ORDER = ["T", "P", "R", "B", "E", "NP"];
-const SITU_LABEL = { T:"Tagliato", P:"Posato", R:"Rimosso", B:"Bloccato", E:"Eliminato", NP:"Non posato" };
+const SITU_ORDER = ["T", "P", "R", "B", "E", "NP"] as const;
 
-const color = (s) =>
+const color = (s: string) =>
   ({P:"#10b981",T:"#38bdf8",R:"#f97316",B:"#ef4444",E:"#facc15"}[s]||"#a855f7");
 
-export default function AppCaviModal({ open, onClose, app, role, cavi }) {
+type IncaCavoRow = {
+  id?: string | number;
+  codice?: string;
+  apparato_da?: string;
+  apparato_a?: string;
+  situazione?: string | null;
+  metri_teo?: string | number | null;
+};
+
+export default function AppCaviModal({
+  open,
+  onClose,
+  app,
+  role,
+  cavi,
+}: {
+  open: boolean;
+  onClose?: () => void;
+  app?: string;
+  role: "ARRIVO" | "PARTENZA" | string;
+  cavi?: IncaCavoRow[];
+}) {
   useEffect(() => {
     if (!open) return;
-    const onKey = (e)=>e.key==="Escape"&&onClose?.();
+    const onKey = (e: KeyboardEvent)=>e.key==="Escape"&&onClose?.();
     window.addEventListener("keydown", onKey);
     const prev=document.body.style.overflow; document.body.style.overflow="hidden";
     return ()=>{window.removeEventListener("keydown",onKey);document.body.style.overflow=prev;};
@@ -22,7 +43,7 @@ export default function AppCaviModal({ open, onClose, app, role, cavi }) {
   },[cavi,app,role]);
 
   const counts = useMemo(()=>{
-    const m={T:0,P:0,R:0,B:0,E:0,NP:0};
+    const m: Record<string, number> = {T:0,P:0,R:0,B:0,E:0,NP:0};
     list.forEach(r=>{m[r.situazione||"NP"]++;});
     return m;
   },[list]);
@@ -30,7 +51,10 @@ export default function AppCaviModal({ open, onClose, app, role, cavi }) {
   if(!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[95] bg-black/55 backdrop-blur-md" onMouseDown={e=>e.target===e.currentTarget&&onClose?.()}>
+    <div
+      className="fixed inset-0 z-[95] bg-black/55 backdrop-blur-md"
+      onMouseDown={(e: MouseEvent<HTMLDivElement>)=>e.target===e.currentTarget&&onClose?.()}
+    >
       <div className="absolute inset-0 p-3 flex items-center justify-center">
         <div className="w-full max-w-6xl rounded-2xl border border-slate-700 bg-slate-950/90 shadow-2xl overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-800 flex justify-between">

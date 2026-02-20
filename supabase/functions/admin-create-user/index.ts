@@ -5,6 +5,8 @@
 // - Idempotent: if email already exists in profiles, repairs/upserts profile
 // - New users are provisioned via invite (no password in transit)
 // - Ensures profiles.app_role and profiles.role are always synced (DB constraint)
+// - CNCS P0+: invite redirect hardened (never localhost) via ADMIN_INVITE_REDIRECT_TO/SITE_URL fallback
+// - CNCS P0+: append-only admin audit (public.admin_actions_audit)
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
@@ -27,7 +29,7 @@ const corsHeadersBase = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Max-Age": "86400",
-  "Vary": "Origin",
+  Vary: "Origin",
 } as const;
 
 function parseAllowlist(raw: string | undefined | null): string[] {
@@ -102,6 +104,19 @@ function toAllowedCantieri(raw: unknown): string[] {
     .slice(0, 200);
 }
 
+function normalizeRedirectUrl(raw: string | null | undefined): string | null {
+  const v = (raw || "").trim();
+  if (!v) return null;
+
+  // Must be absolute https URL
+  if (!/^https:\/\//i.test(v)) return null;
+
+  // No localhost in prod-grade redirect
+  if (/^https?:\/\/localhost\b/i.test(v)) return null;
+
+  return v;
+}
+
 async function requireAdmin(req: Request, adminClient: ReturnType<typeof createClient>) {
   const token = getBearerToken(req);
   if (!token) return { ok: false as const, status: 401, error: "Missing bearer token" };
@@ -115,11 +130,7 @@ async function requireAdmin(req: Request, adminClient: ReturnType<typeof createC
   const callerId = caller.user.id;
 
   // Enforce ADMIN role via profiles table (source of truth)
-  const { data: prof, error: profErr } = await adminClient
-    .from("profiles")
-    .select("app_role")
-    .eq("id", callerId)
-    .single();
+  const { data: prof, error: profErr } = await adminClient.from("profiles").select("app_role").eq("id", callerId).single();
 
   if (profErr || prof?.app_role !== "ADMIN") {
     return { ok: false as const, status: 403, error: "Forbidden" };
@@ -172,11 +183,7 @@ serve(async (req) => {
     if (!gate.ok) return json(req, gate.status, { ok: false, error: gate.error });
 
     // Fetch actor email for audit (best effort)
-    const { data: actorProfile } = await admin
-      .from("profiles")
-      .select("email")
-      .eq("id", gate.callerId)
-      .maybeSingle();
+    const { data: actorProfile } = await admin.from("profiles").select("email").eq("id", gate.callerId).maybeSingle();
     const actorEmail = actorProfile?.email ?? null;
 
     // 2) Parse & validate payload
@@ -241,11 +248,21 @@ serve(async (req) => {
         meta: { mode: "updated_existing", app_role },
       });
 
+      // IMPORTANT: This branch does NOT send an invite email (user already exists in profiles).
+      // If you want resend-invite behavior for existing users, implement admin-resend-invite
+      // or add a force_resend flag.
       return json(req, 200, { ok: true, mode: "updated_existing", user_id: userId, email });
     }
 
-    // 4) Modern provisioning: invite user by email (no password in transit)
+    // 4) Modern provisioning: invite user by email (email is sent by Supabase)
+    // Redirect is hardened to avoid localhost or protocol-less values.
+    const redirectTo =
+      normalizeRedirectUrl(Deno.env.get("ADMIN_INVITE_REDIRECT_TO")) ||
+      normalizeRedirectUrl(Deno.env.get("SITE_URL")) ||
+      "https://core.cncs.systems";
+
     const { data: invited, error: invErr } = await admin.auth.admin.inviteUserByEmail(email, {
+      redirectTo,
       data: {
         full_name: full_name ?? undefined,
         display_name: display_name ?? undefined,
@@ -274,7 +291,7 @@ serve(async (req) => {
       target_user_id: newUserId,
       target_email: email,
       reason: null,
-      meta: { mode: "invited_new", app_role },
+      meta: { mode: "invited_new", app_role, redirectTo },
     });
 
     // Front expects data.ok

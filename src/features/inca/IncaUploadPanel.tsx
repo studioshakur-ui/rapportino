@@ -1,14 +1,15 @@
 // src/inca/IncaUploadPanel.jsx
-import React, { useState } from "react";
-import { useAuth } from "../auth/AuthProvider";
+import { useState } from "react";
+import { useAuth } from "../../auth/AuthProvider";
 import IncaImportModal from "./IncaImportModal";
 
-export default function IncaUploadPanel({ onImported }) {
+export default function IncaUploadPanel({ onImported }: { onImported?: (data: unknown) => void }) {
   const { profile } = useAuth();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState<boolean>(false);
 
-  const defaultCostr = profile?.default_costr || "";
-  const defaultCommessa = profile?.default_commessa || "";
+  const profileDefaults = profile as { default_costr?: string | null; default_commessa?: string | null } | null;
+  const defaultCostr = profileDefaults?.default_costr || "";
+  const defaultCommessa = profileDefaults?.default_commessa || "";
 
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-4">

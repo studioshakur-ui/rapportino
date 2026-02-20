@@ -1,6 +1,4 @@
-import React from "react";
-
-export default function IncaPicker({ onClose }) {
+export default function IncaPicker({ onClose }: { onClose?: () => void }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center">
       <div className="w-full max-w-3xl rounded-xl bg-core-card border-core p-6">

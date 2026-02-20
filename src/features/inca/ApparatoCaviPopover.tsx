@@ -1,5 +1,5 @@
 // /src/components/ApparatoCaviPopover.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 
 /**
@@ -16,7 +16,7 @@ import { supabase } from "../../lib/supabaseClient";
  * - Otherwise fallback on INCA global situazione (NULL => NP).
  */
 
-function badgeClass(s) {
+function badgeClass(s: unknown): string {
   switch (s) {
     case "P":
       return "bg-emerald-500/15 text-emerald-200 border-emerald-500/25";
@@ -33,29 +33,42 @@ function badgeClass(s) {
   }
 }
 
-function labelSituazione(s) {
-  return s ? s : "NP";
+function labelSituazione(s: unknown): string {
+  const v = s == null ? "" : String(s).trim();
+  return v ? v : "NP";
 }
 
-function normalizeKey(raw) {
+function normalizeKey(raw: unknown): string {
   const v = raw == null ? "" : String(raw).trim();
   return v ? v : "NP";
 }
 
-function normalizeProgressPercent(raw) {
+function normalizeProgressPercent(raw: unknown): number | null {
   const n = Number(raw);
   if (!Number.isFinite(n)) return null;
   if (n === 50 || n === 70 || n === 100) return n;
   return null;
 }
 
-function normalizeProgressSideNullable(raw) {
+function normalizeProgressSideNullable(raw: unknown): "DA" | "A" | null {
   const v = raw == null ? "" : String(raw).trim();
   if (v === "DA" || v === "A") return v;
   return null; // IMPORTANT: no default
 }
 
-function situazionePerSide(row, side) {
+type IncaCavoRow = Record<string, unknown> & {
+  id?: string | number;
+  codice?: string;
+  tipo?: string;
+  marca_cavo?: string;
+  pagina_pdf?: string | number | null;
+  metri_teo?: string | number | null;
+  situazione?: string | null;
+  progress_percent?: number | string | null;
+  progress_side?: string | null;
+};
+
+function situazionePerSide(row: IncaCavoRow, side: "DA" | "A"): string {
   const percent = normalizeProgressPercent(row?.progress_percent);
   const fromSide = normalizeProgressSideNullable(row?.progress_side);
 
@@ -77,11 +90,19 @@ export default function ApparatoCaviPopover({
   side, // "DA" | "A"
   apparato,
   onClose,
+}: {
+  open: boolean;
+  anchorRect?: DOMRect | null;
+  incaFileId?: string | null;
+  side: "DA" | "A";
+  apparato?: string | null;
+  onClose?: () => void;
 }) {
-  const [loading, setLoading] = useState(false);
-  const [rows, setRows] = useState([]);
-  const [q, setQ] = useState("");
-  const [filter, setFilter] = useState("");
+  void anchorRect;
+  const [loading, setLoading] = useState<boolean>(false);
+  const [rows, setRows] = useState<IncaCavoRow[]>([]);
+  const [q, setQ] = useState<string>("");
+  const [filter, setFilter] = useState<string>("");
 
   useEffect(() => {
     if (!open || !incaFileId || !apparato) return;
@@ -101,7 +122,7 @@ export default function ApparatoCaviPopover({
           .order("codice", { ascending: true });
 
         if (error) throw error;
-        if (alive) setRows(Array.isArray(data) ? data : []);
+        if (alive) setRows(Array.isArray(data) ? (data as IncaCavoRow[]) : []);
       } catch (e) {
         console.error("[ApparatoCaviPopover] load error:", e);
         if (alive) setRows([]);

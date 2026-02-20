@@ -1,10 +1,8 @@
 // src/inca/IncaFileDetail.jsx
-import React from 'react';
-
-function formatDateTime(iso) {
+function formatDateTime(iso: unknown): string {
   if (!iso) return '—';
   try {
-    const d = new Date(iso);
+    const d = new Date(String(iso));
     return d.toLocaleString('it-IT', {
       day: '2-digit',
       month: '2-digit',
@@ -13,11 +11,30 @@ function formatDateTime(iso) {
       minute: '2-digit',
     });
   } catch {
-    return iso;
+    return String(iso);
   }
 }
 
-export default function IncaFileDetail({ file, metrics }) {
+type IncaFile = {
+  id?: string | number;
+  file_name?: string;
+  file_type?: string;
+  costr?: string;
+  commessa?: string;
+  project_code?: string;
+  note?: string;
+  uploaded_at?: string;
+};
+type IncaMetrics = {
+  totalCavi?: number;
+  metriTeo?: number;
+  metriPrev?: number;
+  metriPosati?: number;
+  metriTot?: number;
+  byStatoCantiere?: Record<string, number>;
+};
+
+export default function IncaFileDetail({ file, metrics }: { file?: IncaFile | null; metrics?: IncaMetrics | null }) {
   if (!file) return null;
 
   const {
@@ -135,9 +152,9 @@ export default function IncaFileDetail({ file, metrics }) {
       </div>
 
       {/* Distribution stato cantiere */}
-      {byStatoCantiere && Object.keys(byStatoCantiere).length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1.5 text-[10px]">
-          {Object.entries(byStatoCantiere).map(([key, value]) => (
+          {byStatoCantiere && Object.keys(byStatoCantiere).length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5 text-[10px]">
+              {Object.entries(byStatoCantiere).map(([key, value]) => (
             <span
               key={key || 'vuoto'}
               className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-900/70 px-2 py-1 text-slate-200"

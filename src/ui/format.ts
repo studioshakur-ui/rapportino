@@ -13,6 +13,9 @@ export function toNumber(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/**
+ * Legacy (IT-only). Kept for backward compatibility.
+ */
 export function formatNumberIT(v: unknown, maxFrac: number = 2): string {
   if (v == null) return "—";
   const n = typeof v === "number" ? v : Number(v);
@@ -23,4 +26,24 @@ export function formatNumberIT(v: unknown, maxFrac: number = 2): string {
 export function safeText(x: unknown, fallback: string = "—"): string {
   const s = (x ?? "").toString().trim();
   return s || fallback;
+}
+
+export function langToLocale(lang: string | null | undefined): string {
+  switch (String(lang || "it").toLowerCase()) {
+    case "fr":
+      return "fr-FR";
+    case "en":
+      return "en-US";
+    case "it":
+    default:
+      return "it-IT";
+  }
+}
+
+export function formatNumberByLang(lang: string | null | undefined, v: unknown, maxFrac: number = 2): string {
+  if (v == null) return "—";
+  const n = typeof v === "number" ? v : Number(v);
+  if (!Number.isFinite(n)) return "—";
+  const locale = langToLocale(lang);
+  return new Intl.NumberFormat(locale, { maximumFractionDigits: maxFrac }).format(n);
 }

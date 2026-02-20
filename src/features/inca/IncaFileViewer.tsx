@@ -1,13 +1,29 @@
 // src/inca/IncaFileViewer.jsx
-import React, { useEffect, useMemo, useState } from "react";
-import { supabase } from "../lib/supabaseClient";
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "../../lib/supabaseClient";
 import IncaFileDetail from "./IncaFileDetail";
-import IncaCaviTable from "./IncaCaviTable";
+import IncaCaviTable, { type IncaCavoRow as IncaCaviTableRow, type IncaTableViewMode } from "./IncaCaviTable";
 
-export default function IncaFileViewer({ file }) {
-  const [cavi, setCavi] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+type IncaFile = {
+  id?: string | number;
+  costr?: string;
+  commessa?: string;
+  project_code?: string;
+  file_name?: string;
+  file_type?: string;
+  uploaded_at?: string;
+  note?: string;
+};
+type IncaCavoMetricRow = IncaCaviTableRow & {
+  metri_previsti?: number | string | null;
+  metri_posati_teorici?: number | string | null;
+};
+
+export default function IncaFileViewer({ file }: { file?: IncaFile | null }) {
+  const [cavi, setCavi] = useState<IncaCavoMetricRow[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<IncaTableViewMode>("standard");
 
   useEffect(() => {
     let active = true;
@@ -32,7 +48,7 @@ export default function IncaFileViewer({ file }) {
         if (dbError) throw dbError;
         if (!active) return;
 
-        setCavi(data || []);
+        setCavi(Array.isArray(data) ? (data as IncaCavoMetricRow[]) : []);
       } catch (err) {
         console.error("[INCA] Errore caricamento cavi:", err);
         if (active) {
@@ -57,7 +73,7 @@ export default function IncaFileViewer({ file }) {
     let metriPrev = 0;
     let metriPosati = 0;
     let metriTot = 0;
-    const byStatoCantiere = {};
+    const byStatoCantiere: Record<string, number> = {};
 
     for (const c of list) {
       if (c.metri_teo != null) metriTeo += Number(c.metri_teo) || 0;
@@ -106,7 +122,12 @@ export default function IncaFileViewer({ file }) {
         </div>
       )}
 
-      <IncaCaviTable cavi={cavi} loading={loading} />
+      <IncaCaviTable
+        rows={cavi}
+        loading={loading}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+      />
     </div>
   );
 }
