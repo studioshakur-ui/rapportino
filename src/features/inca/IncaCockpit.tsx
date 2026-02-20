@@ -179,6 +179,10 @@ function norm(v: unknown): string {
   return String(v ?? "").trim();
 }
 
+function isIncaCavoRow(x: unknown): x is IncaCavoRow {
+  return typeof x === "object" && x !== null && "id" in x && "codice" in x && "situazione" in x;
+}
+
 function toAtom(v: unknown): SituazioneAtom {
   const s = norm(v).toUpperCase();
   if (!s) return "L";
@@ -373,7 +377,7 @@ export default function IncaCockpit(props: IncaCockpitProps) {
 
           if (e) throw e;
 
-          const chunk: IncaCavoRow[] = Array.isArray(data) ? (data as IncaCavoRow[]) : [];
+          const chunk: IncaCavoRow[] = Array.isArray(data) ? (data as unknown[]).filter(isIncaCavoRow) : [];
           all.push(...chunk);
 
           if (chunk.length === 0) break;

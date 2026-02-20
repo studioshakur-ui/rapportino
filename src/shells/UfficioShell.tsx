@@ -1,6 +1,6 @@
 // src/shells/UfficioShell.tsx
-import { useEffect, useMemo, useState  } from "react";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthProvider";
 import ConnectionIndicator from "../components/ConnectionIndicator";
@@ -198,8 +198,7 @@ export default function UfficioShell(): JSX.Element {
 
           <div className="max-w-6xl mx-auto space-y-4 pt-4">
             <div className="border rounded-2xl overflow-hidden border-slate-800 bg-[#050910]">
-            <KeepAliveOutlet scopeKey="ufficio" />
-
+              <KeepAliveOutlet scopeKey="ufficio" />
             </div>
           </div>
         </main>

@@ -9,7 +9,6 @@ import ArchivePage from "../pages/Archive";
 import CorePresentationPopup from "../components/CorePresentationPopup";
 import CorePresentation from "../pages/CorePresentation";
 import CapoPresentation from "../pages/CapoPresentation";
-import { KeepAliveOutlet } from "../utils/KeepAliveOutlet";
 
 
 import UfficioRapportiniList from "../ufficio/UfficioRapportiniList";
@@ -147,7 +146,7 @@ export default function DirectionShell(): JSX.Element {
   const location = useLocation();
   const { profile, signOut } = useAuth();
 
-  const [theme, setTheme] = useState<ThemeMode>(getInitialTheme());
+  const [theme] = useState<ThemeMode>(getInitialTheme());
   const isDark = theme === "dark";
 
   // Sidebar state (same behaviour as Ufficio/App: collapsed + hover-peek)

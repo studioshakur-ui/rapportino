@@ -46,13 +46,13 @@ export default function DirezioneKpiModal({
       case KPI_IDS.RAPPORTINI:
         return (
           <KpiRapportiniDetails
-            rapportini={dataset.rapportiniCurrent as unknown as any[]}
+            rapportini={dataset.rapportiniCurrent}
             dateFrom={filters.dateFrom}
             dateTo={filters.dateTo}
           />
         );
       case KPI_IDS.RIGHE:
-        return <KpiRigheDetails produzioniAgg={dataset.produzioniAggCurrent as unknown as any[]} />;
+        return <KpiRigheDetails produzioniAgg={dataset.produzioniAggCurrent} />;
       case KPI_IDS.PROD:
         return (
           <KpiProdIndexDetails
@@ -71,7 +71,7 @@ export default function DirezioneKpiModal({
           />
         );
       case KPI_IDS.RITARDI:
-        return <KpiRitardiCapiDetails capiDelayDaily={dataset.capiDelayDaily as unknown as any[]} />;
+        return <KpiRitardiCapiDetails capiDelayDaily={dataset.capiDelayDaily} />;
       case KPI_IDS.ORE:
         return <KpiHoursDetails hoursFacts={dataset.hoursFactsCurrent} dateFrom={filters.dateFrom} dateTo={filters.dateTo} />;
       default:

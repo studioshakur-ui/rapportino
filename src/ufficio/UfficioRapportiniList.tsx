@@ -117,7 +117,8 @@ export default function UfficioRapportiniList(): JSX.Element {
       return;
     }
 
-    if (!["UFFICIO", "DIREZIONE", "MANAGER", "ADMIN"].includes(profile.app_role)) {
+    const appRole = profile?.app_role ?? "";
+    if (!["UFFICIO", "DIREZIONE", "MANAGER", "ADMIN"].includes(appRole)) {
       setError("Non sei autorizzato ad accedere alla sezione Ufficio.");
       setLoading(false);
       return;

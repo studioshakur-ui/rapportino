@@ -40,7 +40,7 @@ export default function DirezioneCharts({
         <CoreChartCard isDark={isDark} title="Timeline" subtitle="Bar: Ritardi Capi · Line: Rapportini">
           <CoreBarLineCombo
             loading={loading}
-            data={timelineData as unknown as any[]}
+            data={timelineData}
             height={260}
             xKey="label"
             barKey="capi_ritardo"
@@ -78,10 +78,10 @@ export default function DirezioneCharts({
         >
           <CoreLineChart
             loading={loading}
-            data={prodTrend as unknown as any[]}
+            data={prodTrend}
             height={280}
             xKey="label"
-            yLines={[{ key: "indice", name: "Indice", stroke: CORE_CHART_THEME.warning }] as any}
+            yLines={[{ key: "indice", name: "Indice", stroke: CORE_CHART_THEME.warning }]}
             emptyHint="Nessun dato produttività nella finestra."
           />
           <div className="mt-2 text-[11px] text-slate-500">

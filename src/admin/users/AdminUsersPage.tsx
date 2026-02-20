@@ -1,7 +1,6 @@
 // src/admin/users/AdminUsersPage.tsx
 
 import React, { useCallback, useMemo, useState } from "react";
-import { useOutletContext } from "react-router-dom";
 
 import { useAdminUsersData } from "./hooks/useAdminUsersData";
 import { PAGE_SIZE, type RoleFilter, useAdminUsersUi } from "./hooks/useAdminUsersUi";
@@ -16,19 +15,11 @@ import PasswordBanner from "./components/PasswordBanner";
 import type { ProfileRow } from "./hooks/useAdminUsersData";
 import type { UserAction } from "./components/UserActionsMenu";
 
-type OutletCtx = {
-  lang?: "it" | "fr" | "en";
-  // setLang exists but not used here
-};
-
 function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
 }
 
 export default function AdminUsersPage(): JSX.Element {
-  const outlet = (useOutletContext() as OutletCtx) || {};
-  const _lang = outlet.lang || "it";
-
   const {
     loading,
     rows,

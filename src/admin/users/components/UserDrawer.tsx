@@ -1,6 +1,6 @@
 // src/admin/users/components/UserDrawer.tsx
 
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ProfileRow } from "../hooks/useAdminUsersData";
 import { cn, formatDateShort, initialsFromName } from "./ui";
 

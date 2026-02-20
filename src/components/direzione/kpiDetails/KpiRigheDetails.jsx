@@ -3,6 +3,13 @@ import React, { useMemo } from "react";
 import { useCoreI18n } from "../../../i18n/coreI18n";
 import { KpiEmptyState, KpiSection } from "./KpiDetailsCommon";
 
+/**
+ * @typedef {import("../../../features/direzione/dashboard/types").ProduzioniAggRow} ProduzioniAggRow
+ */
+
+/**
+ * @param {{ produzioniAgg?: ProduzioniAggRow[] }} props
+ */
 export default function KpiRigheDetails({ produzioniAgg = [] }) {
   const { t } = useCoreI18n();
 

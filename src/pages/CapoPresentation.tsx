@@ -16,6 +16,8 @@ const CREW_LABELS: Record<string, string> = {
   MONTAGGIO: "Montaggio",
 };
 
+const noop = () => {};
+
 type RapportinoRecord = Record<string, unknown> & {
   id: string;
   crew_role?: string | null;
@@ -39,12 +41,20 @@ type RapportinoRow = {
   note: string;
 };
 
+function normalizeBaseRows(rows: any): RapportinoRow[] {
+  if (!Array.isArray(rows)) return [];
+  return rows.map((r) => ({
+    ...r,
+    id: r?.id ?? undefined,
+  }));
+}
+
 export default function CapoPresentation(): JSX.Element {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [rapportino, setRapportino] = useState<RapportinoRecord | null>(null);
-  const [rows, setRows] = useState<RapportinoRow[]>(() => getBaseRows("ELETTRICISTA"));
+  const [rows, setRows] = useState<RapportinoRow[]>(() => normalizeBaseRows(getBaseRows("ELETTRICISTA")));
 
   useEffect(() => {
     let alive = true;
@@ -69,7 +79,7 @@ export default function CapoPresentation(): JSX.Element {
 
         if (!rap) {
           setRapportino(null);
-          setRows(getBaseRows("ELETTRICISTA"));
+          setRows(normalizeBaseRows(getBaseRows("ELETTRICISTA")));
           return;
         }
 
@@ -85,7 +95,7 @@ export default function CapoPresentation(): JSX.Element {
         if (!alive) return;
 
         if (!righe || (righe as any[]).length === 0) {
-          setRows(getBaseRows(((rap as any).crew_role as string) || "ELETTRICISTA"));
+          setRows(normalizeBaseRows(getBaseRows(((rap as any).crew_role as string) || "ELETTRICISTA")));
         } else {
           const mapped = (righe as any[]).map((r, idx) => ({
             id: r.id,
@@ -188,6 +198,9 @@ export default function CapoPresentation(): JSX.Element {
                 commessa={(rapportino?.commessa as string) || ""}
                 reportDate={(rapportino?.report_date as string) || (rapportino?.data as string) || ""}
                 capoName={formatHumanName((rapportino?.capo_name as string) || "Capo Squadra")}
+                onChangeCostr={noop}
+                onChangeCommessa={noop}
+                onChangeDate={noop}
                 readOnly
               />
 

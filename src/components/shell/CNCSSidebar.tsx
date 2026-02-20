@@ -14,6 +14,7 @@ type NavIconName =
   | "inca"
   | "rapportino"
   | "archive"
+  | "ship"
   | "history"
   | "users"
   | "chart";

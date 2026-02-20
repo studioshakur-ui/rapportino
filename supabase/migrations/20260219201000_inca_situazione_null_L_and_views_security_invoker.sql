@@ -27,6 +27,10 @@ comment on column public.inca_cavi.situazione is
   'NULL=L (libero/disponibile). T=tagliato, B=bloccato, R=richiesta, P=posato, E=eliminato. KPI NP = (NULL + T + B + R).';
 
 -- 3) VIEWS: recreate v3 with SECURITY INVOKER; keep v2 as alias (also security invoker)
+-- Drop alias first (depends on v3)
+drop view if exists public.inca_cavi_with_last_posa_and_capo_v2;
+
+-- Then drop base view
 drop view if exists public.inca_cavi_with_last_posa_and_capo_v3;
 
 create or replace view public.inca_cavi_with_last_posa_and_capo_v3

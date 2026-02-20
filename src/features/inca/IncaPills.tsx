@@ -18,7 +18,6 @@ import React from "react";
  */
 
 type ProgressSide = "DA" | "A";
-type Situazione = "P" | "T" | "R" | "B" | "E" | null;
 type ProgressPercent = 50 | 70 | 100 | null;
 
 export type IncaCavoLike = {

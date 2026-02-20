@@ -138,19 +138,6 @@ function toAtom(v: unknown): SituazioneAtom {
   return "L";
 }
 
-function formatMeters(v: unknown): string {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return "—";
-  return new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 }).format(n);
-}
-
-function formatDateIT(value: unknown): string {
-  if (!value) return "—";
-  const d = new Date(String(value));
-  if (Number.isNaN(d.getTime())) return String(value);
-  return d.toLocaleDateString("it-IT");
-}
-
 function lengthRefMeters(r: IncaCavoRow): number {
   const teo = Number(r.metri_teo);
   const dis = Number(r.metri_dis);

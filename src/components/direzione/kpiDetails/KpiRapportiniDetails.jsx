@@ -4,6 +4,13 @@ import { useCoreI18n } from "../../../i18n/coreI18n";
 import { KpiEmptyState, KpiMetaLine, KpiSection } from "./KpiDetailsCommon";
 import { formatDateLabelIt } from "../direzioneUtils";
 
+/**
+ * @typedef {import("../../../features/direzione/dashboard/types").RapportinoHeaderRow} RapportinoHeaderRow
+ */
+
+/**
+ * @param {{ rapportini?: RapportinoHeaderRow[]; dateFrom?: string; dateTo?: string }} props
+ */
 export default function KpiRapportiniDetails({ rapportini = [], dateFrom, dateTo }) {
   const { t } = useCoreI18n();
 

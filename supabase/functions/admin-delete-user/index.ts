@@ -99,6 +99,32 @@ async function requireAdmin(req: Request, adminClient: ReturnType<typeof createC
   return { ok: true as const, callerId, callerEmail: prof?.email ?? null };
 }
 
+async function insertAdminAudit(
+  admin: ReturnType<typeof createClient>,
+  row: {
+    actor_id: string;
+    actor_email: string | null;
+    action: string;
+    target_user_id: string;
+    target_email: string | null;
+    mode: string;
+    reason: string | null;
+    meta: Record<string, unknown>;
+  },
+) {
+  const { error } = await admin.from("admin_actions_audit").insert({
+    actor_id: row.actor_id,
+    actor_email: row.actor_email,
+    action: row.action,
+    target_user_id: row.target_user_id,
+    target_email: row.target_email,
+    mode: row.mode,
+    reason: row.reason,
+    meta: row.meta,
+  });
+  if (error) throw new Error(`Admin audit insert failed: ${error.message}`);
+}
+
 async function trySetDisabledAt(admin: ReturnType<typeof createClient>, userId: string) {
   // We don't assume the column exists; we try. If missing, we ignore and rely on Auth ban.
   try {
@@ -209,19 +235,16 @@ serve(async (req) => {
       // Secondary: mark disabled_at if column exists (best effort)
       const disRes = await trySetDisabledAt(admin, userId);
 
-      console.log(
-        JSON.stringify({
-          tag: "admin-delete-user",
-          action: "suspend",
-          actor_id: gate.callerId,
-          actor_email: gate.callerEmail,
-          target_user_id: userId,
-          target_email: targetProfile?.email ?? null,
-          reason,
-          auth_banned_ok: banRes.ok,
-          profiles_disabled_at_ok: disRes.ok,
-        }),
-      );
+      await insertAdminAudit(admin, {
+        actor_id: gate.callerId,
+        actor_email: gate.callerEmail,
+        action: "user.suspend",
+        target_user_id: userId,
+        target_email: targetProfile?.email ?? null,
+        mode: "suspend",
+        reason,
+        meta: { auth_banned_ok: banRes.ok, profiles_disabled_at_ok: disRes.ok },
+      });
 
       // If Auth ban failed AND we couldn't mark disabled in DB, we should fail loudly
       if (!banRes.ok && !disRes.ok) {
@@ -260,18 +283,16 @@ serve(async (req) => {
       profileOutcome = { deleted: false, anonymized: anon.ok, deleted_email: anon.deletedEmail, error: anon.ok ? null : anon.error };
     }
 
-    console.log(
-      JSON.stringify({
-        tag: "admin-delete-user",
-        action: "hard_delete",
-        actor_id: gate.callerId,
-        actor_email: gate.callerEmail,
-        target_user_id: userId,
-        target_email: targetProfile?.email ?? null,
-        reason,
-        profile_outcome: profileOutcome,
-      }),
-    );
+    await insertAdminAudit(admin, {
+      actor_id: gate.callerId,
+      actor_email: gate.callerEmail,
+      action: "user.hard_delete",
+      target_user_id: userId,
+      target_email: targetProfile?.email ?? null,
+      mode: "hard_delete",
+      reason,
+      meta: { profile_outcome: profileOutcome },
+    });
 
     return json(req, 200, {
       ok: true,

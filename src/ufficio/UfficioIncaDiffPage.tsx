@@ -148,7 +148,6 @@ export default function UfficioIncaDiffPage(): JSX.Element {
   }, [load]);
 
   const runA = useMemo(() => runs.find((r) => r.id === runAId) || null, [runs, runAId]);
-  const runB = useMemo(() => runs.find((r) => r.id === runBId) || null, [runs, runBId]);
 
   const diffA = runA?.diff ?? null;
 

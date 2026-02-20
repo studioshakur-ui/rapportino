@@ -16,6 +16,27 @@ import {
 import { CORE_CHART_THEME, formatNumberIT, safeText, coreTooltipStyle } from "./coreChartTheme";
 import { CoreEmpty, CoreLoading } from "./CoreEmptyState";
 
+/**
+ * @typedef {object} CoreBarLineComboProps
+ * @property {unknown[]=} data
+ * @property {number=} height
+ * @property {boolean=} loading
+ * @property {boolean=} empty
+ * @property {string=} emptyLabel
+ * @property {string=} emptyHint
+ * @property {boolean=} isDark
+ * @property {string=} xKey
+ * @property {string=} barKey
+ * @property {string=} barName
+ * @property {string=} barColor
+ * @property {string=} lineKey
+ * @property {string=} lineName
+ * @property {string=} lineColor
+ * @property {boolean=} showLegend
+ * @property {(label: unknown, payload: unknown[]) => string=} labelFormatter
+ * @property {string=} className
+ */
+
 function TooltipContent({ active, payload, label, labelFormatter }) {
   const t = CORE_CHART_THEME;
   if (!active || !payload || !payload.length) return null;
@@ -41,6 +62,7 @@ function TooltipContent({ active, payload, label, labelFormatter }) {
   );
 }
 
+/** @param {CoreBarLineComboProps} props */
 export default function CoreBarLineCombo({
   data = [],
   height = 240,

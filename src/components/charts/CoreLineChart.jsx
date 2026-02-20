@@ -21,6 +21,32 @@ import {
 } from "./coreChartTheme";
 import { CoreEmpty, CoreLoading } from "./CoreEmptyState";
 
+/**
+ * @typedef {object} CoreLineChartLine
+ * @property {string} key
+ * @property {string=} name
+ * @property {string=} stroke
+ */
+
+/**
+ * @typedef {object} CoreLineChartProps
+ * @property {unknown[]=} data
+ * @property {number=} height
+ * @property {boolean=} loading
+ * @property {boolean=} empty
+ * @property {string=} emptyLabel
+ * @property {string=} emptyHint
+ * @property {boolean=} isDark
+ * @property {string=} xKey
+ * @property {CoreLineChartLine[]=} yLines
+ * @property {boolean=} showLegend
+ * @property {(label: unknown, payload: unknown[]) => string=} labelFormatter
+ * @property {(value: unknown, index: number) => string=} xTickFormatter
+ * @property {(value: unknown, index: number) => string=} yTickFormatter
+ * @property {unknown=} yDomain
+ * @property {string=} className
+ */
+
 function defaultTickFormatter(v) {
   if (typeof v === "string") return v;
   return formatNumberIT(v, 2);
@@ -51,6 +77,7 @@ function TooltipContent({ active, payload, label, labelFormatter }) {
   );
 }
 
+/** @param {CoreLineChartProps} props */
 export default function CoreLineChart({
   data = [],
   height = 240,

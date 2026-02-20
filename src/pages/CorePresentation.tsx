@@ -52,6 +52,8 @@ const CREW_LABELS: Record<string, string> = {
   MONTAGGIO: "Montaggio",
 };
 
+const noop = () => {};
+
 export default function CapoPresentation(): JSX.Element {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -209,6 +211,9 @@ export default function CapoPresentation(): JSX.Element {
                 commessa={rapportino?.commessa || ""}
                 reportDate={String(rapportino?.report_date || rapportino?.data || "")}
                 capoName={formatHumanName(String(rapportino?.capo_name || "Capo Squadra"))}
+                onChangeCostr={noop}
+                onChangeCommessa={noop}
+                onChangeDate={noop}
                 readOnly
               />
 

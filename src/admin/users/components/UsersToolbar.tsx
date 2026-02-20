@@ -1,6 +1,6 @@
 // src/admin/users/components/UsersToolbar.tsx
 
-import React, { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { cn } from "./ui";
 import type { RoleFilter } from "../hooks/useAdminUsersUi";
 

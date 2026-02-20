@@ -4,6 +4,13 @@ import { useCoreI18n } from "../../../i18n/coreI18n";
 import { KpiEmptyState, KpiSection } from "./KpiDetailsCommon";
 import { formatDateLabelIt } from "../direzioneUtils";
 
+/**
+ * @typedef {import("../../../features/direzione/dashboard/types").DelayDailyRow} DelayDailyRow
+ */
+
+/**
+ * @param {{ capiDelayDaily?: DelayDailyRow[] }} props
+ */
 export default function KpiRitardiCapiDetails({ capiDelayDaily = [] }) {
   const { t } = useCoreI18n();
 

@@ -1,6 +1,6 @@
 // src/shells/ManagerShell.tsx
-import { useMemo  } from "react";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useMemo } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthProvider";
 import ConnectionIndicator from "../components/ConnectionIndicator";

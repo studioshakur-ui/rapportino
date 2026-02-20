@@ -128,6 +128,30 @@ async function requireAdmin(req: Request, adminClient: ReturnType<typeof createC
   return { ok: true as const, callerId };
 }
 
+async function insertAdminAudit(
+  admin: ReturnType<typeof createClient>,
+  row: {
+    actor_id: string;
+    actor_email: string | null;
+    action: string;
+    target_user_id: string;
+    target_email: string | null;
+    reason: string | null;
+    meta: Record<string, unknown>;
+  },
+) {
+  const { error } = await admin.from("admin_actions_audit").insert({
+    actor_id: row.actor_id,
+    actor_email: row.actor_email,
+    action: row.action,
+    target_user_id: row.target_user_id,
+    target_email: row.target_email,
+    reason: row.reason,
+    meta: row.meta,
+  });
+  if (error) throw new Error(`Admin audit insert failed: ${error.message}`);
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return okPreflight(req);
   if (req.method !== "POST") return json(req, 405, { ok: false, error: "Method not allowed" });
@@ -146,6 +170,14 @@ serve(async (req) => {
     // 1) Access control (ADMIN only)
     const gate = await requireAdmin(req, admin);
     if (!gate.ok) return json(req, gate.status, { ok: false, error: gate.error });
+
+    // Fetch actor email for audit (best effort)
+    const { data: actorProfile } = await admin
+      .from("profiles")
+      .select("email")
+      .eq("id", gate.callerId)
+      .maybeSingle();
+    const actorEmail = actorProfile?.email ?? null;
 
     // 2) Parse & validate payload
     const body = (await req.json().catch(() => ({}))) as Partial<CreateUserPayload>;
@@ -199,16 +231,15 @@ serve(async (req) => {
       const upErr = await upsertProfile(userId);
       if (upErr) return json(req, 500, { ok: false, error: "Profile upsert failed" });
 
-      console.log(
-        JSON.stringify({
-          tag: "admin-create-user",
-          action: "updated_existing",
-          actor_id: gate.callerId,
-          target_user_id: userId,
-          target_email: email,
-          app_role,
-        }),
-      );
+      await insertAdminAudit(admin, {
+        actor_id: gate.callerId,
+        actor_email: actorEmail,
+        action: "user.create",
+        target_user_id: userId,
+        target_email: email,
+        reason: null,
+        meta: { mode: "updated_existing", app_role },
+      });
 
       return json(req, 200, { ok: true, mode: "updated_existing", user_id: userId, email });
     }
@@ -236,16 +267,15 @@ serve(async (req) => {
       return json(req, 500, { ok: false, error: "Profile upsert failed" });
     }
 
-    console.log(
-      JSON.stringify({
-        tag: "admin-create-user",
-        action: "invited_new",
-        actor_id: gate.callerId,
-        target_user_id: newUserId,
-        target_email: email,
-        app_role,
-      }),
-    );
+    await insertAdminAudit(admin, {
+      actor_id: gate.callerId,
+      actor_email: actorEmail,
+      action: "user.create",
+      target_user_id: newUserId,
+      target_email: email,
+      reason: null,
+      meta: { mode: "invited_new", app_role },
+    });
 
     // Front expects data.ok
     return json(req, 200, { ok: true, mode: "invited_new", user_id: newUserId, email });
