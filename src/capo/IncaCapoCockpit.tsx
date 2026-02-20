@@ -17,7 +17,7 @@ import { supabase } from "../lib/supabaseClient";
 import LoadingScreen from "../components/LoadingScreen";
 import ApparatoCaviPopover from "../features/inca/ApparatoCaviPopover";
 import { ApparatoPill, CodicePill, computeApparatoPMaps } from "../features/inca/IncaPills";
-import { useI18n } from "../i18n/CoreI18n";
+import { useI18n } from "../i18n/coreI18n";
 
 type ShipRow = {
   id: string;
@@ -848,8 +848,12 @@ export default function IncaCapoCockpit(): JSX.Element {
                   const appDA = norm(r.apparato_da);
                   const appA = norm(r.apparato_a);
 
-                  const statDA = appDA ? (apparatoPMaps.da.get(appDA) || { total: 0, pCount: 0, status: "RED" }) : null;
-                  const statA = appA ? (apparatoPMaps.a.get(appA) || { total: 0, pCount: 0, status: "RED" }) : null;
+                  const statDA = appDA
+                    ? (apparatoPMaps.da.get(appDA) || { total: 0, pCount: 0, status: "RED" })
+                    : undefined;
+                  const statA = appA
+                    ? (apparatoPMaps.a.get(appA) || { total: 0, pCount: 0, status: "RED" })
+                    : undefined;
 
                   const hist = hasHistory(r);
 
@@ -1046,14 +1050,10 @@ export default function IncaCapoCockpit(): JSX.Element {
       <ApparatoCaviPopover
         open={apparatoPopoverOpen}
         side={apparatoPopoverSide}
-        apparatoName={apparatoPopoverName}
+        apparato={apparatoPopoverName}
         anchorRect={apparatoAnchorRect}
+        incaFileId={undefined}
         onClose={() => setApparatoPopoverOpen(false)}
-        onSelect={(name) => {
-          // quickest UX: selecting an apparato injects into the search box
-          setQuery(name);
-        }}
-        maps={apparatoPMaps as any}
       />
     </div>
   );

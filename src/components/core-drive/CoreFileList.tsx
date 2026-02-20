@@ -1,6 +1,7 @@
 // src/components/core-drive/CoreFileList.jsx
-import React from 'react';
-import CoreFileRow from './CoreFileRow';
+import CoreFileRow, { type CoreDriveFile } from "./CoreFileRow";
+
+type CoreError = { message?: string };
 
 export default function CoreFileList({
   files,
@@ -8,6 +9,12 @@ export default function CoreFileList({
   error,
   selectedFile,
   onSelect,
+}: {
+  files?: CoreDriveFile[];
+  isLoading?: boolean;
+  error?: CoreError | null;
+  selectedFile?: CoreDriveFile | null;
+  onSelect?: (file: CoreDriveFile) => void;
 }) {
   if (isLoading) {
     return (

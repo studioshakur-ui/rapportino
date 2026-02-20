@@ -1,10 +1,10 @@
 // /src/components/core-drive/CoreDriveList.jsx
-import React from "react";
+import type { ReactNode } from "react";
 import { bytes, fmtDateTime, statusTone } from "./coreDriveUi";
 
-function Badge({ children, tone = "neutral" }) {
+function Badge({ children, tone = "neutral" }: { children?: ReactNode; tone?: string }) {
   const base = "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium";
-  const map = {
+  const map: Record<string, string> = {
     neutral: "border-slate-800 bg-slate-950/60 text-slate-200",
     ok: "border-emerald-700/60 bg-emerald-950/20 text-emerald-200",
     info: "border-sky-700/60 bg-sky-950/20 text-sky-200",
@@ -13,7 +13,32 @@ function Badge({ children, tone = "neutral" }) {
   return <span className={base + " " + (map[tone] || map.neutral)}>{children}</span>;
 }
 
-export default function CoreDriveList({ items, onOpen, onDelete, hasMore, onLoadMore, loadingMore }) {
+type CoreDriveItem = {
+  id: string | number;
+  filename?: string;
+  categoria?: string;
+  origine?: string;
+  stato_doc?: string;
+  created_at?: string;
+  commessa?: string;
+  size_bytes?: number;
+};
+
+export default function CoreDriveList({
+  items,
+  onOpen,
+  onDelete,
+  hasMore,
+  onLoadMore,
+  loadingMore,
+}: {
+  items?: CoreDriveItem[];
+  onOpen?: (file: CoreDriveItem) => void;
+  onDelete?: (file: CoreDriveItem) => void;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
+  loadingMore?: boolean;
+}) {
   const list = Array.isArray(items) ? items : [];
 
   if (!list.length) {

@@ -1,7 +1,17 @@
 // /src/components/core-drive/ui/Segmented.jsx
-import React from "react";
+import type { ReactNode } from "react";
 
-export default function Segmented({ value, onChange, options }) {
+type SegmentedOption<T extends string | number> = { value: T; label?: ReactNode };
+
+export default function Segmented<T extends string | number>({
+  value,
+  onChange,
+  options,
+}: {
+  value: T;
+  onChange?: (value: T | ((prev: T) => T)) => void;
+  options: Array<SegmentedOption<T>>;
+}) {
   return (
     <div className="inline-flex items-center gap-1 rounded-full border border-slate-800 bg-slate-950/60 p-1">
       {options.map((o) => {

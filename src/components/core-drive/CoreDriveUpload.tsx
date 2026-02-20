@@ -1,20 +1,28 @@
 
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { uploadCoreFile } from "../../services/coreDrive.api";
 import { bytes } from "./docs/coreDriveDocsUi";
 
-export default function CoreDriveUpload({ defaultCantiere = "", defaultOrigine = "UFFICIO", onUploaded }) {
-  const [open, setOpen] = useState(false);
+export default function CoreDriveUpload({
+  defaultCantiere = "",
+  defaultOrigine = "UFFICIO",
+  onUploaded,
+}: {
+  defaultCantiere?: string;
+  defaultOrigine?: string;
+  onUploaded?: () => void;
+}) {
+  const [open, setOpen] = useState<boolean>(false);
 
-  const [file, setFile] = useState(null);
-  const [cantiere, setCantiere] = useState(defaultCantiere || "");
-  const [categoria, setCategoria] = useState("ALTRO");
-  const [commessa, setCommessa] = useState("");
-  const [stato_doc, setStatoDoc] = useState("BOZZA");
-  const [note, setNote] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [cantiere, setCantiere] = useState<string>(defaultCantiere || "");
+  const [categoria, setCategoria] = useState<string>("ALTRO");
+  const [commessa, setCommessa] = useState<string>("");
+  const [stato_doc, setStatoDoc] = useState<string>("BOZZA");
+  const [note, setNote] = useState<string>("");
 
-  const [uploading, setUploading] = useState(false);
-  const [err, setErr] = useState(null);
+  const [uploading, setUploading] = useState<boolean>(false);
+  const [err, setErr] = useState<string | null>(null);
 
   const canSubmit = useMemo(() => Boolean(file && cantiere && categoria && !uploading), [
     file,
@@ -42,6 +50,7 @@ export default function CoreDriveUpload({ defaultCantiere = "", defaultOrigine =
 
   async function doUpload() {
     if (!canSubmit) return;
+    if (!file) return;
 
     setUploading(true);
     setErr(null);
@@ -101,7 +110,7 @@ export default function CoreDriveUpload({ defaultCantiere = "", defaultOrigine =
               <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
                 <input
                   type="file"
-                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  onChange={(e) => setFile(e.currentTarget.files?.[0] || null)}
                   className="w-full text-sm text-slate-200 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:text-slate-100 hover:file:bg-slate-800"
                 />
                 {file && (

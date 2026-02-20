@@ -1,9 +1,17 @@
 // /src/components/core-drive/ui/Badge.jsx
-import React from "react";
+import type { ReactNode } from "react";
 
-export default function Badge({ children, tone = "neutral", className = "" }) {
+export default function Badge({
+  children,
+  tone = "neutral",
+  className = "",
+}: {
+  children?: ReactNode;
+  tone?: string;
+  className?: string;
+}) {
   const base = "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium";
-  const map = {
+  const map: Record<string, string> = {
     neutral: "border-slate-800 bg-slate-950/60 text-slate-200",
     ok: "border-emerald-700/60 bg-emerald-950/20 text-emerald-200",
     info: "border-sky-700/60 bg-sky-950/20 text-sky-200",

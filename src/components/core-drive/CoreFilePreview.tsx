@@ -1,15 +1,57 @@
 // src/components/core-drive/CoreFilePreview.jsx
-import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useCoreFileAudit } from '../../hooks/useCoreFileAudit';
+import { motion, AnimatePresence } from "framer-motion";
+import { useCoreFileAudit } from "../../hooks/useCoreFileAudit";
 
-function formatDateTime(value) {
-  if (!value) return '—';
+type CoreFile = {
+  id?: string | number;
+  filename?: string;
+  cantiere?: string;
+  commessa?: string;
+  categoria?: string;
+  origine?: string;
+  stato_doc?: string;
+  settimana_iso?: number | string;
+  kpi_ref?: string;
+  claim_id?: string;
+  rapportino_id?: string;
+  inca_file_id?: string;
+  inca_cavo_id?: string;
+  operator_id?: string;
+  created_at?: string;
+  updated_at?: string;
+  frozen_at?: string;
+  retention_until?: string;
+  version_num?: number;
+  version_of?: string;
+  note?: string;
+};
+type AuditItem = {
+  id?: string | number;
+  action?: string;
+  performed_at?: string;
+  performed_role?: string;
+  performed_by?: string;
+  note?: string;
+};
+
+function formatDateTime(value?: string | number | Date | null): string {
+  if (!value) return "—";
   return new Date(value).toLocaleString();
 }
 
-export default function CoreFilePreview({ file, onClose }) {
-  const { data: audit, isLoading: auditLoading } = useCoreFileAudit(file?.id);
+export default function CoreFilePreview({
+  file,
+  onClose,
+}: {
+  file?: CoreFile | null;
+  onClose?: () => void;
+}) {
+  const { data: audit, isLoading: auditLoading } = useCoreFileAudit(
+    file?.id as string | null | undefined
+  ) as {
+    data?: AuditItem[] | null;
+    isLoading?: boolean;
+  };
 
   return (
     <AnimatePresence>

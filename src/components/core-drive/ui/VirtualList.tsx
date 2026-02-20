@@ -1,5 +1,6 @@
 // /src/components/core-drive/ui/VirtualList.jsx
-import React, { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import type { ReactNode, UIEvent } from "react";
 
 /**
  * VirtualList: render performant de grandes listes sans lib externe.
@@ -8,14 +9,26 @@ import React, { useMemo, useRef, useState } from "react";
  * - height: number (px)
  * - renderRow: (row, index) => JSX
  */
-export default function VirtualList({ rows, rowHeight = 34, height = 520, overscan = 10, renderRow }) {
+export default function VirtualList<T>({
+  rows,
+  rowHeight = 34,
+  height = 520,
+  overscan = 10,
+  renderRow,
+}: {
+  rows: T[] | null | undefined;
+  rowHeight?: number;
+  height?: number;
+  overscan?: number;
+  renderRow: (row: T, index: number) => ReactNode;
+}) {
   const list = Array.isArray(rows) ? rows : [];
   const total = list.length;
 
-  const ref = useRef(null);
-  const [scrollTop, setScrollTop] = useState(0);
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [scrollTop, setScrollTop] = useState<number>(0);
 
-  const onScroll = (e) => setScrollTop(e.currentTarget.scrollTop);
+  const onScroll = (e: UIEvent<HTMLDivElement>) => setScrollTop(e.currentTarget.scrollTop);
 
   const { start, end, offsetY } = useMemo(() => {
     const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);

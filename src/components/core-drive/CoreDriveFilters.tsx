@@ -1,9 +1,36 @@
 // /src/components/core-drive/CoreDriveFilters.jsx
-import React from "react";
+type Filters = Record<string, unknown> & {
+  cantiere?: string;
+  categoria?: string;
+  commessa?: string;
+  origine?: string;
+  stato_doc?: string;
+  mimeGroup?: string;
+  text?: string;
+  dateFrom?: string;
+  dateTo?: string;
+};
+type Facets = {
+  cantieri?: string[];
+  categorie?: string[];
+  commesse?: string[];
+  origini?: string[];
+  stati?: string[];
+};
 
-export default function CoreDriveFilters({ filters, onChange, facets, compact = false }) {
-  const f = filters || {};
-  const set = (key, value) => onChange({ ...f, [key]: value });
+export default function CoreDriveFilters({
+  filters,
+  onChange,
+  facets,
+  compact = false,
+}: {
+  filters?: Filters | null;
+  onChange: (next: Filters) => void;
+  facets?: Facets | null;
+  compact?: boolean;
+}) {
+  const f: Filters = filters || {};
+  const set = (key: keyof Filters, value: string) => onChange({ ...f, [key]: value });
 
   const selectClass =
     "h-9 rounded-lg border border-slate-800 bg-slate-950/60 px-3 text-sm text-slate-100 outline-none focus:ring-2 focus:ring-slate-500/40";

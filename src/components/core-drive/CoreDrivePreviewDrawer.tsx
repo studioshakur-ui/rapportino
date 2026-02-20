@@ -1,5 +1,5 @@
 // /src/components/core-drive/CoreDrivePreviewDrawer.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { getSignedUrl } from "../../services/coreDrive.api";
@@ -8,11 +8,39 @@ import { useCoreDriveEvents } from "../../hooks/useCoreDriveEvents";
 import Badge from "./ui/Badge";
 import { bytes, formatDateTime } from "./docs/coreDriveDocsUi";
 
-function safeUpper(v) {
+type CoreDriveFile = {
+  id?: string | number;
+  filename?: string;
+  mime_type?: string;
+  cantiere?: string;
+  commessa?: string;
+  origine?: string;
+  categoria?: string;
+  stato_doc?: string;
+  is_frozen?: boolean;
+  is_deleted?: boolean;
+  size_bytes?: number;
+  inca_file_id?: string;
+  created_at?: string;
+  note?: string;
+  rapportino_id?: string;
+  inca_cavo_id?: string;
+  storage_path?: string;
+  storage_bucket?: string;
+};
+type CoreDriveEvent = {
+  id: string | number;
+  event_type?: string;
+  actor_role?: string;
+  created_at?: string;
+  payload?: { reason?: string } | null;
+};
+
+function safeUpper(v: unknown): string {
   return String(v || "").trim().toUpperCase();
 }
 
-function isSpreadsheetMime(mimeType) {
+function isSpreadsheetMime(mimeType: unknown): boolean {
   const mt = String(mimeType || "").toLowerCase();
   return (
     mt.includes("spreadsheet") ||
@@ -21,24 +49,34 @@ function isSpreadsheetMime(mimeType) {
   );
 }
 
-function extFromName(name) {
+function extFromName(name: unknown): string {
   const s = String(name || "");
   const idx = s.lastIndexOf(".");
   if (idx < 0) return "";
   return s.slice(idx + 1).toLowerCase();
 }
 
-export default function CoreDrivePreviewDrawer({ file, onClose }) {
+export default function CoreDrivePreviewDrawer({
+  file,
+  onClose,
+}: {
+  file?: CoreDriveFile | null;
+  onClose?: () => void;
+}) {
   const navigate = useNavigate();
 
-  const [url, setUrl] = useState(null);
-  const [err, setErr] = useState(null);
+  const [url, setUrl] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
 
   const {
     data: events,
     isLoading: eventsLoading,
     error: eventsError,
-  } = useCoreDriveEvents(file?.id, { limit: 12 });
+  } = useCoreDriveEvents(file?.id as string | null | undefined, { limit: 12 }) as {
+    data?: CoreDriveEvent[] | null;
+    isLoading?: boolean;
+    error?: unknown;
+  };
 
   const mimeType = String(file?.mime_type || "");
   const fileName = String(file?.filename || "");
@@ -98,9 +136,9 @@ export default function CoreDrivePreviewDrawer({ file, onClose }) {
       setErr(null);
       setUrl(null);
       try {
-        const signed = await getSignedUrl(file);
+        const signed = await getSignedUrl(file as { storage_path: string; storage_bucket: string });
         if (!alive) return;
-        setUrl(signed);
+        setUrl(signed as string);
       } catch (e) {
         console.error(e);
         if (!alive) return;

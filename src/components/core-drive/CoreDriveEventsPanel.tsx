@@ -1,18 +1,26 @@
 // src/components/coreDrive/CoreDriveEventsPanel.jsx
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { listCoreDriveEvents } from "../../services/coreDrive.api";
 
-function fmt(ts) {
+type CoreDriveEvent = {
+  id: string | number;
+  event_type?: unknown;
+  created_at?: unknown;
+  note?: unknown;
+  payload?: Record<string, unknown> | null;
+};
+
+function fmt(ts: unknown): string {
   if (!ts) return "—";
-  const d = new Date(ts);
+  const d = new Date(ts as string | number | Date);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleString("it-IT");
 }
 
-export default function CoreDriveEventsPanel({ fileId }) {
-  const [rows, setRows] = useState([]);
-  const [err, setErr] = useState(null);
-  const [loading, setLoading] = useState(false);
+export default function CoreDriveEventsPanel({ fileId }: { fileId?: unknown }) {
+  const [rows, setRows] = useState<CoreDriveEvent[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
 
   useEffect(() => {
     let mounted = true;
@@ -25,12 +33,15 @@ export default function CoreDriveEventsPanel({ fileId }) {
       setLoading(true);
       setErr(null);
       try {
-        const data = await listCoreDriveEvents(fileId, 200);
+        const data = (await listCoreDriveEvents({
+          fileId: String(fileId),
+          limit: 200,
+        })) as CoreDriveEvent[];
         if (!mounted) return;
-        setRows(data);
+        setRows(Array.isArray(data) ? data : []);
       } catch (e) {
         if (!mounted) return;
-        setErr(e?.message || "Errore caricamento eventi");
+        setErr((e as { message?: string } | null | undefined)?.message || "Errore caricamento eventi");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -73,7 +84,7 @@ export default function CoreDriveEventsPanel({ fileId }) {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="text-xs font-semibold text-slate-200">
-                    {ev.event_type}
+                    {String(ev.event_type || "")}
                   </div>
                   <div className="text-[10px] text-slate-500">
                     {fmt(ev.created_at)}
@@ -82,7 +93,7 @@ export default function CoreDriveEventsPanel({ fileId }) {
 
                 {ev.note ? (
                   <div className="mt-1 text-xs text-slate-300 whitespace-pre-wrap">
-                    {ev.note}
+                    {String(ev.note)}
                   </div>
                 ) : null}
 

@@ -1,5 +1,5 @@
 // /src/components/core-drive/docs/CoreDriveDocuments.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../auth/AuthProvider";
 
@@ -11,21 +11,43 @@ import {
   freezeCoreFile,
   listCoreFiles,
   softDeleteCoreFile,
+  type CoreFileCursor,
 } from "../../../services/coreDrive.api";
 
-import { bytes, formatDate, formatDateTime, uniqSorted } from "./coreDriveDocsUi";
+import { bytes, formatDateTime, uniqSorted } from "./coreDriveDocsUi";
 
 import CoreDriveUpload from "../CoreDriveUpload";
 import CoreDrivePreviewDrawer from "../CoreDrivePreviewDrawer";
 
-const VIEW_OPTIONS = [
+const VIEW_OPTIONS: Array<{ value: "LIST" | "TIMELINE" | "COMPARE"; label: string }> = [
   { value: "LIST", label: "Lista" },
   { value: "TIMELINE", label: "Timeline" },
   { value: "COMPARE", label: "Confronto" },
 ];
 
+type CoreDriveItem = {
+  id: string | number;
+  filename?: string;
+  created_at?: string;
+  cantiere?: string;
+  categoria?: string;
+  commessa?: string;
+  origine?: string;
+  stato_doc?: string;
+  mime_type?: string;
+  size_bytes?: number;
+  note?: string;
+  inca_file_id?: string;
+  inca_cavo_id?: string;
+  rapportino_id?: string;
+  is_frozen?: boolean;
+  is_deleted?: boolean;
+};
+type Profile = { app_role?: string; role?: string } | null | undefined;
+type CoreDriveResult = { items: CoreDriveItem[]; nextCursor: CoreFileCursor | null; hasMore: boolean };
+
 export default function CoreDriveDocuments() {
-  const { profile } = useAuth();
+  const { profile } = useAuth() as { profile?: Profile };
   const navigate = useNavigate();
 
   const appRole = profile?.app_role || profile?.role || "";
@@ -33,7 +55,7 @@ export default function CoreDriveDocuments() {
   const canDelete = ["UFFICIO", "MANAGER", "DIREZIONE", "ADMIN"].includes(String(appRole).toUpperCase());
   const canFreeze = ["UFFICIO", "DIREZIONE", "ADMIN"].includes(String(appRole).toUpperCase());
 
-  const [view, setView] = useState("LIST");
+  const [view, setView] = useState<"LIST" | "TIMELINE" | "COMPARE">("LIST");
 
   const [filters, setFilters] = useState({
     cantiere: "",
@@ -47,16 +69,16 @@ export default function CoreDriveDocuments() {
     dateTo: "",
   });
 
-  const [items, setItems] = useState([]);
-  const [cursor, setCursor] = useState(null);
-  const [hasMore, setHasMore] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [err, setErr] = useState(null);
+  const [items, setItems] = useState<CoreDriveItem[]>([]);
+  const [cursor, setCursor] = useState<CoreFileCursor | null>(null);
+  const [hasMore, setHasMore] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [loadingMore, setLoadingMore] = useState<boolean>(false);
+  const [err, setErr] = useState<string | null>(null);
 
-  const [preview, setPreview] = useState(null);
+  const [preview, setPreview] = useState<CoreDriveItem | null>(null);
 
-  function canOpenNavemasterCockpit(f) {
+  function canOpenNavemasterCockpit(f: CoreDriveItem | null | undefined): boolean {
     // Canonical rule: if the file is linked to an INCA import OR is tagged as INCA source,
     // we treat it as a cockpit-entry (NAVEMASTER).
     // Note: in your CORE Drive taxonomy, "INCA_SRC" may be stored either in `origine` OR in `categoria`
@@ -66,7 +88,7 @@ export default function CoreDriveDocuments() {
     return !!f?.inca_file_id || origine === "INCA_SRC" || categoria === "INCA_SRC";
   }
 
-  function openNavemasterCockpitFromFile(f) {
+  function openNavemasterCockpitFromFile(f: CoreDriveItem | null | undefined): void {
     if (!f) return;
 
     const roleUp = String(appRole || "").trim().toUpperCase();
@@ -102,7 +124,7 @@ export default function CoreDriveDocuments() {
     setLoading(true);
     setErr(null);
     try {
-      const res = await listCoreFiles({ filters, pageSize: 80, cursor: null });
+      const res = (await listCoreFiles({ filters, pageSize: 80, cursor: null })) as CoreDriveResult;
       setItems(res.items);
       setCursor(res.nextCursor);
       setHasMore(res.hasMore);
@@ -119,7 +141,7 @@ export default function CoreDriveDocuments() {
     setLoadingMore(true);
     setErr(null);
     try {
-      const res = await listCoreFiles({ filters, pageSize: 80, cursor });
+      const res = (await listCoreFiles({ filters, pageSize: 80, cursor })) as CoreDriveResult;
       setItems((prev) => [...prev, ...res.items]);
       setCursor(res.nextCursor);
       setHasMore(res.hasMore);
@@ -186,7 +208,7 @@ export default function CoreDriveDocuments() {
     const oldest = (() => {
       const sorted = [...items]
         .filter((x) => x.created_at)
-        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        .sort((a, b) => new Date(a.created_at as string).getTime() - new Date(b.created_at as string).getTime());
       return sorted[0]?.created_at || null;
     })();
 
@@ -210,12 +232,12 @@ export default function CoreDriveDocuments() {
       e.docs += 1;
       e.bytes += Number(x.size_bytes) || 0;
     });
-    return Array.from(map.values()).sort((a, b) => new Date(a.date) - new Date(b.date));
+    return Array.from(map.values()).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [items]);
 
   const compare = useMemo(() => {
     const mode = filters.categoria ? "COMMESSA" : "CATEGORIA";
-    const keyFn = (x) => {
+    const keyFn = (x: CoreDriveItem) => {
       if (filters.categoria) return x.commessa || "Senza commessa";
       return x.categoria || "—";
     };
@@ -234,13 +256,18 @@ export default function CoreDriveDocuments() {
 
     return { mode, arr, maxBytes };
   }, [items, filters.categoria]);
+  void timelineData;
+  void compare;
 
-  async function handleDelete(f) {
+  async function handleDelete(f: CoreDriveItem) {
     if (!canDelete) return;
     const reason = window.prompt("Motivo cancellazione (soft delete):", "");
     if (reason === null) return;
     try {
-      await softDeleteCoreFile({ id: f.id, reason: (reason || "").trim() || null });
+      await (softDeleteCoreFile as unknown as (arg: { id: string; reason?: string | null }) => Promise<unknown>)({
+        id: String(f.id),
+        reason: (reason || "").trim() || null,
+      });
       await loadFirstPage();
       if (preview?.id === f.id) setPreview(null);
     } catch (e) {
@@ -249,13 +276,16 @@ export default function CoreDriveDocuments() {
     }
   }
 
-  async function handleFreeze(f) {
+  async function handleFreeze(f: CoreDriveItem) {
     if (!canFreeze) return;
     if (f.is_frozen) return;
     const reason = window.prompt("Motivo freeze (inviolabile):", "");
     if (reason === null) return;
     try {
-      await freezeCoreFile({ id: f.id, reason: (reason || "").trim() || null });
+      await (freezeCoreFile as unknown as (arg: { id: string; reason?: string | null }) => Promise<unknown>)({
+        id: String(f.id),
+        reason: (reason || "").trim() || null,
+      });
       await loadFirstPage();
     } catch (e) {
       console.error(e);
@@ -276,11 +306,7 @@ export default function CoreDriveDocuments() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Segmented
-              value={view}
-              options={VIEW_OPTIONS}
-              onChange={(v) => setView(v)}
-            />
+            <Segmented value={view} options={VIEW_OPTIONS} onChange={(v) => setView(v)} />
           </div>
         </div>
 

@@ -1,8 +1,18 @@
 // /src/components/core-drive/ui/KpiTile.jsx
-import React from "react";
+import type { ReactNode } from "react";
 
-export default function KpiTile({ label, value, hint, tone = "neutral" }) {
-  const toneMap = {
+export default function KpiTile({
+  label,
+  value,
+  hint,
+  tone = "neutral",
+}: {
+  label?: ReactNode;
+  value?: ReactNode;
+  hint?: ReactNode;
+  tone?: string;
+}) {
+  const toneMap: Record<string, string> = {
     neutral: "text-slate-50",
     ok: "text-emerald-300",
     info: "text-sky-300",
