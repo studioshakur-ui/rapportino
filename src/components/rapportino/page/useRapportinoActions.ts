@@ -1,6 +1,7 @@
 // src/components/rapportino/page/useRapportinoActions.js
 /* eslint-disable no-console */
 
+import type { Dispatch, SetStateAction } from "react";
 import { supabase } from "../../../lib/supabaseClient";
 import { parseNumeric } from "../../../rapportinoUtils";
 import { normalizeOperatorLabel } from "../utils/normalizeOperatorLabel";
@@ -20,11 +21,32 @@ import { normalizeLegacyTempoAlignment, joinLines } from "./rapportinoHelpers";
  * - rapportino_rows.rapportino_id is NOT NULL
  */
 
-function safeStr(v) {
+type OperatorItem = {
+  operator_id?: unknown;
+  label?: unknown;
+  tempo_raw?: unknown;
+  tempo_hours?: unknown;
+  line_index?: unknown;
+};
+type RowRecord = Record<string, unknown> & {
+  operator_items?: OperatorItem[];
+  operatori?: unknown;
+  tempo?: unknown;
+  categoria?: unknown;
+  descrizione?: unknown;
+  descrizione_attivita?: unknown;
+  previsto?: unknown;
+  prodotto?: unknown;
+  note?: unknown;
+  activity_id?: unknown;
+};
+type SetRows = Dispatch<SetStateAction<RowRecord[]>>;
+
+function safeStr(v: unknown): string {
   return String(v ?? "").trim();
 }
 
-function safeNumOrNull(v) {
+function safeNumOrNull(v: unknown): number | null {
   if (v === null || v === undefined) return null;
   if (typeof v === "number") return Number.isFinite(v) ? v : null;
   const s = String(v).trim();
@@ -33,30 +55,32 @@ function safeNumOrNull(v) {
   return Number.isFinite(n) ? n : null;
 }
 
-function isFiniteNumber(n) {
+function isFiniteNumber(n: unknown): n is number {
   return typeof n === "number" && Number.isFinite(n);
 }
 
-function getOperatorId(op) {
-  return op?.operator_id || op?.id || null;
+function getOperatorId(op: unknown): unknown {
+  const obj = op as { operator_id?: unknown; id?: unknown } | null | undefined;
+  return obj?.operator_id || obj?.id || null;
 }
 
-function getOperatorLabel(op) {
+function getOperatorLabel(op: unknown): string {
   if (!op) return "";
+  const obj = op as Record<string, unknown>;
 
   // Common shapes across UI/components:
   // - { name }
   // - { label }
   // - { nome, cognome }
   // - { first_name, last_name }
-  const label = safeStr(op.label);
+  const label = safeStr(obj.label);
   if (label) return normalizeOperatorLabel(label);
 
-  const name = safeStr(op.name);
+  const name = safeStr(obj.name);
   if (name) return normalizeOperatorLabel(name);
 
-  const cognome = safeStr(op.cognome || op.last_name || op.lastname);
-  const nome = safeStr(op.nome || op.first_name || op.firstname);
+  const cognome = safeStr(obj.cognome || obj.last_name || obj.lastname);
+  const nome = safeStr(obj.nome || obj.first_name || obj.firstname);
   const full = safeStr(`${cognome} ${nome}`.trim());
   if (full) return normalizeOperatorLabel(full);
 
@@ -66,7 +90,10 @@ function getOperatorLabel(op) {
 /**
  * Add row from Catalog (RapportinoPage expects this name)
  */
-export function addRowFromCatalog({ setRows }, activity) {
+export function addRowFromCatalog(
+  { setRows }: { setRows: SetRows },
+  activity: Record<string, unknown> | null | undefined
+): void {
   const categoria = safeStr(activity?.categoria ?? activity?.category ?? "");
   const descrizione_attivita = safeStr(
     activity?.descrizione_attivita ?? activity?.descrizione ?? activity?.label ?? activity?.name ?? ""
@@ -95,7 +122,7 @@ export function addRowFromCatalog({ setRows }, activity) {
   });
 }
 
-export function removeRow({ setRows }, rowIndex) {
+export function removeRow({ setRows }: { setRows: SetRows }, rowIndex: number): void {
   setRows((prev) => {
     const next = Array.isArray(prev) ? [...prev] : [];
     if (rowIndex < 0 || rowIndex >= next.length) return prev;
@@ -104,7 +131,12 @@ export function removeRow({ setRows }, rowIndex) {
   });
 }
 
-export function updateCell({ setRows }, rowIndex, key, value) {
+export function updateCell(
+  { setRows }: { setRows: SetRows },
+  rowIndex: number,
+  key: string,
+  value: unknown
+): void {
   setRows((prev) => {
     const next = Array.isArray(prev) ? [...prev] : [];
     if (rowIndex < 0 || rowIndex >= next.length) return prev;
@@ -113,7 +145,11 @@ export function updateCell({ setRows }, rowIndex, key, value) {
   });
 }
 
-export function addOperatorToRow({ setRows }, rowIndex, operator) {
+export function addOperatorToRow(
+  { setRows }: { setRows: SetRows },
+  rowIndex: number,
+  operator: unknown
+): void {
   const operator_id = getOperatorId(operator);
   const label = getOperatorLabel(operator);
   if (!operator_id || !label) return;
@@ -153,7 +189,11 @@ export function addOperatorToRow({ setRows }, rowIndex, operator) {
   });
 }
 
-export function removeOperatorFromRow({ setRows }, rowIndex, operator_id) {
+export function removeOperatorFromRow(
+  { setRows }: { setRows: SetRows },
+  rowIndex: number,
+  operator_id: unknown
+): void {
   if (!operator_id) return;
 
   setRows((prev) => {
@@ -187,7 +227,12 @@ export function removeOperatorFromRow({ setRows }, rowIndex, operator_id) {
  * RapportinoPage uses this name from TempoPickerModal flow:
  * setCanonicalTempoForLine({ setRows }, rowIndex, lineIndex, tempoRaw)
  */
-export function setCanonicalTempoForLine({ setRows }, rowIndex, lineIndex, tempoRaw) {
+export function setCanonicalTempoForLine(
+  { setRows }: { setRows: SetRows },
+  rowIndex: number,
+  lineIndex: number,
+  tempoRaw: unknown
+): void {
   setRows((prev) => {
     const next = Array.isArray(prev) ? [...prev] : [];
     const row = next[rowIndex];
@@ -215,7 +260,11 @@ export function setCanonicalTempoForLine({ setRows }, rowIndex, lineIndex, tempo
   });
 }
 
-export function handleTempoChangeLegacy({ setRows }, rowIndex, value) {
+export function handleTempoChangeLegacy(
+  { setRows }: { setRows: SetRows },
+  rowIndex: number,
+  value: unknown
+): void {
   setRows((prev) => {
     const next = Array.isArray(prev) ? [...prev] : [];
     const row = next[rowIndex];
@@ -234,9 +283,14 @@ export function handleTempoChangeLegacy({ setRows }, rowIndex, value) {
  * - toggleOperatorInRow({setRows}, rowIndex, action, operator)
  * - toggleOperatorInRow({setRows}, rowIndex, operator, action)
  */
-export function toggleOperatorInRow({ setRows }, rowIndex, a, b) {
-  let action;
-  let operator;
+export function toggleOperatorInRow(
+  { setRows }: { setRows: SetRows },
+  rowIndex: number,
+  a: unknown,
+  b: unknown
+): void {
+  let action: unknown;
+  let operator: unknown;
 
   if (typeof a === "string") {
     action = a;
@@ -258,7 +312,7 @@ export function toggleOperatorInRow({ setRows }, rowIndex, a, b) {
   }
 
   // detect exists
-  let currentItems = [];
+  let currentItems: OperatorItem[] = [];
   setRows((prev) => {
     const row = Array.isArray(prev) ? prev[rowIndex] : null;
     currentItems = Array.isArray(row?.operator_items) ? row.operator_items : [];
@@ -303,12 +357,28 @@ export async function saveRapportino({
   setStatus,
   loadReturnedInbox,
   setSuccessMessage,
-}) {
+}: {
+  profileId: unknown;
+  crewRole: unknown;
+  reportDate: unknown;
+  status?: unknown;
+  forcedStatus?: unknown;
+  costr?: unknown;
+  commessa?: unknown;
+  prodottoTotale?: unknown;
+  rows?: unknown;
+  rapportinoId?: unknown;
+  setRapportinoId?: (id: string) => void;
+  setRapportinoCrewRole?: (role: unknown) => void;
+  setStatus?: (status: string) => void;
+  loadReturnedInbox?: () => Promise<unknown> | void;
+  setSuccessMessage?: (message: string) => void;
+}): Promise<{ rapportinoId: string | null; status: string }> {
   if (!profileId) throw new Error("Missing profileId");
   if (!crewRole) throw new Error("Missing crewRole");
   if (!reportDate) throw new Error("Missing reportDate");
 
-  const nextStatus = forcedStatus || status || "DRAFT";
+  const nextStatus = (forcedStatus || status || "DRAFT") as string;
 
   // 1) upsert rapportino header (create or update)
   let rid = rapportinoId ? String(rapportinoId) : null;
@@ -359,7 +429,7 @@ export async function saveRapportino({
   }
 
   // 2) replace rows (delete+insert)
-  const safeRows = Array.isArray(rows) ? rows : [];
+  const safeRows: RowRecord[] = Array.isArray(rows) ? (rows as RowRecord[]) : [];
 
   // 2a) prefetch existing row ids to delete operator mappings safely (schema has rapportino_row_id)
   const { data: existingRowsData, error: existingRowsErr } = await supabase
@@ -412,7 +482,7 @@ export async function saveRapportino({
     };
   });
 
-  let insertedRows = [];
+  let insertedRows: Array<Record<string, unknown>> = [];
   if (insertRowsPayload.length > 0) {
     const { data, error } = await supabase.from("rapportino_rows").insert(insertRowsPayload).select("id, position, row_index");
     if (error) throw error;

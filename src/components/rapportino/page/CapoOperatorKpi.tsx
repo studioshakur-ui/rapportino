@@ -1,8 +1,7 @@
 // /src/pages/CapoOperatorKpi.jsx
-import React from "react";
-import OperatorProductivityKpiPanel from "../components/kpi/OperatorProductivityKpiPanel";
+import OperatorProductivityKpiPanel from "../../../features/kpi/components/OperatorProductivityKpiPanel";
 
-export default function CapoOperatorKpi({ isDark = true }) {
+export default function CapoOperatorKpi({ isDark = true }: { isDark?: boolean }): JSX.Element {
   return (
     <OperatorProductivityKpiPanel
       scope="CAPO"

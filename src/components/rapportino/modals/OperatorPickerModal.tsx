@@ -1,5 +1,5 @@
 // /src/components/rapportino/modals/OperatorPickerModal.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
 import {
   modalOverlayClass,
@@ -22,23 +22,42 @@ import {
  * - onToggleOperator: ({id,name,position?}, action: "add"|"remove") => void
  */
 
-function cn(...parts) {
+function cn(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(" ");
 }
 
-function safeLower(s) {
+function safeLower(s: unknown): string {
   return String(s || "").toLowerCase();
 }
 
-function normalizeError(e) {
+function normalizeError(e: unknown): string {
   if (!e) return "Erreur inconnue";
   if (typeof e === "string") return e;
-  if (e.message) return e.message;
+  if ((e as { message?: string } | null | undefined)?.message) return (e as { message?: string }).message || "";
   try {
     return JSON.stringify(e);
   } catch {
     return String(e);
   }
+}
+
+type OperatorRow = {
+  operator_id?: unknown;
+  operator_display_name?: unknown;
+  operator_position?: unknown;
+  cognome?: unknown;
+  nome?: unknown;
+};
+
+type OperatorItem = {
+  id: string;
+  name: string;
+  position: number | null;
+  raw: OperatorRow;
+};
+
+function isOperatorItem(x: unknown): x is OperatorItem {
+  return typeof x === "object" && x !== null && "id" in x && "name" in x;
 }
 
 export default function OperatorPickerModal({
@@ -47,21 +66,27 @@ export default function OperatorPickerModal({
   selectedOperatorIds,
   onClose,
   onToggleOperator,
-}) {
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState("");
-  const [query, setQuery] = useState("");
-  const [list, setList] = useState([]);
+}: {
+  open: boolean;
+  rowIndex: number | null;
+  selectedOperatorIds: string[] | null | undefined;
+  onClose?: () => void;
+  onToggleOperator?: (op: { id: string; name: string; position: number | null }, action: "add" | "remove") => void;
+}): JSX.Element | null {
+  const [loading, setLoading] = useState<boolean>(false);
+  const [err, setErr] = useState<string>("");
+  const [query, setQuery] = useState<string>("");
+  const [list, setList] = useState<OperatorItem[]>([]);
 
   const selectedSet = useMemo(() => {
-    const s = new Set();
+    const s = new Set<string>();
     (Array.isArray(selectedOperatorIds) ? selectedOperatorIds : []).forEach((x) => {
       if (x) s.add(String(x));
     });
     return s;
   }, [selectedOperatorIds]);
 
-  const load = async () => {
+  const load = async (): Promise<void> => {
     setLoading(true);
     setErr("");
     try {
@@ -71,7 +96,7 @@ export default function OperatorPickerModal({
 
       if (error) throw error;
 
-      const raw = Array.isArray(data) ? data : [];
+      const raw = Array.isArray(data) ? (data as OperatorRow[]) : [];
       const mapped = raw
         .map((r) => {
           const id = r.operator_id || null;
@@ -80,7 +105,7 @@ export default function OperatorPickerModal({
           if (!id || !name) return null;
           return { id, name, position, raw: r };
         })
-        .filter(Boolean);
+        .filter(isOperatorItem);
 
       mapped.sort((a, b) => {
         const ap = a.position;
@@ -99,8 +124,8 @@ export default function OperatorPickerModal({
         return 0;
       });
 
-      const seen = new Set();
-      const dedup = [];
+      const seen = new Set<string>();
+      const dedup: OperatorItem[] = [];
       for (const it of mapped) {
         const k = String(it.id);
         if (seen.has(k)) continue;

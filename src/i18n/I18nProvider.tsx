@@ -63,6 +63,110 @@ const DICTS: Record<Lang, Dictionary> = {
     CAPO_SHIP_CABLES_LABEL: "cavi",
     CAPO_SHIP_DB_ERROR:
       "Errore DB: impossibile caricare l’elenco navi (vista non disponibile o permessi).",
+
+    // INCA — shared
+    inca: {
+      situazioni: {
+        NP: "NP (L)",
+        T: "T — Teorico",
+        P: "P — Posato",
+        R: "R — Ripresa",
+        B: "B — Bloccato",
+        E: "E — Errato",
+      },
+      badges: {
+        hist: "HIST",
+        noHist: "NO-HIST",
+      },
+      history: {
+        capoLabel: "Capo:",
+        noneTitle: "Nessun storico trovato",
+        noneSubtitle: "Nessun rapportino collegato",
+        capoOnlySubtitle: "Capo presente (data non disponibile)",
+        tooltipNoHist:
+          "Questo cavo non risulta collegato allo storico rapportini (nessuna posa/capo).",
+      },
+      kpi: {
+        headCables: "Cavi (HEAD)",
+        withHistory: "Con storico",
+        withoutHistory: "Senza storico",
+        coverage: "Copertura storico",
+      },
+      filters: {
+        all: "Tutti",
+        withHistory: "Con storico",
+        withoutHistory: "Senza storico",
+      },
+      capo: {
+        header: {
+          kicker: "INCA · Cockpit CAPO",
+          ship: "Nave:",
+          costr: "COSTR",
+          commessa: "COMMESSA",
+        },
+        meta: {
+          files: "File",
+          visibleCables: "Cavi visibili",
+        },
+        loading: {
+          files: "Caricamento file…",
+          cavi: "Caricamento cavi…",
+          caviShort: "Caricamento cavi…",
+        },
+        actions: {
+          back: "Indietro",
+          reset: "Reset",
+          close: "Chiudi",
+        },
+        errors: {
+          files: "Impossibile caricare i file INCA.",
+          cavi: "Impossibile caricare i cavi INCA.",
+        },
+        filters: {
+          title: "Filtri",
+          file: "File INCA",
+          searchLabel: "Ricerca (codice / apparato / descrizione / tipo / posa / capo)",
+          searchPlaceholder: "Es: CAV-..., QUADRO, PONTE, 22/12/2025, Faruk…",
+          onlyP: "Solo P",
+          onlyNP: "Solo NP (L+T+B+R)",
+        },
+        overview: {
+          title: "Panorama INCA",
+          subtitle: "Distribuzione (clic per ingrandire).",
+          cables: "Cavi",
+          metersTheoretical: "Metri teorici",
+          metersPosati: "Metri posati (P)",
+          production: "Produzione globale (P / tutti)",
+          openChart: "Apri il grafico in grande",
+          tooltipCables: "Cavi",
+        },
+        table: {
+          title: "Cavi",
+          hint: "Click riga → dettagli",
+          empty: "Nessun cavo trovato con i filtri correnti.",
+          col: {
+            codice: "Codice",
+            history: "Posa / Capo",
+            daA: "Da → A",
+            tipo: "Tipo cavo",
+            situazione: "Situaz.",
+            metri: "m teo",
+          },
+        },
+        details: {
+          title: "Dettaglio cavo",
+          lastPosa: "Ultima posa",
+          meters: "Metri teo",
+          type: "Tipo cavo",
+        },
+        modal: {
+          aria: "Dettaglio distribuzione INCA",
+          kicker: "Panorama INCA — Distribuzione",
+          title: "Situazioni",
+          total: "Totale",
+        },
+      },
+    },
   },
 
   fr: {
@@ -102,6 +206,110 @@ const DICTS: Record<Lang, Dictionary> = {
     CAPO_SHIP_CABLES_LABEL: "câbles",
     CAPO_SHIP_DB_ERROR:
       "Erreur DB : impossible de charger la liste des navires (vue indisponible ou permissions).",
+
+    // INCA — shared
+    inca: {
+      situazioni: {
+        NP: "NP (L)",
+        T: "T — Théorique",
+        P: "P — Posé",
+        R: "R — Reprise",
+        B: "B — Bloqué",
+        E: "E — Erroné",
+      },
+      badges: {
+        hist: "HIST",
+        noHist: "NO-HIST",
+      },
+      history: {
+        capoLabel: "Chef :",
+        noneTitle: "Aucun historique trouvé",
+        noneSubtitle: "Aucun rapportino lié",
+        capoOnlySubtitle: "Chef présent (date indisponible)",
+        tooltipNoHist:
+          "Ce câble n’est pas lié à l’historique des rapportini (aucune pose/chef).",
+      },
+      kpi: {
+        headCables: "Câbles (HEAD)",
+        withHistory: "Avec historique",
+        withoutHistory: "Sans historique",
+        coverage: "Couverture historique",
+      },
+      filters: {
+        all: "Tous",
+        withHistory: "Avec historique",
+        withoutHistory: "Sans historique",
+      },
+      capo: {
+        header: {
+          kicker: "INCA · Cockpit CAPO",
+          ship: "Navire :",
+          costr: "COSTR",
+          commessa: "COMMESSA",
+        },
+        meta: {
+          files: "Fichiers",
+          visibleCables: "Câbles visibles",
+        },
+        loading: {
+          files: "Chargement des fichiers…",
+          cavi: "Chargement des câbles…",
+          caviShort: "Chargement des câbles…",
+        },
+        actions: {
+          back: "Retour",
+          reset: "Réinitialiser",
+          close: "Fermer",
+        },
+        errors: {
+          files: "Impossible de charger les fichiers INCA.",
+          cavi: "Impossible de charger les câbles INCA.",
+        },
+        filters: {
+          title: "Filtres",
+          file: "Fichier INCA",
+          searchLabel: "Recherche (code / appareil / description / type / pose / chef)",
+          searchPlaceholder: "Ex : CAV-..., ARMOIRE, PONT, 22/12/2025, Faruk…",
+          onlyP: "Seulement P",
+          onlyNP: "Seulement NP (L+T+B+R)",
+        },
+        overview: {
+          title: "Vue d’ensemble INCA",
+          subtitle: "Distribution (cliquer pour agrandir).",
+          cables: "Câbles",
+          metersTheoretical: "Mètres théoriques",
+          metersPosati: "Mètres posés (P)",
+          production: "Production globale (P / tous)",
+          openChart: "Ouvrir le graphique",
+          tooltipCables: "Câbles",
+        },
+        table: {
+          title: "Câbles",
+          hint: "Cliquer ligne → détails",
+          empty: "Aucun câble trouvé avec les filtres actuels.",
+          col: {
+            codice: "Code",
+            history: "Pose / Chef",
+            daA: "De → À",
+            tipo: "Type câble",
+            situazione: "Statut",
+            metri: "m th",
+          },
+        },
+        details: {
+          title: "Détail câble",
+          lastPosa: "Dernière pose",
+          meters: "Mètres th",
+          type: "Type câble",
+        },
+        modal: {
+          aria: "Détail distribution INCA",
+          kicker: "Vue d’ensemble INCA — Distribution",
+          title: "Statuts",
+          total: "Total",
+        },
+      },
+    },
   },
 
   en: {
@@ -141,6 +349,109 @@ const DICTS: Record<Lang, Dictionary> = {
     CAPO_SHIP_CABLES_LABEL: "cables",
     CAPO_SHIP_DB_ERROR:
       "DB error: unable to load ships list (view unavailable or missing permissions).",
+
+    // INCA — shared
+    inca: {
+      situazioni: {
+        NP: "NP (L)",
+        T: "T — Theoretical",
+        P: "P — Laid",
+        R: "R — Rework",
+        B: "B — Blocked",
+        E: "E — Wrong",
+      },
+      badges: {
+        hist: "HIST",
+        noHist: "NO-HIST",
+      },
+      history: {
+        capoLabel: "Capo:",
+        noneTitle: "No history found",
+        noneSubtitle: "No linked report",
+        capoOnlySubtitle: "Capo present (date unavailable)",
+        tooltipNoHist: "This cable is not linked to rapportini history (no posa/capo).",
+      },
+      kpi: {
+        headCables: "Cables (HEAD)",
+        withHistory: "With history",
+        withoutHistory: "No history",
+        coverage: "History coverage",
+      },
+      filters: {
+        all: "All",
+        withHistory: "With history",
+        withoutHistory: "No history",
+      },
+      capo: {
+        header: {
+          kicker: "INCA · CAPO Cockpit",
+          ship: "Ship:",
+          costr: "COSTR",
+          commessa: "COMMESSA",
+        },
+        meta: {
+          files: "Files",
+          visibleCables: "Visible cables",
+        },
+        loading: {
+          files: "Loading files…",
+          cavi: "Loading cables…",
+          caviShort: "Loading cables…",
+        },
+        actions: {
+          back: "Back",
+          reset: "Reset",
+          close: "Close",
+        },
+        errors: {
+          files: "Unable to load INCA files.",
+          cavi: "Unable to load INCA cables.",
+        },
+        filters: {
+          title: "Filters",
+          file: "INCA file",
+          searchLabel: "Search (code / device / description / type / posa / capo)",
+          searchPlaceholder: "e.g. CAV-..., PANEL, DECK, 22/12/2025, Faruk…",
+          onlyP: "Only P",
+          onlyNP: "Only NP (L+T+B+R)",
+        },
+        overview: {
+          title: "INCA overview",
+          subtitle: "Distribution (click to enlarge).",
+          cables: "Cables",
+          metersTheoretical: "Theoretical meters",
+          metersPosati: "Laid meters (P)",
+          production: "Global production (P / all)",
+          openChart: "Open large chart",
+          tooltipCables: "Cables",
+        },
+        table: {
+          title: "Cables",
+          hint: "Click row → details",
+          empty: "No cables found with current filters.",
+          col: {
+            codice: "Code",
+            history: "Posa / Capo",
+            daA: "From → To",
+            tipo: "Cable type",
+            situazione: "Status",
+            metri: "m th",
+          },
+        },
+        details: {
+          title: "Cable details",
+          lastPosa: "Last posa",
+          meters: "Theoretical meters",
+          type: "Cable type",
+        },
+        modal: {
+          aria: "INCA distribution details",
+          kicker: "INCA overview — Distribution",
+          title: "Statuses",
+          total: "Total",
+        },
+      },
+    },
   },
 };
 

@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 
 /**
  * Overlay Preview
@@ -10,7 +10,12 @@ export default function PrintPreviewOverlay({
   onClose,
   onPrint,
   title = "Preview di stampa",
-}) {
+}: {
+  open: boolean;
+  onClose?: () => void;
+  onPrint?: () => void;
+  title?: string;
+}): JSX.Element | null {
   useEffect(() => {
     if (!open) return;
 
@@ -23,7 +28,7 @@ export default function PrintPreviewOverlay({
     root.classList.add("print-preview");
     body.classList.add("print-preview");
 
-    const onKeyDown = (e) => {
+    const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose?.();
     };
     window.addEventListener("keydown", onKeyDown);

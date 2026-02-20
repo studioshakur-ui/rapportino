@@ -1,5 +1,5 @@
 // /src/components/rapportino/modals/TempoPickerModal.jsx
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import {
   buildTempoOptions,
   modalOverlayClass,
@@ -29,9 +29,16 @@ export default function TempoPickerModal({
   onClose,
   onSetTempoForLine,
   onRemoveOperator,
-}) {
+}: {
+  open: boolean;
+  rowIndex: number | null;
+  items: unknown;
+  onClose?: () => void;
+  onSetTempoForLine?: (lineIndex: number, tempoRaw: string) => void;
+  onRemoveOperator?: (operatorId: string) => void;
+}): JSX.Element | null {
   const tmOptions = useMemo(() => buildTempoOptions(), []);
-  const currentItems = Array.isArray(items) ? items : [];
+  const currentItems = Array.isArray(items) ? (items as Array<{ label?: unknown; tempo_raw?: unknown; operator_id?: unknown }>) : [];
   const hasCanonicalTempo = currentItems.length > 0;
 
   if (!open) return null;

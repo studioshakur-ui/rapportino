@@ -2,10 +2,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
 
-export function useReturnedInbox({ profileId, crewRole }) {
-  const [returnedCount, setReturnedCount] = useState(0);
-  const [latestReturned, setLatestReturned] = useState(null);
-  const [returnedLoading, setReturnedLoading] = useState(false);
+export function useReturnedInbox({
+  profileId,
+  crewRole,
+}: {
+  profileId: unknown;
+  crewRole: unknown;
+}) {
+  const [returnedCount, setReturnedCount] = useState<number>(0);
+  const [latestReturned, setLatestReturned] = useState<Record<string, unknown> | null>(null);
+  const [returnedLoading, setReturnedLoading] = useState<boolean>(false);
 
   const loadReturnedInbox = useCallback(async () => {
     if (!profileId) {
@@ -35,7 +41,7 @@ export function useReturnedInbox({ profileId, crewRole }) {
         .limit(1)
         .maybeSingle();
 
-      if (lastError && lastError.code !== "PGRST116") throw lastError;
+      if (lastError && (lastError as { code?: string } | null | undefined)?.code !== "PGRST116") throw lastError;
 
       setReturnedCount(Number(count || 0));
       setLatestReturned(last || null);
