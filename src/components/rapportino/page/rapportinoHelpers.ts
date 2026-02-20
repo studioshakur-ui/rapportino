@@ -13,16 +13,18 @@ export const CREW_LABELS = {
   MONTAGGIO: "Montaggio",
 };
 
-export function cn(...parts) {
+export function cn(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(" ");
 }
 
-export function normalizeCrewRole(value) {
+export type CrewRole = "ELETTRICISTA" | "CARPENTERIA" | "MONTAGGIO";
+
+export function normalizeCrewRole(value: unknown): CrewRole {
   if (value === "ELETTRICISTA" || value === "CARPENTERIA" || value === "MONTAGGIO") return value;
   return "ELETTRICISTA";
 }
 
-export function readRoleFromLocalStorage() {
+export function readRoleFromLocalStorage(): CrewRole {
   try {
     const stored = window.localStorage.getItem("core-current-role");
     return normalizeCrewRole(stored);
@@ -31,19 +33,19 @@ export function readRoleFromLocalStorage() {
   }
 }
 
-export function safeLower(s) {
+export function safeLower(s: unknown): string {
   return String(s || "").toLowerCase();
 }
 
-export function splitLinesKeepEmpties(s) {
+export function splitLinesKeepEmpties(s: unknown): string[] {
   return String(s || "").split(/\r?\n/);
 }
 
-export function joinLines(lines) {
+export function joinLines(lines: unknown): string {
   return (Array.isArray(lines) ? lines : []).map((x) => String(x ?? "")).join("\n");
 }
 
-export function normalizeOperatorLabel(label) {
+export function normalizeOperatorLabel(label: unknown): string {
   const s = String(label || "")
     .replace(/\s+/g, " ")
     .trim();
@@ -55,7 +57,7 @@ export function normalizeOperatorLabel(label) {
  * - Accept "8", "8.0", "8,5"
  * - Reject non-numeric tokens
  */
-export function parseTempoToHours(raw) {
+export function parseTempoToHours(raw: unknown): number | null {
   if (raw === null || raw === undefined) return null;
   const s = String(raw).trim();
   if (!s) return null;
@@ -70,7 +72,7 @@ export function parseTempoToHours(raw) {
  * Legacy normalization:
  * Align tempo lines to operator lines (keep empties, pad/truncate).
  */
-export function normalizeLegacyTempoAlignment(operatoriText, tempoText) {
+export function normalizeLegacyTempoAlignment(operatoriText: unknown, tempoText: unknown): string {
   const opLines = splitLinesKeepEmpties(operatoriText);
   const tmLines = splitLinesKeepEmpties(tempoText);
 
@@ -83,8 +85,8 @@ export function normalizeLegacyTempoAlignment(operatoriText, tempoText) {
 }
 
 /** Tempo options: 0..12 step 0.5 */
-export function buildTempoOptions() {
-  const out = [];
+export function buildTempoOptions(): Array<{ label: string; value: string }> {
+  const out: Array<{ label: string; value: string }> = [];
   for (let v = 0; v <= 12; v += 0.5) {
     const s = Number.isInteger(v) ? String(v) : String(v).replace(".", ",");
     out.push({ label: s, value: s });
@@ -92,13 +94,13 @@ export function buildTempoOptions() {
   return out;
 }
 
-export function modalWrapClass() {
+export function modalWrapClass(): string {
   return "fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center";
 }
-export function modalOverlayClass() {
+export function modalOverlayClass(): string {
   return "absolute inset-0 bg-black/70";
 }
-export function modalPanelClass() {
+export function modalPanelClass(): string {
   return [
     "relative w-full sm:w-[min(860px,96vw)]",
     "rounded-t-3xl sm:rounded-3xl border border-slate-800",
@@ -107,18 +109,21 @@ export function modalPanelClass() {
   ].join(" ");
 }
 
-export function formatDateIt(iso) {
+export function formatDateIt(iso: unknown): string {
   if (!iso) return "";
   try {
-    return new Date(iso).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" });
+    return new Date(iso as string | number | Date).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" });
   } catch {
-    return iso;
+    return String(iso);
   }
 }
 
-export function computeProdottoTotale(rows, parseNumeric) {
+export function computeProdottoTotale(
+  rows: unknown,
+  parseNumeric: (value: unknown) => number | null
+): number {
   return (Array.isArray(rows) ? rows : []).reduce((sum, r) => {
-    const v = parseNumeric(r?.prodotto);
+    const v = parseNumeric((r as { prodotto?: unknown } | null | undefined)?.prodotto);
     return sum + (v || 0);
   }, 0);
 }

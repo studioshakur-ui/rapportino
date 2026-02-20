@@ -1,10 +1,10 @@
 // src/utils/formatHuman.js
 
-function safeStr(v) {
+function safeStr(v: unknown): string {
   return (v ?? "").toString().trim();
 }
 
-function cap(s) {
+function cap(s: string): string {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 }
 
@@ -17,7 +17,7 @@ function cap(s) {
  *
  * Note: si c’est un email, on le laisse tel quel.
  */
-export function formatHumanName(input) {
+export function formatHumanName(input: unknown): string {
   const raw = safeStr(input);
   if (!raw) return "";
 
@@ -25,7 +25,7 @@ export function formatHumanName(input) {
 
   const cleaned = raw.replace(/\s+/g, " ").toLowerCase();
 
-  const formatToken = (token) => {
+  const formatToken = (token: string): string => {
     if (!token) return token;
 
     // hyphenated
@@ -57,11 +57,12 @@ export function formatHumanName(input) {
 /**
  * Profile → display name (safe fallback)
  */
-export function formatDisplayName(profile, fallback = "User") {
+export function formatDisplayName(profile: unknown, fallback = "User"): string {
+  const p = profile as { display_name?: unknown; full_name?: unknown; email?: unknown } | null | undefined;
   const raw =
-    profile?.display_name ||
-    profile?.full_name ||
-    profile?.email ||
+    p?.display_name ||
+    p?.full_name ||
+    p?.email ||
     fallback;
 
   const out = formatHumanName(raw);

@@ -1,7 +1,9 @@
 // src/data/i18nEvoluzione.js
 
-export const SUPPORTED_LANGS = ["it", "fr", "en"];
-export const DEFAULT_LANG = "it";
+export const SUPPORTED_LANGS = ["it", "fr", "en"] as const;
+export type SupportedLang = (typeof SUPPORTED_LANGS)[number];
+
+export const DEFAULT_LANG: SupportedLang = "it";
 export const LANG_STORAGE_KEY = "core-lang";
 
 export const I18N_EVOLUZIONE = {
@@ -73,13 +75,13 @@ export const I18N_EVOLUZIONE = {
   },
 };
 
-export function normalizeLang(input) {
+export function normalizeLang(input: unknown): SupportedLang {
   const s = String(input || "").toLowerCase().trim();
-  if (SUPPORTED_LANGS.includes(s)) return s;
+  if (SUPPORTED_LANGS.includes(s as SupportedLang)) return s as SupportedLang;
   return DEFAULT_LANG;
 }
 
-export function getStoredLang() {
+export function getStoredLang(): SupportedLang {
   if (typeof window === "undefined") return DEFAULT_LANG;
   try {
     const v = window.localStorage.getItem(LANG_STORAGE_KEY);
@@ -89,14 +91,14 @@ export function getStoredLang() {
   }
 }
 
-export function storeLang(lang) {
+export function storeLang(lang: unknown): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(LANG_STORAGE_KEY, normalizeLang(lang));
   } catch {}
 }
 
-export function t(lang) {
+export function t(lang: unknown): (typeof I18N_EVOLUZIONE)[SupportedLang] {
   const k = normalizeLang(lang);
   return I18N_EVOLUZIONE[k] || I18N_EVOLUZIONE[DEFAULT_LANG];
 }

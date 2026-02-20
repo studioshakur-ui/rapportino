@@ -9,7 +9,7 @@
 // - On ignore les tokens tempo_hours <= 0 ou NULL (pas de prod).
 // - On ignore les lignes sans previsto ou previsto <= 0 (pas de % possible).
 
-function toNum(v) {
+function toNum(v: unknown): number | null {
   if (v === null || v === undefined) return null;
   if (typeof v === "number") return Number.isFinite(v) ? v : null;
   const s = String(v).trim().replace(",", ".");
@@ -18,13 +18,13 @@ function toNum(v) {
   return Number.isFinite(n) ? n : null;
 }
 
-function safePct(prod, prev) {
+function safePct(prod: number | null, prev: number | null): number | null {
   if (!prev || prev <= 0) return null;
   if (!prod || prod <= 0) return 0;
   return (prod / prev) * 100;
 }
 
-function displayNameFromOperator(o) {
+function displayNameFromOperator(o: { cognome?: unknown; nome?: unknown; name?: unknown } | null | undefined): string {
   const cognome = String(o?.cognome || "").trim();
   const nome = String(o?.nome || "").trim();
   const legacy = String(o?.name || "").trim();
@@ -43,9 +43,25 @@ function displayNameFromOperator(o) {
  *   byOperator: Array<{ operator_id:string, operator_name:string, previsto_sum:number, prodotto_sum:number, pct:number|null }>
  * }>}
  */
-export async function computeProductivityPctForRapportini(supabase, rapportini) {
+type RapportinoMini = { id?: string; capo_id?: string | null; report_date?: string | null };
+
+type SupabaseQueryResult<T> = { data: T[] | null; error: unknown | null };
+type SupabaseTableQuery<T> = {
+  select: (sel: string) => SupabaseTableQuery<T>;
+  in: (col: string, vals: Array<string>) => Promise<SupabaseQueryResult<T>>;
+};
+type SupabaseClientLike = { from: (table: string) => SupabaseTableQuery<unknown> };
+
+export async function computeProductivityPctForRapportini(
+  supabase: SupabaseClientLike,
+  rapportini: RapportinoMini[] | null | undefined
+): Promise<{
+  overall: { previsto_sum: number; prodotto_sum: number; pct: number | null };
+  byCapo: Array<{ capo_id: string; previsto_sum: number; prodotto_sum: number; pct: number | null }>;
+  byOperator: Array<{ operator_id: string; operator_name: string; previsto_sum: number; prodotto_sum: number; pct: number | null }>;
+}> {
   const rapList = Array.isArray(rapportini) ? rapportini : [];
-  const rapIds = rapList.map((r) => r?.id).filter(Boolean);
+  const rapIds = rapList.map((r) => r?.id).filter((id): id is string => Boolean(id));
 
   if (rapIds.length === 0) {
     return {
@@ -55,7 +71,7 @@ export async function computeProductivityPctForRapportini(supabase, rapportini) 
     };
   }
 
-  const capoByRap = new Map();
+  const capoByRap = new Map<string, string | null>();
   for (const r of rapList) {
     if (r?.id) capoByRap.set(r.id, r?.capo_id || null);
   }
@@ -68,16 +84,16 @@ export async function computeProductivityPctForRapportini(supabase, rapportini) 
 
   if (rowsErr) throw rowsErr;
 
-  const rowById = new Map();
-  const rowIds = [];
+  const rowById = new Map<string, { rowId: string; rapId: string; previsto: number | null; prodotto: number | null }>();
+  const rowIds: string[] = [];
 
   for (const rr of rows || []) {
-    const rowId = rr?.id;
-    const rapId = rr?.rapportino_id;
+    const rowId = (rr as any)?.id as string | undefined;
+    const rapId = (rr as any)?.rapportino_id as string | undefined;
     if (!rowId || !rapId) continue;
 
-    const previsto = toNum(rr?.previsto);
-    const prodotto = toNum(rr?.prodotto);
+    const previsto = toNum((rr as any)?.previsto);
+    const prodotto = toNum((rr as any)?.prodotto);
 
     rowById.set(rowId, {
       rowId,
@@ -105,11 +121,11 @@ export async function computeProductivityPctForRapportini(supabase, rapportini) 
   if (tokErr) throw tokErr;
 
   // 3) sum_line_hours per row (only tempo_hours > 0)
-  const sumLineHours = new Map();
+  const sumLineHours = new Map<string, number>();
   for (const t of tokens || []) {
-    const rowId = t?.rapportino_row_id;
+    const rowId = (t as any)?.rapportino_row_id as string | undefined;
     if (!rowId) continue;
-    const h = toNum(t?.tempo_hours);
+    const h = toNum((t as any)?.tempo_hours);
     if (!h || h <= 0) continue;
     sumLineHours.set(rowId, (sumLineHours.get(rowId) || 0) + h);
   }
@@ -117,19 +133,19 @@ export async function computeProductivityPctForRapportini(supabase, rapportini) 
   // 4) aggregate allocations
   const aggOverall = { previsto_sum: 0, prodotto_sum: 0 };
 
-  const aggByOperator = new Map(); // operator_id -> {previsto_sum, prodotto_sum}
-  const aggByCapo = new Map(); // capo_id -> {previsto_sum, prodotto_sum}
+  const aggByOperator = new Map<string, { previsto_sum: number; prodotto_sum: number }>(); // operator_id -> {previsto_sum, prodotto_sum}
+  const aggByCapo = new Map<string, { previsto_sum: number; prodotto_sum: number }>(); // capo_id -> {previsto_sum, prodotto_sum}
 
   for (const t of tokens || []) {
-    const rowId = t?.rapportino_row_id;
-    const operatorId = t?.operator_id;
+    const rowId = (t as any)?.rapportino_row_id as string | undefined;
+    const operatorId = (t as any)?.operator_id as string | undefined;
     if (!rowId || !operatorId) continue;
 
     const row = rowById.get(rowId);
     if (!row) continue;
 
     const lineSum = sumLineHours.get(rowId) || 0;
-    const h = toNum(t?.tempo_hours);
+    const h = toNum((t as any)?.tempo_hours);
 
     // Only valid time tokens
     if (!h || h <= 0) continue;
@@ -168,7 +184,7 @@ export async function computeProductivityPctForRapportini(supabase, rapportini) 
   // 5) operator names
   const operatorIds = Array.from(aggByOperator.keys()).filter(Boolean);
 
-  const opNameById = new Map();
+  const opNameById = new Map<string, string>();
   if (operatorIds.length > 0) {
     const { data: ops, error: opsErr } = await supabase
       .from("operators")
@@ -178,7 +194,9 @@ export async function computeProductivityPctForRapportini(supabase, rapportini) 
     if (opsErr) throw opsErr;
 
     for (const o of ops || []) {
-      opNameById.set(o.id, displayNameFromOperator(o));
+      const row = o as { id?: string; cognome?: unknown; nome?: unknown; name?: unknown };
+      if (!row.id) continue;
+      opNameById.set(row.id, displayNameFromOperator(row));
     }
   }
 
@@ -214,14 +232,14 @@ export async function computeProductivityPctForRapportini(supabase, rapportini) 
   };
 }
 
-export function formatPct(v) {
+export function formatPct(v: unknown): string {
   if (v === null || v === undefined) return "—";
   const n = Number(v);
   if (!Number.isFinite(n)) return "—";
   return `${n.toFixed(0)}%`;
 }
 
-export function formatNum(v, digits = 1) {
+export function formatNum(v: unknown, digits = 1): string {
   const n = Number(v);
   if (!Number.isFinite(n)) return "—";
   return n.toFixed(digits);

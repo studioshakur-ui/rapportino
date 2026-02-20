@@ -1,12 +1,12 @@
 // /src/components/core-drive/coreDriveUi.js
 
-export function uniqSorted(arr) {
-  return Array.from(new Set((arr || []).filter(Boolean))).sort((a, b) =>
+export function uniqSorted<T>(arr: T[] | null | undefined): T[] {
+  return Array.from(new Set((arr || []).filter(Boolean) as T[])).sort((a, b) =>
     String(a).localeCompare(String(b))
   );
 }
 
-export function bytes(n) {
+export function bytes(n: unknown): string {
   const v = Number(n || 0);
   if (!v) return "0 B";
   const units = ["B", "KB", "MB", "GB"];
@@ -19,21 +19,21 @@ export function bytes(n) {
   return `${x.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
 }
 
-export function fmtDateTime(ts) {
+export function fmtDateTime(ts: unknown): string {
   if (!ts) return "";
-  const d = new Date(ts);
+  const d = new Date(ts as string | number | Date);
   if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" });
 }
 
-export function fmtDateTimeLong(ts) {
+export function fmtDateTimeLong(ts: unknown): string {
   if (!ts) return "";
-  const d = new Date(ts);
+  const d = new Date(ts as string | number | Date);
   if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleString("it-IT", { dateStyle: "medium", timeStyle: "short" });
 }
 
-export function statusTone(st) {
+export function statusTone(st: unknown): "warn" | "ok" | "neutral" {
   const s = (st || "").toString().toUpperCase();
   if (s.includes("ARCH")) return "warn";
   if (s.includes("CONF") || s.includes("VAL")) return "ok";

@@ -1,6 +1,6 @@
 // src/rapportinoUtils.js
 
-export function getTodayISO() {
+export function getTodayISO(): string {
   const d = new Date();
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
@@ -8,7 +8,7 @@ export function getTodayISO() {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-export function parseNumeric(value) {
+export function parseNumeric(value: unknown): number | null {
   if (value === null || value === undefined) return null;
   const s = String(value).trim();
   if (!s) return null;
@@ -18,14 +18,26 @@ export function parseNumeric(value) {
   return n;
 }
 
-export function formatPrevisto(value) {
+export function formatPrevisto(value: unknown): string {
   const n = parseNumeric(value);
   if (n === null) return "";
   // Sur papier, vous voulez typiquement 1 décimale (150,0)
   return n.toFixed(1).replace(".", ",");
 }
 
-export function getBaseRows(crewRole) {
+export type BaseRow = {
+  id: null;
+  row_index: number;
+  categoria: string;
+  descrizione: string;
+  operatori: string;
+  tempo: string;
+  previsto: string;
+  prodotto: string;
+  note: string;
+};
+
+export function getBaseRows(crewRole: unknown): BaseRow[] {
   if (crewRole === "CARPENTERIA") {
     return [
       {
@@ -111,14 +123,14 @@ export function getBaseRows(crewRole) {
  * Ajuste la hauteur de 2 textarea (OPERATORE / TEMPO) pour éviter tout scroll interne.
  * Attendu: wrapper avec data-ot-wrap + textarea data-ot='op' et data-ot='tm'
  */
-export function adjustOperatorTempoHeights(targetElOrWrapper) {
+export function adjustOperatorTempoHeights(targetElOrWrapper: unknown): void {
   try {
-    const root =
-      targetElOrWrapper?.closest?.("[data-ot-wrap]") || targetElOrWrapper;
+    const target = targetElOrWrapper as Element | null | undefined;
+    const root = target?.closest?.("[data-ot-wrap]") || target;
     if (!root) return;
 
-    const op = root.querySelector?.("textarea[data-ot='op']");
-    const tm = root.querySelector?.("textarea[data-ot='tm']");
+    const op = root.querySelector?.("textarea[data-ot='op']") as HTMLTextAreaElement | null;
+    const tm = root.querySelector?.("textarea[data-ot='tm']") as HTMLTextAreaElement | null;
     if (!op || !tm) return;
 
     op.style.height = "auto";

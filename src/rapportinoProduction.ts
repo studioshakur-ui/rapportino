@@ -1,11 +1,11 @@
 // src/rapportinoProduction.js
 // Canon helpers for production, tempo/operator alignment, and soft alerts.
 
-export function safeLower(s) {
+export function safeLower(s: unknown): string {
   return (s ?? "").toString().toLowerCase();
 }
 
-export function splitNonEmptyLines(s) {
+export function splitNonEmptyLines(s: unknown): string[] {
   return (s ?? "")
     .toString()
     .split(/\r?\n/)
@@ -17,11 +17,11 @@ export function splitNonEmptyLines(s) {
  * Tempo lines in DB can include empty lines (see your sample).
  * For KPI by operator, we use NON-empty tempo lines.
  */
-export function splitTempoLinesNonEmpty(s) {
+export function splitTempoLinesNonEmpty(s: unknown): string[] {
   return splitNonEmptyLines(s);
 }
 
-export function parseHours(value) {
+export function parseHours(value: unknown): number | null {
   if (value === null || value === undefined) return null;
   const raw = String(value).trim();
   if (!raw) return null;
@@ -39,11 +39,14 @@ export function parseHours(value) {
  * - if tempo shorter -> pad null
  * - if tempo longer -> keep extras separately (warning)
  */
-export function pairOperatorsTempo(operatoriText, tempoText) {
+export function pairOperatorsTempo(operatoriText: unknown, tempoText: unknown): {
+  pairs: Array<{ operator: string; hours: number | null; raw: string }>;
+  extraTempo: string[];
+} {
   const ops = splitNonEmptyLines(operatoriText);
   const tms = splitTempoLinesNonEmpty(tempoText);
 
-  const pairs = [];
+  const pairs: Array<{ operator: string; hours: number | null; raw: string }> = [];
   for (let i = 0; i < ops.length; i++) {
     const op = ops[i];
     const tmRaw = i < tms.length ? tms[i] : "";
@@ -55,14 +58,21 @@ export function pairOperatorsTempo(operatoriText, tempoText) {
   return { pairs, extraTempo };
 }
 
-export function isQuantitativeActivity(activityType) {
+export function isQuantitativeActivity(activityType: unknown): boolean {
   return activityType === "QUANTITATIVE";
 }
 
-export function computeOperatorTotalsFromRows(rows) {
-  const map = new Map(); // key=lower name -> {name, hours}
+export type OperatorTotal = { name: string; hours: number };
+
+function isOperatorTotal(x: unknown): x is OperatorTotal {
+  return typeof x === "object" && x !== null && "hours" in x;
+}
+
+export function computeOperatorTotalsFromRows(rows: unknown): OperatorTotal[] {
+  const map = new Map<string, OperatorTotal>(); // key=lower name -> {name, hours}
   for (const r of Array.isArray(rows) ? rows : []) {
-    const { pairs } = pairOperatorsTempo(r.operatori, r.tempo);
+    const row = r as { operatori?: unknown; tempo?: unknown };
+    const { pairs } = pairOperatorsTempo(row.operatori, row.tempo);
     for (const p of pairs) {
       const k = safeLower(p.operator);
       if (!k) continue;
@@ -74,8 +84,8 @@ export function computeOperatorTotalsFromRows(rows) {
   return Array.from(map.values()).sort((a, b) => b.hours - a.hours);
 }
 
-export function detectSoftOver9h(operatorTotals, threshold = 9) {
-  return (Array.isArray(operatorTotals) ? operatorTotals : []).filter(
-    (x) => (x?.hours || 0) > threshold
-  );
+export function detectSoftOver9h(operatorTotals: unknown, threshold = 9): OperatorTotal[] {
+  return (Array.isArray(operatorTotals) ? operatorTotals : [])
+    .filter(isOperatorTotal)
+    .filter((x) => (x?.hours || 0) > threshold);
 }

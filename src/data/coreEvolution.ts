@@ -320,29 +320,33 @@ export const CORE_CHANGELOG = [
   },
 ];
 
-export function getVersionByKey(key) {
+type CoreVersion = (typeof CORE_VERSIONS)[number];
+type CoreChangelogEntry = (typeof CORE_CHANGELOG)[number];
+
+export function getVersionByKey(key: string): CoreVersion | null {
   return CORE_VERSIONS.find((v) => v.key === key) || null;
 }
 
-export function getEntriesForVersion(versionKey) {
+export function getEntriesForVersion(versionKey: string): CoreChangelogEntry[] {
   return CORE_CHANGELOG
     .filter((e) => e.version === versionKey)
     .slice()
     .sort((a, b) => (a.date < b.date ? 1 : -1));
 }
 
-export function statusText(statusKey, lang) {
-  const m = STATUS_I18N[statusKey] || null;
+export function statusText(statusKey: string, lang: string): string {
+  const m = (STATUS_I18N as Record<string, Record<string, string> | undefined>)[statusKey] || null;
   if (!m) return String(statusKey || "");
   return m[lang] || m.it || String(statusKey || "");
 }
 
-export function pickLang(obj, lang, fallbackLang = "it") {
+export function pickLang(obj: unknown, lang: string, fallbackLang = "it"): unknown {
   if (!obj || typeof obj !== "object") return "";
-  return obj[lang] || obj[fallbackLang] || "";
+  const rec = obj as Record<string, unknown>;
+  return rec[lang] || rec[fallbackLang] || "";
 }
 
-export function pickLangArray(obj, lang, fallbackLang = "it") {
+export function pickLangArray(obj: unknown, lang: string, fallbackLang = "it"): unknown[] {
   const v = pickLang(obj, lang, fallbackLang);
   return Array.isArray(v) ? v : [];
 }
