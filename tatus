@@ -1,0 +1,143 @@
+warning: in the working copy of 'src/admin/users/AdminUsersPage.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/admin/users/components/UserDrawer.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/admin/users/components/UsersToolbar.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/charts/CoreBarLineCombo.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/charts/CoreLineChart.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/direzione/kpiDetails/KpiRapportiniDetails.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/direzione/kpiDetails/KpiRigheDetails.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/direzione/kpiDetails/KpiRitardiCapiDetails.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/shell/CNCSSidebar.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/features/direzione/dashboard/components/DirezioneCharts.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/features/direzione/dashboard/components/DirezioneKpiModal.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/features/inca/IncaCaviTable.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/features/inca/IncaCockpit.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/features/inca/IncaPills.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/pages/CapoPresentation.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/pages/CorePresentation.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/shells/DirectionShell.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/shells/ManagerShell.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/shells/UfficioShell.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/ufficio/UfficioIncaDiffPage.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/ufficio/UfficioRapportiniList.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'supabase/functions/admin-create-user/index.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'supabase/functions/admin-set-password/index.ts', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/src/admin/users/AdminUsersPage.tsx b/src/admin/users/AdminUsersPage.tsx[m
+[1mindex baeebee..11bbd93 100644[m
+[1m--- a/src/admin/users/AdminUsersPage.tsx[m
+[1m+++ b/src/admin/users/AdminUsersPage.tsx[m
+[36m@@ -1,7 +1,6 @@[m
+ // src/admin/users/AdminUsersPage.tsx[m
+ [m
+ import React, { useCallback, useMemo, useState } from "react";[m
+[31m-import { useOutletContext } from "react-router-dom";[m
+ [m
+ import { useAdminUsersData } from "./hooks/useAdminUsersData";[m
+ import { PAGE_SIZE, type RoleFilter, useAdminUsersUi } from "./hooks/useAdminUsersUi";[m
+[36m@@ -16,19 +15,11 @@[m [mimport PasswordBanner from "./components/PasswordBanner";[m
+ import type { ProfileRow } from "./hooks/useAdminUsersData";[m
+ import type { UserAction } from "./components/UserActionsMenu";[m
+ [m
+[31m-type OutletCtx = {[m
+[31m-  lang?: "it" | "fr" | "en";[m
+[31m-  // setLang exists but not used here[m
+[31m-};[m
+[31m-[m
+ function clamp(n: number, min: number, max: number): number {[m
+   return Math.max(min, Math.min(max, n));[m
+ }[m
+ [m
+ export default function AdminUsersPage(): JSX.Element {[m
+[31m-  const outlet = (useOutletContext() as OutletCtx) || {};[m
+[31m-  const _lang = outlet.lang || "it";[m
+[31m-[m
+   const {[m
+     loading,[m
+     rows,[m
+[36m@@ -324,4 +315,4 @@[m [mexport default function AdminUsersPage(): JSX.Element {[m
+       ) : null}[m
+     </div>[m
+   );[m
+[31m-}[m
+\ No newline at end of file[m
+[32m+[m[32m}[m
+[1mdiff --git a/src/admin/users/components/UserDrawer.tsx b/src/admin/users/components/UserDrawer.tsx[m
+[1mindex 1d166d3..8afe0cb 100644[m
+[1m--- a/src/admin/users/components/UserDrawer.tsx[m
+[1m+++ b/src/admin/users/components/UserDrawer.tsx[m
+[36m@@ -1,6 +1,6 @@[m
+ // src/admin/users/components/UserDrawer.tsx[m
+ [m
+[31m-import React, { useEffect, useMemo, useState } from "react";[m
+[32m+[m[32mimport { useEffect, useMemo, useState } from "react";[m
+ import type { ProfileRow } from "../hooks/useAdminUsersData";[m
+ import { cn, formatDateShort, initialsFromName } from "./ui";[m
+ [m
+[36m@@ -230,4 +230,4 @@[m [mexport default function UserDrawer(props: {[m
+       </div>[m
+     </div>[m
+   );[m
+[31m-}[m
+\ No newline at end of file[m
+[32m+[m[32m}[m
+[1mdiff --git a/src/admin/users/components/UsersToolbar.tsx b/src/admin/users/components/UsersToolbar.tsx[m
+[1mindex 34951f0..1e00edb 100644[m
+[1m--- a/src/admin/users/components/UsersToolbar.tsx[m
+[1m+++ b/src/admin/users/components/UsersToolbar.tsx[m
+[36m@@ -1,6 +1,6 @@[m
+ // src/admin/users/components/UsersToolbar.tsx[m
+ [m
+[31m-import React, { useCallback, useEffect, useRef } from "react";[m
+[32m+[m[32mimport { useCallback, useEffect, useRef } from "react";[m
+ import { cn } from "./ui";[m
+ import type { RoleFilter } from "../hooks/useAdminUsersUi";[m
+ [m
+[36m@@ -123,4 +123,4 @@[m [mexport default function UsersToolbar(props: {[m
+       </div>[m
+     </div>[m
+   );[m
+[31m-}[m
+\ No newline at end of file[m
+[32m+[m[32m}[m
+[1mdiff --git a/src/components/charts/CoreBarLineCombo.jsx b/src/components/charts/CoreBarLineCombo.jsx[m
+[1mindex ede82af..ea1b84b 100644[m
+[1m--- a/src/components/charts/CoreBarLineCombo.jsx[m
+[1m+++ b/src/components/charts/CoreBarLineCombo.jsx[m
+[36m@@ -16,6 +16,27 @@[m [mimport {[m
+ import { CORE_CHART_THEME, formatNumberIT, safeText, coreTooltipStyle } from "./coreChartTheme";[m
+ import { CoreEmpty, CoreLoading } from "./CoreEmptyState";[m
+ [m
+[32m+[m[32m/**[m
+[32m+[m[32m * @typedef {object} CoreBarLineComboProps[m
+[32m+[m[32m * @property {unknown[]=} data[m
+[32m+[m[32m * @property {number=} height[m
+[32m+[m[32m * @property {boolean=} loading[m
+[32m+[m[32m * @property {boolean=} empty[m
+[32m+[m[32m * @property {string=} emptyLabel[m
+[32m+[m[32m * @property {string=} emptyHint[m
+[32m+[m[32m * @property {boolean=} isDark[m
+[32m+[m[32m * @property {string=} xKey[m
+[32m+[m[32m * @property {string=} barKey[m
+[32m+[m[32m * @property {string=} barName[m
+[32m+[m[32m * @property {string=} barColor[m
+[32m+[m[32m * @property {string=} lineKey[m
+[32m+[m[32m * @property {string=} lineName[m
+[32m+[m[32m * @property {string=} lineColor[m
+[32m+[m[32m * @property {boolean=} showLegend[m
+[32m+[m[32m * @property {(label: unknown, payload: unknown[]) => string=} labelFormatter[m
+[32m+[m[32m * @property {string=} className[m
+[32m+[m[32m */[m
+[32m+[m
+ function TooltipContent({ active, payload, label, labelFormatter }) {[m
+   const t = CORE_CHART_THEME;[m
+   if (!active || !payload || !payload.length) return null;[m
+[36m@@ -41,6 +62,7 @@[m [mfunction TooltipContent({ active, payload, label, labelFormatter }) {[m
+   );[m
+ }[m
+ [m
+[32m+[m[32m/** @param {CoreBarLineComboProps} props */[m
+ export default function CoreBarLineCombo({[m
+   data = [],[m
+   height = 240,[m
+[1mdiff --git a/src/components/charts/CoreLineChart.jsx b/src/components/charts/CoreLineChart.jsx[m
+[1mindex 74be79d..be74d6a 100644[m
+[1m--- a/src/component
