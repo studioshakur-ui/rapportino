@@ -3,10 +3,11 @@
 // - Bearer token required
 // - Must be ADMIN (profiles.app_role)
 // - Idempotent: if email already exists in profiles, repairs/upserts profile
-// - New users are provisioned via invite (no password in transit)
-// - Ensures profiles.app_role and profiles.role are always synced (DB constraint)
-// - CNCS P0+: invite redirect hardened (never localhost) via ADMIN_INVITE_REDIRECT_TO/SITE_URL fallback
-// - CNCS P0+: append-only admin audit (public.admin_actions_audit)
+// - New users are provisioned via invite (email sent by Supabase)
+// - OPTION B (CNCS): generate initial password at creation (server-side) and return it to Admin UI
+// - Enforces profiles.app_role and profiles.role are always synced (DB constraint)
+// - Harden invite redirect (never localhost) via ADMIN_INVITE_REDIRECT_TO/SITE_URL fallback
+// - CNCS-grade append-only admin audit (public.admin_actions_audit)
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
@@ -117,6 +118,16 @@ function normalizeRedirectUrl(raw: string | null | undefined): string | null {
   return v;
 }
 
+function randomPassword(len: number): string {
+  // Strong-enough random password generator (no ambiguous chars)
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*_-+=";
+  const bytes = new Uint8Array(len);
+  crypto.getRandomValues(bytes);
+  let out = "";
+  for (let i = 0; i < bytes.length; i++) out += alphabet[bytes[i] % alphabet.length];
+  return out;
+}
+
 async function requireAdmin(req: Request, adminClient: ReturnType<typeof createClient>) {
   const token = getBearerToken(req);
   if (!token) return { ok: false as const, status: 401, error: "Missing bearer token" };
@@ -212,7 +223,7 @@ serve(async (req) => {
       return json(req, 500, { ok: false, error: "Profile lookup failed" });
     }
 
-    const upsertProfile = async (userId: string) => {
+    const upsertProfile = async (userId: string, mustChangePassword: boolean) => {
       const { error: upErr } = await admin
         .from("profiles")
         .upsert(
@@ -226,17 +237,55 @@ serve(async (req) => {
             default_costr,
             default_commessa,
             allowed_cantieri,
-            must_change_password: false,
+            must_change_password: mustChangePassword,
           },
           { onConflict: "id" },
         );
       return upErr;
     };
 
+    // Redirect is hardened to avoid localhost or protocol-less values.
+    const base =
+  normalizeRedirectUrl(Deno.env.get("ADMIN_INVITE_REDIRECT_TO")) ||
+  "https://core.cncs.systems";
+
+const redirectTo = `${base.replace(/\/+$/, "")}/auth/confirm`;
+    // OPTION B: always create an initial password server-side (do NOT audit/store the password itself)
+    const password = randomPassword(16);
+
+    // Helper: set AUTH password + flag onboarding
+    const setAuthPasswordAndFlag = async (userId: string) => {
+      const { error: pwdErr } = await admin.auth.admin.updateUserById(userId, { password });
+      if (pwdErr) return { ok: false as const, error: pwdErr.message || "Auth password update failed" };
+
+      const { error: flagErr } = await admin.from("profiles").update({ must_change_password: true }).eq("id", userId);
+      if (flagErr) return { ok: false as const, error: "Profile update failed" };
+
+      return { ok: true as const };
+    };
+
+    // 4) If profile exists, repair + set new password (Option B behavior)
     if (existingProfile?.id) {
       const userId = String(existingProfile.id);
-      const upErr = await upsertProfile(userId);
+
+      // Safety: ensure auth user exists for this profile id.
+      const { data: authUser, error: getAuthErr } = await admin.auth.admin.getUserById(userId);
+      if (getAuthErr || !authUser?.user?.id) {
+        // CNCS: refuse to silently create a second auth user for the same email (would corrupt references).
+        return json(req, 409, {
+          ok: false,
+          error:
+            "Profile exists but Auth user is missing for this id. Hard delete the profile/user (or repair auth) then recreate.",
+        });
+      }
+
+      // Upsert profile (keep coherence) and force onboarding
+      const upErr = await upsertProfile(userId, true);
       if (upErr) return json(req, 500, { ok: false, error: "Profile upsert failed" });
+
+      // Set initial password now
+      const setRes = await setAuthPasswordAndFlag(userId);
+      if (!setRes.ok) return json(req, 500, { ok: false, error: setRes.error });
 
       await insertAdminAudit(admin, {
         actor_id: gate.callerId,
@@ -245,22 +294,29 @@ serve(async (req) => {
         target_user_id: userId,
         target_email: email,
         reason: null,
-        meta: { mode: "updated_existing", app_role },
+        meta: { mode: "updated_existing", app_role, redirectTo, password_generated: true },
       });
 
-      // IMPORTANT: This branch does NOT send an invite email (user already exists in profiles).
-      // If you want resend-invite behavior for existing users, implement admin-resend-invite
-      // or add a force_resend flag.
-      return json(req, 200, { ok: true, mode: "updated_existing", user_id: userId, email });
+      await insertAdminAudit(admin, {
+        actor_id: gate.callerId,
+        actor_email: actorEmail,
+        action: "user.set_password",
+        target_user_id: userId,
+        target_email: email,
+        reason: "create_user_option_b",
+        meta: { generated: true },
+      });
+
+      return json(req, 200, {
+        ok: true,
+        mode: "updated_existing",
+        user_id: userId,
+        email,
+        password, // returned to ADMIN UI banner (shown once)
+      });
     }
 
-    // 4) Modern provisioning: invite user by email (email is sent by Supabase)
-    // Redirect is hardened to avoid localhost or protocol-less values.
-    const redirectTo =
-      normalizeRedirectUrl(Deno.env.get("ADMIN_INVITE_REDIRECT_TO")) ||
-      normalizeRedirectUrl(Deno.env.get("SITE_URL")) ||
-      "https://core.cncs.systems";
-
+    // 5) New provisioning: invite user by email (email is sent by Supabase)
     const { data: invited, error: invErr } = await admin.auth.admin.inviteUserByEmail(email, {
       redirectTo,
       data: {
@@ -277,12 +333,16 @@ serve(async (req) => {
 
     const newUserId = invited.user.id;
 
-    // 5) Force profile coherence (overrides handle_new_user() default CAPO)
-    const upErr = await upsertProfile(newUserId);
+    // 6) Force profile coherence + onboarding flag
+    const upErr = await upsertProfile(newUserId, true);
     if (upErr) {
       console.error("[admin-create-user] profile upsert failed after invite:", upErr);
       return json(req, 500, { ok: false, error: "Profile upsert failed" });
     }
+
+    // 7) OPTION B: set initial password immediately
+    const setRes = await setAuthPasswordAndFlag(newUserId);
+    if (!setRes.ok) return json(req, 500, { ok: false, error: setRes.error });
 
     await insertAdminAudit(admin, {
       actor_id: gate.callerId,
@@ -291,11 +351,27 @@ serve(async (req) => {
       target_user_id: newUserId,
       target_email: email,
       reason: null,
-      meta: { mode: "invited_new", app_role, redirectTo },
+      meta: { mode: "invited_new", app_role, redirectTo, password_generated: true },
     });
 
-    // Front expects data.ok
-    return json(req, 200, { ok: true, mode: "invited_new", user_id: newUserId, email });
+    await insertAdminAudit(admin, {
+      actor_id: gate.callerId,
+      actor_email: actorEmail,
+      action: "user.set_password",
+      target_user_id: newUserId,
+      target_email: email,
+      reason: "create_user_option_b",
+      meta: { generated: true },
+    });
+
+    // Front expects data.ok + (optional) password to show banner
+    return json(req, 200, {
+      ok: true,
+      mode: "invited_new",
+      user_id: newUserId,
+      email,
+      password, // returned to ADMIN UI banner (shown once)
+    });
   } catch (e) {
     console.error("[admin-create-user] fatal:", e);
     return json(req, 500, { ok: false, error: "Internal error" });

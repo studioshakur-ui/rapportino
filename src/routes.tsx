@@ -8,6 +8,7 @@ import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Unauthorized from "./pages/Unauthorized";
 import ForcePasswordChange from "./pages/ForcePasswordChange";
+import AuthConfirmPage from "./pages/AuthConfirmPage";
 
 // SHELLS
 import AppShell from "./shells/AppShell";
@@ -80,6 +81,7 @@ export default function AppRoutes(): JSX.Element {
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/unauthorized" element={<Unauthorized />} />
+      <Route path="/auth/confirm" element={<AuthConfirmPage />} />
 
       {/* Force password change */}
       <Route
