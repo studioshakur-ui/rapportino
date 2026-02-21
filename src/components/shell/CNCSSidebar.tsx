@@ -1,4 +1,4 @@
-// src/shell/CNCSSidebar.tsx
+// src/components/shell/CNCSSidebar.tsx
 import React, { useMemo } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import ConnectionIndicator from "../ConnectionIndicator";
@@ -107,7 +107,7 @@ function NavIcon({ name, className = "" }: { name: NavIconName; className?: stri
 }
 
 type CNCSSidebarProps = {
-  isDark: boolean;
+  isDark: boolean; // kept for compatibility, but visuals are token-driven now
   title?: string;
   subtitle?: string;
   roleLabel?: string;
@@ -151,29 +151,18 @@ export default function CNCSSidebar({
 
   const shellClasses = useMemo(() => {
     return cn(
-      "no-print sticky top-0 h-screen border-r flex flex-col",
-      isDark ? "border-slate-800 bg-[#050910]" : "border-slate-200 bg-white",
-      effectiveCollapsed ? "w-[84px] px-2 py-4" : "w-64 px-3 py-4",
-      "transition-[width] duration-200"
+      "no-print sticky top-0 h-screen border-r flex flex-col transition-[width] duration-200",
+      "theme-scope theme-bg theme-border",
+      effectiveCollapsed ? "w-[84px] px-2 py-4" : "w-64 px-3 py-4"
     );
-  }, [isDark, effectiveCollapsed]);
+  }, [effectiveCollapsed]);
 
-  const headerBox = cn(
-    "rounded-2xl border p-3",
-    isDark ? "border-slate-800 bg-slate-950/20" : "border-slate-200 bg-white"
-  );
+  const headerBox = cn("rounded-2xl border p-3", "theme-panel-2 theme-border");
 
   const navItemClasses = (active: boolean) => {
-    const base =
-      "w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm border transition-colors";
-    if (active) {
-      return isDark
-        ? `${base} bg-sky-500/12 border-sky-500/55 text-slate-100`
-        : `${base} bg-sky-50 border-sky-400 text-slate-900`;
-    }
-    return isDark
-      ? `${base} bg-slate-950/20 border-slate-800 text-slate-300 hover:bg-slate-900/35`
-      : `${base} bg-white border-slate-200 text-slate-700 hover:bg-slate-50`;
+    const base = "w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm border transition-colors";
+    if (active) return `${base} theme-nav-item-active`;
+    return `${base} theme-nav-item`;
   };
 
   return (
@@ -183,25 +172,17 @@ export default function CNCSSidebar({
       onMouseLeave={() => setSidebarPeek?.(false)}
       onFocusCapture={() => setSidebarPeek?.(true)}
       onBlurCapture={() => setSidebarPeek?.(false)}
+      aria-label="Sidebar"
+      data-mode={isDark ? "dark" : "light"}
     >
-      {/* Header + toggle */}
       <div className={cn("mb-3", effectiveCollapsed ? "px-0" : "px-1")}>
         <div className={headerBox}>
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
-              <div
-                className={cn(
-                  "h-9 w-9 rounded-xl border",
-                  isDark
-                    ? "border-slate-800 bg-slate-950/30"
-                    : "border-slate-200 bg-slate-50"
-                )}
-              />
+              <div className={cn("h-9 w-9 rounded-xl border", "theme-panel-2 theme-border")} />
               {!effectiveCollapsed && (
                 <div className="min-w-0">
-                  <div className="text-[11px] uppercase tracking-[0.24em] text-slate-500">
-                    {title}
-                  </div>
+                  <div className="text-[11px] uppercase tracking-[0.24em] text-slate-500">{title}</div>
                   <div className="text-sm font-semibold truncate">{subtitle || "CORE"}</div>
                 </div>
               )}
@@ -216,86 +197,50 @@ export default function CNCSSidebar({
                   window.localStorage.setItem(storageKey, next ? "1" : "0");
                 } catch {}
               }}
-              className={cn(
-                "rounded-xl border px-2 py-2 transition-colors",
-                isDark
-                  ? "border-slate-800 bg-slate-950/20 hover:bg-slate-900/35 text-slate-300"
-                  : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
-              )}
-              title={collapsed ? expandLabel : collapseLabel}
-              aria-label={collapsed ? expandLabel : collapseLabel}
+              className={cn("rounded-xl border px-2 py-2 transition-colors", "theme-panel-2 theme-border hover:opacity-95")}
+              aria-label={effectiveCollapsed ? expandLabel : collapseLabel}
+              title={effectiveCollapsed ? expandLabel : collapseLabel}
             >
-              {effectiveCollapsed ? "›" : "‹"}
+              <span className="text-sm">{effectiveCollapsed ? "›" : "‹"}</span>
             </button>
           </div>
 
-          {/* Role + connection */}
-          <div className="mt-3 flex items-center justify-between gap-2">
-            {!effectiveCollapsed ? (
+          {!effectiveCollapsed ? (
+            <div className="mt-3 flex items-center justify-between gap-2">
               <div className="min-w-0">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
-                  {roleCaption}
-                </div>
-                <div className="text-sm font-semibold truncate">{roleLabel || "—"}</div>
+                <div className="text-[10px] uppercase tracking-[0.22em] text-slate-500">{roleCaption}</div>
+                <div className="mt-0.5 text-[12px] font-semibold truncate">{roleLabel}</div>
               </div>
-            ) : null}
-            <ConnectionIndicator compact />
-          </div>
+              <ConnectionIndicator />
+            </div>
+          ) : (
+            <div className="mt-3 flex items-center justify-center">
+              <ConnectionIndicator />
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Nav */}
-      <nav className={cn("space-y-2", effectiveCollapsed ? "px-0" : "px-1")}>
-        {navItems.map((it) => {
-          const active = it.end
-            ? location.pathname === it.to || location.pathname === `${it.to}/`
-            : location.pathname === it.to || location.pathname.startsWith(it.to + "/");
+      <nav className={cn("flex-1 overflow-y-auto", effectiveCollapsed ? "px-0" : "px-1")}>
+        <div className="flex flex-col gap-2">
+          {navItems.map((item) => {
+            const active =
+              item.end
+                ? location.pathname === item.to
+                : location.pathname === item.to || location.pathname.startsWith(item.to + "/");
 
-          return (
-            <NavLink
-              key={it.to}
-              to={it.to}
-              end={Boolean(it.end)}
-              title={it.label}
-              className={navItemClasses(active)}
-            >
-              {effectiveCollapsed ? (
-                <span className={cn("mx-auto", it.colorClass || "text-slate-300")}>
-                  <NavIcon name={it.icon} />
-                </span>
-              ) : (
-                <>
-                  <span className={cn(it.colorClass || "text-slate-300")}>
-                    <NavIcon name={it.icon} />
-                  </span>
-                  <span>{it.label}</span>
-                </>
-              )}
-            </NavLink>
-          );
-        })}
+            return (
+              <NavLink key={item.to} to={item.to} end={item.end} className={navItemClasses(active)}>
+                <NavIcon name={item.icon} className={cn("opacity-90", item.colorClass)} />
+                {!effectiveCollapsed ? <span className="truncate">{item.label}</span> : null}
+              </NavLink>
+            );
+          })}
+        </div>
       </nav>
 
-      {/* Bottom slot */}
-      {bottomSlot || bottomSlotCollapsed ? (
-        <div
-          className={cn(
-            "mt-4 border-t pt-4",
-            isDark ? "border-slate-800" : "border-slate-200",
-            effectiveCollapsed ? "px-0" : "px-1"
-          )}
-        >
-          {effectiveCollapsed ? bottomSlotCollapsed : bottomSlot}
-        </div>
-      ) : null}
-
-      <div
-        className={cn(
-          "mt-auto pt-4 border-t text-[10px]",
-          isDark ? "border-slate-800 text-slate-600" : "border-slate-200 text-slate-500"
-        )}
-      >
-        <div>CORE</div>
+      <div className={cn("mt-3", effectiveCollapsed ? "px-0" : "px-1")}>
+        {!effectiveCollapsed ? bottomSlot : bottomSlotCollapsed}
       </div>
     </aside>
   );

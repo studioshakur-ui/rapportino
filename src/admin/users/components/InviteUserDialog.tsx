@@ -95,14 +95,11 @@ export default function InviteUserDialog(props: {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" role="dialog" aria-modal="true" onKeyDown={onKeyDown}>
-      <div className="absolute inset-0 bg-black/55" onClick={onClose} />
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 theme-scope" role="dialog" aria-modal="true" onKeyDown={onKeyDown}>
+      <div className="absolute inset-0 theme-overlay" onClick={onClose} />
 
-      <div
-        className={cn("relative w-full max-w-2xl rounded-2xl border border-slate-800", "bg-[#050910] shadow-[0_10px_50px_rgba(0,0,0,0.6)]")}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-5 border-b border-slate-800 flex items-start justify-between gap-4">
+      <div className={cn("relative w-full max-w-2xl rounded-2xl", "theme-modal")} onClick={(e) => e.stopPropagation()}>
+        <div className="p-5 border-b theme-border flex items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">CNCS · Admin</div>
             <div className="mt-1 text-[18px] font-semibold text-slate-50">Invita utente</div>
@@ -111,7 +108,7 @@ export default function InviteUserDialog(props: {
           <button
             type="button"
             onClick={onClose}
-            className={cn("rounded-full border px-3 py-2 text-[12px] font-semibold", "border-slate-700 bg-slate-950/60 text-slate-200 hover:bg-slate-900/40")}
+            className={cn("rounded-full border px-3 py-2 text-[12px] font-semibold", "theme-panel-2 theme-border hover:opacity-95")}
           >
             Chiudi
           </button>
@@ -125,11 +122,7 @@ export default function InviteUserDialog(props: {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="nome.cognome@azienda.it"
-                className={cn(
-                  "mt-2 w-full rounded-xl border px-3 py-2 text-[14px]",
-                  "border-slate-800 bg-slate-950/60 text-slate-50",
-                  "focus:outline-none focus:ring-2 focus:ring-sky-500/40"
-                )}
+                className={cn("mt-2 w-full rounded-xl px-3 py-2 text-[14px]", "theme-input", "focus:outline-none focus:ring-2 focus:ring-sky-500/25")}
                 autoFocus
               />
             </div>
@@ -139,11 +132,7 @@ export default function InviteUserDialog(props: {
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value as AppRole)}
-                className={cn(
-                  "mt-2 w-full rounded-xl border px-3 py-2 text-[14px]",
-                  "border-slate-800 bg-slate-950/60 text-slate-50",
-                  "focus:outline-none focus:ring-2 focus:ring-sky-500/40"
-                )}
+                className={cn("mt-2 w-full rounded-xl px-3 py-2 text-[14px]", "theme-input", "focus:outline-none focus:ring-2 focus:ring-sky-500/25")}
               >
                 <option value="CAPO">CAPO</option>
                 <option value="UFFICIO">UFFICIO</option>
@@ -154,16 +143,12 @@ export default function InviteUserDialog(props: {
             </div>
 
             <div className="md:col-span-6">
-              <label className="block text-[11px] uppercase tracking-[0.18em] text-slate-500">Nome completo</label>
+              <label className="block text-[11px] uppercase tracking-[0.18em] text-slate-500">Full name</label>
               <input
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                placeholder="(opzionale)"
-                className={cn(
-                  "mt-2 w-full rounded-xl border px-3 py-2 text-[14px]",
-                  "border-slate-800 bg-slate-950/60 text-slate-50",
-                  "focus:outline-none focus:ring-2 focus:ring-sky-500/40"
-                )}
+                placeholder="Nome Cognome"
+                className={cn("mt-2 w-full rounded-xl px-3 py-2 text-[14px]", "theme-input", "focus:outline-none focus:ring-2 focus:ring-sky-500/25")}
               />
             </div>
 
@@ -172,96 +157,72 @@ export default function InviteUserDialog(props: {
               <input
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Auto"
-                className={cn(
-                  "mt-2 w-full rounded-xl border px-3 py-2 text-[14px]",
-                  "border-slate-800 bg-slate-950/60 text-slate-50",
-                  "focus:outline-none focus:ring-2 focus:ring-sky-500/40"
-                )}
+                placeholder="Display label"
+                className={cn("mt-2 w-full rounded-xl px-3 py-2 text-[14px]", "theme-input", "focus:outline-none focus:ring-2 focus:ring-sky-500/25")}
               />
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowAdvanced((v) => !v)}
-            className={cn(
-              "mt-4 inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-[12px] font-semibold",
-              "border-slate-700 bg-slate-950/60 text-slate-200 hover:bg-slate-900/40"
-            )}
-          >
-            {showAdvanced ? "Nascondi" : "Opzioni avanzate"}
-            <span className="text-slate-500">(defaults + cantieri)</span>
-          </button>
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={() => setShowAdvanced((v) => !v)}
+              className={cn("text-[12px] font-semibold underline decoration-dotted underline-offset-4", "text-slate-300 hover:text-slate-100")}
+            >
+              {showAdvanced ? "Nascondi opzioni avanzate" : "Mostra opzioni avanzate"}
+            </button>
+          </div>
 
           {showAdvanced ? (
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-12 gap-3">
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-12 gap-3">
               <div className="md:col-span-4">
-                <label className="block text-[11px] uppercase tracking-[0.18em] text-slate-500">Default costr</label>
+                <label className="block text-[11px] uppercase tracking-[0.18em] text-slate-500">Default COSTR</label>
                 <input
                   value={defaultCostr}
                   onChange={(e) => setDefaultCostr(e.target.value)}
-                  placeholder="SDC / ..."
-                  className={cn(
-                    "mt-2 w-full rounded-xl border px-3 py-2 text-[14px]",
-                    "border-slate-800 bg-slate-950/60 text-slate-50",
-                    "focus:outline-none focus:ring-2 focus:ring-sky-500/40"
-                  )}
+                  placeholder="es. 6368"
+                  className={cn("mt-2 w-full rounded-xl px-3 py-2 text-[14px]", "theme-input")}
                 />
               </div>
-
               <div className="md:col-span-4">
-                <label className="block text-[11px] uppercase tracking-[0.18em] text-slate-500">Default commessa</label>
+                <label className="block text-[11px] uppercase tracking-[0.18em] text-slate-500">Default Commessa</label>
                 <input
                   value={defaultCommessa}
                   onChange={(e) => setDefaultCommessa(e.target.value)}
-                  placeholder="006368 / ..."
-                  className={cn(
-                    "mt-2 w-full rounded-xl border px-3 py-2 text-[14px]",
-                    "border-slate-800 bg-slate-950/60 text-slate-50",
-                    "focus:outline-none focus:ring-2 focus:ring-sky-500/40"
-                  )}
+                  placeholder="es. SDC"
+                  className={cn("mt-2 w-full rounded-xl px-3 py-2 text-[14px]", "theme-input")}
                 />
               </div>
-
-              <div className="md:col-span-12">
+              <div className="md:col-span-4">
                 <label className="block text-[11px] uppercase tracking-[0.18em] text-slate-500">Allowed cantieri</label>
                 <input
                   value={allowedCantieri}
                   onChange={(e) => setAllowedCantieri(e.target.value)}
-                  placeholder="La Spezia, Monfalcone, ..."
-                  className={cn(
-                    "mt-2 w-full rounded-xl border px-3 py-2 text-[14px]",
-                    "border-slate-800 bg-slate-950/60 text-slate-50",
-                    "focus:outline-none focus:ring-2 focus:ring-sky-500/40"
-                  )}
+                  placeholder="CSV (es. MFC,TS,SP...)"
+                  className={cn("mt-2 w-full rounded-xl px-3 py-2 text-[14px]", "theme-input")}
                 />
-                <div className="mt-2 text-[12px] text-slate-400">Lista separata da virgole.</div>
               </div>
             </div>
           ) : null}
-        </div>
 
-        <div className="p-5 border-t border-slate-800 flex items-center justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className={cn("rounded-xl border px-4 py-2 text-[12px] font-semibold", "border-slate-700 bg-slate-950/60 text-slate-200 hover:bg-slate-900/40")}
-          >
-            Annulla
-          </button>
+          <div className="mt-5 flex items-center justify-end gap-2">
+            <button type="button" onClick={onClose} className={cn("rounded-xl border px-4 py-2 text-[13px] font-semibold", "theme-panel-2 theme-border hover:opacity-95")}>
+              Annulla
+            </button>
 
-          <button
-            type="button"
-            onClick={() => void submit()}
-            disabled={!canSubmit || !!busy}
-            className={cn(
-              "rounded-xl border px-4 py-2 text-[12px] font-semibold",
-              !canSubmit || busy ? "border-slate-800 bg-slate-950/40 text-slate-500" : "border-sky-400/45 bg-sky-500/10 text-sky-100 hover:bg-sky-500/15"
-            )}
-          >
-            {busy ? "Invio…" : "Invita"}
-          </button>
+            <button
+              type="button"
+              disabled={!canSubmit || Boolean(busy)}
+              onClick={() => void submit()}
+              className={cn(
+                "rounded-xl border px-4 py-2 text-[13px] font-semibold transition-opacity",
+                "border-sky-500/40 bg-sky-500/10 text-sky-50 hover:bg-sky-500/15",
+                (!canSubmit || Boolean(busy)) && "opacity-60 cursor-not-allowed"
+              )}
+            >
+              {busy ? "Invio..." : "Invita"}
+            </button>
+          </div>
         </div>
       </div>
     </div>

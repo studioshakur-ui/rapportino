@@ -1,3 +1,5 @@
+/* src/styles/core-ui.css */
+
 /* =========================
    Backgrounds
    ========================= */
@@ -76,10 +78,12 @@
   background-color: var(--panel);
   border: 1px solid var(--border);
   box-shadow: var(--shadow1);
+  color: var(--text);
 }
 .theme-panel-2 {
   background-color: var(--panel2);
   border: 1px solid var(--border);
+  color: var(--text);
 }
 .theme-overlay {
   background-color: var(--overlay);
@@ -101,6 +105,42 @@
 }
 .theme-shadow-2 {
   box-shadow: var(--shadow2);
+}
+
+/* NEW: popovers/modals/topbar */
+.theme-modal {
+  background-color: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow2);
+  color: var(--text);
+}
+.theme-popover {
+  background-color: var(--panel2);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow2);
+  color: var(--text);
+}
+.theme-topbar {
+  border: 1px solid var(--border);
+  /* translucent surface, works in dark + light */
+  background-color: color-mix(in srgb, var(--panel) 70%, transparent);
+  color: var(--text);
+}
+
+/* NEW: nav items tokenisés (évite "dark blocks") */
+.theme-nav-item {
+  background-color: color-mix(in srgb, var(--panel2) 78%, transparent);
+  border: 1px solid var(--border);
+  color: var(--textMuted);
+}
+.theme-nav-item:hover {
+  background-color: color-mix(in srgb, var(--panel) 78%, transparent);
+  color: var(--text);
+}
+.theme-nav-item-active {
+  background-color: var(--accent-soft);
+  border: 1px solid var(--borderStrong);
+  color: var(--text);
 }
 
 /* Inputs */

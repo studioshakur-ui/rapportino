@@ -10,6 +10,7 @@ import { ShipProvider } from "./context/ShipContext";
 import { I18nProvider } from "./i18n/I18nProvider";
 import { dictionaries } from "./i18n/dictionaries";
 import { initThemeFromStorage } from "./hooks/useTheme";
+import { ThemeProvider } from "./theme/ThemeProvider";
 
 import "./index.css";
 import "./styles/inca-percorso-search.css";
@@ -186,15 +187,17 @@ installRapportinoPrintIsolation();
 ReactDOM.createRoot(rootEl).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <I18nProvider dictionaries={dictionaries}>
-          <ShipProvider>
-            <BrowserRouter>
-              <AppRoutes />
-            </BrowserRouter>
-          </ShipProvider>
-        </I18nProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <I18nProvider dictionaries={dictionaries}>
+            <ShipProvider>
+              <BrowserRouter>
+                <AppRoutes />
+              </BrowserRouter>
+            </ShipProvider>
+          </I18nProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   </React.StrictMode>
 );
