@@ -3,7 +3,7 @@
 // - Bearer token required
 // - Must be ADMIN (profiles.app_role)
 // - Idempotent: if email already exists in profiles, repairs/upserts profile
-// - New users are provisioned via invite (email sent by Supabase)
+// - New users are provisioned via Admin createUser (NO email sent; avoids Supabase email rate limits)
 // - OPTION B (CNCS): generate initial password at creation (server-side) and return it to Admin UI
 // - Enforces profiles.app_role and profiles.role are always synced (DB constraint)
 // - Harden invite redirect (never localhost) via ADMIN_INVITE_REDIRECT_TO/SITE_URL fallback
@@ -12,244 +12,162 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
-type AppRole = "CAPO" | "UFFICIO" | "MANAGER" | "DIREZIONE" | "ADMIN";
+type Json = Record<string, unknown>;
 
-type CreateUserPayload = {
-  email: string;
-  app_role: AppRole;
-  full_name?: string | null;
-  display_name?: string | null;
-  default_costr?: string | null;
-  default_commessa?: string | null;
-  allowed_cantieri?: string[] | null;
-};
-
-const ROLE_SET = new Set<AppRole>(["CAPO", "UFFICIO", "MANAGER", "DIREZIONE", "ADMIN"]);
-
-const corsHeadersBase = {
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Max-Age": "86400",
-  Vary: "Origin",
-} as const;
-
-function parseAllowlist(raw: string | undefined | null): string[] {
-  if (!raw) return [];
-  return raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
-function corsHeadersFor(req: Request) {
-  const origin = req.headers.get("Origin") || "";
-  const allowlist = parseAllowlist(Deno.env.get("ADMIN_ALLOWED_ORIGINS"));
-
-  // Secure by configuration: if allowlist is provided, enforce it strictly.
-  if (allowlist.length > 0) {
-    const allowed = allowlist.includes(origin);
-    return {
-      ...corsHeadersBase,
-      "Access-Control-Allow-Origin": allowed ? origin : "null",
-    };
-  }
-
-  // Backward compatible default (dev/local): reflect Origin if present, else '*'.
-  return {
-    ...corsHeadersBase,
-    "Access-Control-Allow-Origin": origin || "*",
-  };
-}
-
-function okPreflight(req: Request) {
-  return new Response(null, { status: 204, headers: corsHeadersFor(req) });
-}
-
-function json(req: Request, status: number, body: unknown) {
+function json(_req: Request, status: number, body: Json) {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
-      "Content-Type": "application/json",
-      ...corsHeadersFor(req),
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
     },
   });
 }
 
-function getBearerToken(req: Request): string {
-  const h = req.headers.get("Authorization") || "";
-  return h.startsWith("Bearer ") ? h.slice(7).trim() : "";
+function getBearerToken(req: Request): string | null {
+  const h = req.headers.get("authorization") || req.headers.get("Authorization");
+  if (!h) return null;
+  const m = h.match(/^Bearer\s+(.+)$/i);
+  return m?.[1] ?? null;
 }
 
-function normalizeEmail(raw: unknown): string {
-  return String(raw ?? "").trim().toLowerCase();
-}
-
-function normText(raw: unknown, maxLen: number): string {
-  const s = String(raw ?? "").trim();
-  if (!s) return "";
-  return s.length > maxLen ? s.slice(0, maxLen) : s;
-}
-
-function isValidEmail(email: string): boolean {
-  // Conservative sanity check (Auth validates deeper)
-  if (!email || email.length > 254) return false;
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-function toAllowedCantieri(raw: unknown): string[] {
-  if (!raw) return [];
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .map((x) => String(x ?? "").trim())
-    .filter(Boolean)
-    .slice(0, 200);
-}
-
-function normalizeRedirectUrl(raw: string | null | undefined): string | null {
-  const v = (raw || "").trim();
-  if (!v) return null;
-
-  // Must be absolute https URL
-  if (!/^https:\/\//i.test(v)) return null;
-
-  // No localhost in prod-grade redirect
-  if (/^https?:\/\/localhost\b/i.test(v)) return null;
-
-  return v;
-}
-
-function randomPassword(len: number): string {
-  // Strong-enough random password generator (no ambiguous chars)
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*_-+=";
-  const bytes = new Uint8Array(len);
-  crypto.getRandomValues(bytes);
+function randomPassword(len = 16) {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*";
+  const bytes = crypto.getRandomValues(new Uint8Array(len));
   let out = "";
   for (let i = 0; i < bytes.length; i++) out += alphabet[bytes[i] % alphabet.length];
   return out;
 }
 
-async function requireAdmin(req: Request, adminClient: ReturnType<typeof createClient>) {
-  const token = getBearerToken(req);
-  if (!token) return { ok: false as const, status: 401, error: "Missing bearer token" };
-
-  // Identify caller (Admin session)
-  const { data: caller, error: callerErr } = await adminClient.auth.getUser(token);
-  if (callerErr || !caller?.user?.id) {
-    return { ok: false as const, status: 401, error: "Unauthorized" };
-  }
-
-  const callerId = caller.user.id;
-
-  // Enforce ADMIN role via profiles table (source of truth)
-  const { data: prof, error: profErr } = await adminClient.from("profiles").select("app_role").eq("id", callerId).single();
-
-  if (profErr || prof?.app_role !== "ADMIN") {
-    return { ok: false as const, status: 403, error: "Forbidden" };
-  }
-
-  return { ok: true as const, callerId };
+function normalizeEmail(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const e = v.trim().toLowerCase();
+  if (!e) return null;
+  // minimal sanity (CNCS: do not over-validate here)
+  if (!e.includes("@") || e.length > 254) return null;
+  return e;
 }
 
-async function insertAdminAudit(
-  admin: ReturnType<typeof createClient>,
-  row: {
-    actor_id: string;
-    actor_email: string | null;
-    action: string;
-    target_user_id: string;
-    target_email: string | null;
-    reason: string | null;
-    meta: Record<string, unknown>;
-  },
-) {
-  const { error } = await admin.from("admin_actions_audit").insert({
-    actor_id: row.actor_id,
-    actor_email: row.actor_email,
-    action: row.action,
-    target_user_id: row.target_user_id,
-    target_email: row.target_email,
-    reason: row.reason,
-    meta: row.meta,
-  });
-  if (error) throw new Error(`Admin audit insert failed: ${error.message}`);
+function normalizeRole(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const r = v.trim().toUpperCase();
+  if (!r) return null;
+  const allowed = new Set(["CAPO", "UFFICIO", "MANAGER", "ADMIN", "DIREZIONE"]);
+  return allowed.has(r) ? r : null;
+}
+
+function safeText(v: unknown, maxLen = 120): string | null {
+  if (typeof v !== "string") return null;
+  const s = v.trim();
+  if (!s) return null;
+  return s.length > maxLen ? s.slice(0, maxLen) : s;
+}
+
+function normalizeRedirectUrl(v: string | undefined | null): string | null {
+  if (!v) return null;
+  const s = String(v).trim();
+  if (!s) return null;
+  try {
+    const u = new URL(s);
+    // CNCS: never allow localhost or insecure origins in redirect
+    if (u.protocol !== "https:") return null;
+    if (u.hostname === "localhost" || u.hostname.endsWith(".local")) return null;
+    return u.toString().replace(/\/+$/, "");
+  } catch {
+    return null;
+  }
+}
+
+type Gate = { ok: true; callerId: string } | { ok: false; status: number; error: string };
+
+async function requireAdmin(admin: ReturnType<typeof createClient>, req: Request): Promise<Gate> {
+  const token = getBearerToken(req);
+  if (!token) return { ok: false, status: 401, error: "Missing bearer token" };
+
+  const { data: userRes, error: uErr } = await admin.auth.getUser(token);
+  if (uErr || !userRes?.user?.id) return { ok: false, status: 401, error: "Invalid token" };
+
+  const callerId = userRes.user.id;
+
+  const { data: prof, error: pErr } = await admin
+    .from("profiles")
+    .select("id, app_role")
+    .eq("id", callerId)
+    .maybeSingle();
+
+  if (pErr || !prof?.id) return { ok: false, status: 403, error: "Profile not found" };
+  if (String(prof.app_role || "").toUpperCase() !== "ADMIN") return { ok: false, status: 403, error: "ADMIN only" };
+
+  return { ok: true, callerId };
+}
+
+type AuditInsert = {
+  actor_id: string;
+  actor_email: string | null;
+  action: string;
+  target_user_id: string | null;
+  target_email: string | null;
+  reason: string | null;
+  meta: Json | null;
+};
+
+async function insertAdminAudit(admin: ReturnType<typeof createClient>, row: AuditInsert) {
+  // CNCS: append-only log; do not throw hard here (avoid blocking provisioning on audit failure)
+  try {
+    await admin.from("admin_actions_audit").insert({
+      actor_id: row.actor_id,
+      actor_email: row.actor_email,
+      action: row.action,
+      target_user_id: row.target_user_id,
+      target_email: row.target_email,
+      reason: row.reason,
+      meta: row.meta,
+    });
+  } catch {
+    // swallow
+  }
 }
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return okPreflight(req);
   if (req.method !== "POST") return json(req, 405, { ok: false, error: "Method not allowed" });
 
-  const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-  const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
-    return json(req, 500, { ok: false, error: "Missing server env" });
-  }
-
-  const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
-    auth: { persistSession: false },
-  });
+  const url = new URL(req.url);
+  if (url.pathname.endsWith("/")) url.pathname = url.pathname.slice(0, -1);
 
   try {
-    // 1) Access control (ADMIN only)
-    const gate = await requireAdmin(req, admin);
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!SUPABASE_URL || !SERVICE_ROLE_KEY) return json(req, 500, { ok: false, error: "Server misconfigured" });
+
+    const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    const gate = await requireAdmin(admin, req);
     if (!gate.ok) return json(req, gate.status, { ok: false, error: gate.error });
 
-    // Fetch actor email for audit (best effort)
-    const { data: actorProfile } = await admin.from("profiles").select("email").eq("id", gate.callerId).maybeSingle();
-    const actorEmail = actorProfile?.email ?? null;
+    const payload = (await req.json().catch(() => null)) as Json | null;
+    if (!payload) return json(req, 400, { ok: false, error: "Invalid JSON body" });
 
-    // 2) Parse & validate payload
-    const body = (await req.json().catch(() => ({}))) as Partial<CreateUserPayload>;
+    const email = normalizeEmail(payload.email);
+    const app_role = normalizeRole(payload.app_role);
+    const full_name = safeText(payload.full_name, 120);
+    const display_name = safeText(payload.display_name, 80);
 
-    const email = normalizeEmail(body.email);
-    const app_role = String(body.app_role ?? "") as AppRole;
-    const full_name = normText(body.full_name, 120) || null;
-    const display_name = normText(body.display_name ?? full_name ?? email, 120) || null;
-    const default_costr = normText(body.default_costr, 60) || null;
-    const default_commessa = normText(body.default_commessa, 60) || null;
-    const allowed_cantieri = toAllowedCantieri(body.allowed_cantieri);
+    if (!email) return json(req, 400, { ok: false, error: "Invalid email" });
+    if (!app_role) return json(req, 400, { ok: false, error: "Invalid app_role" });
 
-    if (!isValidEmail(email)) return json(req, 400, { ok: false, error: "Invalid email" });
-    if (!ROLE_SET.has(app_role)) return json(req, 400, { ok: false, error: "Invalid app_role" });
-    if (!display_name) return json(req, 400, { ok: false, error: "Missing display_name" });
+    const actorEmail = typeof payload.actor_email === "string" ? payload.actor_email : null;
 
-    // 3) Idempotence fast-path: lookup by profiles.email
-    const { data: existingProfile, error: profByEmailErr } = await admin
-      .from("profiles")
-      .select("id,email,app_role,display_name")
-      .eq("email", email)
-      .maybeSingle();
-
-    if (profByEmailErr) {
-      return json(req, 500, { ok: false, error: "Profile lookup failed" });
-    }
-
-    const upsertProfile = async (userId: string, mustChangePassword: boolean) => {
-      const { error: upErr } = await admin
-        .from("profiles")
-        .upsert(
-          {
-            id: userId,
-            email,
-            full_name,
-            display_name,
-            app_role,
-            role: app_role, // enum app_role — must match app_role text (DB constraint)
-            default_costr,
-            default_commessa,
-            allowed_cantieri,
-            must_change_password: mustChangePassword,
-          },
-          { onConflict: "id" },
-        );
-      return upErr;
-    };
-
-    // Redirect is hardened to avoid localhost or protocol-less values.
+    // CNCS: redirect must be stable and safe; fallback to production base.
+    // NOTE: kept for audit continuity even though we no longer send invite emails.
     const base =
-  normalizeRedirectUrl(Deno.env.get("ADMIN_INVITE_REDIRECT_TO")) ||
-  "https://core.cncs.systems";
+      normalizeRedirectUrl(Deno.env.get("ADMIN_INVITE_REDIRECT_TO")) ||
+      normalizeRedirectUrl(Deno.env.get("SITE_URL")) ||
+      "https://core.cncs.systems";
 
-const redirectTo = `${base.replace(/\/+$/, "")}/auth/confirm`;
+    const redirectTo = `${base.replace(/\/+$/, "")}/auth/confirm`;
+
     // OPTION B: always create an initial password server-side (do NOT audit/store the password itself)
     const password = randomPassword(16);
 
@@ -263,6 +181,35 @@ const redirectTo = `${base.replace(/\/+$/, "")}/auth/confirm`;
 
       return { ok: true as const };
     };
+
+    // Helper: profile upsert enforcing role coherence
+    const upsertProfile = async (userId: string, mustChangePassword: boolean) => {
+      const { error } = await admin.from("profiles").upsert(
+        {
+          id: userId,
+          email,
+          full_name,
+          display_name,
+          app_role,
+          role: app_role, // keep legacy compatibility if role column mirrors app_role
+          must_change_password: mustChangePassword,
+        },
+        { onConflict: "id" }
+      );
+      return error ? error.message || "Profile upsert failed" : null;
+    };
+
+    // 1) Check if profile already exists for this email (idempotent behavior)
+    const { data: existingProfile, error: profErr } = await admin
+      .from("profiles")
+      .select("id, email")
+      .eq("email", email)
+      .maybeSingle();
+
+    if (profErr) {
+      console.error("[admin-create-user] profile lookup failed:", profErr);
+      return json(req, 500, { ok: false, error: "Profile lookup failed" });
+    }
 
     // 4) If profile exists, repair + set new password (Option B behavior)
     if (existingProfile?.id) {
@@ -304,7 +251,7 @@ const redirectTo = `${base.replace(/\/+$/, "")}/auth/confirm`;
         target_user_id: userId,
         target_email: email,
         reason: "create_user_option_b",
-        meta: { generated: true },
+        meta: { generated: true, method: "updateUserById" },
       });
 
       return json(req, 200, {
@@ -316,33 +263,39 @@ const redirectTo = `${base.replace(/\/+$/, "")}/auth/confirm`;
       });
     }
 
-    // 5) New provisioning: invite user by email (email is sent by Supabase)
-    const { data: invited, error: invErr } = await admin.auth.admin.inviteUserByEmail(email, {
-      redirectTo,
-      data: {
+    // 5) New provisioning: create user directly (NO email is sent)
+    // This avoids Supabase Auth email rate limits (invites / confirmations / magic links / reset).
+    const { data: created, error: createErr } = await admin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: {
         full_name: full_name ?? undefined,
         display_name: display_name ?? undefined,
         app_role,
       },
     });
 
-    if (invErr || !invited?.user?.id) {
-      console.error("[admin-create-user] invite failed:", invErr?.message || invErr);
-      return json(req, 500, { ok: false, error: "Invite failed" });
+    if (createErr || !created?.user?.id) {
+      console.error("[admin-create-user] createUser failed:", createErr?.message || createErr);
+      return json(req, 500, { ok: false, error: "Create user failed" });
     }
 
-    const newUserId = invited.user.id;
+    const newUserId = created.user.id;
 
     // 6) Force profile coherence + onboarding flag
     const upErr = await upsertProfile(newUserId, true);
     if (upErr) {
-      console.error("[admin-create-user] profile upsert failed after invite:", upErr);
+      console.error("[admin-create-user] profile upsert failed after createUser:", upErr);
       return json(req, 500, { ok: false, error: "Profile upsert failed" });
     }
 
-    // 7) OPTION B: set initial password immediately
-    const setRes = await setAuthPasswordAndFlag(newUserId);
-    if (!setRes.ok) return json(req, 500, { ok: false, error: setRes.error });
+    // 7) OPTION B: password already set at createUser; enforce onboarding flag
+    const { error: flagErrNew } = await admin.from("profiles").update({ must_change_password: true }).eq("id", newUserId);
+    if (flagErrNew) {
+      console.error("[admin-create-user] profile flag update failed after createUser:", flagErrNew);
+      return json(req, 500, { ok: false, error: "Profile update failed" });
+    }
 
     await insertAdminAudit(admin, {
       actor_id: gate.callerId,
@@ -351,7 +304,7 @@ const redirectTo = `${base.replace(/\/+$/, "")}/auth/confirm`;
       target_user_id: newUserId,
       target_email: email,
       reason: null,
-      meta: { mode: "invited_new", app_role, redirectTo, password_generated: true },
+      meta: { mode: "created_direct_no_email", app_role, email_confirm: true, password_generated: true },
     });
 
     await insertAdminAudit(admin, {
@@ -361,13 +314,13 @@ const redirectTo = `${base.replace(/\/+$/, "")}/auth/confirm`;
       target_user_id: newUserId,
       target_email: email,
       reason: "create_user_option_b",
-      meta: { generated: true },
+      meta: { generated: true, method: "createUser" },
     });
 
     // Front expects data.ok + (optional) password to show banner
     return json(req, 200, {
       ok: true,
-      mode: "invited_new",
+      mode: "created_direct_no_email",
       user_id: newUserId,
       email,
       password, // returned to ADMIN UI banner (shown once)
