@@ -3,7 +3,7 @@
 // Direction Dashboard (Direzione) — KPI strip + charts + drill-down modal.
 // Refactor 2026-02: split monolith into feature modules under src/features/direzione/dashboard.
 
-import { useEffect, useMemo, useState  } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { useAuth } from "../auth/AuthProvider";
 import { useCoreI18n } from "../i18n/coreI18n";
@@ -13,6 +13,7 @@ import DirezioneFilters from "../features/direzione/dashboard/components/Direzio
 import DirezioneKpiStrip from "../features/direzione/dashboard/components/DirezioneKpiStrip";
 import DirezioneCharts from "../features/direzione/dashboard/components/DirezioneCharts";
 import DirezioneKpiModal from "../features/direzione/dashboard/components/DirezioneKpiModal";
+import DirezioneVerdict from "../features/direzione/dashboard/components/DirezioneVerdict";
 
 import type { KpiId } from "../features/direzione/dashboard/kpiRegistry";
 import { buildIncaOption } from "../features/direzione/dashboard/charts";
@@ -30,6 +31,8 @@ export default function DirectionDashboard({ isDark = true }: { isDark?: boolean
   const { profile } = useAuth();
 
   const i18n = useCoreI18n();
+  const lang = (i18n?.lang || "it") as string;
+
   const tRaw = i18n?.t ? i18n.t : (k: string) => k;
   const t = (key: string, fallback?: string) => {
     const v = tRaw(key);
@@ -85,9 +88,9 @@ export default function DirectionDashboard({ isDark = true }: { isDark?: boolean
   return (
     <div className="space-y-5">
       <DirezioneHeader
-        kicker={t("DIR_KICKER", "DIR KICKER")}
-        title={t("DIR_TITLE", "Dir Title")}
-        readOnlyLabel={t("DIR_READONLY", "Dir Readonly")}
+        kicker={t("DIR_KICKER", "DIREZIONE · CNCS / CORE")}
+        title={t("DIR_DASH_TITLE", "Dashboard Direzione")}
+        readOnlyLabel={t("DIR_READONLY", "Sola lettura")}
       />
 
       <DirezioneFilters
@@ -95,10 +98,10 @@ export default function DirectionDashboard({ isDark = true }: { isDark?: boolean
         onChange={(patch) => setFilters((s) => ({ ...s, ...patch }))}
         onReset={onReset}
         labels={{
-          window: t("DIR_WINDOW", "Dir Window"),
-          costr: t("DIR_COSTR", "Dir Costr"),
-          commessa: t("DIR_COMMESSA", "Dir Commessa"),
-          reset: t("DIR_RESET", "Dir Reset Filters"),
+          window: t("DIR_WINDOW", "Finestra"),
+          costr: t("DIR_COSTR", "COSTR"),
+          commessa: t("DIR_COMMESSA", "Commessa"),
+          reset: t("DIR_RESET_FILTERS", "Reset filtri"),
         }}
       />
 
@@ -108,27 +111,34 @@ export default function DirectionDashboard({ isDark = true }: { isDark?: boolean
         </div>
       ) : null}
 
+      {/* INTELLIGENCE LAYER */}
+      <DirezioneVerdict isDark={isDark} lang={lang} loading={loading} summary={summary} prodTrend={prodTrend} t={t} />
+
       <DirezioneKpiStrip
         loading={loading}
         summary={summary}
         onOpenKpi={(id) => setActiveKpi(id)}
+        lang={lang}
         labels={{
-          rapportini: t("KPI_RAPPORTINI", "KPI RAPPORTINI"),
-          righe: t("KPI_RIGHE_ATTIVITA", "KPI RIGHE ATTIVITA"),
-          prod: t("KPI_INDICE_PROD", "KPI INDICE PROD"),
-          incaPrev: t("KPI_INCA_PREV", "KPI INCA PREV"),
-          incaReal: t("KPI_INCA_REAL", "KPI INCA REAL"),
-          ore: t("KPI_ORE_LAVORO", "KPI ORE LAVORO"),
-          ritardi: t("KPI_RITARDI_CAPI", "KPI RITARDI CAPI"),
-          prev: t("KPI_PREV", "Kpi Prev"),
-          vsPrev: t("KPI_VS_PREV", "Kpi Vs Prev"),
-          metri: t("KPI_METRI", "Kpi Metri"),
-          deadline: t("KPI_DEADLINE", "Kpi Deadline"),
+          rapportini: t("KPI_RAPPORTINI", "Rapportini"),
+          righe: t("KPI_RIGHE_ATTIVITA", "Righe attività"),
+          prod: t("KPI_INDICE_PROD", "Indice produttività"),
+          incaPrev: t("KPI_INCA_PREV", "INCA PREV"),
+          incaReal: t("KPI_INCA_REAL", "INCA REAL"),
+          ore: t("KPI_ORE_LAVORO", "Ore lavoro"),
+          ritardi: t("KPI_RITARDI_CAPI", "Ritardi capi"),
+          prev: t("KPI_PREV", "Prev"),
+          vsPrev: t("KPI_VS_PREV", "vs prev"),
+          metri: t("KPI_METRI", "metri"),
+          deadline: t("KPI_DEADLINE", "deadline 08:30 (J+1)"),
+          prodFormulaSub: t("DIR_PROD_SUB", "Σrealizzato / Σprevisto_alloc (MT)"),
         }}
       />
 
       <DirezioneCharts
         isDark={isDark}
+        lang={lang}
+        t={t}
         loading={loading}
         timelineData={timelineData}
         incaOption={incaOption}
@@ -138,7 +148,7 @@ export default function DirectionDashboard({ isDark = true }: { isDark?: boolean
       />
 
       <div className="text-[11px] text-slate-500">
-        Formula indice = Σreal_alloc / Σprevisto_alloc (solo unit=MT, rapportini APPROVED_UFFICIO).
+        {t("DIR_FORMULA_FOOTER", "Formula indice = Σreal_alloc / Σprevisto_alloc (solo unit=MT, rapportini APPROVED_UFFICIO).")}
       </div>
 
       <DirezioneKpiModal
@@ -152,4 +162,3 @@ export default function DirectionDashboard({ isDark = true }: { isDark?: boolean
     </div>
   );
 }
-

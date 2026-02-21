@@ -1,4 +1,4 @@
--- 20260218223000_inca_raw_columns_and_view_v2.sql
+- 20260218223000_inca_raw_columns_and_view_v2.sql
 -- CORE / INCA hardening: preserve *all* XLSX columns + stable posa/capo join across imports.
 --
 -- Non negotiable invariants:
