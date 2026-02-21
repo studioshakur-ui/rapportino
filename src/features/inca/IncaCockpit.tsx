@@ -586,7 +586,7 @@ export default function IncaCockpit(props: IncaCockpitProps) {
                 </span>
               )}
               <div className="mt-1">
-                <span className="text-slate-500">Posa/Capo: via VIEW</span>
+                <span className="text-slate-500">Ultimo report: solo report validati</span>
               </div>
             </div>
           </div>

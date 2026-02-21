@@ -151,7 +151,10 @@ export default function CNCSSidebar({
 
   const shellClasses = useMemo(() => {
     return cn(
-      "no-print sticky top-0 h-screen border-r flex flex-col transition-[width] duration-200",
+      // Sidebar must NEVER bleed into main content (CNCS premium constraint)
+      // - overflow-hidden: clips any child overflow (collapsed mode widgets)
+      // - shrink-0: prevents flex shrink that can create sub-pixel layout bleed
+      "no-print sticky top-0 h-screen border-r flex flex-col overflow-hidden shrink-0 transition-[width] duration-200",
       "theme-scope theme-bg theme-border",
       effectiveCollapsed ? "w-[84px] px-2 py-4" : "w-64 px-3 py-4"
     );
@@ -239,7 +242,7 @@ export default function CNCSSidebar({
         </div>
       </nav>
 
-      <div className={cn("mt-3", effectiveCollapsed ? "px-0" : "px-1")}>
+      <div className={cn("mt-3 overflow-hidden", effectiveCollapsed ? "px-0" : "px-1")}>
         {!effectiveCollapsed ? bottomSlot : bottomSlotCollapsed}
       </div>
     </aside>

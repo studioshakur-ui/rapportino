@@ -294,9 +294,10 @@ export default function CapoTodayOperatorsPanel({ mode = "expanded", onOperatorD
 
   if (isCollapsed) {
     return (
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{t("CAPO_TODAY_OPERATORS")}</div>
+      <div className="w-full max-w-full overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
+        <div className="flex items-center justify-between gap-2 min-w-0">
+          {/* Collapsed sidebar is 84px: never render long labels here (causes overflow/bleed). */}
+          <div className="min-w-0 text-[11px] uppercase tracking-[0.22em] text-slate-500 truncate">OPS</div>
           <div className="rounded-full border border-slate-800 bg-slate-950/40 px-2.5 py-1 text-[11px] font-semibold text-slate-100">
             {loading ? "..." : count}
           </div>

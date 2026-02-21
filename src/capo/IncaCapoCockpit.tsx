@@ -1052,7 +1052,9 @@ export default function IncaCapoCockpit(): JSX.Element {
         side={apparatoPopoverSide}
         apparato={apparatoPopoverName}
         anchorRect={apparatoAnchorRect}
-        incaFileId={undefined}
+        // MUST match the same INCA file used to render the cables table.
+        // If undefined/null, the popover will (correctly) refuse to query and show 0/0.
+        incaFileId={fileId || null}
         onClose={() => setApparatoPopoverOpen(false)}
       />
     </div>

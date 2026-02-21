@@ -1,35 +1,83 @@
-/* src/styles/core-ui.css */
+/* =========================
+   CORE UI — semantic styling
+   - Dark stays as-is.
+   - Light becomes Warm Metal Executive.
+   ========================= */
 
 /* =========================
    Backgrounds
    ========================= */
-.bg-core { background-color: var(--core-bg-900); }
-.bg-core-card { background-color: var(--core-bg-700); }
-.bg-core-section { background-color: var(--core-bg-800); }
+.bg-core {
+  background-color: var(--core-bg-900);
+}
+.bg-core-card {
+  background-color: var(--core-bg-700);
+}
+.bg-core-section {
+  background-color: var(--core-bg-800);
+}
 
 /* =========================
    Text
    ========================= */
-.text-core { color: var(--core-text-200); }
-.text-muted { color: var(--core-text-400); }
+.text-core {
+  color: var(--core-text-200);
+}
+.text-muted {
+  color: var(--core-text-400);
+}
 
 /* =========================
    Borders
    ========================= */
-.border-core { border: 1px solid var(--core-border-600); }
+.border-core {
+  border: 1px solid var(--core-border-600);
+}
 
 /* =========================
    Role accents
    ========================= */
-.text-capo { color: var(--capo-500); }
-.text-ufficio { color: var(--ufficio-500); }
-.text-alert { color: var(--alert-500); }
-.text-inca { color: var(--inca-400); }
+.text-capo {
+  color: var(--capo-500);
+}
+.text-ufficio {
+  color: var(--ufficio-500);
+}
+.text-alert {
+  color: var(--alert-500);
+}
+.text-inca {
+  color: var(--inca-400);
+}
+
+/* =========================
+   Buttons
+   ========================= */
+.btn-core {
+  background-color: var(--core-bg-600);
+  border: 1px solid var(--core-border-500);
+  color: var(--core-text-200);
+}
+.btn-core:hover {
+  background-color: var(--core-bg-700);
+}
+
+.btn-inca {
+  background-color: transparent;
+  border: 1px solid rgba(129, 140, 248, 0.55);
+  color: var(--inca-300);
+}
+.btn-inca:hover {
+  background-color: rgba(99, 102, 241, 0.08);
+}
 
 /* =========================
    Theme surfaces (semantic)
    ========================= */
-.theme-bg { background-color: var(--bg); color: var(--text); }
+.theme-bg {
+  background-color: var(--bg);
+  color: var(--text);
+}
 
 .theme-panel {
   background-color: var(--panel);
@@ -44,50 +92,32 @@
   color: var(--text);
 }
 
-.theme-overlay { background-color: var(--overlay); }
-
-.theme-border { border-color: var(--border); }
-.theme-border-strong { border-color: var(--borderStrong); }
-
-.theme-text { color: var(--text); }
-.theme-text-muted { color: var(--textMuted); }
-
-.theme-shadow-1 { box-shadow: var(--shadow1); }
-.theme-shadow-2 { box-shadow: var(--shadow2); }
-
-/* popovers/modals/topbar */
-.theme-modal {
-  background-color: var(--panel);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow2);
-  color: var(--text);
+.theme-overlay {
+  background-color: var(--overlay);
 }
-.theme-popover {
-  background-color: var(--panel2);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow2);
-  color: var(--text);
+
+.theme-border {
+  border-color: var(--border);
 }
-.theme-topbar {
-  border: 1px solid var(--border);
-  background-color: color-mix(in srgb, var(--panel) 72%, transparent);
+
+.theme-border-strong {
+  border-color: var(--borderStrong);
+}
+
+.theme-text {
   color: var(--text);
 }
 
-/* nav items */
-.theme-nav-item {
-  background-color: color-mix(in srgb, var(--panel2) 80%, transparent);
-  border: 1px solid var(--border);
+.theme-text-muted {
   color: var(--textMuted);
 }
-.theme-nav-item:hover {
-  background-color: color-mix(in srgb, var(--panel) 80%, transparent);
-  color: var(--text);
+
+.theme-shadow-1 {
+  box-shadow: var(--shadow1);
 }
-.theme-nav-item-active {
-  background-color: var(--accent-soft);
-  border: 1px solid var(--borderStrong);
-  color: var(--text);
+
+.theme-shadow-2 {
+  box-shadow: var(--shadow2);
 }
 
 /* Inputs */
@@ -96,12 +126,42 @@
   border: 1px solid var(--borderStrong);
   color: var(--text);
 }
-.theme-input::placeholder { color: var(--textSubtle); }
+.theme-input::placeholder {
+  color: color-mix(in srgb, var(--textMuted) 85%, transparent);
+}
+
+/* Topbar / popovers */
+.theme-topbar {
+  border: 1px solid var(--border);
+  background-color: color-mix(in srgb, var(--panel) 72%, transparent);
+  color: var(--text);
+}
+
+.theme-popover {
+  background-color: var(--panel2);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow2);
+  color: var(--text);
+}
+
+/* Nav items */
+.theme-nav-item {
+  background-color: color-mix(in srgb, var(--panel2) 78%, transparent);
+  border: 1px solid var(--border);
+  color: var(--textMuted);
+}
+.theme-nav-item:hover {
+  background-color: color-mix(in srgb, var(--panel) 78%, transparent);
+  color: var(--text);
+}
+.theme-nav-item-active {
+  background-color: var(--accent-soft);
+  border: 1px solid var(--borderStrong);
+  color: var(--text);
+}
 
 /* =========================
-   CONSOLE LAYOUT (Light polish 2)
-   - Remove “module centered landing” feel
-   - Wider, structured workspace
+   Console layout helpers
    ========================= */
 .cncs-workspace {
   width: 100%;
@@ -109,28 +169,25 @@
   margin: 0;
   padding: 18px 18px;
 }
-
 @media (min-width: 1024px) {
   .cncs-workspace {
     padding: 22px 26px;
   }
 }
-
 @media (min-width: 1440px) {
   .cncs-workspace {
     padding: 26px 34px;
   }
 }
 
-/* Optional container for inner content (not “centered landing”: it stays wide) */
 .cncs-container {
   width: 100%;
   max-width: 1680px;
-  margin: 0; /* IMPORTANT: not centered */
+  margin: 0;
 }
 
 /* =========================
-   Typography authority (Light polish 2)
+   Typography authority
    ========================= */
 .theme-scope h1,
 .theme-scope h2,
@@ -149,18 +206,14 @@
 
 :root[data-theme="light"] .theme-scope .kicker,
 :root[data-theme="light"] .theme-scope [data-kicker] {
-  color: var(--textSubtle);
+  color: color-mix(in srgb, var(--textMuted) 82%, transparent);
   letter-spacing: 0.22em;
   text-transform: uppercase;
   font-size: 10px;
 }
 
 /* =========================
-   Tables premium (Light polish 2)
-   - clean separators
-   - structured head
-   - hover
-   - no “dark-in-light”
+   Tables — Executive register
    ========================= */
 .theme-table {
   background-color: var(--panel2);
@@ -170,27 +223,21 @@
   overflow: hidden;
 }
 
-.theme-table table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
+.theme-table-head {
+  background-color: color-mix(in srgb, var(--panel) 55%, var(--panel2));
+  color: var(--textMuted);
+  border-bottom: 1px solid var(--border);
 }
 
 .theme-table thead th {
-  background-color: color-mix(in srgb, var(--panel) 55%, var(--panel2));
-  color: var(--textMuted);
   font-size: 11px;
   font-weight: 650;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  border-bottom: 1px solid var(--border);
-  padding: 10px 12px;
 }
 
 .theme-table tbody td {
-  padding: 10px 12px;
   border-bottom: 1px solid var(--border);
-  color: var(--text);
 }
 
 .theme-table tbody tr:last-child td {
@@ -201,59 +248,188 @@
   background-color: color-mix(in srgb, var(--accent-soft) 40%, transparent);
 }
 
-/* Hairline separators for compact tables */
-.table-hairlines td,
-.table-hairlines th {
-  border-color: var(--border) !important;
-}
-
 /* =========================
-   KPI — Executive accent-only (Light polish 1 retained)
+   Chips / badges
+   - Split: status vs alert (avoid “template pills everywhere”)
    ========================= */
-.kpi-card { position: relative; }
-.kpi-light { box-shadow: var(--shadow1); }
-
-.kpi-card.kpi-light::before {
-  content: "";
-  position: absolute;
-  left: 14px;
-  right: 14px;
-  top: 10px;
-  height: 2px;
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   border-radius: 999px;
-  background: var(--kpi-accent, transparent);
-  opacity: 0.95;
+  border: 1px solid var(--border);
+  padding: 2px 10px;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  line-height: 16px;
+  user-select: none;
 }
 
-.kpi-tone-neutral { --kpi-accent: rgba(25,24,22,0.18); }
-.kpi-tone-emerald { --kpi-accent: rgba(22,163,74,0.55); }
-.kpi-tone-sky { --kpi-accent: rgba(2,132,199,0.55); }
-.kpi-tone-amber { --kpi-accent: rgba(217,119,6,0.55); }
-.kpi-tone-violet { --kpi-accent: rgba(109,94,252,0.55); }
-.kpi-tone-rose { --kpi-accent: rgba(225,29,72,0.55); }
+.chip-status {
+  background-color: color-mix(in srgb, var(--panel2) 88%, transparent);
+  border-color: var(--border);
+  color: var(--textMuted);
+}
+
+.chip-alert {
+  background-color: var(--role-warning-soft);
+  border-color: var(--role-warning-border);
+  color: var(--role-warning-ink);
+}
+
+.chip-danger {
+  background-color: var(--role-danger-soft);
+  border-color: var(--role-danger-border);
+  color: var(--role-danger-ink);
+}
+
+.chip-info {
+  background-color: var(--role-info-soft);
+  border-color: var(--role-info-border);
+  color: var(--role-info-ink);
+}
+
+.chip-success {
+  background-color: var(--role-success-soft);
+  border-color: var(--role-success-border);
+  color: var(--role-success-ink);
+}
+
+/* Backwards-compatible badge classes (used across app) */
+.badge-success {
+  background-color: var(--role-success-soft);
+  border: 1px solid var(--role-success-border);
+  color: var(--role-success-ink);
+}
+.badge-warning {
+  background-color: var(--role-warning-soft);
+  border: 1px solid var(--role-warning-border);
+  color: var(--role-warning-ink);
+}
+.badge-danger {
+  background-color: var(--role-danger-soft);
+  border: 1px solid var(--role-danger-border);
+  color: var(--role-danger-ink);
+}
+.badge-info {
+  background-color: var(--role-info-soft);
+  border: 1px solid var(--role-info-border);
+  color: var(--role-info-ink);
+}
+.badge-neutral {
+  background-color: var(--role-neutral-soft);
+  border: 1px solid var(--role-neutral-border);
+  color: var(--role-neutral-ink);
+}
+
+.accent-soft {
+  background-color: var(--accent-soft);
+  border: 1px solid var(--accent);
+  color: var(--accent-ink);
+}
 
 /* =========================
-   Safety net for old slate classes inside theme-scope
+   Segmented control (filters)
+   ========================= */
+.segmented {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background-color: color-mix(in srgb, var(--panel2) 90%, transparent);
+  padding: 3px;
+  gap: 2px;
+}
+
+.segmented-item {
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--textMuted);
+}
+
+.segmented-item:hover {
+  background-color: color-mix(in srgb, var(--panel) 70%, transparent);
+  color: var(--text);
+}
+
+.segmented-item-active {
+  background-color: var(--accent-soft);
+  border-color: var(--borderStrong);
+  color: var(--text);
+}
+
+/* =========================
+   Instrument buttons (Admin)
+   ========================= */
+.btn-instrument {
+  border-radius: 14px;
+  border: 1px solid var(--borderStrong);
+  background-color: var(--panel2);
+  color: var(--text);
+  box-shadow: var(--shadow1);
+}
+
+.btn-instrument:hover {
+  background-color: color-mix(in srgb, var(--panel) 65%, var(--panel2));
+}
+
+.btn-primary {
+  border-radius: 14px;
+  border: 1px solid var(--accent);
+  background-color: var(--accent-soft);
+  color: var(--accent-ink);
+  box-shadow: var(--shadow1);
+}
+
+.btn-primary:hover {
+  background-color: color-mix(in srgb, var(--accent-soft) 70%, transparent);
+}
+
+/* =========================
+   Light-theme overrides (theme scope)
+   - Safety net for old slate classes.
    ========================= */
 :root[data-theme="light"] .theme-scope .text-slate-50,
 :root[data-theme="light"] .theme-scope .text-slate-100,
 :root[data-theme="light"] .theme-scope .text-slate-200,
-:root[data-theme="light"] .theme-scope .text-slate-300 { color: var(--text); }
+:root[data-theme="light"] .theme-scope .text-slate-300 {
+  color: var(--text);
+}
 
 :root[data-theme="light"] .theme-scope .text-slate-400,
 :root[data-theme="light"] .theme-scope .text-slate-500,
 :root[data-theme="light"] .theme-scope .text-slate-600,
-:root[data-theme="light"] .theme-scope .text-slate-700 { color: var(--textMuted); }
+:root[data-theme="light"] .theme-scope .text-slate-700 {
+  color: var(--textMuted);
+}
 
 :root[data-theme="light"] .theme-scope .border-slate-800,
 :root[data-theme="light"] .theme-scope .border-slate-700,
-:root[data-theme="light"] .theme-scope .border-slate-600 { border-color: var(--border); }
+:root[data-theme="light"] .theme-scope .border-slate-600 {
+  border-color: var(--border);
+}
 
-:root[data-theme="light"] .theme-scope [class*="bg-slate-950"] { background-color: var(--panel); }
+:root[data-theme="light"] .theme-scope [class*="bg-slate-950"] {
+  background-color: var(--panel);
+}
+
 :root[data-theme="light"] .theme-scope [class*="bg-slate-900"],
 :root[data-theme="light"] .theme-scope [class*="bg-slate-800"],
-:root[data-theme="light"] .theme-scope [class*="bg-slate-700"] { background-color: var(--panel2); }
+:root[data-theme="light"] .theme-scope [class*="bg-slate-700"] {
+  background-color: var(--panel2);
+}
 
-:root[data-theme="light"] .theme-scope .bg-\[\#050910\] { background-color: var(--panel); }
+:root[data-theme="light"] .theme-scope .bg-\[\#050910\] {
+  background-color: var(--panel);
+}
 
-:root[data-theme="light"] .theme-scope .divide-slate-800 > :not([hidden]) ~ :not([hidden]) { border-color: var(--border); }
+:root[data-theme="light"] .theme-scope .divide-slate-800 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--border);
+}

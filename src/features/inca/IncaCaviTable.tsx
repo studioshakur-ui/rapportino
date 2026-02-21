@@ -307,19 +307,43 @@ export default function IncaCaviTable({
         render: (r) => <span className="text-[12px] text-slate-200 tabular-nums">{fmtMeters(lengthRefMeters(r))}</span>,
       },
       {
-        id: "data_posa",
-        label: "Data posa",
-        width: "120px",
-        sortValue: (r) => norm((r as any)?.data_posa),
-        render: (r) => <span className="text-[12px] text-slate-400">{fmtDate((r as any)?.data_posa)}</span>,
-        hideOnMobile: true,
-      },
-      {
-        id: "capo",
-        label: "Capo",
-        width: "140px",
-        sortValue: (r) => norm((r as any)?.capo_label).toLowerCase(),
-        render: (r) => <span className="text-[12px] text-slate-300">{norm((r as any)?.capo_label) || "—"}</span>,
+        id: "ultimo_report",
+        label: "Ultimo report",
+        width: "240px",
+        sortValue: (r) => {
+          const d = norm((r as any)?.data_posa);
+          const c = norm((r as any)?.capo_label);
+          // Sort by date first, then capo label.
+          return (d ? d : "0000-00-00") + "|" + c.toLowerCase();
+        },
+        render: (r) => {
+          const dateRaw = (r as any)?.data_posa;
+          const dateTxt = norm(dateRaw ? fmtDate(dateRaw) : "");
+          const capo = norm((r as any)?.capo_label);
+          const line1 = [dateTxt, capo].filter(Boolean).join(" · ");
+
+          const hasReport = Boolean(line1);
+          if (!hasReport) {
+            return (
+              <div className="flex items-start gap-2">
+                <span className="inline-flex items-center rounded-full border border-slate-800 bg-slate-950/60 px-2 py-0.5 text-[11px] font-semibold text-slate-300">
+                  NO REPORT
+                </span>
+                <div className="leading-tight">
+                  <div className="text-[12px] font-semibold text-slate-200">Nessun report validato</div>
+                  <div className="text-[11px] text-slate-500">In attesa di consuntivazione</div>
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div className="leading-tight">
+              <div className="text-[12px] font-semibold text-slate-200">{line1}</div>
+              <div className="text-[11px] text-slate-500">Report validato</div>
+            </div>
+          );
+        },
         hideOnMobile: true,
       },
       {
@@ -332,7 +356,8 @@ export default function IncaCaviTable({
       },
     ];
 
-    let out: Column<IncaCavoRow>[] = base;
+    // Safety: never let an accidental `undefined` column crash render.
+    let out: Column<IncaCavoRow>[] = base.filter(Boolean);
 
     if (viewMode === "audit") {
       const auditExtras: Column<IncaCavoRow>[] = [
@@ -427,7 +452,7 @@ export default function IncaCaviTable({
         },
       ];
 
-      out = [...base, ...auditExtras];
+      out = [...out, ...auditExtras].filter(Boolean);
     }
 
     // Raw columns (opt-in, Excel-like). We append at the end to keep stable core columns.
@@ -440,7 +465,7 @@ export default function IncaCaviTable({
         render: (r) => <span className="text-[12px] text-slate-300">{asText((r as any)?.raw?.[k]) || "—"}</span>,
         hideOnMobile: true,
       }));
-      out = [...out, ...rawCols];
+      out = [...out, ...rawCols].filter(Boolean);
     }
 
     return out;

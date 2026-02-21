@@ -1,117 +1,145 @@
-/* src/styles/core-colors.css */
-
-/* =========================
-   DARK (default) — tokens
-   ========================= */
 :root {
-  /* Core surfaces */
+  /* =========================
+     Neutrals – CORE base
+     ========================= */
+  --core-bg-900: #0a0f1c;   /* fond global */
+  --core-bg-800: #0f1629;   /* sections */
+  --core-bg-700: #141c33;   /* cartes */
+  --core-bg-600: #1b2442;   /* hover doux */
+
+  --core-border-600: #263155;
+  --core-border-500: #2f3b66;
+
+  --core-text-100: #ffffff;
+  --core-text-200: #e5e7eb;
+  --core-text-300: #c7cad4;
+  --core-text-400: #9aa0b3;
+  --core-text-500: #7b829a;
+
+  /* =========================
+     CAPO – vert signature
+     ========================= */
+  --capo-500: #2fbf71;
+  --capo-400: #46d687;
+  --capo-300: #6fe6a2;
+
+  /* =========================
+     UFFICIO – bleu froid
+     ========================= */
+  --ufficio-500: #3b82f6;
+  --ufficio-400: #60a5fa;
+
+  /* =========================
+     ATTENZIONE – ambre
+     ========================= */
+  --alert-500: #fbbf24;
+  --alert-400: #fcd34d;
+
+  /* =========================
+     INCA – accent technique
+     ========================= */
+  --inca-500: #6366f1;   /* violet froid */
+  --inca-400: #818cf8;
+  --inca-300: #a5b4fc;
+
+  /* =========================
+     Semantic tokens (Dark default)
+     ========================= */
   --bg: #050910;
   --panel: #0b1220;
   --panel2: #0f172a;
-  --overlay: rgba(0, 0, 0, 0.55);
+  --overlay: rgba(5, 9, 16, 0.72);
+  --border: #1f2937;
+  --borderStrong: #334155;
+  --text: #e2e8f0;
+  --textMuted: #94a3b8;
+  --shadow1: 0 10px 40px rgba(0, 0, 0, 0.35);
+  --shadow2: 0 20px 60px rgba(0, 0, 0, 0.55);
 
-  /* Text */
-  --text: #e5e7eb;
-  --textMuted: #a1a1aa;
-  --textSubtle: #71717a;
+  --accent: #4ea3c8;
+  --accent-soft: rgba(78, 163, 200, 0.16);
+  --accent-ink: #c9e7f6;
 
-  /* Borders */
-  --border: rgba(148, 163, 184, 0.18);
-  --borderStrong: rgba(148, 163, 184, 0.28);
-
-  /* Accents */
-  --accent: rgba(59, 130, 246, 0.55);
-  --accent-soft: rgba(59, 130, 246, 0.10);
-  --accent-ink: #dbeafe;
-
-  /* Shadows */
-  --shadow1: 0 1px 2px rgba(0,0,0,0.35);
-  --shadow2: 0 10px 30px rgba(0,0,0,0.45);
-
-  /* Badge palette defaults */
-  --role-success-soft: rgba(16,185,129,0.12);
-  --role-success-border: rgba(16,185,129,0.25);
+  --role-success: #34d399;
+  --role-success-soft: rgba(16, 185, 129, 0.16);
+  --role-success-border: rgba(16, 185, 129, 0.4);
   --role-success-ink: #d1fae5;
 
-  --role-warning-soft: rgba(245,158,11,0.12);
-  --role-warning-border: rgba(245,158,11,0.25);
-  --role-warning-ink: #ffedd5;
+  --role-warning: #f59e0b;
+  --role-warning-soft: rgba(245, 158, 11, 0.16);
+  --role-warning-border: rgba(245, 158, 11, 0.45);
+  --role-warning-ink: #fde68a;
 
-  --role-danger-soft: rgba(244,63,94,0.12);
-  --role-danger-border: rgba(244,63,94,0.25);
-  --role-danger-ink: #ffe4e6;
+  --role-danger: #f87171;
+  --role-danger-soft: rgba(248, 113, 113, 0.16);
+  --role-danger-border: rgba(248, 113, 113, 0.45);
+  --role-danger-ink: #fecaca;
 
-  --role-info-soft: rgba(56,189,248,0.12);
-  --role-info-border: rgba(56,189,248,0.25);
-  --role-info-ink: #e0f2fe;
+  --role-info: #60a5fa;
+  --role-info-soft: rgba(96, 165, 250, 0.16);
+  --role-info-border: rgba(96, 165, 250, 0.45);
+  --role-info-ink: #bfdbfe;
 
-  --role-neutral-soft: rgba(148,163,184,0.12);
-  --role-neutral-border: rgba(148,163,184,0.22);
-  --role-neutral-ink: #e5e7eb;
-
-  /* Legacy CORE tokens (do not remove) */
-  --core-bg-900: #050910;
-  --core-bg-800: #0b1220;
-  --core-bg-700: #0f172a;
-  --core-bg-600: rgba(30, 41, 59, 0.35);
-  --core-border-600: rgba(148, 163, 184, 0.18);
-  --core-border-500: rgba(148, 163, 184, 0.26);
-  --core-text-200: #e5e7eb;
-  --core-text-400: #a1a1aa;
-
-  /* Role colors */
-  --capo-500: #22c55e;
-  --ufficio-500: #60a5fa;
-  --alert-500: #fb7185;
-  --inca-400: #818cf8;
-  --inca-300: #a5b4fc;
+  --role-neutral: #94a3b8;
+  --role-neutral-soft: rgba(148, 163, 184, 0.14);
+  --role-neutral-border: rgba(148, 163, 184, 0.35);
+  --role-neutral-ink: #e2e8f0;
 }
 
-/* =========================
-   LIGHT — Warm Metal Executive (Polish 2)
-   - NO pure white for page
-   - Stronger graphite
-   - Borders a notch stronger (executive structure)
-   ========================= */
-:root[data-theme="light"] {
-  /* Warm metal surfaces */
-  --bg: #f2eee7;       /* page (warm, matte) */
-  --panel: #eae5dc;    /* workspace */
-  --panel2: #f9f6f1;   /* cards/subcards (ivory controlled, not pure white) */
+/* Explicit dark (keeps defaults) */
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* Metal Warm light theme */
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* Warm Metal Executive (premium console) */
+  --bg: #f2eee7;      /* page matte warm (never pure white) */
+  --panel: #eae5dc;   /* workspace frame */
+  --panel2: #f9f6f1;  /* cards / subcards (ivory controlled) */
   --overlay: rgba(20, 18, 16, 0.22);
 
-  /* Text (graphite authority) */
-  --text: #191816;
-  --textMuted: #47433c;
-  --textSubtle: #6a655d;
-
-  /* Borders (structure) */
+  /* Structure (hairlines) */
   --border: rgba(25, 24, 22, 0.12);
   --borderStrong: rgba(25, 24, 22, 0.18);
 
+  /* Graphite authority */
+  --text: #191816;
+  --textMuted: #47433c;
+
+  /* Subtle depth */
+  --shadow1: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow2: 0 14px 34px rgba(0, 0, 0, 0.10);
+
   /* Accent (conservative) */
-  --accent: rgba(59, 130, 246, 0.34);
-  --accent-soft: rgba(59, 130, 246, 0.08);
-  --accent-ink: #0b1220;
+  --accent: rgba(106, 141, 163, 0.32);
+  --accent-soft: rgba(106, 141, 163, 0.10);
+  --accent-ink: #1f2b33;
 
-  /* Shadows (premium subtle) */
-  --shadow1: 0 1px 2px rgba(0,0,0,0.05);
-  --shadow2: 0 14px 34px rgba(0,0,0,0.10);
+  --role-success: #3d9477;
+  --role-success-soft: rgba(61, 148, 119, 0.10);
+  --role-success-border: rgba(61, 148, 119, 0.22);
+  --role-success-ink: #0b3d2c;
 
-  /* Legacy mapping */
-  --core-bg-900: var(--bg);
-  --core-bg-800: var(--panel);
-  --core-bg-700: var(--panel2);
-  --core-bg-600: rgba(25, 24, 22, 0.05);
-  --core-border-600: var(--border);
-  --core-border-500: var(--borderStrong);
-  --core-text-200: var(--text);
-  --core-text-400: var(--textMuted);
+  --role-warning: #b9852f;
+  --role-warning-soft: rgba(185, 133, 47, 0.10);
+  --role-warning-border: rgba(185, 133, 47, 0.22);
+  --role-warning-ink: #5a3c10;
 
-  /* Badge inks in light (more executive) */
-  --role-success-ink: #064e3b;
-  --role-warning-ink: #7c2d12;
-  --role-danger-ink: #881337;
-  --role-info-ink: #0c4a6e;
+  --role-danger: #b66a6a;
+  --role-danger-soft: rgba(182, 106, 106, 0.10);
+  --role-danger-border: rgba(182, 106, 106, 0.22);
+  --role-danger-ink: #5a2222;
+
+  --role-info: #5f87ad;
+  --role-info-soft: rgba(95, 135, 173, 0.10);
+  --role-info-border: rgba(95, 135, 173, 0.22);
+  --role-info-ink: #0c3a57;
+
+  --role-neutral: #7c7872;
+  --role-neutral-soft: rgba(124, 120, 114, 0.10);
+  --role-neutral-border: rgba(124, 120, 114, 0.20);
   --role-neutral-ink: #191816;
 }

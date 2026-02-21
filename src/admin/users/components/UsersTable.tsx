@@ -25,7 +25,7 @@ export default function UsersTable(props: {
   return (
     <div className="rounded-2xl theme-table overflow-hidden">
       <div className="px-4 py-3 border-b theme-border flex items-center justify-between">
-        <div className="text-[12px] font-semibold text-slate-200">Users</div>
+        <div className="text-[12px] font-semibold theme-text">Users</div>
         {loading ? (
           <div className="text-[11px] theme-text-muted">Loading…</div>
         ) : (
@@ -68,14 +68,14 @@ export default function UsersTable(props: {
                   <tr
                     key={row.id}
                     className={cn(
-                      "border-t theme-border hover:bg-[var(--panel2)] cursor-pointer",
-                      isSelected && "bg-slate-900/30"
+                      "border-t theme-border cursor-pointer",
+                      isSelected && "bg-[var(--accent-soft)]"
                     )}
                     onClick={() => onSelect(row.id)}
                   >
                     <td className="px-5 py-3">
                       <div className="flex items-start gap-3">
-                        <div className="mt-0.5 h-9 w-9 rounded-xl border border-slate-800 bg-slate-950/60 flex items-center justify-center text-[12px] font-bold text-slate-300">
+                        <div className="mt-0.5 h-9 w-9 rounded-xl border theme-border bg-[var(--panel)] flex items-center justify-center text-[12px] font-bold theme-text">
                           {(row.display_name || row.full_name || row.email || "?")
                             .trim()
                             .slice(0, 1)
@@ -83,32 +83,32 @@ export default function UsersTable(props: {
                         </div>
 
                         <div className="min-w-0">
-                          <div className="text-[12px] font-semibold text-slate-100 truncate">
+                          <div className="text-[12px] font-semibold theme-text truncate">
                             {row.display_name || row.full_name || row.email || "—"}
                           </div>
-                          <div className="text-[12px] text-slate-400 truncate">{row.email || "—"}</div>
+                          <div className="text-[12px] theme-text-muted truncate">{row.email || "—"}</div>
 
                           <div className="mt-1 flex flex-wrap gap-1.5">
                             {mustChange ? (
-                              <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold badge-warning">
+                              <span className="chip chip-alert">
                                 MUST CHANGE PASSWORD
                               </span>
                             ) : null}
 
                             {isInactive ? (
-                              <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold badge-danger">
+                              <span className="chip chip-danger">
                                 INACTIVE &gt;30d
                               </span>
                             ) : null}
 
                             {isCritical ? (
-                              <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold badge-info">
+                              <span className="chip chip-info">
                                 CRITICAL ROLE
                               </span>
                             ) : null}
 
                             {isAdmin ? (
-                              <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold badge-neutral">
+                              <span className="chip chip-status">
                                 ADMIN
                               </span>
                             ) : null}
@@ -118,22 +118,22 @@ export default function UsersTable(props: {
                     </td>
 
                     <td className="px-5 py-3">
-                      <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold badge-neutral">
+                      <span className="chip chip-status" style={{ fontSize: 11, padding: "4px 12px" }}>
                         {row.app_role || "—"}
                       </span>
                     </td>
 
                     <td className="px-5 py-3">
                       {!canSuspend ? (
-                        <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold badge-neutral">
+                        <span className="chip chip-status" style={{ fontSize: 11, padding: "4px 12px" }}>
                           UNKNOWN
                         </span>
                       ) : isSuspended ? (
-                        <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold badge-danger">
+                        <span className="chip chip-danger" style={{ fontSize: 11, padding: "4px 12px" }}>
                           SUSPENDED
                         </span>
                       ) : (
-                        <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold badge-success">
+                        <span className="chip chip-success" style={{ fontSize: 11, padding: "4px 12px" }}>
                           ACTIVE
                         </span>
                       )}

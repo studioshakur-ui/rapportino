@@ -45,8 +45,8 @@ export default function UsersToolbar(props: {
         <div className="p-4 flex flex-col gap-3">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">CNCS · Admin</div>
-              <div className="mt-1 text-[16px] font-semibold text-slate-50">Utenti</div>
+              <div className="kicker">CNCS · Admin</div>
+              <div className="mt-1 text-[16px] font-semibold theme-text">Utenti</div>
               <div className="mt-1 text-[12px] theme-text-muted">Ctrl/⌘ + K per cercare</div>
             </div>
 
@@ -55,8 +55,7 @@ export default function UsersToolbar(props: {
                 type="button"
                 onClick={onRefresh}
                 className={cn(
-                  "rounded-xl border px-3 py-2 text-[12px] font-semibold",
-                  "theme-border bg-[var(--panel2)] theme-text hover:bg-[var(--panel)]"
+                  "btn-instrument px-3 py-2 text-[12px] font-semibold"
                 )}
               >
                 {loading ? "Aggiorno…" : "Refresh"}
@@ -66,8 +65,7 @@ export default function UsersToolbar(props: {
                 type="button"
                 onClick={onInvite}
                 className={cn(
-                  "rounded-xl border px-3 py-2 text-[12px] font-semibold",
-                  "accent-soft"
+                  "btn-primary px-3 py-2 text-[12px] font-semibold"
                 )}
               >
                 + Crea
@@ -84,13 +82,13 @@ export default function UsersToolbar(props: {
                 placeholder="Search email, name, role, costr, commessa…"
                 className={cn(
                   "w-full rounded-xl px-3 py-2 text-[14px] theme-input",
-                  "focus:outline-none focus:ring-2 focus:ring-sky-500/35"
+                  "focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20"
                 )}
               />
             </div>
 
             <div className="lg:col-span-6 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap gap-2">
+              <div className="segmented">
                 {ROLES.map((r) => {
                   const active = role === r.id;
                   return (
@@ -98,12 +96,7 @@ export default function UsersToolbar(props: {
                       key={r.id}
                       type="button"
                       onClick={() => onRole(r.id)}
-                      className={cn(
-                        "rounded-full border px-3 py-1.5 text-[11px] font-extrabold tracking-[0.14em]",
-                        active
-                          ? "accent-soft"
-                          : "theme-border bg-[var(--panel2)] theme-text-muted hover:bg-[var(--panel)]"
-                      )}
+                      className={cn("segmented-item", active && "segmented-item-active")}
                     >
                       {r.label}
                     </button>
