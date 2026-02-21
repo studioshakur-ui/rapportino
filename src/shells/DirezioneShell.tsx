@@ -1,10 +1,10 @@
-// src/shells/DirectionShell.tsx
+// src/shells/DirezioneShell.tsx
 import { useEffect, useMemo, useState  } from "react";
 import { Link, useNavigate, useLocation, Routes, Route, Navigate } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthProvider";
-import DirectionDashboard from "../components/DirectionDashboard";
-import DirectionOperatorKPI from "../features/kpi/pages/DirectionOperatorKPI";
+import DirezioneDashboard from "../components/DirezioneDashboard";
+import DirezioneOperatorKPI from "../features/kpi/pages/DirezioneOperatorKPI";
 import ArchivePage from "../pages/Archive";
 import CorePresentationPopup from "../components/CorePresentationPopup";
 import CorePresentation from "../pages/CorePresentation";
@@ -45,7 +45,7 @@ function joinClass(...parts: Array<string | false | null | undefined>): string {
 }
 
 /* =========================
-   Ufficio View (within Direction)
+   Ufficio View (within Direzione)
    ========================= */
 function UfficioView({ isDark }: { isDark: boolean }): JSX.Element {
   const location = useLocation();
@@ -129,7 +129,7 @@ function UfficioView({ isDark }: { isDark: boolean }): JSX.Element {
 
             {/* CANONIQUE */}
             <Route path="core-drive" element={<ArchivePage />} />
-            {/* ALIAS legacy (non UX) : redirection */}
+            {/* ALIAS legacy (non UX) : reDirezione */}
             <Route path="archive" element={<Navigate to="../core-drive" replace />} />
           </Routes>
         </div>
@@ -139,9 +139,9 @@ function UfficioView({ isDark }: { isDark: boolean }): JSX.Element {
 }
 
 /* =========================
-   Direction Shell
+   Direzione Shell
    ========================= */
-export default function DirectionShell(): JSX.Element {
+export default function DirezioneShell(): JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
   const { profile, signOut } = useAuth();
@@ -153,7 +153,7 @@ export default function DirectionShell(): JSX.Element {
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     try {
-      const v = window.localStorage.getItem("core-sidebar-collapsed-direction");
+      const v = window.localStorage.getItem("core-sidebar-collapsed-Direzione");
       if (v === "1" || v === "0") return v === "1";
     } catch {
       // ignore
@@ -175,7 +175,7 @@ export default function DirectionShell(): JSX.Element {
 
   useEffect(() => {
     try {
-      window.localStorage.setItem("core-sidebar-collapsed-direction", sidebarCollapsed ? "1" : "0");
+      window.localStorage.setItem("core-sidebar-collapsed-Direzione", sidebarCollapsed ? "1" : "0");
     } catch {
       // ignore
     }
@@ -253,7 +253,7 @@ export default function DirectionShell(): JSX.Element {
           setCollapsed={setSidebarCollapsed}
           sidebarPeek={sidebarPeek}
           setSidebarPeek={setSidebarPeek}
-          storageKey="core-sidebar-collapsed-direction"
+          storageKey="core-sidebar-collapsed-Direzione"
           navItems={[
             { to: "/direzione", label: "Dashboard", icon: "dashboard", colorClass: "text-sky-400", end: true },
             { to: "/direzione/kpi-operatori", label: "KPI Operatori", icon: "chart", colorClass: "text-emerald-400" },
@@ -338,8 +338,8 @@ export default function DirectionShell(): JSX.Element {
 
           <div className="max-w-6xl mx-auto space-y-4 pt-4">
             <Routes>
-              <Route path="/" element={<DirectionDashboard isDark={isDark} />} />
-              <Route path="kpi-operatori" element={<DirectionOperatorKPI isDark={isDark} />} />
+              <Route path="/" element={<DirezioneDashboard isDark={isDark} />} />
+              <Route path="kpi-operatori" element={<DirezioneOperatorKPI isDark={isDark} />} />
 
               <Route path="presentazione" element={<CorePresentation />} />
               <Route path="presentazione/capo" element={<CapoPresentation />} />
@@ -351,7 +351,7 @@ export default function DirectionShell(): JSX.Element {
 
               {/* CANONIQUE */}
               <Route path="core-drive" element={<ArchivePage />} />
-              {/* ALIAS legacy (non UX) : redirection */}
+              {/* ALIAS legacy (non UX) : reDirezione */}
               <Route path="archive" element={<Navigate to="core-drive" replace />} />
             </Routes>
           </div>

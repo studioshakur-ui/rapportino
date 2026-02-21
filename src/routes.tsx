@@ -13,7 +13,7 @@ import AuthConfirmPage from "./pages/AuthConfirmPage";
 // SHELLS
 import AppShell from "./shells/AppShell";
 import UfficioShell from "./shells/UfficioShell";
-import DirectionShell from "./shells/DirectionShell";
+import DirezioneShell from "./shells/DirezioneShell";
 import ManagerShell from "./shells/ManagerShell";
 import AdminShell from "./admin/AdminShell";
 
@@ -51,7 +51,7 @@ import UfficioIncaDiffPage from "./ufficio/UfficioIncaDiffPage";
 import UfficioIncaAuditPage from "./ufficio/UfficioIncaAuditPage";
 
 // DIREZIONE
-import DirectionDashboard from "./components/DirectionDashboard";
+import DirezioneDashboard from "./components/DirezioneDashboard";
 
 // MANAGER
 import ManagerDashboard from "./pages/ManagerDashboard";
@@ -64,11 +64,11 @@ import ArchivePage from "./pages/Archive";
 // EVOLUZIONE
 import Evoluzione from "./data/Evoluzione";
 
-function LegacyDirectionRedirect(): JSX.Element {
+function LegacyDirezioneRedirect(): JSX.Element {
   const loc = useLocation();
 
   // Preserve the rest of the path + query/hash.
-  const nextPath = (loc.pathname || "").replace(/^\/direction(\/|$)/, "/direzione$1");
+  const nextPath = (loc.pathname || "").replace(/^\/Direzione(\/|$)/, "/direzione$1");
   const next = `${nextPath}${loc.search || ""}${loc.hash || ""}`;
 
   return <Navigate to={next} replace />;
@@ -186,8 +186,8 @@ export default function AppRoutes(): JSX.Element {
         <Route path="archive" element={<Navigate to="../core-drive" replace />} />
       </Route>
 
-      {/* ===== LEGACY ALIAS: /direction -> /direzione ===== */}
-      <Route path="/direction/*" element={<LegacyDirectionRedirect />} />
+      {/* ===== LEGACY ALIAS: /Direzione -> /direzione ===== */}
+      <Route path="/Direzione/*" element={<LegacyDirezioneRedirect />} />
 
       {/* ===== DIREZIONE ===== */}
       <Route
@@ -195,12 +195,12 @@ export default function AppRoutes(): JSX.Element {
         element={
           <RequireAuth>
             <RequireRole allowed={["DIREZIONE", "ADMIN"]}>
-              <DirectionShell />
+              <DirezioneShell />
             </RequireRole>
           </RequireAuth>
         }
       >
-        <Route index element={<DirectionDashboard />} />
+        <Route index element={<DirezioneDashboard />} />
         <Route path="core-drive" element={<ArchivePage />} />
         <Route path="archive" element={<Navigate to="../core-drive" replace />} />
       </Route>

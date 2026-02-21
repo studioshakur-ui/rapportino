@@ -38,8 +38,8 @@ export function resolveCoreDriveView({ pathname, appRole, currentShip }: Resolve
   const isUfficioShell = startsWithPath(p, "/ufficio");
   const isManagerShell = startsWithPath(p, "/manager");
   const isAdminShell = startsWithPath(p, "/admin");
-  const isDirectionShell = startsWithPath(p, "/direzione");
-  const isDirectionUfficioView = startsWithPath(p, "/direzione/ufficio-view");
+  const isDirezioneShell = startsWithPath(p, "/direzione");
+  const isDirezioneUfficioView = startsWithPath(p, "/direzione/ufficio-view");
 
   // CAPO: scope strict sur la nave courante
   if (isCapoShell) {
@@ -99,8 +99,8 @@ export function resolveCoreDriveView({ pathname, appRole, currentShip }: Resolve
     };
   }
 
-  // Direction “Ufficio view” : lecture + origine verrouillée
-  if (isDirectionUfficioView) {
+  // Direzione “Ufficio view” : lecture + origine verrouillée
+  if (isDirezioneUfficioView) {
     return {
       id: "DIREZIONE_UFFICIO_VIEW",
       kicker: "CORE Drive",
@@ -128,8 +128,8 @@ export function resolveCoreDriveView({ pathname, appRole, currentShip }: Resolve
     };
   }
 
-  // Direction (général) : lecture soft
-  if (isDirectionShell || role === "DIREZIONE") {
+  // Direzione (général) : lecture soft
+  if (isDirezioneShell || role === "DIREZIONE") {
     return {
       id: "DIREZIONE",
       kicker: "CORE Drive",

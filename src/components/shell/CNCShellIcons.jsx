@@ -2,7 +2,7 @@
 import React from "react";
 
 /**
- * Petit set d’icônes inline, cohérent CNCS (Direction style).
+ * Petit set d’icônes inline, cohérent CNCS (Direzione style).
  */
 export function NavIcon({ name, className = "" }) {
   const base = "h-4 w-4";

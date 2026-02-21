@@ -3,8 +3,8 @@ import React, { useMemo, useState } from "react";
 import { cn } from "../ui/cn";
 import { formatNumberIT } from "../ui/format";
 import { useCoreI18n } from "../i18n/coreI18n";
-import KpiCard from "../components/kpi/KpiCard";
-import KpiDetailsModal from "../components/kpi/KpiDetailsModal";
+import KpiCard from "../features/kpi/components/KpiCard";
+import KpiDetailsModal from "../features/direzione/dashboard/components/KpiDetailsModal";
 import DirezioneChartsSection from "../components/charts/DirezioneChartsSection";
 
 /**

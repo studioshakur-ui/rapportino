@@ -476,7 +476,7 @@ export default function UfficioRapportinoDetail() {
 
   const descrizioniCount = produzioneByDescrizione.length;
 
-  // Info secondaire (non-KPI): somme brute des lignes (utile pour cohérence, pas pour direction)
+  // Info secondaire (non-KPI): somme brute des lignes (utile pour cohérence, pas pour Direzione)
   const totalSommaRighe = useMemo(() => {
     return (rows || []).reduce((sum, r) => sum + safeNum(r?.prodotto), 0);
   }, [rows]);

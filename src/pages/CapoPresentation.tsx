@@ -160,7 +160,7 @@ export default function CapoPresentation(): JSX.Element {
 
         <div className="flex flex-wrap items-center gap-2">
           <Link
-            to="/direction/presentazione"
+            to="/Direzione/presentazione"
             className="rounded-full border border-slate-800 bg-slate-950/20 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-200 hover:bg-slate-900/35"
           >
             ← Torna a Presentazione

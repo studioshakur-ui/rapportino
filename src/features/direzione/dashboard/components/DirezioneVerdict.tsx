@@ -1,5 +1,5 @@
 // src/features/direzione/dashboard/components/DirezioneVerdict.tsx
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 
 export type DirezioneVerdictTone = "OK" | "WARN" | "BLOCK";
 

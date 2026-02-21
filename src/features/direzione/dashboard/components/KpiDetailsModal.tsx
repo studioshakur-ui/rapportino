@@ -1,10 +1,9 @@
 // src/components/kpi/KpiDetailsModal.jsx
 import type { ReactNode } from "react";
-import CenterModal from "../../../components/overlay/CenterModal";
-import { cn } from "../../../ui/cn";
-import { useCoreI18n } from "../../../i18n/coreI18n";
-import { formatNumberByLang, safeText } from "../../../ui/format";
-
+import CenterModal from "../../../../components/overlay/CenterModal";
+import { cn } from "../../../../ui/cn";
+import { useCoreI18n } from "../../../../i18n/coreI18n";
+import { formatNumberByLang, safeText } from "../../../../ui/format";
 /**
  * Modal KPI Tesla-X
  * - centrale
@@ -38,6 +37,10 @@ export default function KpiDetailsModal({
   isDark?: boolean;
 }) {
   const { t, lang } = useCoreI18n();
+  const tf = (key: string, fallback: string) => {
+    const v = t(key);
+    return typeof v === "string" && v.trim() && v !== key ? v : fallback;
+  };
 
   const titleByKey: Record<string, string> = {
     rapportini: t("KPI_RAPPORTINI"),
@@ -68,7 +71,7 @@ export default function KpiDetailsModal({
 
           {summaryPairs.length === 0 ? (
             <div className={cn("mt-3 text-sm", isDark ? "text-slate-300" : "text-slate-700")}>
-              {t(
+              {tf(
                 "KPI_MODAL_EMPTY",
                 "Aucun détail disponible pour l’instant. Branche le “details payload” sur ce KPI."
               )}
@@ -96,7 +99,12 @@ export default function KpiDetailsModal({
             {payload?.rulesText ? (
               payload.rulesText
             ) : (
-              <>{t("KPI_MODAL_RULES_EMPTY", "Règles non configurées. Ajoute 1–3 lignes canonique pour une lecture audit-defensible.")}</>
+              <>
+                {tf(
+                  "KPI_MODAL_RULES_EMPTY",
+                  "Règles non configurées. Ajoute 1–3 lignes canonique pour une lecture audit-defensible."
+                )}
+              </>
             )}
           </div>
 

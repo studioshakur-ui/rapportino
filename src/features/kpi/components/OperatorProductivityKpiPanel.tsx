@@ -183,7 +183,7 @@ function FamiliesResultsTable({
 }
 
 export default function OperatorProductivityKpiPanel({
-  scope = "DIRECTION",
+  scope = "Direzione",
   isDark = true,
   title,
   kicker,

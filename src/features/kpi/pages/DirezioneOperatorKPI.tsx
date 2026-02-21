@@ -1,10 +1,10 @@
-// src/features/kpi/pages/DirectionOperatorKPI.jsx
+// src/features/kpi/pages/DirezioneOperatorKPI.jsx
 import { OperatorProductivityKpiPanel } from "../components";
 
-export default function DirectionOperatorKPI({ isDark = true }: { isDark?: boolean }) {
+export default function DirezioneOperatorKPI({ isDark = true }: { isDark?: boolean }) {
   return (
     <OperatorProductivityKpiPanel
-      scope="DIRECTION"
+      scope="Direzione"
       isDark={isDark}
       showCostrCommessaFilters={true}
       title="KPI Operatori"

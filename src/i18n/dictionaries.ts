@@ -235,7 +235,7 @@ const coreDict = {
     CAPO_PRESENCE_REASON_CONGEDO_PARENTALE: "Congé parental",
     CAPO_PRESENCE_REASON_ALTRO: "Autre",
 
-    DIR_DASH_TITLE: "Dashboard Direction",
+    DIR_DASH_TITLE: "Dashboard Direzione",
     DIR_WINDOW: "Fenêtre",
     DIR_RESET_FILTERS: "Réinitialiser filtres",
     DIR_READONLY: "Lecture seule",
@@ -269,7 +269,7 @@ const coreDict = {
     CLEAR: "Clear",
 
     KPI_OPPROD_TITLE: "KPI Opérateurs",
-    KPI_OPPROD_KICKER: "Direction · CNCS / CORE",
+    KPI_OPPROD_KICKER: "Direzione · CNCS / CORE",
     KPI_OPPROD_DESC:
       "Productivité par opérateur basée sur le prévu (Σréalisé / Σprévu_eff). Sélectionnez des opérateurs et analysez le détail.",
 
@@ -380,7 +380,7 @@ const coreDict = {
     CAPO_PRESENCE_REASON_CONGEDO_PARENTALE: "Parental leave",
     CAPO_PRESENCE_REASON_ALTRO: "Other",
 
-    DIR_DASH_TITLE: "Direction Dashboard",
+    DIR_DASH_TITLE: "Direzione Dashboard",
     DIR_WINDOW: "Window",
     DIR_RESET_FILTERS: "Reset filters",
     DIR_READONLY: "Read-only",
@@ -414,7 +414,7 @@ const coreDict = {
     CLEAR: "Clear",
 
     KPI_OPPROD_TITLE: "Operator KPIs",
-    KPI_OPPROD_KICKER: "Direction · CNCS / CORE",
+    KPI_OPPROD_KICKER: "Direzione · CNCS / CORE",
     KPI_OPPROD_DESC:
       "Per-operator productivity based on planned (Σrealized / Σplanned_eff). Select operators and inspect details.",
 

@@ -45,7 +45,6 @@ export default function AdminUsersPage(): JSX.Element {
 
   const ui = useAdminUsersUi({ rows, q, role: role as RoleFilter, page });
 
-  // Ensure persisted page doesn't exceed max
   React.useEffect(() => {
     if (ui.page !== page) setPage(ui.page);
   }, [ui.page, page, setPage]);
@@ -124,7 +123,6 @@ export default function AdminUsersPage(): JSX.Element {
         }
 
         if (action === "reactivate") {
-          // NOTE: we enforce a premium “reason confirm” later in UserDrawer/Danger dialog.
           await reactivateUser(row.id, undefined);
           toastOk(t(lang, "ADMIN_USERS_TOAST_REACTIVATED", "Utente riattivato"));
           return;
@@ -199,6 +197,16 @@ export default function AdminUsersPage(): JSX.Element {
     setDangerOpen(true);
   }, [selectedUser]);
 
+  const onSideReactivate = useCallback(async () => {
+    if (!selectedUser) return;
+    try {
+      await reactivateUser(selectedUser.id, undefined);
+      toastOk(t(lang, "ADMIN_USERS_TOAST_REACTIVATED", "Utente riattivato"));
+    } catch (e: any) {
+      toastErr(e?.message || String(e));
+    }
+  }, [selectedUser, reactivateUser, toastOk, toastErr, lang]);
+
   const onSideHardDelete = useCallback(() => {
     if (!selectedUser) return;
     setDangerMode("hard_delete");
@@ -230,7 +238,7 @@ export default function AdminUsersPage(): JSX.Element {
           setQ(v);
           setPage(1);
         }}
-        role={role as RoleFilter}
+        role={role as any}
         onRole={(r) => {
           setRole(r);
           setPage(1);
@@ -255,8 +263,8 @@ export default function AdminUsersPage(): JSX.Element {
           <div className="text-[12px] text-slate-400">
             {t(lang, "COMMON_PAGE", "Page")}{" "}
             <span className="text-slate-200 font-semibold">{ui.page}</span> /{" "}
-            <span className="text-slate-200 font-semibold">{ui.totalPages}</span> —{" "}
-            {ui.filtered.length} {t(lang, "COMMON_RESULTS", "results")}
+            <span className="text-slate-200 font-semibold">{ui.totalPages}</span> — {ui.filtered.length}{" "}
+            {t(lang, "COMMON_RESULTS", "results")}
             <span className="ml-2 text-slate-500">(PAGE_SIZE={PAGE_SIZE})</span>
           </div>
 
@@ -296,6 +304,7 @@ export default function AdminUsersPage(): JSX.Element {
         onClose={onCloseSide}
         onResetPwd={onSideResetPwd}
         onSuspend={onSideSuspend}
+        onReactivate={onSideReactivate}
         onHardDelete={onSideHardDelete}
         canSuspend={supportsDisabledAt}
         busy={dangerBusy}
@@ -306,7 +315,11 @@ export default function AdminUsersPage(): JSX.Element {
       <DangerConfirmDialog
         open={dangerOpen}
         mode={dangerMode}
-        title={dangerMode === "hard_delete" ? t(lang, "ADMIN_USERS_DANGER_DELETE_TITLE", "Hard delete utente") : t(lang, "ADMIN_USERS_DANGER_SUSPEND_TITLE", "Sospendere utente")}
+        title={
+          dangerMode === "hard_delete"
+            ? t(lang, "ADMIN_USERS_DANGER_DELETE_TITLE", "Hard delete utente")
+            : t(lang, "ADMIN_USERS_DANGER_SUSPEND_TITLE", "Sospendere utente")
+        }
         subtitle={
           dangerMode === "hard_delete"
             ? t(

@@ -1,8 +1,10 @@
 // src/components/charts/DirezioneChartsSection.jsx
 import { useMemo } from "react";
+import type { EChartsOption } from "echarts";
 import { cn } from "../../ui/cn";
 import { useCoreI18n } from "../../i18n/coreI18n";
 import EChart from "./EChart";
+import ECharts from "./ECharts";
 
 /**
  * SECTION A (Tesla-X):
@@ -30,22 +32,22 @@ export default function DirezioneChartsSection({
     isDark ? "border-slate-800/70 bg-slate-950/55" : "border-slate-200 bg-white"
   );
 
-  const trendOpt = useMemo(() => {
-    const x = trend?.x || [];
-    const y = trend?.y || [];
+  const trendOpt = useMemo<EChartsOption>(() => {
+    const x = (trend?.x || []) as any[];
+    const y = (trend?.y || []) as any[];
 
     return {
       backgroundColor: "transparent",
       grid: { left: 50, right: 18, top: 22, bottom: 36 },
       tooltip: { trigger: "axis" },
       xAxis: {
-        type: "category",
+        type: "category" as const,
         data: x,
         axisLabel: { color: "rgba(226,232,240,0.75)" },
         axisLine: { lineStyle: { color: "rgba(148,163,184,0.25)" } },
       },
       yAxis: {
-        type: "value",
+        type: "value" as const,
         axisLabel: { color: "rgba(226,232,240,0.75)" },
         splitLine: { lineStyle: { color: "rgba(148,163,184,0.18)" } },
         axisLine: { lineStyle: { color: "rgba(148,163,184,0.25)" } },
@@ -53,7 +55,7 @@ export default function DirezioneChartsSection({
       series: [
         {
           name: "Indice",
-          type: "line",
+          type: "line" as const,
           data: y,
           smooth: true,
           symbol: "circle",
@@ -65,11 +67,11 @@ export default function DirezioneChartsSection({
     };
   }, [trend]);
 
-  const incaOpt = useMemo(() => {
-    const labels = inca?.labels || [];
-    const previsti = inca?.previsti || [];
-    const realizzati = inca?.realizzati || [];
-    const posati = inca?.posati || [];
+  const incaOpt = useMemo<EChartsOption>(() => {
+    const labels = (inca?.labels || []) as any[];
+    const previsti = (inca?.previsti || []) as any[];
+    const realizzati = (inca?.realizzati || []) as any[];
+    const posati = (inca?.posati || []) as any[];
 
     return {
       backgroundColor: "transparent",
@@ -80,9 +82,43 @@ export default function DirezioneChartsSection({
         textStyle: { color: "rgba(226,232,240,0.78)" },
       },
       xAxis: {
-        type: "category",
+        type: "category" as const,
         data: labels,
         axisLabel: { color: "rgba(226,232,240,0.75)", rotate: 22 },
+        axisLine: { lineStyle: { color: "rgba(148,163,184,0.25)" } },
+      },
+      yAxis: {
+        type: "value" as const,
+        axisLabel: { color: "rgba(226,232,240,0.75)" },
+        splitLine: { lineStyle: { color: "rgba(148,163,184,0.18)" } },
+        axisLine: { lineStyle: { color: "rgba(148,163,184,0.25)" } },
+      },
+      series: [
+        { name: "Previsti", type: "bar" as const, data: previsti, barMaxWidth: 38 },
+        { name: "Realizzati", type: "bar" as const, data: realizzati, barMaxWidth: 38 },
+        {
+          name: "Posati",
+          type: "line" as const,
+          data: posati,
+          smooth: true,
+          symbol: "circle",
+          symbolSize: 6,
+          lineStyle: { width: 3 },
+        },
+      ],
+    };
+  }, [inca]);
+
+  const showEChartsPreview = false;
+  const previewOpt = useMemo(
+    (): EChartsOption => ({
+      backgroundColor: "transparent",
+      grid: { left: 40, right: 16, top: 18, bottom: 28 },
+      tooltip: { trigger: "axis" },
+      xAxis: {
+        type: "category",
+        data: ["Q1", "Q2", "Q3", "Q4"],
+        axisLabel: { color: "rgba(226,232,240,0.75)" },
         axisLine: { lineStyle: { color: "rgba(148,163,184,0.25)" } },
       },
       yAxis: {
@@ -92,12 +128,19 @@ export default function DirezioneChartsSection({
         axisLine: { lineStyle: { color: "rgba(148,163,184,0.25)" } },
       },
       series: [
-        { name: "Previsti", type: "bar", data: previsti, barMaxWidth: 38 },
-        { name: "Realizzati", type: "bar", data: realizzati, barMaxWidth: 38 },
-        { name: "Posati", type: "line", data: posati, smooth: true, symbol: "circle", symbolSize: 6, lineStyle: { width: 3 } },
+        {
+          name: "Preview",
+          type: "line",
+          data: [12, 18, 14, 22],
+          smooth: true,
+          symbol: "circle",
+          symbolSize: 6,
+          lineStyle: { width: 2 },
+        },
       ],
-    };
-  }, [inca]);
+    }),
+    []
+  );
 
   return (
     <section className="px-3 sm:px-4 mt-3">
@@ -136,6 +179,17 @@ export default function DirezioneChartsSection({
           </div>
         </div>
       </div>
+
+      {showEChartsPreview ? (
+        <div className={cn("mt-3 rounded-3xl border px-4 py-3", isDark ? "border-slate-800/70 bg-slate-950/55" : "border-slate-200 bg-white")}>
+          <div className={cn("text-[11px] uppercase tracking-[0.18em]", isDark ? "text-slate-500" : "text-slate-600")}>
+            ECharts Preview
+          </div>
+          <div className="mt-3">
+            <ECharts option={previewOpt} style={{ height: 220, width: "100%" }} isDark={isDark} />
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

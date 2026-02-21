@@ -49,7 +49,7 @@ export const coreLayout = {
   },
 
   /**
-   * Carte KPI (DirectionDashboard, stats, etc.)
+   * Carte KPI (DirezioneDashboard, stats, etc.)
    * tone: 'neutral' | 'emerald' | 'sky' | 'amber' | 'violet' | 'rose'
    */
   kpiCard(isDark: boolean, tone: KpiTone = "neutral"): string {

@@ -1,8 +1,8 @@
 // src/components/kpi/operatorProd/utils/kpiHelpers.js
 export function normalizeScope(scope: unknown): string {
-  const s = String(scope || "DIRECTION").toUpperCase().trim();
-  if (s === "MANAGER" || s === "CAPO" || s === "DIRECTION") return s;
-  return "DIRECTION";
+  const s = String(scope || "Direzione").toUpperCase().trim();
+  if (s === "MANAGER" || s === "CAPO" || s === "Direzione") return s;
+  return "Direzione";
 }
 
 export function toNumber(v: unknown): number {
