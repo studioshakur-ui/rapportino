@@ -189,6 +189,20 @@ export function useAdminUsersData() {
     [loadUsers]
   );
 
+  const reactivateUser = useCallback(
+    async (userId: string, reason?: string) => {
+      setLastError(null);
+      const { data, error } = await supabase.functions.invoke("admin-delete-user", {
+        body: { user_id: userId, mode: "reactivate", reason: reason || "Admin reactivate" },
+      });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.error || "Reactivate failed");
+      await loadUsers();
+      return data;
+    },
+    [loadUsers]
+  );
+
   const hardDeleteUser = useCallback(
     async (userId: string, reason?: string) => {
       setLastError(null);
@@ -214,6 +228,7 @@ export function useAdminUsersData() {
     createUser,
     setPassword,
     suspendUser,
+    reactivateUser,
     hardDeleteUser,
 
     lastPassword,

@@ -1,164 +1,160 @@
 // src/components/DirectionDashboard.tsx
-//
-// Direction Dashboard (Direzione) — KPI strip + charts + drill-down modal.
-// Refactor 2026-02: split monolith into feature modules under src/features/direzione/dashboard.
-
-import { useEffect, useMemo, useState } from "react";
-
-import { useAuth } from "../auth/AuthProvider";
+import React, { useCallback, useMemo } from "react";
 import { useCoreI18n } from "../i18n/coreI18n";
 
-import DirezioneHeader from "../features/direzione/dashboard/components/DirezioneHeader";
-import DirezioneFilters from "../features/direzione/dashboard/components/DirezioneFilters";
-import DirezioneKpiStrip from "../features/direzione/dashboard/components/DirezioneKpiStrip";
-import DirezioneCharts from "../features/direzione/dashboard/components/DirezioneCharts";
-import DirezioneKpiModal from "../features/direzione/dashboard/components/DirezioneKpiModal";
 import DirezioneVerdict from "../features/direzione/dashboard/components/DirezioneVerdict";
 
-import type { KpiId } from "../features/direzione/dashboard/kpiRegistry";
-import { buildIncaOption } from "../features/direzione/dashboard/charts";
-import {
-  selectKpiSummary,
-  selectProdTrend,
-  selectTimeline,
-  selectTopProduzioni,
-} from "../features/direzione/dashboard/selectors";
-import { useDirezioneDashboardData } from "../features/direzione/dashboard/useDirezioneDashboardData";
-import type { DirezioneFilters as DirezioneFiltersT } from "../features/direzione/dashboard/types";
-import { toISODate } from "../features/direzione/dashboard/utils";
+// NOTE: adapte ces imports si ton projet a des chemins différents
+import DirectionFiltersBar from "../features/direzione/dashboard/components/DirezioneFilters";
+import DirectionKpisStrip from "../features/direzione/dashboard/components/DirezioneKpiStrip";
 
-export default function DirectionDashboard({ isDark = true }: { isDark?: boolean }): JSX.Element {
-  const { profile } = useAuth();
+export type DirectionDashboardProps = {
+  // Ton modèle existant : adapte si besoin
+  isDark?: boolean;
+  kpiModel?: any;
+  verdictModel?: any;
+
+  // Filtres
+  costr?: string;
+  commessa?: string;
+  windowFrom?: string; // ISO date ou string UI
+  windowTo?: string;
+
+  // Handlers
+  onResetFilters?: () => void;
+  onChangeCostr?: (v: string) => void;
+  onChangeCommessa?: (v: string) => void;
+  onChangeWindowFrom?: (v: string) => void;
+  onChangeWindowTo?: (v: string) => void;
+
+  // header right slot (ex: readonly badge / misc)
+  headerRight?: React.ReactNode;
+};
+
+function isMeaningfulTranslatedValue(v: unknown, key: string): boolean {
+  if (typeof v !== "string") return false;
+  const s = v.trim();
+  if (!s) return false;
+
+  // Si le provider “prettify” la clé, on peut détecter ce cas (ex: "Dir Score")
+  // MAIS : on ne dépend plus de ce test (le provider gère fallback).
+  // On garde juste pour debug éventuel.
+  const normalized = s.replace(/\s+/g, " ").toLowerCase();
+  const keyPretty = key
+    .replace(/[_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+
+  // Si on obtient exactement une “humanisation” de la clé, ce n’est pas un vrai texte produit.
+  if (normalized === keyPretty) return false;
+
+  return true;
+}
+
+export default function DirectionDashboard(props: DirectionDashboardProps) {
+  const {
+    isDark = true,
+    kpiModel,
+    verdictModel,
+
+    costr,
+    commessa,
+    windowFrom,
+    windowTo,
+
+    onResetFilters,
+    onChangeCostr,
+    onChangeCommessa,
+    onChangeWindowFrom,
+    onChangeWindowTo,
+
+    headerRight,
+  } = props;
 
   const i18n = useCoreI18n();
-  const lang = (i18n?.lang || "it") as string;
 
-  const tRaw = i18n?.t ? i18n.t : (k: string) => k;
-  const t = (key: string, fallback?: string) => {
-    const v = tRaw(key);
-    if (!v || v === key) return fallback ?? key;
-    return v;
-  };
+  /**
+   * ✅ Correctif critique:
+   * On n’enveloppe PLUS `tRaw(key)` avec une logique qui laisse passer “prettifyKey”.
+   * On appelle directement `i18n.t(key, fallback)` (fallback supporté par I18nProvider patché).
+   */
+  const t = useCallback(
+    (key: string, fallback: string) => {
+      const v = i18n.t(key, fallback);
 
-  // Default window = last 7 days
-  const [filters, setFilters] = useState<DirezioneFiltersT>(() => {
-    const today = new Date();
-    const start = new Date();
-    start.setDate(today.getDate() - 6);
+      // Sécurité supplémentaire: si on reçoit une pseudo-trad “prettify” (rare),
+      // on force le fallback.
+      if (!isMeaningfulTranslatedValue(v, key)) return fallback;
 
-    return {
-      dateFrom: toISODate(start),
-      dateTo: toISODate(today),
-      costr: "",
-      commessa: "",
-    };
-  });
-
-  const onReset = () => {
-    const today = new Date();
-    const start = new Date();
-    start.setDate(today.getDate() - 6);
-    setFilters({ dateFrom: toISODate(start), dateTo: toISODate(today), costr: "", commessa: "" });
-  };
-
-  const [activeKpi, setActiveKpi] = useState<KpiId>(null);
-
-  const { loading, error, dataset } = useDirezioneDashboardData({
-    profilePresent: !!profile,
-    filters,
-  });
-
-  const summary = useMemo(() => selectKpiSummary(dataset), [dataset]);
-  const timelineData = useMemo(() => selectTimeline(dataset), [dataset]);
-  const prodTrend = useMemo(() => selectProdTrend(dataset), [dataset]);
-  const topProduzioni = useMemo(
-    () => selectTopProduzioni(dataset.produzioniAggCurrent, 10),
-    [dataset.produzioniAggCurrent]
+      return v;
+    },
+    [i18n]
   );
 
-  const incaOption = useMemo(() => buildIncaOption(dataset.incaChantier), [dataset.incaChantier]);
-  const hasIncaData = (dataset.incaChantier || []).length > 0;
+  const headerKicker = useMemo(() => t("DIR_KICKER", "Direzione · CNCS / CORE"), [t]);
+  const title = useMemo(() => t("DIR_DASH_TITLE", "Dashboard Direzione"), [t]);
 
-  useEffect(() => {
-    if (filters.dateFrom || filters.dateTo) return;
-    onReset();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const windowLabel = useMemo(() => {
+    const labelKey = "DIR_WINDOW";
+    const label = t(labelKey, "Finestra");
+    const a = windowFrom ? String(windowFrom) : "—";
+    const b = windowTo ? String(windowTo) : "—";
+    return `${label}: ${a} → ${b}`;
+  }, [t, windowFrom, windowTo]);
 
   return (
-    <div className="space-y-5">
-      <DirezioneHeader
-        kicker={t("DIR_KICKER", "DIREZIONE · CNCS / CORE")}
-        title={t("DIR_DASH_TITLE", "Dashboard Direzione")}
-        readOnlyLabel={t("DIR_READONLY", "Sola lettura")}
-      />
+    <div className="w-full">
+      {/* Header */}
+      <div className="px-3 sm:px-4 pt-3">
+        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-start">
+          <div className="min-w-0">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{headerKicker}</div>
+            <h1 className="text-xl sm:text-2xl font-semibold mt-1 text-slate-50">{title}</h1>
+          </div>
 
-      <DirezioneFilters
-        filters={filters}
-        onChange={(patch) => setFilters((s) => ({ ...s, ...patch }))}
-        onReset={onReset}
-        labels={{
-          window: t("DIR_WINDOW", "Finestra"),
-          costr: t("DIR_COSTR", "COSTR"),
-          commessa: t("DIR_COMMESSA", "Commessa"),
-          reset: t("DIR_RESET_FILTERS", "Reset filtri"),
-        }}
-      />
-
-      {error ? (
-        <div className="rounded-2xl border border-rose-600/40 bg-rose-900/20 px-4 py-3 text-[12px] text-rose-100">
-          {error}
+          <div className="flex items-center gap-2 justify-self-start sm:justify-self-end">
+            {/* Slot externe (ex: Sola lettura / badges) */}
+            {headerRight ?? null}
+          </div>
         </div>
-      ) : null}
 
-      {/* INTELLIGENCE LAYER */}
-      <DirezioneVerdict isDark={isDark} lang={lang} loading={loading} summary={summary} prodTrend={prodTrend} t={t} />
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-center">
+          <div className="text-xs text-slate-400">{windowLabel}</div>
 
-      <DirezioneKpiStrip
-        loading={loading}
-        summary={summary}
-        onOpenKpi={(id) => setActiveKpi(id)}
-        lang={lang}
-        labels={{
-          rapportini: t("KPI_RAPPORTINI", "Rapportini"),
-          righe: t("KPI_RIGHE_ATTIVITA", "Righe attività"),
-          prod: t("KPI_INDICE_PROD", "Indice produttività"),
-          incaPrev: t("KPI_INCA_PREV", "INCA PREV"),
-          incaReal: t("KPI_INCA_REAL", "INCA REAL"),
-          ore: t("KPI_ORE_LAVORO", "Ore lavoro"),
-          ritardi: t("KPI_RITARDI_CAPI", "Ritardi capi"),
-          prev: t("KPI_PREV", "Prev"),
-          vsPrev: t("KPI_VS_PREV", "vs prev"),
-          metri: t("KPI_METRI", "metri"),
-          deadline: t("KPI_DEADLINE", "deadline 08:30 (J+1)"),
-          prodFormulaSub: t("DIR_PROD_SUB", "Σrealizzato / Σprevisto_alloc (MT)"),
-        }}
-      />
-
-      <DirezioneCharts
-        isDark={isDark}
-        lang={lang}
-        t={t}
-        loading={loading}
-        timelineData={timelineData}
-        incaOption={incaOption}
-        hasIncaData={hasIncaData}
-        prodTrend={prodTrend}
-        topProduzioni={topProduzioni}
-      />
-
-      <div className="text-[11px] text-slate-500">
-        {t("DIR_FORMULA_FOOTER", "Formula indice = Σreal_alloc / Σprevisto_alloc (solo unit=MT, rapportini APPROVED_UFFICIO).")}
+          <button
+            type="button"
+            onClick={onResetFilters}
+            className={[
+              "justify-self-start sm:justify-self-end min-w-[160px] px-3 py-1.5 rounded-full border text-[11px] uppercase tracking-[0.18em] transition",
+              isDark
+                ? "border-slate-700/70 bg-slate-950/30 text-slate-200 hover:bg-slate-900/40"
+                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+            ].join(" ")}
+          >
+            {t("DIR_RESET_FILTERS", "Reset filtri")}
+          </button>
+        </div>
       </div>
 
-      <DirezioneKpiModal
-        isOpen={!!activeKpi}
-        activeKpi={activeKpi}
-        onClose={() => setActiveKpi(null)}
-        filters={filters}
-        dataset={dataset}
+      {/* Filters */}
+      <DirectionFiltersBar
+        isDark={isDark}
+        costr={costr}
+        commessa={commessa}
+        windowFrom={windowFrom}
+        windowTo={windowTo}
+        onChangeCostr={onChangeCostr}
+        onChangeCommessa={onChangeCommessa}
+        onChangeWindowFrom={onChangeWindowFrom}
+        onChangeWindowTo={onChangeWindowTo}
         t={t}
       />
+
+      {/* KPI strip */}
+      <DirectionKpisStrip isDark={isDark} model={kpiModel} t={t} />
+
+      {/* Verdict */}
+      <DirezioneVerdict isDark={isDark} model={verdictModel} t={t} />
     </div>
   );
 }

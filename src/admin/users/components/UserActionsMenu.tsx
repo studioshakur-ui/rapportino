@@ -3,15 +3,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "./ui";
 
-export type UserAction = "reset_pwd" | "suspend" | "hard_delete";
+export type UserAction = "reset_pwd" | "suspend" | "reactivate" | "hard_delete";
 
 export default function UserActionsMenu(props: {
   disabled?: boolean;
-  /** Capability flag: if false, the "Suspend" action is shown disabled and never fired. */
+  /** Capability flag: if false, the suspend/reactivate action is shown disabled and never fired. */
   canSuspend?: boolean;
+  /** If true, the menu shows "Reactivate" instead of "Suspend". */
+  isSuspended?: boolean;
   onAction: (action: UserAction) => void;
 }) {
-  const { disabled, canSuspend = true, onAction } = props;
+  const { disabled, canSuspend = true, isSuspended = false, onAction } = props;
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -36,6 +38,9 @@ export default function UserActionsMenu(props: {
     },
     [close, onAction]
   );
+
+  const suspendAction: UserAction = isSuspended ? "reactivate" : "suspend";
+  const suspendLabel = isSuspended ? "Reactivate" : "Suspend";
 
   return (
     <div className="relative" ref={rootRef}>
@@ -64,7 +69,10 @@ export default function UserActionsMenu(props: {
           <button
             type="button"
             onClick={() => fire("reset_pwd")}
-            className={cn("w-full text-left px-3 py-2 text-[12px] font-semibold", "text-slate-100 hover:bg-slate-900/35")}
+            className={cn(
+              "w-full text-left px-3 py-2 text-[12px] font-semibold",
+              "text-slate-100 hover:bg-slate-900/35"
+            )}
           >
             Reset password
           </button>
@@ -76,21 +84,28 @@ export default function UserActionsMenu(props: {
             disabled={!canSuspend}
             onClick={() => {
               if (!canSuspend) return;
-              fire("suspend");
+              fire(suspendAction);
             }}
             title={!canSuspend ? "Funzione in deploy" : undefined}
             className={cn(
               "w-full text-left px-3 py-2 text-[12px] font-semibold",
-              canSuspend ? "text-amber-100 hover:bg-amber-500/10" : "text-slate-500 cursor-not-allowed"
+              !canSuspend
+                ? "text-slate-500 cursor-not-allowed"
+                : isSuspended
+                  ? "text-emerald-100 hover:bg-emerald-500/10"
+                  : "text-amber-100 hover:bg-amber-500/10"
             )}
           >
-            Suspend
+            {suspendLabel}
           </button>
 
           <button
             type="button"
             onClick={() => fire("hard_delete")}
-            className={cn("w-full text-left px-3 py-2 text-[12px] font-semibold", "text-rose-100 hover:bg-rose-500/10")}
+            className={cn(
+              "w-full text-left px-3 py-2 text-[12px] font-semibold",
+              "text-rose-100 hover:bg-rose-500/10"
+            )}
           >
             Hard delete
           </button>
