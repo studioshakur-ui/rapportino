@@ -1,5 +1,5 @@
 // src/routes.tsx
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation, useOutletContext } from "react-router-dom";
 
 import RequireAuth from "./auth/RequireAuth";
 import RequireRole from "./auth/RequireRole";
@@ -13,7 +13,7 @@ import AuthConfirmPage from "./pages/AuthConfirmPage";
 // SHELLS
 import AppShell from "./shells/AppShell";
 import UfficioShell from "./shells/UfficioShell";
-import DirezioneShell from "./shells/DirezioneShell";
+import DirezioneShell, { type DirezioneOutletContext, UfficioView } from "./shells/DirezioneShell";
 import ManagerShell from "./shells/ManagerShell";
 import AdminShell from "./admin/AdminShell";
 
@@ -52,6 +52,9 @@ import UfficioIncaAuditPage from "./ufficio/UfficioIncaAuditPage";
 
 // DIREZIONE
 import DirezioneDashboard from "./components/DirezioneDashboard";
+import DirezioneOperatorKPI from "./features/kpi/pages/DirezioneOperatorKPI";
+import CorePresentation from "./pages/CorePresentation";
+import CapoPresentation from "./pages/CapoPresentation";
 
 // MANAGER
 import ManagerDashboard from "./pages/ManagerDashboard";
@@ -72,6 +75,16 @@ function LegacyDirezioneRedirect(): JSX.Element {
   const next = `${nextPath}${loc.search || ""}${loc.hash || ""}`;
 
   return <Navigate to={next} replace />;
+}
+
+function DirezioneDashboardRoute(): JSX.Element {
+  const { isDark } = useOutletContext<DirezioneOutletContext>();
+  return <DirezioneDashboard isDark={isDark} />;
+}
+
+function DirezioneOperatorKpiRoute(): JSX.Element {
+  const { isDark } = useOutletContext<DirezioneOutletContext>();
+  return <DirezioneOperatorKPI isDark={isDark} />;
 }
 
 export default function AppRoutes(): JSX.Element {
@@ -200,9 +213,22 @@ export default function AppRoutes(): JSX.Element {
           </RequireAuth>
         }
       >
-        <Route index element={<DirezioneDashboard />} />
+        <Route index element={<DirezioneDashboardRoute />} />
+        <Route path="kpi-operatori" element={<DirezioneOperatorKpiRoute />} />
+        <Route path="presentazione" element={<CorePresentation />} />
+        <Route path="presentazione/capo" element={<CapoPresentation />} />
+        <Route path="evoluzione" element={<Evoluzione />} />
+        <Route path="ufficio-view" element={<UfficioView />}>
+          <Route index element={<UfficioRapportiniList />} />
+          <Route path="rapportini/:id" element={<UfficioRapportinoDetail />} />
+          <Route path="inca" element={<UfficioIncaHub />} />
+          <Route path="core-drive" element={<ArchivePage />} />
+          <Route path="archive" element={<Navigate to="../core-drive" replace />} />
+          <Route path="*" element={<Navigate to="." replace />} />
+        </Route>
         <Route path="core-drive" element={<ArchivePage />} />
         <Route path="archive" element={<Navigate to="../core-drive" replace />} />
+        <Route path="*" element={<Navigate to="." replace />} />
       </Route>
 
       {/* ===== MANAGER ===== */}

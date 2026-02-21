@@ -80,6 +80,19 @@ export function useDirezioneDashboardData(opts: {
     [filters.dateFrom, filters.dateTo]
   );
 
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      console.log("[useDirezioneDashboardData] window", {
+        dateFrom: filters.dateFrom,
+        dateTo: filters.dateTo,
+        prevFrom: prevWindow.prevFrom,
+        prevTo: prevWindow.prevTo,
+        costr: filters.costr,
+        commessa: filters.commessa,
+      });
+    }
+  }, [filters.dateFrom, filters.dateTo, filters.costr, filters.commessa, prevWindow.prevFrom, prevWindow.prevTo]);
+
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [dataset, setDataset] = useState<DirezioneDashboardDataset>(EMPTY_DATASET);

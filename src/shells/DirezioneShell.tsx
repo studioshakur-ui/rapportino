@@ -1,27 +1,22 @@
 // src/shells/DirezioneShell.tsx
-import { useEffect, useMemo, useState  } from "react";
-import { Link, useNavigate, useLocation, Routes, Route, Navigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useLocation, Outlet, useOutletContext } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthProvider";
-import DirezioneDashboard from "../components/DirezioneDashboard";
-import DirezioneOperatorKPI from "../features/kpi/pages/DirezioneOperatorKPI";
-import ArchivePage from "../pages/Archive";
 import CorePresentationPopup from "../components/CorePresentationPopup";
-import CorePresentation from "../pages/CorePresentation";
-import CapoPresentation from "../pages/CapoPresentation";
 
 
-import UfficioRapportiniList from "../ufficio/UfficioRapportiniList";
-import UfficioRapportinoDetail from "../ufficio/UfficioRapportinoDetail";
-import UfficioIncaHub from "../ufficio/UfficioIncaHub";
 
 import CNCSSidebar from "../components/shell/CNCSSidebar";
 import CNCSTopbar from "../components/shell/CNCSTopbar";
 
 // NEW
-import Evoluzione from "../data/Evoluzione";
 
 type ThemeMode = "dark" | "light";
+
+export type DirezioneOutletContext = {
+  isDark: boolean;
+};
 
 /* =========================
    Theme init
@@ -47,7 +42,8 @@ function joinClass(...parts: Array<string | false | null | undefined>): string {
 /* =========================
    Ufficio View (within Direzione)
    ========================= */
-function UfficioView({ isDark }: { isDark: boolean }): JSX.Element {
+export function UfficioView(): JSX.Element {
+  const { isDark } = useOutletContext<DirezioneOutletContext>();
   const location = useLocation();
 
   const isHere = (path: string) => location.pathname === path || location.pathname.startsWith(path + "/");
@@ -122,16 +118,7 @@ function UfficioView({ isDark }: { isDark: boolean }): JSX.Element {
 
       <div className="rounded-3xl border border-slate-800 bg-[#050910] overflow-hidden">
         <div className="p-4 sm:p-5">
-          <Routes>
-            <Route path="/" element={<UfficioRapportiniList />} />
-            <Route path="rapportini/:id" element={<UfficioRapportinoDetail />} />
-            <Route path="inca" element={<UfficioIncaHub />} />
-
-            {/* CANONIQUE */}
-            <Route path="core-drive" element={<ArchivePage />} />
-            {/* ALIAS legacy (non UX) : reDirezione */}
-            <Route path="archive" element={<Navigate to="../core-drive" replace />} />
-          </Routes>
+          <Outlet />
         </div>
       </div>
     </div>
@@ -148,6 +135,12 @@ export default function DirezioneShell(): JSX.Element {
 
   const [theme] = useState<ThemeMode>(getInitialTheme());
   const isDark = theme === "dark";
+
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      console.log("[DirezioneShell] mounted", { path: location.pathname });
+    }
+  }, [location.pathname]);
 
   // Sidebar state (same behaviour as Ufficio/App: collapsed + hover-peek)
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
@@ -337,23 +330,7 @@ export default function DirezioneShell(): JSX.Element {
           ) : null}
 
           <div className="max-w-6xl mx-auto space-y-4 pt-4">
-            <Routes>
-              <Route path="/" element={<DirezioneDashboard isDark={isDark} />} />
-              <Route path="kpi-operatori" element={<DirezioneOperatorKPI isDark={isDark} />} />
-
-              <Route path="presentazione" element={<CorePresentation />} />
-              <Route path="presentazione/capo" element={<CapoPresentation />} />
-
-              {/* NEW */}
-              <Route path="evoluzione" element={<Evoluzione />} />
-
-              <Route path="ufficio-view/*" element={<UfficioView isDark={isDark} />} />
-
-              {/* CANONIQUE */}
-              <Route path="core-drive" element={<ArchivePage />} />
-              {/* ALIAS legacy (non UX) : reDirezione */}
-              <Route path="archive" element={<Navigate to="core-drive" replace />} />
-            </Routes>
+            <Outlet context={{ isDark }} />
           </div>
 
           {/* POPUP — only when needed */}
