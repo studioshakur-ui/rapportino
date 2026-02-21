@@ -41,13 +41,13 @@ export default function UsersToolbar(props: {
 
   return (
     <div className="sticky top-0 z-10">
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/70 backdrop-blur supports-[backdrop-filter]:bg-slate-950/50 shadow-[0_10px_40px_rgba(0,0,0,0.25)]">
+      <div className="rounded-2xl theme-panel backdrop-blur">
         <div className="p-4 flex flex-col gap-3">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">CNCS · Admin</div>
               <div className="mt-1 text-[16px] font-semibold text-slate-50">Utenti</div>
-              <div className="mt-1 text-[12px] text-slate-400">Ctrl/⌘ + K per cercare</div>
+              <div className="mt-1 text-[12px] theme-text-muted">Ctrl/⌘ + K per cercare</div>
             </div>
 
             <div className="flex items-center gap-2">
@@ -56,7 +56,7 @@ export default function UsersToolbar(props: {
                 onClick={onRefresh}
                 className={cn(
                   "rounded-xl border px-3 py-2 text-[12px] font-semibold",
-                  "border-slate-800 bg-slate-950/60 text-slate-200 hover:bg-slate-900/40"
+                  "theme-border bg-[var(--panel2)] theme-text hover:bg-[var(--panel)]"
                 )}
               >
                 {loading ? "Aggiorno…" : "Refresh"}
@@ -67,7 +67,7 @@ export default function UsersToolbar(props: {
                 onClick={onInvite}
                 className={cn(
                   "rounded-xl border px-3 py-2 text-[12px] font-semibold",
-                  "border-sky-400/45 bg-sky-500/10 text-sky-100 hover:bg-sky-500/15"
+                  "accent-soft"
                 )}
               >
                 + Crea
@@ -83,8 +83,7 @@ export default function UsersToolbar(props: {
                 onChange={(e) => onQ(e.target.value)}
                 placeholder="Search email, name, role, costr, commessa…"
                 className={cn(
-                  "w-full rounded-xl border px-3 py-2 text-[14px]",
-                  "border-slate-800 bg-slate-950/60 text-slate-50",
+                  "w-full rounded-xl px-3 py-2 text-[14px] theme-input",
                   "focus:outline-none focus:ring-2 focus:ring-sky-500/35"
                 )}
               />
@@ -102,8 +101,8 @@ export default function UsersToolbar(props: {
                       className={cn(
                         "rounded-full border px-3 py-1.5 text-[11px] font-extrabold tracking-[0.14em]",
                         active
-                          ? "border-sky-400/45 bg-sky-500/10 text-sky-100"
-                          : "border-slate-800 bg-slate-950/60 text-slate-300 hover:bg-slate-900/40"
+                          ? "accent-soft"
+                          : "theme-border bg-[var(--panel2)] theme-text-muted hover:bg-[var(--panel)]"
                       )}
                     >
                       {r.label}
@@ -112,10 +111,10 @@ export default function UsersToolbar(props: {
                 })}
               </div>
 
-              <div className="text-[12px] text-slate-400">
+              <div className="text-[12px] theme-text-muted">
                 {loading ? "Loading…" : ""}
                 <span className="ml-2">Totale: </span>
-                <span className="text-slate-200 font-semibold">{total}</span>
+                <span className="theme-text font-semibold">{total}</span>
               </div>
             </div>
           </div>

@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+@import "./styles/core-colors.css";
+@import "./styles/core-ui.css";
+
 /* =========================
    CORE BASE
    ========================= */

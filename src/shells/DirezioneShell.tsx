@@ -9,31 +9,12 @@ import CorePresentationPopup from "../components/CorePresentationPopup";
 
 import CNCSSidebar from "../components/shell/CNCSSidebar";
 import CNCSTopbar from "../components/shell/CNCSTopbar";
-
-// NEW
-
-type ThemeMode = "dark" | "light";
+import ThemeSwitcher from "../components/ThemeSwitcher";
+import { useTheme } from "../hooks/useTheme";
 
 export type DirezioneOutletContext = {
   isDark: boolean;
 };
-
-/* =========================
-   Theme init
-   ========================= */
-function getInitialTheme(): ThemeMode {
-  if (typeof window === "undefined") return "dark";
-  try {
-    const stored = window.localStorage.getItem("core-theme");
-    if (stored === "dark" || stored === "light") return stored;
-    if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-      return "dark";
-    }
-  } catch {
-    // ignore
-  }
-  return "dark";
-}
 
 function joinClass(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(" ");
@@ -52,10 +33,10 @@ export function UfficioView(): JSX.Element {
     "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] transition";
   const tabOff = isDark
     ? "border-slate-800 bg-slate-950/20 text-slate-300 hover:bg-slate-900/35"
-    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50";
+    : "theme-border bg-[var(--panel2)] theme-text hover:bg-[var(--panel)]";
   const tabOn = isDark
     ? "border-emerald-500/60 bg-emerald-950/20 text-emerald-200 shadow-[0_16px_60px_rgba(16,185,129,0.14)]"
-    : "border-emerald-400 bg-emerald-50 text-emerald-800";
+    : "border-emerald-400 badge-success";
 
   const isTabRapportini =
     isHere("/direzione/ufficio-view") &&
@@ -79,7 +60,7 @@ export function UfficioView(): JSX.Element {
 
         <Link
           to="/direzione"
-          className="rounded-full border border-slate-700 bg-slate-950/30 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-200 hover:bg-slate-900/40"
+          className="rounded-full border theme-border bg-[var(--panel2)] px-3 py-2 text-[11px] uppercase tracking-[0.18em] theme-text hover:bg-[var(--panel)]"
         >
           ← Torna a Direzione
         </Link>
@@ -110,13 +91,13 @@ export function UfficioView(): JSX.Element {
           CORE Drive
         </Link>
 
-        <span className="ml-1 inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/20 px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-slate-500">
+        <span className="ml-1 inline-flex items-center gap-2 rounded-full border theme-border bg-[var(--panel2)] px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] theme-text-muted">
           <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
           Lettura
         </span>
       </div>
 
-      <div className="rounded-3xl border border-slate-800 bg-[#050910] overflow-hidden">
+      <div className="rounded-3xl border theme-border bg-[var(--panel)] overflow-hidden">
         <div className="p-4 sm:p-5">
           <Outlet />
         </div>
@@ -133,14 +114,9 @@ export default function DirezioneShell(): JSX.Element {
   const location = useLocation();
   const { profile, signOut } = useAuth();
 
-  const [theme] = useState<ThemeMode>(getInitialTheme());
-  const isDark = theme === "dark";
+  const { effective } = useTheme();
+  const isDark = effective === "dark";
 
-  useEffect(() => {
-    if (import.meta.env.DEV) {
-      console.log("[DirezioneShell] mounted", { path: location.pathname });
-    }
-  }, [location.pathname]);
 
   // Sidebar state (same behaviour as Ufficio/App: collapsed + hover-peek)
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
@@ -157,14 +133,6 @@ export default function DirezioneShell(): JSX.Element {
 
   // Presentation modal state
   const [showPresentationModal, setShowPresentationModal] = useState<boolean>(false);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem("core-theme", theme);
-    } catch {
-      // ignore
-    }
-  }, [theme]);
 
   useEffect(() => {
     try {
@@ -234,7 +202,7 @@ export default function DirezioneShell(): JSX.Element {
   }, [pathname]);
 
   return (
-    <div className={isDark ? "min-h-screen bg-[#050910] text-slate-100" : "min-h-screen bg-slate-50 text-slate-900"}>
+    <div className="min-h-screen theme-bg theme-scope">
       <div className="flex">
         {/* SIDEBAR (CNCS, shared behaviour) */}
         <CNCSSidebar
@@ -269,17 +237,19 @@ export default function DirezioneShell(): JSX.Element {
                 {isInUfficioView ? (
                   <Link
                     to="/direzione"
-                    className="rounded-full border border-slate-800 bg-slate-950/20 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-200 hover:bg-slate-900/35"
+                    className="rounded-full border theme-border bg-[var(--panel2)] px-3 py-2 text-[11px] uppercase tracking-[0.18em] theme-text hover:bg-[var(--panel)]"
                     title="Torna a Direzione"
                   >
                     ← Torna a Direzione
                   </Link>
                 ) : null}
 
+                <ThemeSwitcher />
+
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="inline-flex items-center gap-2 rounded-full border border-rose-500/40 bg-rose-950/20 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-rose-200 hover:bg-rose-900/25 transition"
+                  className="inline-flex items-center gap-2 rounded-full border border-rose-500/40 bg-[var(--panel2)] px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-rose-200 hover:bg-rose-900/25 transition"
                   title="Logout"
                   aria-label="Logout"
                 >
@@ -292,7 +262,7 @@ export default function DirezioneShell(): JSX.Element {
 
           {/* PRESENTATION CONTEXT BAR (CAPO button) */}
           {isInPresentation ? (
-            <div className="no-print mt-3 rounded-2xl border border-slate-800 bg-slate-950/20 px-3 py-2">
+            <div className="no-print mt-3 rounded-2xl border theme-border bg-[var(--panel2)] px-3 py-2">
               <div className="flex items-center justify-between gap-3">
                 <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Presentazione</div>
 
@@ -318,7 +288,7 @@ export default function DirezioneShell(): JSX.Element {
                   ) : (
                     <Link
                       to="/direzione/presentazione"
-                      className="rounded-full border border-slate-800 bg-slate-950/20 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-200 hover:bg-slate-900/35"
+                      className="rounded-full border theme-border bg-[var(--panel2)] px-3 py-2 text-[11px] uppercase tracking-[0.18em] theme-text hover:bg-[var(--panel)]"
                       title="Torna a Presentazione"
                     >
                       ← Torna a Presentazione

@@ -10,7 +10,7 @@
   --core-surface-2: rgba(2, 6, 23, 0.72);
 }
 
-html.dark,
+[data-theme="dark"],
 body {
   color: var(--core-text);
 }

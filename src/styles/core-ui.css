@@ -64,3 +64,134 @@
 .btn-inca:hover {
   background-color: rgba(99, 102, 241, 0.08);
 }
+
+/* =========================
+   Theme surfaces (semantic)
+   ========================= */
+.theme-bg {
+  background-color: var(--bg);
+  color: var(--text);
+}
+.theme-panel {
+  background-color: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow1);
+}
+.theme-panel-2 {
+  background-color: var(--panel2);
+  border: 1px solid var(--border);
+}
+.theme-overlay {
+  background-color: var(--overlay);
+}
+.theme-border {
+  border-color: var(--border);
+}
+.theme-border-strong {
+  border-color: var(--borderStrong);
+}
+.theme-text {
+  color: var(--text);
+}
+.theme-text-muted {
+  color: var(--textMuted);
+}
+.theme-shadow-1 {
+  box-shadow: var(--shadow1);
+}
+.theme-shadow-2 {
+  box-shadow: var(--shadow2);
+}
+
+/* Inputs */
+.theme-input {
+  background-color: var(--panel2);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.theme-input::placeholder {
+  color: var(--textMuted);
+}
+
+/* Tables */
+.theme-table {
+  background-color: var(--panel);
+  border: 1px solid var(--border);
+}
+.theme-table-head {
+  background-color: var(--panel2);
+  color: var(--textMuted);
+  border-bottom: 1px solid var(--border);
+}
+
+/* Chips / badges (ghost style in light mode via tokens) */
+.badge-success {
+  background-color: var(--role-success-soft);
+  border: 1px solid var(--role-success-border);
+  color: var(--role-success-ink);
+}
+.badge-warning {
+  background-color: var(--role-warning-soft);
+  border: 1px solid var(--role-warning-border);
+  color: var(--role-warning-ink);
+}
+.badge-danger {
+  background-color: var(--role-danger-soft);
+  border: 1px solid var(--role-danger-border);
+  color: var(--role-danger-ink);
+}
+.badge-info {
+  background-color: var(--role-info-soft);
+  border: 1px solid var(--role-info-border);
+  color: var(--role-info-ink);
+}
+.badge-neutral {
+  background-color: var(--role-neutral-soft);
+  border: 1px solid var(--role-neutral-border);
+  color: var(--role-neutral-ink);
+}
+
+.accent-soft {
+  background-color: var(--accent-soft);
+  border: 1px solid var(--accent);
+  color: var(--accent-ink);
+}
+
+/* =========================
+   Light-theme overrides (theme scope)
+   ========================= */
+:root[data-theme="light"] .theme-scope .text-slate-50,
+:root[data-theme="light"] .theme-scope .text-slate-100,
+:root[data-theme="light"] .theme-scope .text-slate-200,
+:root[data-theme="light"] .theme-scope .text-slate-300 {
+  color: var(--text);
+}
+:root[data-theme="light"] .theme-scope .text-slate-400,
+:root[data-theme="light"] .theme-scope .text-slate-500,
+:root[data-theme="light"] .theme-scope .text-slate-600,
+:root[data-theme="light"] .theme-scope .text-slate-700 {
+  color: var(--textMuted);
+}
+
+:root[data-theme="light"] .theme-scope .border-slate-800,
+:root[data-theme="light"] .theme-scope .border-slate-700,
+:root[data-theme="light"] .theme-scope .border-slate-600 {
+  border-color: var(--border);
+}
+
+:root[data-theme="light"] .theme-scope [class*="bg-slate-950"] {
+  background-color: var(--panel);
+}
+:root[data-theme="light"] .theme-scope [class*="bg-slate-900"],
+:root[data-theme="light"] .theme-scope [class*="bg-slate-800"],
+:root[data-theme="light"] .theme-scope [class*="bg-slate-700"] {
+  background-color: var(--panel2);
+}
+
+:root[data-theme="light"] .theme-scope .bg-\[\#050910\] {
+  background-color: var(--panel);
+}
+
+:root[data-theme="light"] .theme-scope .divide-slate-800 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--border);
+}

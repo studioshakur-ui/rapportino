@@ -12,10 +12,10 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_BADGE_CLASS: Record<string, string> = {
-  DRAFT: "bg-slate-700/80 text-slate-200",
-  VALIDATED_CAPO: "bg-amber-500/15 text-amber-200 border border-amber-400/60",
-  APPROVED_UFFICIO: "bg-emerald-500/15 text-emerald-200 border border-emerald-400/60",
-  RETURNED: "bg-rose-500/15 text-rose-200 border border-rose-400/60",
+  DRAFT: "badge-neutral",
+  VALIDATED_CAPO: "badge-warning",
+  APPROVED_UFFICIO: "badge-success",
+  RETURNED: "badge-danger",
 };
 
 // Priorità lavoro (front-only)
@@ -363,9 +363,9 @@ export default function UfficioRapportiniList(): JSX.Element {
     <div className="p-4 space-y-4">
       <div className="flex flex-wrap items-end gap-4">
         <div className="flex flex-col text-xs min-w-[160px]">
-          <label className="mb-1 font-medium text-slate-300">Stato</label>
+          <label className="mb-1 font-medium theme-text-muted">Stato</label>
           <select
-            className="border border-slate-700 rounded-md px-2 py-1 text-xs bg-slate-900/70 text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
+            className="rounded-md px-2 py-1 text-xs theme-input focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
@@ -378,9 +378,9 @@ export default function UfficioRapportiniList(): JSX.Element {
         </div>
 
         <div className="flex flex-col text-xs min-w-[180px]">
-          <label className="mb-1 font-medium text-slate-300">Ruolo</label>
+          <label className="mb-1 font-medium theme-text-muted">Ruolo</label>
           <select
-            className="border border-slate-700 rounded-md px-2 py-1 text-xs bg-slate-900/70 text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
+            className="rounded-md px-2 py-1 text-xs theme-input focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
           >
@@ -393,7 +393,7 @@ export default function UfficioRapportiniList(): JSX.Element {
         </div>
 
         <div className="flex flex-col text-xs min-w-[180px]">
-          <label className="mb-1 font-medium text-slate-300">Storico</label>
+          <label className="mb-1 font-medium theme-text-muted">Storico</label>
           <div>
             <button
               type="button"
@@ -401,8 +401,8 @@ export default function UfficioRapportiniList(): JSX.Element {
               className={[
                 "px-3 py-1.5 rounded-md border text-xs font-medium transition",
                 showHistory
-                  ? "border-slate-600 text-slate-100 bg-slate-900/70 hover:bg-slate-900/90"
-                  : "border-slate-800 text-slate-300 bg-slate-950/50 hover:bg-slate-900/70",
+                  ? "theme-border theme-text bg-[var(--panel2)] hover:bg-[var(--panel)]"
+                  : "theme-border theme-text-muted bg-[var(--panel2)] hover:bg-[var(--panel)]",
               ].join(" ")}
               title={showHistory ? "Nascondi versioni storiche" : "Mostra versioni storiche (supersedute)"}
             >
@@ -412,35 +412,35 @@ export default function UfficioRapportiniList(): JSX.Element {
         </div>
 
         <div className="flex flex-col text-xs min-w-[180px]">
-          <label className="mb-1 font-medium text-slate-300">Capo</label>
+          <label className="mb-1 font-medium theme-text-muted">Capo</label>
           <input
             type="text"
             placeholder="Nome…"
-            className="border border-slate-700 rounded-md px-2 py-1 text-xs bg-slate-900/70 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
+            className="rounded-md px-2 py-1 text-xs theme-input placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
             value={capoFilter}
             onChange={(e) => setCapoFilter(e.target.value)}
           />
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/60 shadow-[0_0_0_1px_rgba(15,23,42,0.7)]">
+      <div className="overflow-x-auto rounded-xl theme-table">
         <table className="min-w-full text-xs">
-          <thead className="bg-slate-900/80 border-b border-slate-800">
+          <thead className="theme-table-head">
             <tr>
-              <th className="px-3 py-2 text-left font-medium text-slate-300">Data</th>
-              <th className="px-3 py-2 text-left font-medium text-slate-300">Capo</th>
-              <th className="px-3 py-2 text-left font-medium text-slate-300">Squadra</th>
-              <th className="px-3 py-2 text-left font-medium text-slate-300">Commessa</th>
-              <th className="px-3 py-2 text-left font-medium text-slate-300">Produzioni</th>
-              <th className="px-3 py-2 text-left font-medium text-slate-300">Stato</th>
-              <th className="px-3 py-2 text-right font-medium text-slate-300">Apri</th>
+              <th className="px-3 py-2 text-left font-medium">Data</th>
+              <th className="px-3 py-2 text-left font-medium">Capo</th>
+              <th className="px-3 py-2 text-left font-medium">Squadra</th>
+              <th className="px-3 py-2 text-left font-medium">Commessa</th>
+              <th className="px-3 py-2 text-left font-medium">Produzioni</th>
+              <th className="px-3 py-2 text-left font-medium">Stato</th>
+              <th className="px-3 py-2 text-right font-medium">Apri</th>
             </tr>
           </thead>
 
           <tbody>
             {sortedRapportini.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-3 py-4 text-center text-xs text-slate-500">
+                <td colSpan={7} className="px-3 py-4 text-center text-xs theme-text-muted">
                   Nessun risultato.
                 </td>
               </tr>
@@ -474,57 +474,57 @@ export default function UfficioRapportiniList(): JSX.Element {
                 : "—";
 
               const moreCount = Math.max(0, descrCount - top.length);
-              const rowTone = superseded ? "opacity-50" : isArchived ? "opacity-70" : "hover:bg-slate-900/80";
+              const rowTone = superseded ? "opacity-50" : isArchived ? "opacity-70" : "hover:bg-[var(--panel2)]";
 
               return (
                 <tr
                   key={r.id}
-                  className={["border-b border-slate-800 transition-colors", rowTone].join(" ")}
+                  className={["border-b theme-border transition-colors", rowTone].join(" ")}
                   title={superseded ? "Versione superseduta (sostituita da rettifica)" : ""}
                 >
-                  <td className="px-3 py-2 whitespace-nowrap text-slate-100">{formatDate(r.report_date)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap theme-text">{formatDate(r.report_date)}</td>
 
-                  <td className="px-3 py-2 whitespace-nowrap text-slate-100">
+                  <td className="px-3 py-2 whitespace-nowrap theme-text">
                     <div className="flex items-center gap-2">
                       <span>{capoResolved}</span>
 
                       {correction && (
-                        <span className="px-2 py-0.5 rounded-full border border-sky-500/40 bg-sky-950/30 text-[10px] uppercase tracking-[0.14em] text-sky-200">
+                        <span className="px-2 py-0.5 rounded-full border text-[10px] uppercase tracking-[0.14em] badge-info">
                           RETTIFICA
                         </span>
                       )}
 
                       {superseded && (
-                        <span className="px-2 py-0.5 rounded-full border border-slate-600 bg-slate-900/60 text-[10px] uppercase tracking-[0.14em] text-slate-300">
+                        <span className="px-2 py-0.5 rounded-full border text-[10px] uppercase tracking-[0.14em] badge-neutral">
                           SOSTITUITO
                         </span>
                       )}
                     </div>
                   </td>
 
-                  <td className="px-3 py-2 whitespace-nowrap text-slate-100">{r.crew_role || "—"}</td>
-                  <td className="px-3 py-2 whitespace-nowrap text-slate-100">{r.commessa || "—"}</td>
+                  <td className="px-3 py-2 whitespace-nowrap theme-text">{r.crew_role || "—"}</td>
+                  <td className="px-3 py-2 whitespace-nowrap theme-text">{r.commessa || "—"}</td>
 
-                  <td className="px-3 py-2 text-slate-100">
+                  <td className="px-3 py-2 theme-text">
                     <div className="flex flex-col">
-                      <div className="text-slate-100">
+                      <div className="theme-text">
                         <span className="inline-flex items-center gap-2">
-                          <span className="px-2 py-0.5 rounded-full border border-slate-700 bg-slate-950/70 text-[11px] uppercase tracking-[0.12em] text-slate-300">
+                          <span className="px-2 py-0.5 rounded-full border text-[11px] uppercase tracking-[0.12em] badge-neutral">
                             {descrCount || 0} descr.
                           </span>
-                          <span className="text-[11px] text-slate-300">
-                            somma KPI: <span className="text-slate-100">{formatNumberIt(sommaKpi)}</span>
+                          <span className="text-[11px] theme-text-muted">
+                            somma KPI: <span className="theme-text">{formatNumberIt(sommaKpi)}</span>
                           </span>
-                          <span className="text-[11px] text-slate-500">somma righe: {formatNumberIt(sommaAll)}</span>
+                          <span className="text-[11px] theme-text-muted">somma righe: {formatNumberIt(sommaAll)}</span>
                         </span>
                       </div>
 
-                      <div className="mt-1 text-[11px] text-slate-300">
+                      <div className="mt-1 text-[11px] theme-text-muted">
                         {topLine}
-                        {moreCount > 0 ? <span className="text-slate-500"> · +{moreCount}</span> : null}
+                        {moreCount > 0 ? <span className="theme-text-muted"> · +{moreCount}</span> : null}
                       </div>
 
-                      <div className="mt-1 text-[10px] text-slate-500">
+                      <div className="mt-1 text-[10px] theme-text-muted">
                         {isKpiFiltered
                           ? "ELETTRICISTA: KPI = STESURA + RIPRESA (FASCETTATURA esclusa)."
                           : "Produzione mostrata per descrizione (no KPI totale unico)."}
@@ -541,13 +541,16 @@ export default function UfficioRapportiniList(): JSX.Element {
                     >
                       {statusLabel}
                       {isArchived && (
-                        <span className="ml-1.5 text-[10px] tracking-[0.14em] text-emerald-200/90">· BLOCCATO</span>
+                        <span className="ml-1.5 text-[10px] tracking-[0.14em]">· BLOCCATO</span>
                       )}
                     </span>
                   </td>
 
                   <td className="px-3 py-2 whitespace-nowrap text-right">
-                    <Link to={`/ufficio/rapportini/${r.id}`} className="text-xs text-sky-300 hover:text-sky-200 hover:underline">
+                    <Link
+                      to={`/ufficio/rapportini/${r.id}`}
+                      className="text-xs text-[color:var(--accent-ink)] hover:text-[color:var(--accent)] hover:underline"
+                    >
                       Apri
                     </Link>
                   </td>
@@ -558,7 +561,7 @@ export default function UfficioRapportiniList(): JSX.Element {
         </table>
       </div>
 
-      <div className="mt-3 text-[11px] text-slate-500">
+      <div className="mt-3 text-[11px] theme-text-muted">
         {showHistory ? (
           <span>Stai visualizzando anche versioni storiche (supersedute).</span>
         ) : (

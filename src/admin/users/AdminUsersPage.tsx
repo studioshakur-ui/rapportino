@@ -3,6 +3,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { t } from "../i18n";
+import { useAdminConsole } from "../AdminConsoleContext";
 
 import { useAdminUsersData } from "./hooks/useAdminUsersData";
 import { PAGE_SIZE, type RoleFilter, useAdminUsersUi } from "./hooks/useAdminUsersUi";
@@ -24,6 +25,8 @@ function clamp(n: number, min: number, max: number): number {
 export default function AdminUsersPage(): JSX.Element {
   const outlet = useOutletContext() || ({} as any);
   const lang = outlet.lang || "it";
+
+  const { setConfig, resetConfig, registerSearchItems, clearSearchItems, setRecentItems } = useAdminConsole();
 
   const {
     loading,
@@ -67,6 +70,57 @@ export default function AdminUsersPage(): JSX.Element {
   }, []);
 
   const [toast, setToast] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
+
+  const searchItems = useMemo(() => {
+    return rows.map((row) => {
+      const title = row.display_name || row.full_name || row.email || "—";
+      const subtitle = [row.email, row.app_role].filter(Boolean).join(" · ");
+      const tokens = [row.display_name, row.full_name, row.email, row.app_role, row.default_costr, row.default_commessa]
+        .filter(Boolean)
+        .join(" ");
+      return {
+        id: row.id,
+        entity: "Utenti",
+        title,
+        subtitle: subtitle || undefined,
+        route: "/admin/users",
+        tokens,
+        updatedAt: row.updated_at || row.created_at || null,
+      };
+    });
+  }, [rows]);
+
+  const recent = useMemo(() => {
+    const sorted = [...rows].sort((a, b) =>
+      String(b.updated_at || b.created_at || "").localeCompare(String(a.updated_at || a.created_at || ""))
+    );
+    return sorted.slice(0, 5).map((row) => {
+      const title = row.display_name || row.full_name || row.email || "—";
+      const subtitle = [row.email, row.app_role].filter(Boolean).join(" · ");
+      return {
+        id: row.id,
+        title,
+        subtitle: subtitle || undefined,
+        route: "/admin/users",
+        timeLabel: row.updated_at || row.created_at || undefined,
+      };
+    });
+  }, [rows]);
+
+  React.useEffect(() => {
+    setConfig({ title: "Utenti", searchPlaceholder: "Cerca utenti, email, ruolo…" });
+    return () => resetConfig();
+  }, [setConfig, resetConfig]);
+
+  React.useEffect(() => {
+    registerSearchItems("Utenti", searchItems);
+    return () => clearSearchItems("Utenti");
+  }, [registerSearchItems, clearSearchItems, searchItems]);
+
+  React.useEffect(() => {
+    setRecentItems(recent);
+    return () => setRecentItems([]);
+  }, [setRecentItems, recent]);
 
   const toastOk = useCallback((msg: string) => {
     setToast({ kind: "ok", msg });

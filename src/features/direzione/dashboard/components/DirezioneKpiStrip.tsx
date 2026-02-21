@@ -11,6 +11,12 @@ function formatIndex(lang: string, v: number | null | undefined): string {
   return formatNumberByLang(lang, v, 2);
 }
 
+function formatDelta(lang: string, v: number, maxFrac: number = 1): string {
+  const n = Number.isFinite(v) ? v : 0;
+  const s = formatNumberByLang(lang, Math.abs(n), maxFrac);
+  return n > 0 ? `+${s}` : n < 0 ? `-${s}` : s;
+}
+
 export type DirezioneKpiStripProps = {
   loading: boolean;
   summary: KpiSummary;
@@ -25,6 +31,8 @@ export type DirezioneKpiStripProps = {
     ore: string;
     ritardi: string;
     prev: string;
+    delta: string;
+    hoursUnit: string;
     vsPrev: string;
     metri: string;
     deadline: string;
@@ -40,6 +48,9 @@ export default function DirezioneKpiStrip({
   lang,
 }: DirezioneKpiStripProps): JSX.Element {
   const prodSub = labels.prodFormulaSub ?? "Σrealizzato / Σprevisto_alloc (MT)";
+  const hoursDelta = summary.currHours - summary.prevHours;
+  const hoursDeltaText = `${labels.delta} ${formatDelta(lang, hoursDelta, 1)} ${labels.hoursUnit}`;
+  const hoursPrevText = `${labels.prev}: ${formatNumberByLang(lang, summary.prevHours, 1)} ${labels.hoursUnit}`;
 
   return (
     <section className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-7 gap-3">
@@ -85,8 +96,12 @@ export default function DirezioneKpiStrip({
 
       <KpiCard
         title={labels.ore}
-        value={loading ? "—" : formatNumberByLang(lang, summary.currHours, 1)}
-        subline={loading ? "" : `${labels.prev}: ${formatNumberByLang(lang, summary.prevHours, 1)}`}
+        value={loading ? "—" : `${formatNumberByLang(lang, summary.currHours, 1)} ${labels.hoursUnit}`}
+        subline={
+          loading
+            ? ""
+            : `${hoursDeltaText} · ${hoursPrevText}`
+        }
         accent="amber"
         onClick={() => onOpenKpi(KPI_IDS.ORE)}
       />

@@ -41,4 +41,97 @@
   --inca-500: #6366f1;   /* violet froid */
   --inca-400: #818cf8;
   --inca-300: #a5b4fc;
+
+  /* =========================
+     Semantic tokens (Dark default)
+     ========================= */
+  --bg: #050910;
+  --panel: #0b1220;
+  --panel2: #0f172a;
+  --overlay: rgba(5, 9, 16, 0.72);
+  --border: #1f2937;
+  --borderStrong: #334155;
+  --text: #e2e8f0;
+  --textMuted: #94a3b8;
+  --shadow1: 0 10px 40px rgba(0, 0, 0, 0.35);
+  --shadow2: 0 20px 60px rgba(0, 0, 0, 0.55);
+
+  --accent: #4ea3c8;
+  --accent-soft: rgba(78, 163, 200, 0.16);
+  --accent-ink: #c9e7f6;
+
+  --role-success: #34d399;
+  --role-success-soft: rgba(16, 185, 129, 0.16);
+  --role-success-border: rgba(16, 185, 129, 0.4);
+  --role-success-ink: #d1fae5;
+
+  --role-warning: #f59e0b;
+  --role-warning-soft: rgba(245, 158, 11, 0.16);
+  --role-warning-border: rgba(245, 158, 11, 0.45);
+  --role-warning-ink: #fde68a;
+
+  --role-danger: #f87171;
+  --role-danger-soft: rgba(248, 113, 113, 0.16);
+  --role-danger-border: rgba(248, 113, 113, 0.45);
+  --role-danger-ink: #fecaca;
+
+  --role-info: #60a5fa;
+  --role-info-soft: rgba(96, 165, 250, 0.16);
+  --role-info-border: rgba(96, 165, 250, 0.45);
+  --role-info-ink: #bfdbfe;
+
+  --role-neutral: #94a3b8;
+  --role-neutral-soft: rgba(148, 163, 184, 0.14);
+  --role-neutral-border: rgba(148, 163, 184, 0.35);
+  --role-neutral-ink: #e2e8f0;
+}
+
+/* Explicit dark (keeps defaults) */
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* Metal Warm light theme */
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #f6f1ea;
+  --panel: #fbf7f2;
+  --panel2: #fffaf5;
+  --overlay: rgba(246, 241, 234, 0.82);
+  --border: #e2dad1;
+  --borderStrong: #cdc4ba;
+  --text: #2f2b28;
+  --textMuted: #6e6760;
+  --shadow1: 0 10px 24px rgba(36, 30, 24, 0.06);
+  --shadow2: 0 18px 42px rgba(36, 30, 24, 0.1);
+
+  --accent: #6a8da3;
+  --accent-soft: rgba(106, 141, 163, 0.12);
+  --accent-ink: #2f4c5b;
+
+  --role-success: #3d9477;
+  --role-success-soft: rgba(61, 148, 119, 0.12);
+  --role-success-border: rgba(61, 148, 119, 0.25);
+  --role-success-ink: #2c5d4b;
+
+  --role-warning: #b9852f;
+  --role-warning-soft: rgba(185, 133, 47, 0.12);
+  --role-warning-border: rgba(185, 133, 47, 0.25);
+  --role-warning-ink: #6a4b1f;
+
+  --role-danger: #b66a6a;
+  --role-danger-soft: rgba(182, 106, 106, 0.12);
+  --role-danger-border: rgba(182, 106, 106, 0.25);
+  --role-danger-ink: #6a3e3e;
+
+  --role-info: #5f87ad;
+  --role-info-soft: rgba(95, 135, 173, 0.12);
+  --role-info-border: rgba(95, 135, 173, 0.25);
+  --role-info-ink: #2f4f66;
+
+  --role-neutral: #7c7872;
+  --role-neutral-soft: rgba(124, 120, 114, 0.12);
+  --role-neutral-border: rgba(124, 120, 114, 0.25);
+  --role-neutral-ink: #4a4540;
 }

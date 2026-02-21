@@ -1,18 +1,67 @@
-// src/admin/AdminPlanningPage.jsx
+// src/admin/AdminPlanningPage.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { useAdminConsole } from "./AdminConsoleContext";
 
-function cn(...p) {
+type PlanningRow = {
+  plan_id?: string | null;
+  period_type?: string | null;
+  plan_date?: string | null;
+  year_iso?: number | string | null;
+  week_iso?: number | string | null;
+  status?: string | null;
+  manager_id?: string | null;
+  slot_id?: string | null;
+  capo_id?: string | null;
+  operator_id?: string | null;
+  operator_position?: number | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+type SlotMember = {
+  operator_id: string;
+  position?: number | null;
+};
+
+type SlotAccum = {
+  slot_id: string;
+  capo_id?: string | null;
+  members: SlotMember[];
+};
+
+type PlanAccum = {
+  plan_id: string;
+  period_type?: string | null;
+  plan_date?: string | null;
+  year_iso?: number | string | null;
+  week_iso?: number | string | null;
+  status?: string | null;
+  manager_id?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  slots: Map<string, SlotAccum>;
+};
+
+type PlanView = Omit<PlanAccum, "slots"> & { slots: SlotAccum[] };
+
+function cn(...p: Array<string | false | null | undefined>): string {
   return p.filter(Boolean).join(" ");
 }
 
-function Badge({ children, tone = "slate" }) {
+function Badge({
+  children,
+  tone = "slate",
+}: {
+  children: React.ReactNode;
+  tone?: "slate" | "sky" | "amber" | "emerald" | "rose";
+}): JSX.Element {
   const map = {
-    slate: "border-slate-700 bg-slate-950/40 text-slate-200",
-    sky: "border-sky-400/50 bg-sky-500/10 text-sky-200",
-    amber: "border-amber-400/50 bg-amber-500/10 text-amber-200",
-    emerald: "border-emerald-400/50 bg-emerald-500/10 text-emerald-200",
-    rose: "border-rose-400/50 bg-rose-500/10 text-rose-200",
+    slate: "badge-neutral",
+    sky: "badge-info",
+    amber: "badge-warning",
+    emerald: "badge-success",
+    rose: "badge-danger",
   };
   return (
     <span className={cn("inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold", map[tone] || map.slate)}>
@@ -21,17 +70,18 @@ function Badge({ children, tone = "slate" }) {
   );
 }
 
-export default function AdminPlanningPage() {
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState("");
-  const [rows, setRows] = useState([]);
+export default function AdminPlanningPage(): JSX.Element {
+  const { setConfig, resetConfig, registerSearchItems, clearSearchItems, setRecentItems } = useAdminConsole();
+  const [loading, setLoading] = useState<boolean>(true);
+  const [err, setErr] = useState<string>("");
+  const [rows, setRows] = useState<PlanningRow[]>([]);
 
   // Filters
-  const [periodType, setPeriodType] = useState("ALL"); // DAY/WEEK/ALL
-  const [status, setStatus] = useState("ALL"); // DRAFT/PUBLISHED/FROZEN/ALL
-  const [q, setQ] = useState("");
+  const [periodType, setPeriodType] = useState<string>("ALL"); // DAY/WEEK/ALL
+  const [status, setStatus] = useState<string>("ALL"); // DRAFT/PUBLISHED/FROZEN/ALL
+  const [q, setQ] = useState<string>("");
 
-  const fetchData = async () => {
+  const fetchData = async (): Promise<void> => {
     setLoading(true);
     setErr("");
     try {
@@ -75,12 +125,12 @@ export default function AdminPlanningPage() {
     fetchData();
   }, []);
 
-  const plans = useMemo(() => {
+  const plans = useMemo<PlanView[]>(() => {
     // Group by plan_id -> slot_id -> members
-    const map = new Map();
+    const map = new Map<string, PlanAccum>();
 
     for (const r of rows) {
-      const pid = r.plan_id;
+      const pid = r.plan_id || "";
       if (!pid) continue;
 
       if (!map.has(pid)) {
@@ -94,11 +144,12 @@ export default function AdminPlanningPage() {
           manager_id: r.manager_id || null,
           created_at: r.created_at || null,
           updated_at: r.updated_at || null,
-          slots: new Map(),
+          slots: new Map<string, SlotAccum>(),
         });
       }
 
       const plan = map.get(pid);
+      if (!plan) continue;
 
       // Keep latest updated_at if present
       if (r.updated_at && (!plan.updated_at || String(r.updated_at) > String(plan.updated_at))) {
@@ -115,6 +166,7 @@ export default function AdminPlanningPage() {
           });
         }
         const slot = plan.slots.get(sid);
+        if (!slot) continue;
         if (r.operator_id) {
           slot.members.push({
             operator_id: r.operator_id,
@@ -124,12 +176,12 @@ export default function AdminPlanningPage() {
       }
     }
 
-    const list = Array.from(map.values()).map((p) => {
-      const slots = Array.from(p.slots.values()).map((s) => ({
+    const list: PlanView[] = Array.from(map.values()).map((p) => {
+      const slots: SlotAccum[] = Array.from(p.slots.values()).map((s) => ({
         ...s,
         members: (s.members || [])
           .slice()
-          .sort((a, b) => (a.position ?? 9999) - (b.position ?? 9999)),
+          .sort((a: SlotMember, b: SlotMember) => (a.position ?? 9999) - (b.position ?? 9999)),
       }));
       return {
         ...p,
@@ -153,8 +205,8 @@ export default function AdminPlanningPage() {
         p.week_iso,
         p.status,
         p.manager_id,
-        ...p.slots.map((s) => s.capo_id),
-        ...p.slots.flatMap((s) => s.members.map((m) => m.operator_id)),
+        ...p.slots.map((s: SlotAccum) => s.capo_id),
+        ...p.slots.flatMap((s: SlotAccum) => s.members.map((m: SlotMember) => m.operator_id)),
       ]
         .filter(Boolean)
         .join(" ")
@@ -164,12 +216,66 @@ export default function AdminPlanningPage() {
     });
 
     // Sort by updated_at desc
-    filtered.sort((a, b) => String(b.updated_at || "") > String(a.updated_at || "") ? 1 : -1);
+    filtered.sort((a: PlanView, b: PlanView) => String(b.updated_at || "") > String(a.updated_at || "") ? 1 : -1);
 
     return filtered;
   }, [rows, periodType, status, q]);
 
-  const statusTone = (s) => {
+  const searchItems = useMemo(() => {
+    return plans.map((p) => ({
+      id: String(p.plan_id),
+      entity: "Planning",
+      title: `Plan ${String(p.plan_id)}`,
+      subtitle: [p.status, p.period_type, p.plan_date ? `Data ${p.plan_date}` : ""].filter(Boolean).join(" · "),
+      route: "/admin/planning",
+      tokens: [
+        p.plan_id,
+        p.period_type,
+        p.plan_date,
+        p.year_iso,
+        p.week_iso,
+        p.status,
+        p.manager_id,
+        ...p.slots.map((s: SlotAccum) => s.capo_id),
+        ...p.slots.flatMap((s: SlotAccum) => s.members.map((m: SlotMember) => m.operator_id)),
+      ]
+        .filter(Boolean)
+        .join(" "),
+      updatedAt: p.updated_at || p.created_at || null,
+      badge: p.status || undefined,
+      badgeTone: statusTone(p.status),
+    }));
+  }, [plans]);
+
+  const recent = useMemo(() => {
+    const sorted = [...plans].sort((a, b) =>
+      String(b.updated_at || b.created_at || "").localeCompare(String(a.updated_at || a.created_at || ""))
+    );
+    return sorted.slice(0, 5).map((p) => ({
+      id: String(p.plan_id),
+      title: `Plan ${String(p.plan_id)}`,
+      subtitle: [p.status, p.period_type].filter(Boolean).join(" · "),
+      route: "/admin/planning",
+      timeLabel: p.updated_at || p.created_at || undefined,
+    }));
+  }, [plans]);
+
+  useEffect(() => {
+    setConfig({ title: "Planning", searchPlaceholder: "Cerca piani, capi, manager, operatori…" });
+    return () => resetConfig();
+  }, [setConfig, resetConfig]);
+
+  useEffect(() => {
+    registerSearchItems("Planning", searchItems);
+    return () => clearSearchItems("Planning");
+  }, [registerSearchItems, clearSearchItems, searchItems]);
+
+  useEffect(() => {
+    setRecentItems(recent);
+    return () => setRecentItems([]);
+  }, [setRecentItems, recent]);
+
+  const statusTone = (s: unknown): "slate" | "sky" | "amber" => {
     const v = String(s || "").toUpperCase();
     if (v === "DRAFT") return "slate";
     if (v === "PUBLISHED") return "sky";
@@ -179,7 +285,7 @@ export default function AdminPlanningPage() {
 
   return (
     <div className="space-y-3">
-      <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 shadow-[0_10px_40px_rgba(0,0,0,0.35)]">
+      <div className="rounded-2xl theme-panel p-4">
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
           <div className="min-w-0">
             <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">
@@ -196,7 +302,7 @@ export default function AdminPlanningPage() {
           <button
             type="button"
             onClick={fetchData}
-            className="inline-flex items-center justify-center rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-[12px] font-semibold text-slate-100 hover:bg-slate-900/50"
+            className="inline-flex items-center justify-center rounded-full border theme-border bg-[var(--panel2)] px-4 py-2 text-[12px] font-semibold theme-text hover:bg-[var(--panel)]"
           >
             Ricarica
           </button>
@@ -208,7 +314,7 @@ export default function AdminPlanningPage() {
             <select
               value={periodType}
               onChange={(e) => setPeriodType(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-[13px] text-slate-100 outline-none"
+              className="mt-1 w-full rounded-xl theme-input px-3 py-2 text-[13px] outline-none"
             >
               <option value="ALL">Tutti</option>
               <option value="DAY">DAY</option>
@@ -221,7 +327,7 @@ export default function AdminPlanningPage() {
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-[13px] text-slate-100 outline-none"
+              className="mt-1 w-full rounded-xl theme-input px-3 py-2 text-[13px] outline-none"
             >
               <option value="ALL">Tutti</option>
               <option value="DRAFT">DRAFT</option>
@@ -236,7 +342,7 @@ export default function AdminPlanningPage() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Cerca plan_id, manager_id, capo_id, operator_id, week/date…"
-              className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-[13px] text-slate-100 placeholder:text-slate-500 outline-none"
+              className="mt-1 w-full rounded-xl theme-input px-3 py-2 text-[13px] placeholder:text-slate-500 outline-none"
             />
           </div>
         </div>
@@ -248,8 +354,8 @@ export default function AdminPlanningPage() {
         ) : null}
       </div>
 
-      <div className="rounded-2xl border border-slate-800 bg-slate-950 overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-800 bg-slate-950/70 flex items-center justify-between">
+      <div className="rounded-2xl theme-panel overflow-hidden">
+        <div className="px-4 py-3 border-b theme-border bg-[var(--panel2)] flex items-center justify-between">
           <div className="text-[12px] text-slate-300">
             {loading ? "Caricamento…" : `${plans.length} piani`}
           </div>
@@ -293,7 +399,7 @@ export default function AdminPlanningPage() {
                   <div className="text-[12px] text-slate-400">
                     Slots: <span className="text-slate-50 font-semibold">{p.slots.length}</span> · Membri:{" "}
                     <span className="text-slate-50 font-semibold">
-                      {p.slots.reduce((sum, s) => sum + (s.members?.length || 0), 0)}
+                      {p.slots.reduce((sum: number, s: SlotAccum) => sum + (s.members?.length || 0), 0)}
                     </span>
                   </div>
                 </div>
@@ -304,8 +410,8 @@ export default function AdminPlanningPage() {
                       Nessuno slot (plan senza capi).
                     </div>
                   ) : (
-                    p.slots.map((s) => (
-                      <div key={s.slot_id} className="rounded-2xl border border-slate-800 bg-slate-950/60 p-3">
+                    p.slots.map((s: SlotAccum) => (
+                      <div key={s.slot_id} className="rounded-2xl border theme-border bg-[var(--panel2)] p-3">
                         <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
                           Slot Capo
                         </div>
@@ -324,10 +430,10 @@ export default function AdminPlanningPage() {
                             <div className="mt-1 text-[12px] text-slate-500">Nessun operatore.</div>
                           ) : (
                             <div className="mt-1 space-y-1">
-                              {s.members.map((m) => (
+                              {s.members.map((m: SlotMember) => (
                                 <div
                                   key={`${s.slot_id}-${m.operator_id}`}
-                                  className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/40 px-2 py-1.5"
+                                  className="flex items-center justify-between rounded-xl border theme-border bg-[var(--panel2)] px-2 py-1.5"
                                 >
                                   <div className="text-[12px] text-slate-200 truncate">
                                     {m.operator_id}

@@ -1,8 +1,9 @@
 // src/admin/AdminPerimetersPage.tsx
-import { useEffect, useMemo, useRef, useState  } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { supabase } from "../lib/supabaseClient";
 import { getInitialLang, t } from "../i18n/coreI18n";
+import { useAdminConsole } from "./AdminConsoleContext";
 
 /**
  * ADMIN · PERIMETRI
@@ -48,10 +49,7 @@ function cn(...parts: Array<string | false | null | undefined>): string {
 }
 
 function cardClass(): string {
-  return cn(
-    "rounded-2xl border border-slate-800 bg-slate-950",
-    "shadow-[0_10px_40px_rgba(0,0,0,0.35)]"
-  );
+  return cn("rounded-2xl theme-panel");
 }
 
 function btnBase(): string {
@@ -64,27 +62,27 @@ function btnBase(): string {
 }
 
 function btnGhost(): string {
-  return cn(btnBase(), "border-slate-700 text-slate-100 bg-slate-950/60 hover:bg-slate-900/50");
+  return cn(btnBase(), "theme-border theme-text bg-[var(--panel2)] hover:bg-[var(--panel)]");
 }
 
 function btnPrimary(): string {
-  return cn(btnBase(), "border-sky-400/55 text-slate-50 bg-slate-950/60 hover:bg-slate-900/50");
+  return cn(btnBase(), "accent-soft");
 }
 
 function inputClass(): string {
   return cn(
-    "w-full rounded-2xl border px-3 py-2.5 text-[13px]",
-    "border-slate-800 bg-slate-950/70 text-slate-50 placeholder:text-slate-500",
+    "w-full rounded-2xl px-3 py-2.5 text-[13px]",
+    "theme-input placeholder:text-slate-500",
     "outline-none focus:ring-2 focus:ring-sky-500/35"
   );
 }
 
 function pill(tone: "sky" | "emerald" | "amber" | "slate"): string {
   const base = "inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-extrabold tracking-[0.16em]";
-  if (tone === "emerald") return cn(base, "border-emerald-400/35 bg-emerald-500/10 text-emerald-100");
-  if (tone === "amber") return cn(base, "border-amber-400/35 bg-amber-500/10 text-amber-100");
-  if (tone === "sky") return cn(base, "border-sky-400/35 bg-sky-500/10 text-sky-100");
-  return cn(base, "border-slate-600/60 bg-slate-900/35 text-slate-200");
+  if (tone === "emerald") return cn(base, "badge-success");
+  if (tone === "amber") return cn(base, "badge-warning");
+  if (tone === "sky") return cn(base, "badge-info");
+  return cn(base, "badge-neutral");
 }
 
 function safeText(v: unknown): string {
@@ -110,7 +108,9 @@ function formatSupabaseError(e: unknown): { short: string; debug: any } {
 }
 
 export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolean }): JSX.Element {
+  void isDark;
   const [lang] = useState<Lang>(() => getInitialLang() as Lang);
+  const { setConfig, resetConfig, registerSearchItems, clearSearchItems, setRecentItems } = useAdminConsole();
 
   const [ships, setShips] = useState<Ship[]>([]);
   const [selectedShipId, setSelectedShipId] = useState<string>("");
@@ -289,6 +289,59 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const searchItems = useMemo(() => {
+    const shipItems = ships.map((s) => ({
+      id: `ship-${s.ship_id}`,
+      entity: "Perimetri",
+      title: `${safeText(s.commessa)} · ${safeText(s.code)}`,
+      subtitle: safeText(s.name) || undefined,
+      route: "/admin/perimetri",
+      tokens: [s.commessa, s.code, s.name, s.costr].filter(Boolean).join(" "),
+    }));
+
+    const perimItems = perimOps.map((o) => ({
+      id: `perim-${o.operator_id}`,
+      entity: "Perimetri",
+      title: o.display_name || "—",
+      subtitle: o.roles.length ? o.roles.join(", ") : undefined,
+      route: "/admin/perimetri",
+      tokens: [o.display_name, o.role_tag, o.roles.join(" ")].filter(Boolean).join(" "),
+      updatedAt: o.created_at || null,
+      badge: o.active ? "ACTIVE" : "OFF",
+      badgeTone: o.active ? "emerald" : "amber",
+    }));
+
+    return [...shipItems, ...perimItems];
+  }, [ships, perimOps]);
+
+  const recent = useMemo(() => {
+    const sorted = [...perimOps].sort((a, b) =>
+      String(b.created_at || "").localeCompare(String(a.created_at || ""))
+    );
+    return sorted.slice(0, 5).map((o) => ({
+      id: o.operator_id,
+      title: o.display_name || "—",
+      subtitle: o.role_tag || "Perimetro",
+      route: "/admin/perimetri",
+      timeLabel: o.created_at || undefined,
+    }));
+  }, [perimOps]);
+
+  useEffect(() => {
+    setConfig({ title: "Perimetri", searchPlaceholder: "Cerca navi, operatori, perimetri…" });
+    return () => resetConfig();
+  }, [setConfig, resetConfig]);
+
+  useEffect(() => {
+    registerSearchItems("Perimetri", searchItems);
+    return () => clearSearchItems("Perimetri");
+  }, [registerSearchItems, clearSearchItems, searchItems]);
+
+  useEffect(() => {
+    setRecentItems(recent);
+    return () => setRecentItems([]);
+  }, [setRecentItems, recent]);
+
   useEffect(() => {
     if (!selectedShipId) return;
     loadPerimeterOperators(selectedShipId);
@@ -383,7 +436,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
   };
 
   return (
-    <div className={cn("min-h-screen", isDark ? "bg-[#050910] text-slate-50" : "bg-white text-slate-900")}>
+    <div className="min-h-screen theme-bg">
       <div className="space-y-4">
         <div className={cardClass() + " p-4"}>
           <div className="flex items-start justify-between gap-3">
@@ -408,7 +461,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
 
           <div className="mt-4 grid grid-cols-1 lg:grid-cols-12 gap-3">
             {/* Left: ship selector */}
-            <div className="lg:col-span-4 rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
+            <div className="lg:col-span-4 rounded-2xl border theme-border bg-[var(--panel2)] p-3">
               <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Nave</div>
 
               <select
@@ -440,7 +493,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
               </div>
 
               {selectedShip ? (
-                <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/60 px-3 py-2">
+                <div className="mt-3 rounded-2xl border theme-border bg-[var(--panel2)] px-3 py-2">
                   <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Dettagli</div>
                   <div className="mt-1 text-[12px] text-slate-300">
                     Commessa:{" "}
@@ -457,7 +510,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
             </div>
 
             {/* Right: add operator */}
-            <div className="lg:col-span-8 rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
+            <div className="lg:col-span-8 rounded-2xl border theme-border bg-[var(--panel2)] p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Perim add op</div>
@@ -486,15 +539,15 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
                   />
 
                   {/* Suggestions */}
-                  <div className="mt-2 rounded-2xl border border-slate-800 bg-slate-950/60 overflow-hidden">
-                    <div className="px-3 py-2 border-b border-slate-800 bg-slate-950/70 text-[11px] text-slate-400">
+                  <div className="mt-2 rounded-2xl border theme-border bg-[var(--panel2)] overflow-hidden">
+                    <div className="px-3 py-2 border-b theme-border bg-[var(--panel2)] text-[11px] theme-text-muted">
                       Suggerimenti ({loadingPool ? "…" : suggestList.length})
                     </div>
                     <div className="max-h-56 overflow-auto">
                       {loadingPool ? (
-                        <div className="px-3 py-4 text-[13px] text-slate-400">Caricamento…</div>
+                        <div className="px-3 py-4 text-[13px] theme-text-muted">Caricamento…</div>
                       ) : suggestList.length === 0 ? (
-                        <div className="px-3 py-4 text-[13px] text-slate-400">Nessun risultato.</div>
+                        <div className="px-3 py-4 text-[13px] theme-text-muted">Nessun risultato.</div>
                       ) : (
                         suggestList.map((o) => {
                           const selected = o.id === selectedOperatorId;
@@ -503,9 +556,9 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
                               key={o.id}
                               type="button"
                               className={cn(
-                                "w-full text-left px-3 py-2 border-b border-slate-800 last:border-b-0",
-                                "hover:bg-slate-900/25",
-                                selected ? "bg-slate-900/30" : "bg-transparent"
+                                "w-full text-left px-3 py-2 border-b theme-border last:border-b-0",
+                                "hover:bg-[var(--panel)]",
+                                selected ? "bg-[var(--panel)]" : "bg-transparent"
                               )}
                               onClick={() => {
                                 setSelectedOperatorId(o.id);
@@ -542,7 +595,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
                     className={cn(inputClass(), "mt-1")}
                   />
 
-                  <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/60 px-3 py-2">
+                  <div className="mt-3 rounded-2xl border theme-border bg-[var(--panel2)] px-3 py-2">
                     <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Selezionato</div>
                     <div className="mt-1 text-[12px] text-slate-200 font-semibold truncate">{selectedOp?.display_name || "—"}</div>
                     <div className="mt-1 text-[11px] text-slate-500 truncate">
@@ -611,19 +664,19 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
             </div>
           </div>
 
-          <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/60 overflow-hidden">
-            <div className="grid grid-cols-12 gap-2 px-3 py-2 border-b border-slate-800 bg-slate-950/70 text-[11px] text-slate-400">
+        <div className="mt-3 rounded-2xl border theme-border bg-[var(--panel2)] overflow-hidden">
+          <div className="grid grid-cols-12 gap-2 px-3 py-2 border-b theme-border bg-[var(--panel2)] text-[11px] theme-text-muted">
               <div className="col-span-5 text-slate-200">Nome</div>
               <div className="col-span-3 text-slate-200">Ruoli</div>
               <div className="col-span-2 text-slate-200">Perim Status</div>
               <div className="col-span-2 text-right text-slate-200">Actions</div>
             </div>
 
-            <div className="divide-y divide-slate-800">
+            <div className="divide-y theme-border">
               {loadingPerimOps ? (
-                <div className="px-3 py-4 text-[13px] text-slate-400">Caricamento…</div>
+                <div className="px-3 py-4 text-[13px] theme-text-muted">Caricamento…</div>
               ) : perimOps.length === 0 ? (
-                <div className="px-3 py-4 text-[13px] text-slate-400">Nessun operatore nel perimetro.</div>
+                <div className="px-3 py-4 text-[13px] theme-text-muted">Nessun operatore nel perimetro.</div>
               ) : (
                 perimOps.map((o) => (
                   <div key={o.operator_id} className="px-3 py-2">

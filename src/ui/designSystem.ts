@@ -12,11 +12,24 @@ export type IconTone = "neutral" | "sky" | "emerald";
 export function getInitialTheme(): "dark" | "light" {
   if (typeof window === "undefined") return "dark";
   try {
+    const rootTheme = document.documentElement.getAttribute("data-theme");
+    if (rootTheme === "dark" || rootTheme === "light") return rootTheme;
+
     const stored = window.localStorage.getItem("core-theme");
     if (stored === "dark" || stored === "light") return stored;
+    if (stored === "auto") {
+      return window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+    }
 
-    if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-      return "dark";
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (parsed && (parsed.theme === "dark" || parsed.theme === "light")) {
+        return parsed.mode === "manual"
+          ? parsed.theme
+          : window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches
+          ? "light"
+          : "dark";
+      }
     }
   } catch {
     // ignore

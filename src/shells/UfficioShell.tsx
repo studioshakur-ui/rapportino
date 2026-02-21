@@ -7,41 +7,16 @@ import ConnectionIndicator from "../components/ConnectionIndicator";
 import CNCSSidebar from "../components/shell/CNCSSidebar";
 import CNCSTopbar from "../components/shell/CNCSTopbar";
 import { KeepAliveOutlet } from "../utils/KeepAliveOutlet";
-
-
-type ThemeMode = "dark" | "light";
-
-function getInitialTheme(): ThemeMode {
-  if (typeof window === "undefined") return "dark";
-  try {
-    const stored = window.localStorage.getItem("core-theme");
-    if (stored === "dark" || stored === "light") return stored;
-    if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-      return "dark";
-    }
-  } catch {
-    // ignore
-  }
-  return "dark";
-}
+import ThemeSwitcher from "../components/ThemeSwitcher";
+import { useTheme } from "../hooks/useTheme";
 
 export default function UfficioShell(): JSX.Element {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
-  const isDark = theme === "dark";
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem("core-theme", theme);
-    } catch {
-      // ignore
-    }
-  }, [theme]);
-
-  const toggleTheme = () => setTheme((c) => (c === "dark" ? "light" : "dark"));
+  const { effective } = useTheme();
+  const isDark = effective === "dark";
 
   const [sidebarPeek, setSidebarPeek] = useState<boolean>(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
@@ -96,20 +71,14 @@ export default function UfficioShell(): JSX.Element {
 
   if (!profile) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-400">
+      <div className="min-h-screen flex items-center justify-center theme-bg">
         Caricamento profilo…
       </div>
     );
   }
 
   return (
-    <div
-      className={
-        isDark
-          ? "min-h-screen bg-[#050910] text-slate-100"
-          : "min-h-screen bg-slate-50 text-slate-900"
-      }
-    >
+    <div className="min-h-screen theme-bg theme-scope">
       <div className="flex">
         {/* SIDEBAR (CNCS unified) */}
         <CNCSSidebar
@@ -151,31 +120,13 @@ export default function UfficioShell(): JSX.Element {
                   <ConnectionIndicator compact />
                 </div>
 
-                <button
-                  type="button"
-                  onClick={toggleTheme}
-                  className={[
-                    "inline-flex items-center justify-center",
-                    "h-9 w-9 rounded-full border transition-colors",
-                    isDark
-                      ? "border-slate-800 bg-slate-950/20 hover:bg-slate-900/35"
-                      : "border-slate-200 bg-white hover:bg-slate-50",
-                  ].join(" ")}
-                  aria-label="Tema"
-                  title="Tema"
-                >
-                  <span className="h-5 w-5 grid place-items-center text-[10px]">
-                    {isDark ? "🌑" : "☀️"}
-                  </span>
-                </button>
+                <ThemeSwitcher />
 
                 <span
                   className={[
                     "hidden sm:inline-flex max-w-[220px] truncate",
                     "rounded-full border px-3 py-2 text-[11px] uppercase tracking-[0.18em]",
-                    isDark
-                      ? "border-slate-800 bg-slate-950/20 text-slate-200"
-                      : "border-slate-200 bg-white text-slate-800",
+                    "theme-border bg-[var(--panel2)] theme-text",
                   ].join(" ")}
                   title={displayName}
                 >
@@ -185,7 +136,7 @@ export default function UfficioShell(): JSX.Element {
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="inline-flex items-center gap-2 rounded-full border border-rose-500/40 bg-rose-950/20 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-rose-200 hover:bg-rose-900/25 transition"
+                  className="inline-flex items-center gap-2 rounded-full border border-rose-500/40 bg-[var(--panel2)] px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-rose-200 hover:bg-rose-900/25 transition"
                   title="Logout"
                   aria-label="Logout"
                 >
@@ -197,7 +148,7 @@ export default function UfficioShell(): JSX.Element {
           />
 
           <div className="max-w-6xl mx-auto space-y-4 pt-4">
-            <div className="border rounded-2xl overflow-hidden border-slate-800 bg-[#050910]">
+            <div className="border rounded-2xl overflow-hidden theme-border bg-[var(--panel)]">
               <KeepAliveOutlet scopeKey="ufficio" />
             </div>
           </div>

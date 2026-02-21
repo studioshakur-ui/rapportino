@@ -1,6 +1,7 @@
 // src/admin/AdminCatalogoPage.tsx
-import { useEffect, useMemo, useState  } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { useAdminConsole, type AdminSearchItem } from "./AdminConsoleContext";
 
 type ActivityType = "QUANTITATIVE" | "FORFAIT" | "QUALITATIVE";
 type ActivityUnit = "MT" | "MQ" | "PZ" | "COEFF" | "NONE";
@@ -81,6 +82,7 @@ function parseNumOrNull(v: unknown): number | null {
 const UNIT_OPTIONS: ActivityUnit[] = ["MT", "MQ", "PZ", "COEFF", "NONE"];
 
 export default function AdminCatalogoPage(): JSX.Element {
+  const { setConfig, resetConfig, registerSearchItems, clearSearchItems, setRecentItems } = useAdminConsole();
   const [loading, setLoading] = useState<boolean>(true);
   const [savingKey, setSavingKey] = useState<string>(""); // `${activity_id}`
   const [err, setErr] = useState<string>("");
@@ -185,6 +187,50 @@ export default function AdminCatalogoPage(): JSX.Element {
   useEffect(() => {
     loadAll();
   }, []);
+
+  const searchItems = useMemo<AdminSearchItem[]>(() => {
+    return globalActs.map((a) => ({
+      id: String(a.id),
+      entity: "Catalogo",
+      title: safeText(a.descrizione) || "—",
+      subtitle: safeText(a.categoria) || undefined,
+      route: "/admin/catalogo",
+      tokens: [a.categoria, a.descrizione, ...(Array.isArray(a.synonyms) ? a.synonyms : [])]
+        .filter(Boolean)
+        .join(" "),
+      updatedAt: a.updated_at || a.created_at || null,
+      badge: a.is_active ? "ACTIVE" : "OFF",
+      badgeTone: a.is_active ? "emerald" : "slate",
+    }));
+  }, [globalActs]);
+
+  const recent = useMemo(() => {
+    const sorted = [...globalActs].sort((a, b) =>
+      String(b.updated_at || b.created_at || "").localeCompare(String(a.updated_at || a.created_at || ""))
+    );
+    return sorted.slice(0, 5).map((a) => ({
+      id: String(a.id),
+      title: safeText(a.descrizione) || "—",
+      subtitle: safeText(a.categoria) || undefined,
+      route: "/admin/catalogo",
+      timeLabel: a.updated_at || a.created_at || undefined,
+    }));
+  }, [globalActs]);
+
+  useEffect(() => {
+    setConfig({ title: "Catalogo", searchPlaceholder: "Cerca attività, categorie, sinonimi…" });
+    return () => resetConfig();
+  }, [setConfig, resetConfig]);
+
+  useEffect(() => {
+    registerSearchItems("Catalogo", searchItems);
+    return () => clearSearchItems("Catalogo");
+  }, [registerSearchItems, clearSearchItems, searchItems]);
+
+  useEffect(() => {
+    setRecentItems(recent);
+    return () => setRecentItems([]);
+  }, [setRecentItems, recent]);
 
   useEffect(() => {
     loadScope(shipId, commessa);
@@ -318,15 +364,15 @@ export default function AdminCatalogoPage(): JSX.Element {
 
   if (loading) {
     return (
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/20 p-4">
-        <div className="text-[12px] text-slate-400">Caricamento…</div>
+      <div className="rounded-2xl theme-panel-2 p-4">
+        <div className="text-[12px] theme-text-muted">Caricamento…</div>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/20 p-4">
+      <div className="rounded-2xl theme-panel-2 p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Catalogo · Ship + Commessa</div>
@@ -340,7 +386,7 @@ export default function AdminCatalogoPage(): JSX.Element {
           <button
             type="button"
             onClick={loadAll}
-            className="rounded-full border border-slate-800 bg-slate-950/30 px-3 py-2 text-[12px] font-semibold text-slate-100 hover:bg-slate-900/35"
+            className="rounded-full border theme-border bg-[var(--panel2)] px-3 py-2 text-[12px] font-semibold theme-text hover:bg-[var(--panel)]"
           >
             Ricarica
           </button>
@@ -353,9 +399,8 @@ export default function AdminCatalogoPage(): JSX.Element {
               value={shipId}
               onChange={(e) => setShipId(e.target.value)}
               className={cn(
-                "w-full rounded-2xl border",
-                "border-slate-800 bg-slate-950/60",
-                "px-3 py-3 text-[13px] text-slate-50",
+                "w-full rounded-2xl border theme-border bg-[var(--panel2)]",
+                "px-3 py-3 text-[13px] theme-text",
                 "outline-none focus:ring-2 focus:ring-sky-500/35"
               )}
             >
@@ -391,9 +436,8 @@ export default function AdminCatalogoPage(): JSX.Element {
               onChange={(e) => setCommessa(e.target.value)}
               placeholder="Es: SDC"
               className={cn(
-                "w-full rounded-2xl border",
-                "border-slate-800 bg-slate-950/60",
-                "px-3 py-3 text-[13px] text-slate-50",
+                "w-full rounded-2xl border theme-border bg-[var(--panel2)]",
+                "px-3 py-3 text-[13px] theme-text",
                 "placeholder:text-slate-500",
                 "outline-none focus:ring-2 focus:ring-sky-500/35"
               )}
@@ -411,8 +455,8 @@ export default function AdminCatalogoPage(): JSX.Element {
               className={cn(
                 "w-full rounded-2xl border px-3 py-3 text-[13px] font-semibold",
                 canScope
-                  ? "border-slate-700 bg-slate-950/40 text-slate-50 hover:bg-slate-900/40"
-                  : "border-slate-800 bg-slate-950/20 text-slate-500 cursor-not-allowed"
+                  ? "theme-border bg-[var(--panel2)] theme-text hover:bg-[var(--panel)]"
+                  : "theme-border bg-[var(--panel2)] theme-text-muted cursor-not-allowed"
               )}
             >
               Carica scope
@@ -421,13 +465,13 @@ export default function AdminCatalogoPage(): JSX.Element {
         </div>
 
         {err ? (
-          <div className="mt-3 rounded-2xl border border-rose-900/50 bg-rose-950/20 px-3 py-2 text-[12px] text-rose-200">
+          <div className="mt-3 rounded-2xl border border-rose-400/40 bg-[var(--panel2)] px-3 py-2 text-[12px] text-rose-200">
             {err}
           </div>
         ) : null}
       </div>
 
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/20 p-4">
+      <div className="rounded-2xl theme-panel-2 p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex-1">
             <div className="text-[11px] uppercase tracking-[0.20em] text-slate-500 mb-2">Filtro</div>
@@ -436,9 +480,8 @@ export default function AdminCatalogoPage(): JSX.Element {
               onChange={(e) => setQ(e.target.value)}
               placeholder="Cerca categoria / descrizione / sinonimi…"
               className={cn(
-                "w-full rounded-2xl border",
-                "border-slate-800 bg-slate-950/60",
-                "px-3 py-3 text-[13px] text-slate-50",
+                "w-full rounded-2xl border theme-border bg-[var(--panel2)]",
+                "px-3 py-3 text-[13px] theme-text",
                 "placeholder:text-slate-500",
                 "outline-none focus:ring-2 focus:ring-sky-500/35"
               )}
@@ -468,10 +511,10 @@ export default function AdminCatalogoPage(): JSX.Element {
           </div>
         </div>
 
-        <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-800">
+        <div className="mt-4 overflow-x-auto rounded-2xl border theme-border">
           <table className="min-w-[1100px] w-full text-left">
-            <thead className="bg-slate-950/40">
-              <tr className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+            <thead className="theme-table-head">
+              <tr className="text-[11px] uppercase tracking-[0.18em]">
                 <th className="px-3 py-3">Categoria</th>
                 <th className="px-3 py-3">Attività</th>
                 <th className="px-3 py-3">Stato</th>
@@ -482,7 +525,7 @@ export default function AdminCatalogoPage(): JSX.Element {
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-slate-900/60">
+            <tbody className="divide-y theme-border">
               {filtered.map((a) => {
                 const aid = String(a.id);
                 const scoped = scopeByActivityId.get(aid) || null;
@@ -524,8 +567,7 @@ export default function AdminCatalogoPage(): JSX.Element {
                         onChange={(e) => setDraftFor(aid, { previsto_value: parseNumOrNull(e.target.value) })}
                         disabled={rowDisabled}
                         className={cn(
-                          "w-[120px] rounded-xl border px-2 py-2 text-[13px] outline-none",
-                          "border-slate-800 bg-slate-950/60 text-slate-50",
+                          "w-[120px] rounded-xl px-2 py-2 text-[13px] outline-none theme-input",
                           "focus:ring-2 focus:ring-sky-500/35",
                           rowDisabled ? "cursor-not-allowed" : ""
                         )}
@@ -536,7 +578,7 @@ export default function AdminCatalogoPage(): JSX.Element {
                         disabled={rowDisabled}
                         className={cn(
                           "ml-2 rounded-xl border px-2 py-2 text-[12px] font-semibold",
-                          "border-slate-800 bg-slate-950/30 text-slate-200 hover:bg-slate-900/35",
+                          "theme-border bg-[var(--panel2)] theme-text hover:bg-[var(--panel)]",
                           rowDisabled ? "cursor-not-allowed" : ""
                         )}
                       >
@@ -550,8 +592,7 @@ export default function AdminCatalogoPage(): JSX.Element {
                         onChange={(e) => setDraftFor(aid, { unit_override: (e.target.value as ActivityUnit) || "" })}
                         disabled={rowDisabled}
                         className={cn(
-                          "w-[140px] rounded-xl border px-2 py-2 text-[13px] outline-none",
-                          "border-slate-800 bg-slate-950/60 text-slate-50",
+                          "w-[140px] rounded-xl px-2 py-2 text-[13px] outline-none theme-input",
                           "focus:ring-2 focus:ring-sky-500/35",
                           rowDisabled ? "cursor-not-allowed" : ""
                         )}
@@ -570,7 +611,7 @@ export default function AdminCatalogoPage(): JSX.Element {
                         disabled={rowDisabled}
                         className={cn(
                           "ml-2 rounded-xl border px-2 py-2 text-[12px] font-semibold",
-                          "border-slate-800 bg-slate-950/30 text-slate-200 hover:bg-slate-900/35",
+                          "theme-border bg-[var(--panel2)] theme-text hover:bg-[var(--panel)]",
                           rowDisabled ? "cursor-not-allowed" : ""
                         )}
                       >
@@ -587,8 +628,7 @@ export default function AdminCatalogoPage(): JSX.Element {
                         disabled={rowDisabled}
                         placeholder="Nota…"
                         className={cn(
-                          "w-[260px] rounded-xl border px-2 py-2 text-[13px] outline-none",
-                          "border-slate-800 bg-slate-950/60 text-slate-50 placeholder:text-slate-600",
+                          "w-[260px] rounded-xl px-2 py-2 text-[13px] outline-none theme-input placeholder:text-slate-600",
                           "focus:ring-2 focus:ring-sky-500/35",
                           rowDisabled ? "cursor-not-allowed" : ""
                         )}
@@ -602,7 +642,7 @@ export default function AdminCatalogoPage(): JSX.Element {
                         disabled={rowDisabled || savingKey === aid}
                         className={cn(
                           "rounded-xl border px-3 py-2 text-[12px] font-semibold",
-                          "border-slate-700 bg-slate-950/40 text-slate-50 hover:bg-slate-900/40",
+                          "theme-border bg-[var(--panel2)] theme-text hover:bg-[var(--panel)]",
                           rowDisabled || savingKey === aid ? "cursor-not-allowed opacity-60" : ""
                         )}
                       >
@@ -615,7 +655,7 @@ export default function AdminCatalogoPage(): JSX.Element {
                         disabled={rowDisabled || savingKey === aid}
                         className={cn(
                           "ml-2 rounded-xl border px-3 py-2 text-[12px] font-semibold",
-                          "border-slate-800 bg-slate-950/20 text-slate-200 hover:bg-slate-900/30",
+                          "theme-border bg-[var(--panel2)] theme-text hover:bg-[var(--panel)]",
                           rowDisabled || savingKey === aid ? "cursor-not-allowed opacity-60" : ""
                         )}
                       >

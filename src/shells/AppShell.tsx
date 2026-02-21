@@ -1,5 +1,5 @@
 // src/shells/AppShell.tsx
-import { useEffect, useMemo, useState  } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthProvider";
@@ -12,9 +12,11 @@ import ConnectionIndicator from "../components/ConnectionIndicator";
 import CNCSSidebar from "../components/shell/CNCSSidebar";
 import CNCSTopbar from "../components/shell/CNCSTopbar";
 import LangSwitcher from "../components/shell/LangSwitcher";
+import ThemeSwitcher from "../components/ThemeSwitcher";
 
 import { useI18n } from "../i18n/I18nProvider";
 import { formatDisplayName } from "../utils/formatHuman";
+import { useTheme } from "../hooks/useTheme";
 
 // CAPO
 import CapoTodayOperatorsPanel from "../capo/CapoTodayOperatorsPanel";
@@ -75,8 +77,9 @@ export default function AppShell(): JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useI18n();
+  const { effective } = useTheme();
 
-  const isDark = true;
+  const isDark = effective === "dark";
   const isMobile = useIsMobile(768);
 
   const pathname = location.pathname || "";
@@ -285,7 +288,7 @@ export default function AppShell(): JSX.Element {
 
   if (!profile) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-400">
+      <div className="min-h-screen flex items-center justify-center theme-bg">
         {t("APP_LOADING_PROFILE")}
       </div>
     );
@@ -357,7 +360,7 @@ export default function AppShell(): JSX.Element {
         }}
       />
 
-      <div className="min-h-screen bg-[#050910] text-slate-100 overflow-x-hidden">
+      <div className="min-h-screen theme-bg theme-scope overflow-x-hidden">
         <div className="flex min-h-screen">
           {!isMobile && (
             <CNCSSidebar
@@ -398,7 +401,7 @@ export default function AppShell(): JSX.Element {
                         onClick={() => setMobileNavOpen(true)}
                         className={[
                           "inline-flex items-center justify-center rounded-xl border px-3 py-2",
-                          "border-slate-800 bg-[#050910]/60 text-slate-200",
+                          "theme-border bg-[var(--panel2)] theme-text",
                           "hover:bg-slate-900/40 transition",
                           "text-xs font-semibold tracking-[0.18em] uppercase",
                         ].join(" ")}
@@ -417,11 +420,12 @@ export default function AppShell(): JSX.Element {
                     <div className="hidden sm:block">
                       <LangSwitcher compact />
                     </div>
+                    <ThemeSwitcher />
 
                     <span
                       className={[
                         "inline-flex items-center gap-2 rounded-xl border px-3 py-2",
-                        "border-slate-800 bg-[#050910]/60 text-slate-200",
+                        "theme-border bg-[var(--panel2)] theme-text",
                         "normal-case tracking-normal text-sm font-medium",
                         "max-w-[220px] truncate",
                       ].join(" ")}
@@ -435,7 +439,7 @@ export default function AppShell(): JSX.Element {
                       onClick={handleLogout}
                       className={[
                         "inline-flex items-center gap-2 rounded-xl border px-3 py-2",
-                        "border-rose-900/50 bg-[#050910]/60 text-rose-200",
+                        "border-rose-500/40 bg-[var(--panel2)] text-rose-200",
                         "hover:bg-rose-900/25 transition",
                         "text-xs font-semibold tracking-[0.18em] uppercase",
                       ].join(" ")}
@@ -479,7 +483,7 @@ export default function AppShell(): JSX.Element {
             <div
               className={[
                 "absolute left-0 top-0 h-full w-[86%] max-w-[360px]",
-                "bg-[#050910] border-r border-slate-800",
+                "bg-[var(--panel)] border-r theme-border",
                 "p-4 flex flex-col gap-4",
               ].join(" ")}
               role="dialog"
@@ -494,7 +498,7 @@ export default function AppShell(): JSX.Element {
                 <button
                   type="button"
                   onClick={() => setMobileNavOpen(false)}
-                  className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-slate-200"
+                  className="rounded-xl border theme-border bg-[var(--panel2)] theme-text px-3 py-2"
                   aria-label="Close"
                   title="Close"
                 >
@@ -504,15 +508,15 @@ export default function AppShell(): JSX.Element {
 
               <div className="space-y-2">
                 {navItems.map((it) => (
-                  <Link
-                    key={it.to}
-                    to={it.to}
-                    className={[
-                      "block rounded-2xl border px-4 py-3",
-                      "border-slate-800 bg-slate-950/40 hover:bg-slate-900/40 transition",
-                      "text-slate-100",
-                    ].join(" ")}
-                  >
+                    <Link
+                      key={it.to}
+                      to={it.to}
+                      className={[
+                        "block rounded-2xl border px-4 py-3",
+                        "theme-border bg-[var(--panel2)] hover:bg-[var(--panel)] transition",
+                        "theme-text",
+                      ].join(" ")}
+                    >
                     <div className="flex items-center justify-between">
                       <span className="font-semibold">{it.label}</span>
                       <span className={["text-xs", it.colorClass].join(" ")}>●</span>
@@ -521,7 +525,7 @@ export default function AppShell(): JSX.Element {
                 ))}
               </div>
 
-              <div className="mt-2 rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
+              <div className="mt-2 rounded-2xl border theme-border bg-[var(--panel2)] p-3">
                 <CapoTodayOperatorsPanel
                   mode="expanded"
                   onOperatorDragStart={() => setOpDropToken((v: number) => v + 1)}
@@ -534,7 +538,7 @@ export default function AppShell(): JSX.Element {
                   onClick={handleLogout}
                   className={[
                     "w-full inline-flex items-center justify-center gap-2 rounded-xl border px-3 py-3",
-                    "border-rose-900/50 bg-[#050910]/60 text-rose-200",
+                    "border-rose-500/40 bg-[var(--panel2)] text-rose-200",
                     "hover:bg-rose-900/25 transition",
                     "text-xs font-semibold tracking-[0.18em] uppercase",
                   ].join(" ")}

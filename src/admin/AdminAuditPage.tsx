@@ -1,18 +1,16 @@
-// src/admin/AdminAuditPage.jsx
-import React, { useEffect, useMemo, useState } from "react";
+// src/admin/AdminAuditPage.tsx
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { useAdminConsole } from "./AdminConsoleContext";
 
-function cn(...p) {
-  return p.filter(Boolean).join(" ");
-}
+export default function AdminAuditPage(): JSX.Element {
+  const { setConfig, resetConfig, registerSearchItems, clearSearchItems, setRecentItems } = useAdminConsole();
+  const [loading, setLoading] = useState<boolean>(true);
+  const [err, setErr] = useState<string>("");
+  const [rows, setRows] = useState<any[]>([]);
+  const [q, setQ] = useState<string>("");
 
-export default function AdminAuditPage() {
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState("");
-  const [rows, setRows] = useState([]);
-  const [q, setQ] = useState("");
-
-  const load = async () => {
+  const load = async (): Promise<void> => {
     setLoading(true);
     setErr("");
     try {
@@ -84,9 +82,68 @@ export default function AdminAuditPage() {
     });
   }, [rows, q]);
 
+  const searchItems = useMemo(() => {
+    return filtered.map((r) => {
+      const actor = r.actor || {};
+      const actorLabel = actor.display_name || actor.full_name || actor.email || r.actor_id || "—";
+      return {
+        id: String(r.id),
+        entity: "Audit planning",
+        title: r.action || "—",
+        subtitle: `${actorLabel} · ${r.target_type || "—"}`,
+        route: "/admin/audit",
+        tokens: [
+          r.id,
+          r.plan_id,
+          r.actor_id,
+          actor.display_name,
+          actor.full_name,
+          actor.email,
+          actor.app_role,
+          r.action,
+          r.target_type,
+          r.target_id,
+          JSON.stringify(r.payload || {}),
+        ]
+          .filter(Boolean)
+          .join(" "),
+        updatedAt: r.created_at || null,
+      };
+    });
+  }, [filtered]);
+
+  const recent = useMemo(() => {
+    return rows.slice(0, 5).map((r) => {
+      const actor = r.actor || {};
+      const actorLabel = actor.display_name || actor.full_name || actor.email || r.actor_id || "—";
+      return {
+        id: String(r.id),
+        title: r.action || "—",
+        subtitle: actorLabel,
+        route: "/admin/audit",
+        timeLabel: r.created_at || undefined,
+      };
+    });
+  }, [rows]);
+
+  useEffect(() => {
+    setConfig({ title: "Audit planning", searchPlaceholder: "Cerca azioni, attori, plan_id…" });
+    return () => resetConfig();
+  }, [setConfig, resetConfig]);
+
+  useEffect(() => {
+    registerSearchItems("Audit planning", searchItems);
+    return () => clearSearchItems("Audit planning");
+  }, [registerSearchItems, clearSearchItems, searchItems]);
+
+  useEffect(() => {
+    setRecentItems(recent);
+    return () => setRecentItems([]);
+  }, [setRecentItems, recent]);
+
   return (
     <div className="space-y-3">
-      <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 shadow-[0_10px_40px_rgba(0,0,0,0.35)]">
+      <div className="rounded-2xl theme-panel p-4">
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
           <div className="min-w-0">
             <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">
@@ -103,7 +160,7 @@ export default function AdminAuditPage() {
           <button
             type="button"
             onClick={load}
-            className="inline-flex items-center justify-center rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-[12px] font-semibold text-slate-100 hover:bg-slate-900/50"
+            className="inline-flex items-center justify-center rounded-full border theme-border bg-[var(--panel2)] px-4 py-2 text-[12px] font-semibold theme-text hover:bg-[var(--panel)]"
           >
             Ricarica
           </button>
@@ -115,7 +172,7 @@ export default function AdminAuditPage() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Cerca action, actor, plan_id, payload…"
-            className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-[13px] text-slate-100 placeholder:text-slate-500 outline-none"
+            className="mt-1 w-full rounded-xl theme-input px-3 py-2 text-[13px] placeholder:text-slate-500 outline-none"
           />
         </div>
 
@@ -126,8 +183,8 @@ export default function AdminAuditPage() {
         ) : null}
       </div>
 
-      <div className="rounded-2xl border border-slate-800 bg-slate-950 overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-800 bg-slate-950/70 flex items-center justify-between">
+      <div className="rounded-2xl theme-panel overflow-hidden">
+        <div className="px-4 py-3 border-b theme-border bg-[var(--panel2)] flex items-center justify-between">
           <div className="text-[12px] text-slate-300">
             {loading ? "Caricamento…" : `${filtered.length} eventi`}
           </div>
@@ -181,7 +238,7 @@ export default function AdminAuditPage() {
                     </div>
                   </div>
 
-                  <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/60 p-3">
+                  <div className="mt-3 rounded-2xl border theme-border bg-[var(--panel2)] p-3">
                     <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
                       Payload
                     </div>

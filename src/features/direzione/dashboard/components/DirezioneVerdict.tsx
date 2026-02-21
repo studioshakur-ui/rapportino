@@ -6,11 +6,18 @@ export type DirezioneVerdictTone = "OK" | "WARN" | "BLOCK";
 export type DirezioneVerdictModel = {
   tone?: DirezioneVerdictTone;
   score?: number | null;
+  scoreFormatted?: string;
+  scoreFormula?: string | null;
+  scoreInclusion?: string | null;
+  scoreStats?: string | null;
 
   // Inputs métier (ex: indice prod, inca coverage, ritardi capi)
   indiceProd?: number | null;
   incaCoverage?: number | null; // 0..1
   ritardiCapi?: number | null;
+
+  reliability?: "HIGH" | "MEDIUM" | "LOW";
+  missingMetrics?: string[] | null;
 
   // Free-form reasons/insights (si tu as déjà un moteur)
   reasons?: string[] | null;
@@ -59,7 +66,7 @@ export default function DirezioneVerdict({ isDark = true, model, t }: DirezioneV
 
   const verdictTitle = useMemo(() => t("DIR_VERDICT_TITLE", "Verdetto cantiere"), [t]);
   const verdictSub = useMemo(
-    () => t("DIR_VERDICT_SUB", "Sintesi decisionale (validated / audit-defensible)."),
+    () => t("DIR_VERDICT_SUB", "Sintesi executive e audit‑ready sullo stato del cantiere."),
     [t]
   );
 
@@ -67,6 +74,13 @@ export default function DirezioneVerdict({ isDark = true, model, t }: DirezioneV
   const insightsTitle = useMemo(() => t("DIR_INSIGHTS_TITLE", "Approfondimenti"), [t]);
 
   const scoreLabel = useMemo(() => t("DIR_SCORE", "Punteggio"), [t]);
+  const reliabilityLabel = useMemo(() => t("DIR_RELIABILITY", "Affidabilità"), [t]);
+  const reliabilityValue = useMemo(() => {
+    if (m.reliability === "HIGH") return t("DIR_RELIABILITY_HIGH", "Alta");
+    if (m.reliability === "LOW") return t("DIR_RELIABILITY_LOW", "Bassa");
+    return t("DIR_RELIABILITY_MEDIUM", "Media");
+  }, [m.reliability, t]);
+  const missingLabel = useMemo(() => t("DIR_DATA_INCOMPLETE", "Dati incompleti"), [t]);
 
   const computedReasons = useMemo(() => {
     if (Array.isArray(m.reasons) && m.reasons.length) return m.reasons;
@@ -134,6 +148,11 @@ export default function DirezioneVerdict({ isDark = true, model, t }: DirezioneV
                 {verdictTitle}
               </div>
               <div className={["mt-1 text-sm", isDark ? "text-slate-200" : "text-slate-900"].join(" ")}>{verdictSub}</div>
+              {m.missingMetrics && m.missingMetrics.length ? (
+                <div className={["mt-2 text-[11px]", isDark ? "text-amber-300" : "text-amber-700"].join(" ")}>
+                  {missingLabel}
+                </div>
+              ) : null}
             </div>
 
             <div className="flex items-center gap-3 shrink-0">
@@ -146,7 +165,31 @@ export default function DirezioneVerdict({ isDark = true, model, t }: DirezioneV
                   {scoreLabel}
                 </div>
                 <div className={["mt-1 text-2xl font-semibold", isDark ? "text-slate-50" : "text-slate-900"].join(" ")}>
-                  {score == null ? "—" : String(score)}
+                  {m.scoreFormatted ?? (score == null ? "—" : String(score))}
+                </div>
+                {m.scoreFormula ? (
+                  <div className={["mt-1 text-[11px]", isDark ? "text-slate-400" : "text-slate-600"].join(" ")}>
+                    {m.scoreFormula}
+                  </div>
+                ) : null}
+                {m.scoreInclusion ? (
+                  <div className={["mt-1 text-[11px]", isDark ? "text-slate-400" : "text-slate-600"].join(" ")}>
+                    {m.scoreInclusion}
+                  </div>
+                ) : null}
+                {m.scoreStats ? (
+                  <div className={["mt-1 text-[11px]", isDark ? "text-slate-400" : "text-slate-600"].join(" ")}>
+                    {m.scoreStats}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className={["rounded-2xl border px-4 py-3", isDark ? "border-slate-800/70 bg-slate-950/30" : "border-slate-200 bg-white"].join(" ")}>
+                <div className={["text-[11px] uppercase tracking-[0.18em]", isDark ? "text-slate-500" : "text-slate-600"].join(" ")}>
+                  {reliabilityLabel}
+                </div>
+                <div className={["mt-1 text-sm font-semibold", isDark ? "text-slate-200" : "text-slate-900"].join(" ")}>
+                  {reliabilityValue}
                 </div>
               </div>
             </div>

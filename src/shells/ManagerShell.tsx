@@ -8,10 +8,12 @@ import CNCSSidebar from "../components/shell/CNCSSidebar";
 import CNCSTopbar from "../components/shell/CNCSTopbar";
 import LangSwitcher from "../components/shell/LangSwitcher";
 import { KeepAliveOutlet } from "../utils/KeepAliveOutlet";
+import ThemeSwitcher from "../components/ThemeSwitcher";
 
 
 import { useI18n } from "../i18n/I18nProvider";
 import { formatDisplayName } from "../utils/formatHuman";
+import { useTheme } from "../hooks/useTheme";
 
 function cn(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
@@ -31,7 +33,8 @@ export default function ManagerShell() {
     t: (key: string) => string;
   };
 
-  const isDark = true;
+  const { effective } = useTheme();
+  const isDark = effective === "dark";
 
   const displayName = useMemo((): string => {
     return formatDisplayName(profile, "Manager");
@@ -60,14 +63,14 @@ export default function ManagerShell() {
 
   if (!profile) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-400">
+      <div className="min-h-screen flex items-center justify-center theme-bg">
         {t("APP_LOADING_PROFILE")}
       </div>
     );
   }
 
   return (
-    <div className={cn("min-h-screen", "bg-[#050910] text-slate-100")}>
+    <div className={cn("min-h-screen", "theme-bg", "theme-scope")}>
       <div className="flex">
         <CNCSSidebar
           isDark={isDark}
@@ -126,12 +129,13 @@ export default function ManagerShell() {
                 <div className="hidden sm:block">
                   <LangSwitcher compact />
                 </div>
+                <ThemeSwitcher />
 
                 {/* ✅ Human name: NEVER uppercase */}
                 <span
                   className={[
                     "px-3 py-1.5 rounded-full border text-[11px]",
-                    "border-slate-800 bg-slate-950/20 text-slate-200",
+                    "theme-border bg-[var(--panel2)] theme-text",
                     "normal-case tracking-normal",
                     "max-w-[220px] truncate",
                   ].join(" ")}
@@ -142,7 +146,7 @@ export default function ManagerShell() {
 
                 <button
                   onClick={handleLogout}
-                  className="ml-2 px-3 py-1.5 rounded-full border border-rose-500/60 bg-rose-950/15 text-rose-200 text-[11px] uppercase tracking-[0.18em]"
+                  className="ml-2 px-3 py-1.5 rounded-full border border-rose-500/60 bg-[var(--panel2)] text-rose-200 text-[11px] uppercase tracking-[0.18em]"
                   title={t("LOGOUT")}
                   aria-label={t("LOGOUT")}
                 >
@@ -153,7 +157,7 @@ export default function ManagerShell() {
           />
 
           <div className="max-w-6xl mx-auto pt-4">
-            <div className="border rounded-2xl border-slate-800 bg-[#050910]">
+            <div className="border rounded-2xl theme-border bg-[var(--panel)]">
               <KeepAliveOutlet scopeKey="manager" context={{ lang }} />
 
             </div>

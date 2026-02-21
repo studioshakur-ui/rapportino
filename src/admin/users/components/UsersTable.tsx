@@ -14,32 +14,40 @@ export default function UsersTable(props: {
 }) {
   const { rows, loading, canSuspend, selectedUserId, onSelect, onAction } = props;
 
+  const daysSince = (iso?: string | null): number | null => {
+    if (!iso) return null;
+    const t = new Date(iso).getTime();
+    if (Number.isNaN(t)) return null;
+    const diffMs = Date.now() - t;
+    return diffMs > 0 ? Math.floor(diffMs / (1000 * 60 * 60 * 24)) : 0;
+  };
+
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-950/40 overflow-hidden">
-      <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+    <div className="rounded-2xl theme-table overflow-hidden">
+      <div className="px-4 py-3 border-b theme-border flex items-center justify-between">
         <div className="text-[12px] font-semibold text-slate-200">Users</div>
         {loading ? (
-          <div className="text-[11px] text-slate-500">Loading…</div>
+          <div className="text-[11px] theme-text-muted">Loading…</div>
         ) : (
-          <div className="text-[11px] text-slate-500">{rows.length} rows</div>
+          <div className="text-[11px] theme-text-muted">{rows.length} rows</div>
         )}
       </div>
 
       <div className="overflow-auto">
         <table className="w-full text-left">
-          <thead className="bg-slate-950/50">
-            <tr className="text-[11px] uppercase tracking-wide text-slate-500">
-              <th className="px-4 py-3 font-semibold">Identity</th>
-              <th className="px-4 py-3 font-semibold">Role</th>
-              <th className="px-4 py-3 font-semibold">Status</th>
-              <th className="px-4 py-3 font-semibold text-right">Actions</th>
+          <thead className="theme-table-head sticky top-0 z-10 backdrop-blur">
+            <tr className="text-[11px] uppercase tracking-wide">
+              <th className="px-5 py-3 font-semibold">Identity</th>
+              <th className="px-5 py-3 font-semibold">Role</th>
+              <th className="px-5 py-3 font-semibold">Status</th>
+              <th className="px-5 py-3 font-semibold text-right">Actions</th>
             </tr>
           </thead>
 
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-4 py-10 text-center text-[12px] text-slate-500">
+                <td colSpan={4} className="px-4 py-10 text-center text-[12px] theme-text-muted">
                   {loading ? "Loading…" : "No users"}
                 </td>
               </tr>
@@ -49,18 +57,23 @@ export default function UsersTable(props: {
 
                 const isSuspended = canSuspend ? !!row.disabled_at : false;
                 const mustChange = !!row.must_change_password;
-                const isAdmin = String(row.app_role || "").toUpperCase() === "ADMIN";
+                const role = String(row.app_role || "").toUpperCase();
+                const isAdmin = role === "ADMIN";
+                const isCritical = role === "ADMIN" || role === "DIREZIONE";
+                const lastActivity = row.updated_at || row.created_at || null;
+                const inactivityDays = daysSince(lastActivity);
+                const isInactive = typeof inactivityDays === "number" && inactivityDays > 30;
 
                 return (
                   <tr
                     key={row.id}
                     className={cn(
-                      "border-t border-slate-800/70 hover:bg-slate-900/20 cursor-pointer",
+                      "border-t theme-border hover:bg-[var(--panel2)] cursor-pointer",
                       isSelected && "bg-slate-900/30"
                     )}
                     onClick={() => onSelect(row.id)}
                   >
-                    <td className="px-4 py-3">
+                    <td className="px-5 py-3">
                       <div className="flex items-start gap-3">
                         <div className="mt-0.5 h-9 w-9 rounded-xl border border-slate-800 bg-slate-950/60 flex items-center justify-center text-[12px] font-bold text-slate-300">
                           {(row.display_name || row.full_name || row.email || "?")
@@ -77,13 +90,25 @@ export default function UsersTable(props: {
 
                           <div className="mt-1 flex flex-wrap gap-1.5">
                             {mustChange ? (
-                              <span className="inline-flex items-center rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-100">
+                              <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold badge-warning">
                                 MUST CHANGE PASSWORD
                               </span>
                             ) : null}
 
+                            {isInactive ? (
+                              <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold badge-danger">
+                                INACTIVE &gt;30d
+                              </span>
+                            ) : null}
+
+                            {isCritical ? (
+                              <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold badge-info">
+                                CRITICAL ROLE
+                              </span>
+                            ) : null}
+
                             {isAdmin ? (
-                              <span className="inline-flex items-center rounded-full border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 text-[10px] font-semibold text-indigo-100">
+                              <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold badge-neutral">
                                 ADMIN
                               </span>
                             ) : null}
@@ -92,29 +117,29 @@ export default function UsersTable(props: {
                       </div>
                     </td>
 
-                    <td className="px-4 py-3">
-                      <span className="inline-flex items-center rounded-full border border-slate-700 bg-slate-950/60 px-2.5 py-1 text-[11px] font-semibold text-slate-200">
+                    <td className="px-5 py-3">
+                      <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold badge-neutral">
                         {row.app_role || "—"}
                       </span>
                     </td>
 
-                    <td className="px-4 py-3">
+                    <td className="px-5 py-3">
                       {!canSuspend ? (
-                        <span className="inline-flex items-center rounded-full border border-slate-800 bg-slate-950/50 px-2.5 py-1 text-[11px] font-semibold text-slate-400">
+                        <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold badge-neutral">
                           UNKNOWN
                         </span>
                       ) : isSuspended ? (
-                        <span className="inline-flex items-center rounded-full border border-rose-500/30 bg-rose-500/10 px-2.5 py-1 text-[11px] font-semibold text-rose-100">
+                        <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold badge-danger">
                           SUSPENDED
                         </span>
                       ) : (
-                        <span className="inline-flex items-center rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-100">
+                        <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold badge-success">
                           ACTIVE
                         </span>
                       )}
                     </td>
 
-                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-5 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <UserActionsMenu
                         disabled={loading}
                         canSuspend={canSuspend}

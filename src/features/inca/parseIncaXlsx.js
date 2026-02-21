@@ -130,9 +130,7 @@ export async function parseIncaXlsx(file) {
     data_richiesta_taglio: findCol("DATA RICHIESTA TAGLIO"),
   };
 
-  console.log("[INCA XLSX] Sheet:", sheetName);
-  console.log("[INCA XLSX] Header row index:", headerRowIndex, headerRaw);
-  console.log("[INCA XLSX] Column mapping:", colMap);
+  // debug logs removed (deterministic parsing only)
 
   // 2) Construire les objets
   const rawDataRows = rows.slice(headerRowIndex + 1);
@@ -204,9 +202,7 @@ export async function parseIncaXlsx(file) {
     result.push(cavo);
   }
 
-  console.log(
-    `[INCA XLSX] Righe grezze: ${rawDataRows.length} → cavi validi: ${result.length}`
-  );
+  // debug logs removed (deterministic parsing only)
 
   return result;
 }

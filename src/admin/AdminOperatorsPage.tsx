@@ -1,17 +1,21 @@
-// src/admin/AdminOperatorsPage.jsx
+// src/admin/AdminOperatorsPage.tsx
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useOutletContext } from "react-router-dom";
 import { t } from "./i18n";
+import { useAdminConsole } from "./AdminConsoleContext";
 
 const PAGE_SIZE = 25;
 const STORAGE_KEY = "core_admin_operators_page_v1";
 
-function safeLower(s) {
+type OperatorRow = Record<string, any>;
+type PersistedSnapshot = Record<string, any> | null;
+
+function safeLower(s: unknown): string {
   return (s ?? "").toString().toLowerCase();
 }
 
-function parseCsv(raw) {
+function parseCsv(raw: unknown): string[] {
   const s = (raw ?? "").toString().trim();
   if (!s) return [];
   return s
@@ -20,7 +24,7 @@ function parseCsv(raw) {
     .filter(Boolean);
 }
 
-function loadPersisted() {
+function loadPersisted(): PersistedSnapshot {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
@@ -32,7 +36,7 @@ function loadPersisted() {
   }
 }
 
-function savePersisted(snapshot) {
+function savePersisted(snapshot: Record<string, any>): void {
   try {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
   } catch {
@@ -40,14 +44,14 @@ function savePersisted(snapshot) {
   }
 }
 
-function normalizeDbError(err) {
+function normalizeDbError(err: any): string {
   if (!err) return "Erreur inconnue.";
   const code = err.code ? `(${err.code}) ` : "";
   const msg = err.message || "Erreur base de données.";
   return `${code}${msg}`;
 }
 
-function fmtDate(d) {
+function fmtDate(d: unknown): string {
   if (!d) return "—";
   try {
     // d is "YYYY-MM-DD"
@@ -57,7 +61,7 @@ function fmtDate(d) {
   }
 }
 
-function isValidISODate(s) {
+function isValidISODate(s: unknown): boolean {
   if (!s) return false;
   const v = String(s).trim();
   // minimal check YYYY-MM-DD
@@ -66,32 +70,80 @@ function isValidISODate(s) {
   return !Number.isNaN(dt.getTime());
 }
 
-export default function AdminOperatorsPage() {
-  const outlet = useOutletContext() || {};
-  const lang = outlet.lang || "it";
+export default function AdminOperatorsPage(): JSX.Element {
+  const outlet = useOutletContext() as { lang?: string } | null;
+  const lang = outlet?.lang || "it";
+  const { setConfig, resetConfig, registerSearchItems, clearSearchItems, setRecentItems } = useAdminConsole();
   const persisted = useMemo(() => loadPersisted(), []);
 
-  const [rows, setRows] = useState(persisted?.rows ?? []);
-  const [loading, setLoading] = useState(persisted?.loading ?? true);
-  const [msg, setMsg] = useState(persisted?.msg ?? null);
+  const [rows, setRows] = useState<OperatorRow[]>(persisted?.rows ?? []);
+  const [loading, setLoading] = useState<boolean>(persisted?.loading ?? true);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(persisted?.msg ?? null);
 
-  const [q, setQ] = useState(persisted?.q ?? "");
-  const [onlyIncomplete, setOnlyIncomplete] = useState(persisted?.onlyIncomplete ?? false);
-  const [page, setPage] = useState(persisted?.page ?? 1);
+  const [q, setQ] = useState<string>(persisted?.q ?? "");
+  const [onlyIncomplete, setOnlyIncomplete] = useState<boolean>(persisted?.onlyIncomplete ?? false);
+  const [page, setPage] = useState<number>(persisted?.page ?? 1);
 
   // Create form (identity required)
-  const [cognome, setCognome] = useState(persisted?.cognome ?? "");
-  const [nome, setNome] = useState(persisted?.nome ?? "");
-  const [birthDate, setBirthDate] = useState(persisted?.birthDate ?? ""); // YYYY-MM-DD
-  const [operatorCode, setOperatorCode] = useState(persisted?.operatorCode ?? "");
-  const [rolesCsv, setRolesCsv] = useState(persisted?.rolesCsv ?? "OPERAIO");
+  const [cognome, setCognome] = useState<string>(persisted?.cognome ?? "");
+  const [nome, setNome] = useState<string>(persisted?.nome ?? "");
+  const [birthDate, setBirthDate] = useState<string>(persisted?.birthDate ?? ""); // YYYY-MM-DD
+  const [operatorCode, setOperatorCode] = useState<string>(persisted?.operatorCode ?? "");
+  const [rolesCsv, setRolesCsv] = useState<string>(persisted?.rolesCsv ?? "OPERAIO");
 
-  const [creating, setCreating] = useState(persisted?.creating ?? false);
+  const [creating, setCreating] = useState<boolean>(persisted?.creating ?? false);
 
   // Edit modal
-  const [editingId, setEditingId] = useState(persisted?.editingId ?? null);
-  const [editDraft, setEditDraft] = useState(persisted?.editDraft ?? null);
-  const [saving, setSaving] = useState(persisted?.saving ?? false);
+  const [editingId, setEditingId] = useState<string | null>(persisted?.editingId ?? null);
+  const [editDraft, setEditDraft] = useState<Record<string, any> | null>(persisted?.editDraft ?? null);
+  const [saving, setSaving] = useState<boolean>(persisted?.saving ?? false);
+
+  const searchItems = useMemo(() => {
+    return (rows || []).map((r) => {
+      const title = r.display_name || r.legacy_name || `${r.cognome || ""} ${r.nome || ""}`.trim() || "—";
+      const subtitle = [r.operator_code, r.operator_key].filter(Boolean).join(" · ");
+      const tokens = [
+        r.display_name,
+        r.legacy_name,
+        r.cognome,
+        r.nome,
+        r.operator_code,
+        r.operator_key,
+        Array.isArray(r.roles) ? r.roles.join(" ") : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+      const badgeTone: "amber" | undefined = r.is_identity_incomplete ? "amber" : undefined;
+      return {
+        id: r.id,
+        entity: "Operatori",
+        title,
+        subtitle: subtitle || undefined,
+        route: "/admin/operators",
+        tokens,
+        updatedAt: r.updated_at || r.created_at || null,
+        badge: r.is_identity_incomplete ? "IDENTITY KO" : undefined,
+        badgeTone,
+      };
+    });
+  }, [rows]);
+
+  const recent = useMemo(() => {
+    const sorted = [...(rows || [])].sort((a, b) =>
+      String(b.updated_at || b.created_at || "").localeCompare(String(a.updated_at || a.created_at || ""))
+    );
+    return sorted.slice(0, 5).map((r) => {
+      const title = r.display_name || r.legacy_name || `${r.cognome || ""} ${r.nome || ""}`.trim() || "—";
+      const subtitle = [r.operator_code, r.operator_key].filter(Boolean).join(" · ");
+      return {
+        id: r.id,
+        title,
+        subtitle: subtitle || undefined,
+        route: "/admin/operators",
+        timeLabel: r.updated_at || r.created_at || undefined,
+      };
+    });
+  }, [rows]);
 
   useEffect(() => {
     savePersisted({
@@ -130,7 +182,22 @@ export default function AdminOperatorsPage() {
     saving,
   ]);
 
-  const loadOperators = useCallback(async () => {
+  useEffect(() => {
+    setConfig({ title: "Operatori", searchPlaceholder: "Cerca operatori, codici, ruoli…" });
+    return () => resetConfig();
+  }, [setConfig, resetConfig]);
+
+  useEffect(() => {
+    registerSearchItems("Operatori", searchItems);
+    return () => clearSearchItems("Operatori");
+  }, [registerSearchItems, clearSearchItems, searchItems]);
+
+  useEffect(() => {
+    setRecentItems(recent);
+    return () => setRecentItems([]);
+  }, [setRecentItems, recent]);
+
+  const loadOperators = useCallback(async (): Promise<void> => {
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -217,7 +284,7 @@ export default function AdminOperatorsPage() {
     }
   };
 
-  const copy = async (txt) => {
+  const copy = async (txt: unknown): Promise<void> => {
     try {
       await navigator.clipboard.writeText(String(txt ?? ""));
     } catch {
@@ -225,7 +292,7 @@ export default function AdminOperatorsPage() {
     }
   };
 
-  const onCreate = async (e) => {
+  const onCreate = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     setMsg(null);
 
@@ -284,7 +351,7 @@ export default function AdminOperatorsPage() {
     }
   };
 
-  const openEdit = (r) => {
+  const openEdit = (r: OperatorRow): void => {
     setMsg(null);
     setEditingId(r.id);
     setEditDraft({
@@ -298,12 +365,12 @@ export default function AdminOperatorsPage() {
     });
   };
 
-  const closeEdit = () => {
+  const closeEdit = (): void => {
     setEditingId(null);
     setEditDraft(null);
   };
 
-  const onSaveEdit = async () => {
+  const onSaveEdit = async (): Promise<void> => {
     if (!editDraft?.id) return;
 
     setMsg(null);
@@ -373,7 +440,7 @@ export default function AdminOperatorsPage() {
           <button
             type="button"
             onClick={loadOperators}
-            className="text-[12px] px-3 py-1.5 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50"
+            className="text-[12px] px-3 py-1.5 rounded-full border theme-border theme-text bg-[var(--panel2)] hover:bg-[var(--panel)]"
             title="Ricarica operatori"
           >
             Refresh
@@ -381,7 +448,7 @@ export default function AdminOperatorsPage() {
           <button
             type="button"
             onClick={hardResetUI}
-            className="text-[12px] px-3 py-1.5 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50"
+            className="text-[12px] px-3 py-1.5 rounded-full border theme-border theme-text bg-[var(--panel2)] hover:bg-[var(--panel)]"
             title="Reset UI + clear sessionStorage snapshot"
           >
             {t(lang, "RESET") || "Reset"}
@@ -403,7 +470,7 @@ export default function AdminOperatorsPage() {
       )}
 
       {/* CREATE */}
-      <div className="mt-4 border border-slate-800 rounded-2xl bg-slate-950/40 p-4 sm:p-5">
+      <div className="mt-4 border theme-border rounded-2xl bg-[var(--panel2)] p-4 sm:p-5">
         <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
           {t(lang, "CREATE_OPERATOR") || "Create operator"}
         </div>
@@ -416,7 +483,7 @@ export default function AdminOperatorsPage() {
               onChange={(e) => setCognome(e.target.value)}
               type="text"
               required
-              className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+              className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-sky-500"
             />
           </div>
 
@@ -427,7 +494,7 @@ export default function AdminOperatorsPage() {
               onChange={(e) => setNome(e.target.value)}
               type="text"
               required
-              className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+              className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-sky-500"
             />
           </div>
 
@@ -438,7 +505,7 @@ export default function AdminOperatorsPage() {
               onChange={(e) => setBirthDate(e.target.value)}
               type="date"
               required
-              className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+              className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-sky-500"
             />
           </div>
 
@@ -449,7 +516,7 @@ export default function AdminOperatorsPage() {
               onChange={(e) => setOperatorCode(e.target.value)}
               type="text"
               placeholder="es: OP-001"
-              className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+              className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-sky-500"
             />
           </div>
 
@@ -460,7 +527,7 @@ export default function AdminOperatorsPage() {
               onChange={(e) => setRolesCsv(e.target.value)}
               type="text"
               placeholder="es: OPERAIO, ELETTRICISTA"
-              className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+              className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-sky-500"
             />
             <div className="text-[12px] text-slate-500 mt-1">
               Minimo: <span className="text-slate-300">OPERAIO</span>.
@@ -480,7 +547,7 @@ export default function AdminOperatorsPage() {
       </div>
 
       {/* LIST */}
-      <div className="mt-4 border border-slate-800 rounded-2xl bg-slate-950/20 p-4 sm:p-5">
+      <div className="mt-4 border theme-border rounded-2xl bg-[var(--panel)] p-4 sm:p-5">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
@@ -494,7 +561,7 @@ export default function AdminOperatorsPage() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder={t(lang, "SEARCH") || "Search"}
-              className="w-full sm:w-72 rounded-xl border px-3 py-2 text-[13px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+              className="w-full sm:w-72 rounded-xl px-3 py-2 text-[13px] focus:ring-1 focus:outline-none theme-input focus:ring-sky-500"
             />
 
             <label className="flex items-center gap-2 text-[12px] text-slate-300 select-none">
@@ -508,20 +575,20 @@ export default function AdminOperatorsPage() {
           </div>
         </div>
 
-        <div className="mt-4 overflow-x-auto border border-slate-800 rounded-xl">
+        <div className="mt-4 overflow-x-auto rounded-xl theme-table">
           <table className="min-w-[1280px] w-full text-[12px]">
-            <thead className="bg-slate-900/60 text-slate-300">
+            <thead className="theme-table-head sticky top-0 z-10 backdrop-blur">
               <tr className="text-left">
-                <th className="px-3 py-2">Display</th>
-                <th className="px-3 py-2">Cognome</th>
-                <th className="px-3 py-2">Nome</th>
-                <th className="px-3 py-2">Birth</th>
-                <th className="px-3 py-2">Code</th>
-                <th className="px-3 py-2">Key</th>
-                <th className="px-3 py-2">Roles</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2">ID</th>
-                <th className="px-3 py-2">{t(lang, "ACTIONS") || "Actions"}</th>
+                <th className="px-4 py-2.5">Display</th>
+                <th className="px-4 py-2.5">Cognome</th>
+                <th className="px-4 py-2.5">Nome</th>
+                <th className="px-4 py-2.5">Birth</th>
+                <th className="px-4 py-2.5">Code</th>
+                <th className="px-4 py-2.5">Key</th>
+                <th className="px-4 py-2.5">Roles</th>
+                <th className="px-4 py-2.5">Status</th>
+                <th className="px-4 py-2.5">ID</th>
+                <th className="px-4 py-2.5">{t(lang, "ACTIONS") || "Actions"}</th>
               </tr>
             </thead>
 
@@ -545,41 +612,41 @@ export default function AdminOperatorsPage() {
 
                   return (
                     <tr key={r.id} className="text-slate-200 hover:bg-slate-900/30">
-                      <td className="px-3 py-2">
+                      <td className="px-4 py-2.5">
                         <div className="flex flex-col">
                           <span className="font-medium">{r.display_name || "—"}</span>
                           <span className="text-slate-500">{r.legacy_name || ""}</span>
                         </div>
                       </td>
 
-                      <td className="px-3 py-2">{r.cognome || <span className="text-slate-600">—</span>}</td>
-                      <td className="px-3 py-2">{r.nome || <span className="text-slate-600">—</span>}</td>
-                      <td className="px-3 py-2">{fmtDate(r.birth_date)}</td>
+                      <td className="px-4 py-2.5">{r.cognome || <span className="text-slate-600">—</span>}</td>
+                      <td className="px-4 py-2.5">{r.nome || <span className="text-slate-600">—</span>}</td>
+                      <td className="px-4 py-2.5">{fmtDate(r.birth_date)}</td>
 
-                      <td className="px-3 py-2">{r.operator_code || <span className="text-slate-600">—</span>}</td>
-                      <td className="px-3 py-2 font-mono text-[11px] text-slate-400">
+                      <td className="px-4 py-2.5">{r.operator_code || <span className="text-slate-600">—</span>}</td>
+                      <td className="px-4 py-2.5 font-mono text-[11px] text-slate-400">
                         {r.operator_key || <span className="text-slate-600">—</span>}
                       </td>
 
-                      <td className="px-3 py-2">{roles || <span className="text-slate-600">—</span>}</td>
+                      <td className="px-4 py-2.5">{roles || <span className="text-slate-600">—</span>}</td>
 
-                      <td className="px-3 py-2">
+                      <td className="px-4 py-2.5">
                         {incomplete ? (
-                          <span className="px-2 py-0.5 rounded-full border border-amber-700/50 bg-amber-500/10 text-amber-200 text-[11px]">
+                          <span className="px-2 py-0.5 rounded-full border text-[11px] badge-warning">
                             IDENTITY KO
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded-full border border-emerald-700/40 bg-emerald-500/10 text-emerald-200 text-[11px]">
+                          <span className="px-2 py-0.5 rounded-full border text-[11px] badge-success">
                             OK
                           </span>
                         )}
                       </td>
 
-                      <td className="px-3 py-2 font-mono text-[11px] text-slate-400">
+                      <td className="px-4 py-2.5 font-mono text-[11px] text-slate-400">
                         {String(r.id).slice(0, 8)}…
                       </td>
 
-                      <td className="px-3 py-2">
+                      <td className="px-4 py-2.5">
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
@@ -639,8 +706,8 @@ export default function AdminOperatorsPage() {
 
       {/* EDIT MODAL */}
       {editingId && editDraft ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-          <div className="w-full max-w-2xl rounded-2xl border border-slate-800 bg-slate-950 p-4 sm:p-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 theme-overlay">
+          <div className="w-full max-w-2xl rounded-2xl theme-panel p-4 sm:p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Edit operator</div>
@@ -651,7 +718,7 @@ export default function AdminOperatorsPage() {
               <button
                 type="button"
                 onClick={closeEdit}
-                className="text-[12px] px-3 py-1.5 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50"
+                className="text-[12px] px-3 py-1.5 rounded-full border theme-border theme-text bg-[var(--panel2)] hover:bg-[var(--panel)]"
               >
                 Close
               </button>
@@ -662,10 +729,10 @@ export default function AdminOperatorsPage() {
                 <label className="block text-[12px] mb-1 text-slate-300">Cognome *</label>
                 <input
                   value={editDraft.cognome}
-                  onChange={(e) => setEditDraft((d) => ({ ...d, cognome: e.target.value }))}
+                  onChange={(e) => setEditDraft((d) => ({ ...(d || {}), cognome: e.target.value }))}
                   type="text"
                   required
-                  className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+                  className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-sky-500"
                 />
               </div>
 
@@ -673,10 +740,10 @@ export default function AdminOperatorsPage() {
                 <label className="block text-[12px] mb-1 text-slate-300">Nome *</label>
                 <input
                   value={editDraft.nome}
-                  onChange={(e) => setEditDraft((d) => ({ ...d, nome: e.target.value }))}
+                  onChange={(e) => setEditDraft((d) => ({ ...(d || {}), nome: e.target.value }))}
                   type="text"
                   required
-                  className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+                  className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-sky-500"
                 />
               </div>
 
@@ -684,10 +751,10 @@ export default function AdminOperatorsPage() {
                 <label className="block text-[12px] mb-1 text-slate-300">Data di nascita * (YYYY-MM-DD)</label>
                 <input
                   value={editDraft.birth_date}
-                  onChange={(e) => setEditDraft((d) => ({ ...d, birth_date: e.target.value }))}
+                  onChange={(e) => setEditDraft((d) => ({ ...(d || {}), birth_date: e.target.value }))}
                   type="date"
                   required
-                  className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+                  className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-sky-500"
                 />
               </div>
 
@@ -695,9 +762,9 @@ export default function AdminOperatorsPage() {
                 <label className="block text-[12px] mb-1 text-slate-300">Operator code (opzionale)</label>
                 <input
                   value={editDraft.operator_code}
-                  onChange={(e) => setEditDraft((d) => ({ ...d, operator_code: e.target.value }))}
+                  onChange={(e) => setEditDraft((d) => ({ ...(d || {}), operator_code: e.target.value }))}
                   type="text"
-                  className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+                  className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-sky-500"
                 />
               </div>
 
@@ -705,9 +772,9 @@ export default function AdminOperatorsPage() {
                 <label className="block text-[12px] mb-1 text-slate-300">Roles (CSV) *</label>
                 <input
                   value={editDraft.rolesCsv}
-                  onChange={(e) => setEditDraft((d) => ({ ...d, rolesCsv: e.target.value }))}
+                  onChange={(e) => setEditDraft((d) => ({ ...(d || {}), rolesCsv: e.target.value }))}
                   type="text"
-                  className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+                  className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-sky-500"
                 />
               </div>
 
@@ -715,9 +782,9 @@ export default function AdminOperatorsPage() {
                 <label className="block text-[12px] mb-1 text-slate-300">Legacy name (facoltativo)</label>
                 <input
                   value={editDraft.legacy_name}
-                  onChange={(e) => setEditDraft((d) => ({ ...d, legacy_name: e.target.value }))}
+                  onChange={(e) => setEditDraft((d) => ({ ...(d || {}), legacy_name: e.target.value }))}
                   type="text"
-                  className="w-full rounded-xl border px-3 py-2 text-[14px] focus:ring-1 focus:outline-none bg-slate-900 border-slate-700 text-slate-50 focus:ring-sky-500"
+                  className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-sky-500"
                 />
                 <div className="text-[12px] text-slate-500 mt-1">
                   Se vuoto, viene impostato automaticamente a “Cognome Nome”.
@@ -728,7 +795,7 @@ export default function AdminOperatorsPage() {
                 <button
                   type="button"
                   onClick={() => copy(editDraft.id)}
-                  className="text-[12px] px-3 py-2 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50"
+                  className="text-[12px] px-3 py-2 rounded-full border theme-border theme-text bg-[var(--panel2)] hover:bg-[var(--panel)]"
                 >
                   Copy ID
                 </button>

@@ -9,6 +9,7 @@ import { AuthProvider } from "./auth/AuthProvider";
 import { ShipProvider } from "./context/ShipContext";
 import { I18nProvider } from "./i18n/I18nProvider";
 import { dictionaries } from "./i18n/dictionaries";
+import { initThemeFromStorage } from "./hooks/useTheme";
 
 import "./index.css";
 import "./styles/inca-percorso-search.css";
@@ -178,6 +179,7 @@ if (!rootEl) {
   throw new Error("Root element #root not found");
 }
 
+initThemeFromStorage();
 installChunkLoadRecovery();
 installRapportinoPrintIsolation();
 
