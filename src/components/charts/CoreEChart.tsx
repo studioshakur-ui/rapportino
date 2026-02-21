@@ -1,9 +1,9 @@
-// /src/components/charts/CoreEChart.jsx
+// src/components/charts/CoreEChart.tsx
 // CORE / CNCS — ECharts wrapper (Apache-2.0) with unified theme & defaults
 
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
-import { CORE_CHART_THEME } from "./coreChartTheme";
+import { getCoreChartTheme } from "./coreChartTheme";
 import { CoreEmpty, CoreLoading } from "./CoreEmptyState";
 
 export default function CoreEChart({
@@ -31,15 +31,14 @@ export default function CoreEChart({
 }) {
   const themedOption = useMemo(() => {
     const o = (option || {}) as Record<string, unknown>;
-    const t = CORE_CHART_THEME;
+    const t = getCoreChartTheme(Boolean(isDark));
 
     // Merge minimal defaults without breaking caller overrides
     return {
       backgroundColor: "transparent",
       animationDuration: t.animMs,
       textStyle: {
-        color: isDark ? t.text : "#111827",
-        // keep defaults from echarts if not provided by theme
+        color: t.text,
       },
       grid: (o as { grid?: unknown }).grid || t.grid,
       tooltip: (o as { tooltip?: unknown }).tooltip || { trigger: "axis" },
@@ -52,12 +51,7 @@ export default function CoreEChart({
 
   return (
     <div className={className} style={{ width: "100%", height }}>
-      <ReactECharts
-        option={themedOption}
-        style={{ width: "100%", height: "100%" }}
-        notMerge={notMerge}
-        lazyUpdate={lazyUpdate}
-      />
+      <ReactECharts option={themedOption} style={{ width: "100%", height: "100%" }} notMerge={notMerge} lazyUpdate={lazyUpdate} />
     </div>
   );
 }

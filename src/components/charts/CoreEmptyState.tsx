@@ -1,5 +1,5 @@
-// /src/components/charts/CoreEmptyState.jsx
-// CORE / CNCS — Standard Empty / Loading states for charts
+// src/components/charts/CoreEmptyState.tsx
+// CORE / CNCS — Standard Empty / Loading states for charts (light-safe)
 
 function cn(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(" ");
@@ -16,9 +16,8 @@ export function CoreLoading({
     <div
       className={cn(
         "flex h-full min-h-[220px] items-center justify-center rounded-xl border",
-        isDark
-          ? "border-slate-800 bg-slate-950/40 text-slate-300"
-          : "border-slate-200 bg-white text-slate-700"
+        "theme-scope",
+        isDark ? "border-slate-800 bg-slate-950/40 text-slate-300" : "theme-panel-2 theme-border theme-text-muted"
       )}
     >
       <div className="text-[12px]">{label}</div>
@@ -39,13 +38,12 @@ export function CoreEmpty({
     <div
       className={cn(
         "flex h-full min-h-[220px] items-center justify-center rounded-xl border px-3",
-        isDark
-          ? "border-slate-800 bg-slate-950/40 text-slate-400"
-          : "border-slate-200 bg-white text-slate-600"
+        "theme-scope",
+        isDark ? "border-slate-800 bg-slate-950/40 text-slate-400" : "theme-panel-2 theme-border theme-text-muted"
       )}
     >
       <div className="text-center">
-        <div className="text-[12px] font-medium">{label}</div>
+        <div className={cn("text-[12px] font-medium", isDark ? "text-slate-200" : "theme-text")}>{label}</div>
         {hint ? <div className="mt-1 text-[11px] opacity-80">{hint}</div> : null}
       </div>
     </div>

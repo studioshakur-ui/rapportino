@@ -34,14 +34,28 @@ export type CoreChartTheme = {
   animMs: number;
 };
 
-export const CORE_CHART_THEME: CoreChartTheme = {
+function cssVar(name: string, fallback: string): string {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * Dark-first baseline (keeps existing look).
+ * Light values are derived from CSS tokens (var --text/--border/--panel/--panel2).
+ */
+const DARK_THEME: CoreChartTheme = {
   text: "#e5e7eb",
   subtext: "#94a3b8",
   axisLine: "rgba(148,163,184,0.28)",
   gridLine: "rgba(148,163,184,0.12)",
   border: "rgba(148,163,184,0.20)",
 
-  // Surfaces (dark-first)
+  // Surfaces (dark)
   bg: "rgba(2,6,23,0.60)",
   cardBg: "rgba(2,6,23,0.60)",
 
@@ -63,12 +77,54 @@ export const CORE_CHART_THEME: CoreChartTheme = {
   animMs: 520,
 };
 
+export function getCoreChartTheme(isDark: boolean): CoreChartTheme {
+  if (isDark) return DARK_THEME;
+
+  // Pull from Warm Metal tokens (core-colors.css)
+  const text = cssVar("--text", "#1c1c1a");
+  const subtext = cssVar("--textMuted", "#4e4b45");
+  const border = cssVar("--border", "rgba(28,24,20,0.10)");
+  const borderStrong = cssVar("--borderStrong", "rgba(28,24,20,0.16)");
+  const panel = cssVar("--panel", "#ece9e4");
+  const panel2 = cssVar("--panel2", "#f8f6f3");
+
+  // Executive light: airy grid, not “dark chart”
+  return {
+    text,
+    subtext,
+    axisLine: borderStrong,
+    gridLine: border,
+    border: borderStrong,
+
+    // Surfaces
+    bg: "transparent",
+    cardBg: panel2,
+
+    // Keep semantic colors (same hues, less “toy”)
+    accent: "#6d5efc",
+    positive: "#16a34a",
+    danger: "#e11d48",
+    warning: "#d97706",
+    info: "#0284c7",
+
+    grid: {
+      left: 12,
+      right: 12,
+      top: 18,
+      bottom: 28,
+      containLabel: true,
+    },
+
+    animMs: 520,
+  };
+}
+
 /**
  * Tooltip base style
  * IMPORTANT:
  * - `border` is kept as a COLOR string because some callers use it as `borderColor`.
  */
-export function coreTooltipStyle(theme: CoreChartTheme): {
+export function coreTooltipStyle(theme: CoreChartTheme, isDark: boolean): {
   backgroundColor: string;
   border: string; // color
   color: string;
@@ -76,13 +132,25 @@ export function coreTooltipStyle(theme: CoreChartTheme): {
   padding: string;
   boxShadow: string;
 } {
+  if (isDark) {
+    return {
+      backgroundColor: "rgba(2,6,23,0.94)",
+      border: theme.border,
+      color: theme.text,
+      borderRadius: 12,
+      padding: "10px 12px",
+      boxShadow: "0 12px 32px rgba(0,0,0,0.35)",
+    };
+  }
+
+  // Light tooltip uses warm surfaces (panel2-like)
   return {
-    backgroundColor: "rgba(2,6,23,0.94)",
+    backgroundColor: "rgba(248,246,243,0.96)",
     border: theme.border,
     color: theme.text,
     borderRadius: 12,
     padding: "10px 12px",
-    boxShadow: "0 12px 32px rgba(0,0,0,0.35)",
+    boxShadow: "0 12px 30px rgba(0,0,0,0.10)",
   };
 }
 

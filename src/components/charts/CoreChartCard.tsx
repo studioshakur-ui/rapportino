@@ -1,8 +1,7 @@
 // src/components/charts/CoreChartCard.tsx
-// CORE / CNCS — Chart Container Card (typed)
+// CORE / CNCS — Chart Container Card (typed) — light-safe
 
 import React from "react";
-import { CORE_CHART_THEME } from "./coreChartTheme";
 
 function cn(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(" ");
@@ -25,18 +24,16 @@ export default function CoreChartCard({
   isDark = true,
   className = "",
 }: CoreChartCardProps): JSX.Element {
-  const card = cn(
-    "rounded-2xl border bg-slate-950/70",
-    isDark ? "border-slate-800" : "border-slate-200 bg-white",
-    "p-4",
-    className
-  );
+  // IMPORTANT:
+  // We do NOT hardcode bg-slate-* anymore.
+  // Charts must be coherent in Light (panel/panel2) and never look like “dark pasted inside”.
+  const card = cn("theme-scope theme-panel theme-border theme-shadow-1", "rounded-2xl p-4", className);
 
-  const titleCls = cn("text-[11px] uppercase tracking-[0.16em]", "text-slate-500");
-  const subtitleCls = cn("mt-1 text-[12px]", isDark ? "text-slate-300" : "text-slate-700");
+  const titleCls = cn("text-[11px] uppercase tracking-[0.16em]", "theme-text-muted");
+  const subtitleCls = cn("mt-1 text-[12px]", isDark ? "text-slate-300" : "theme-text-muted");
 
   return (
-    <section className={card} style={{ background: CORE_CHART_THEME.bg }}>
+    <section className={card}>
       <div className="flex items-start justify-between gap-3 mb-2">
         <div className="min-w-0">
           {title ? <div className={titleCls}>{title}</div> : null}

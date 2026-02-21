@@ -11,7 +11,9 @@ import { I18nProvider } from "./i18n/I18nProvider";
 import { dictionaries } from "./i18n/dictionaries";
 import { initThemeFromStorage } from "./hooks/useTheme";
 import { ThemeProvider } from "./theme/ThemeProvider";
-
+import "./styles/core-colors.css";
+import "./styles/core-ui.css";
+import "./index.css";
 import "./index.css";
 import "./styles/inca-percorso-search.css";
 

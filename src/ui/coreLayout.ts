@@ -1,4 +1,4 @@
-// src/ui/coreLayout.ts
+// /src/ui/coreLayout.ts
 //
 // CORE Layout helpers – commun à Capo, Ufficio, Direzione, Dashboard.
 // SHAKUR ENGINEERING · 2025
@@ -14,78 +14,59 @@ export { corePills, themeIconBg } from "./designSystem";
 export type KpiTone = "neutral" | "emerald" | "sky" | "amber" | "violet" | "rose";
 
 export const coreLayout = {
-  // Fond de la page (body des shells)
   pageShell(_isDark: boolean): string {
     return "theme-scope theme-bg";
   },
 
-  // Header cockpit (barre supérieure)
   header(_isDark: boolean): string {
     return "theme-scope theme-topbar";
   },
 
-  // Sidebar (colonne gauche : Capo / Ufficio / Direzione)
   sidebar(_isDark: boolean): string {
     return "theme-scope theme-bg theme-border";
   },
 
-  // Fond de la zone principale (derrière les panneaux)
   mainBg(_isDark: boolean): string {
     return "theme-scope theme-bg";
   },
 
-  // Panneau principal (celui qui contient l’<Outlet />)
   primaryPanel(_isDark: boolean): string {
     return "theme-scope theme-panel";
   },
 
-  // Bouton toggle theme
   themeToggle(_isDark: boolean): string {
     return "theme-scope theme-panel-2 theme-border hover:opacity-95";
   },
 
   /**
-   * Carte KPI (DirezioneDashboard, stats, etc.)
-   * tone: 'neutral' | 'emerald' | 'sky' | 'amber' | 'violet' | 'rose'
+   * KPI Card (Executive)
+   * - Dark: keep the existing “war room” look (tinted panels are OK).
+   * - Light: NEVER pastel fills (banal). Use neutral surface + accent stripe only.
    */
   kpiCard(isDark: boolean, tone: KpiTone = "neutral"): string {
     const base =
-      "relative overflow-hidden rounded-2xl border px-4 py-3 flex flex-col gap-1.5 min-h-[96px] theme-scope";
+      "relative overflow-hidden rounded-2xl border px-4 py-3 flex flex-col gap-1.5 min-h-[96px] theme-scope kpi-card";
 
-    // Neutral becomes token-based (removes bg-white / dark hardcode)
-    if (tone === "neutral") {
-      return [base, isDark ? "theme-panel" : "theme-panel-2", "theme-border"].join(" ");
+    if (!isDark) {
+      // Accent-only in light
+      const toneCls = `kpi-tone-${tone}`;
+      return [base, "theme-panel-2 theme-border", "kpi-light", toneCls].join(" ");
     }
 
-    // Colored cards keep Tailwind tints for now (B scope),
-    // but remain inside .theme-scope for consistent text/border in light.
-    const palettes: Record<KpiTone, { dark: string; light: string }> = {
-      neutral: { dark: "theme-panel", light: "theme-panel-2" },
-      emerald: {
-        dark: "bg-emerald-500/5 border-emerald-500/50 text-emerald-50 shadow-[0_0_32px_rgba(16,185,129,0.55)]",
-        light: "bg-emerald-50 border-emerald-300 text-emerald-900 shadow-sm",
-      },
-      sky: {
-        dark: "bg-sky-500/5 border-sky-500/50 text-sky-50 shadow-[0_0_32px_rgba(56,189,248,0.55)]",
-        light: "bg-sky-50 border-sky-300 text-sky-900 shadow-sm",
-      },
-      amber: {
-        dark: "bg-amber-500/5 border-amber-500/50 text-amber-50 shadow-[0_0_32px_rgba(245,158,11,0.55)]",
-        light: "bg-amber-50 border-amber-300 text-amber-900 shadow-sm",
-      },
-      violet: {
-        dark: "bg-violet-500/5 border-violet-500/50 text-violet-50 shadow-[0_0_32px_rgba(139,92,246,0.55)]",
-        light: "bg-violet-50 border-violet-300 text-violet-900 shadow-sm",
-      },
-      rose: {
-        dark: "bg-rose-500/5 border-rose-500/50 text-rose-50 shadow-[0_0_32px_rgba(244,63,94,0.55)]",
-        light: "bg-rose-50 border-rose-300 text-rose-900 shadow-sm",
-      },
+    // Dark behavior: keep your existing tinted cards (premium dark OK)
+    if (tone === "neutral") {
+      return [base, "theme-panel theme-border"].join(" ");
+    }
+
+    const palettes: Record<KpiTone, string> = {
+      neutral: "theme-panel theme-border",
+      emerald: "bg-emerald-500/5 border-emerald-500/45 text-emerald-50 shadow-[0_0_32px_rgba(16,185,129,0.45)]",
+      sky: "bg-sky-500/5 border-sky-500/45 text-sky-50 shadow-[0_0_32px_rgba(56,189,248,0.45)]",
+      amber: "bg-amber-500/5 border-amber-500/45 text-amber-50 shadow-[0_0_32px_rgba(245,158,11,0.45)]",
+      violet: "bg-violet-500/5 border-violet-500/45 text-violet-50 shadow-[0_0_32px_rgba(139,92,246,0.45)]",
+      rose: "bg-rose-500/5 border-rose-500/45 text-rose-50 shadow-[0_0_32px_rgba(244,63,94,0.45)]",
     };
 
-    const palette = palettes[tone] || palettes.neutral;
-    const modeClasses = isDark ? palette.dark : palette.light;
-
-    return [base, modeClasses].join(" ");
+    return [base, palettes[tone] || palettes.neutral].join(" ");
   },
 };

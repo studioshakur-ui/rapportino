@@ -1,9 +1,12 @@
+/* src/index.css */
+
+/* IMPORTANT: @import must be first (after optional @charset) */
+@import "./styles/core-colors.css";
+@import "./styles/core-ui.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import "./styles/core-colors.css";
-@import "./styles/core-ui.css";
 
 /* =========================
    CORE BASE
@@ -16,6 +19,7 @@ html, body {
 /* Helpers */
 .print-only { display: none !important; }
 
+/* ... le reste inchangé ... */
 /* =========================
    PRINT PREVIEW MODE (SCREEN)
    ========================= */

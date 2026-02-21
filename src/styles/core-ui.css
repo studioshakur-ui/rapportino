@@ -3,48 +3,28 @@
 /* =========================
    Backgrounds
    ========================= */
-.bg-core {
-  background-color: var(--core-bg-900);
-}
-.bg-core-card {
-  background-color: var(--core-bg-700);
-}
-.bg-core-section {
-  background-color: var(--core-bg-800);
-}
+.bg-core { background-color: var(--core-bg-900); }
+.bg-core-card { background-color: var(--core-bg-700); }
+.bg-core-section { background-color: var(--core-bg-800); }
 
 /* =========================
    Text
    ========================= */
-.text-core {
-  color: var(--core-text-200);
-}
-.text-muted {
-  color: var(--core-text-400);
-}
+.text-core { color: var(--core-text-200); }
+.text-muted { color: var(--core-text-400); }
 
 /* =========================
    Borders
    ========================= */
-.border-core {
-  border: 1px solid var(--core-border-600);
-}
+.border-core { border: 1px solid var(--core-border-600); }
 
 /* =========================
    Role accents
    ========================= */
-.text-capo {
-  color: var(--capo-500);
-}
-.text-ufficio {
-  color: var(--ufficio-500);
-}
-.text-alert {
-  color: var(--alert-500);
-}
-.text-inca {
-  color: var(--inca-400);
-}
+.text-capo { color: var(--capo-500); }
+.text-ufficio { color: var(--ufficio-500); }
+.text-alert { color: var(--alert-500); }
+.text-inca { color: var(--inca-400); }
 
 /* =========================
    Buttons
@@ -54,26 +34,19 @@
   border: 1px solid var(--core-border-500);
   color: var(--core-text-200);
 }
-.btn-core:hover {
-  background-color: var(--core-bg-700);
-}
+.btn-core:hover { background-color: var(--core-bg-700); }
 
 .btn-inca {
   background-color: transparent;
   border: 1px solid rgba(129, 140, 248, 0.55);
   color: var(--inca-300);
 }
-.btn-inca:hover {
-  background-color: rgba(99, 102, 241, 0.08);
-}
+.btn-inca:hover { background-color: rgba(99, 102, 241, 0.08); }
 
 /* =========================
    Theme surfaces (semantic)
    ========================= */
-.theme-bg {
-  background-color: var(--bg);
-  color: var(--text);
-}
+.theme-bg { background-color: var(--bg); color: var(--text); }
 .theme-panel {
   background-color: var(--panel);
   border: 1px solid var(--border);
@@ -85,29 +58,18 @@
   border: 1px solid var(--border);
   color: var(--text);
 }
-.theme-overlay {
-  background-color: var(--overlay);
-}
-.theme-border {
-  border-color: var(--border);
-}
-.theme-border-strong {
-  border-color: var(--borderStrong);
-}
-.theme-text {
-  color: var(--text);
-}
-.theme-text-muted {
-  color: var(--textMuted);
-}
-.theme-shadow-1 {
-  box-shadow: var(--shadow1);
-}
-.theme-shadow-2 {
-  box-shadow: var(--shadow2);
-}
+.theme-overlay { background-color: var(--overlay); }
 
-/* NEW: popovers/modals/topbar */
+.theme-border { border-color: var(--border); }
+.theme-border-strong { border-color: var(--borderStrong); }
+
+.theme-text { color: var(--text); }
+.theme-text-muted { color: var(--textMuted); }
+
+.theme-shadow-1 { box-shadow: var(--shadow1); }
+.theme-shadow-2 { box-shadow: var(--shadow2); }
+
+/* popovers/modals/topbar */
 .theme-modal {
   background-color: var(--panel);
   border: 1px solid var(--border);
@@ -122,12 +84,11 @@
 }
 .theme-topbar {
   border: 1px solid var(--border);
-  /* translucent surface, works in dark + light */
   background-color: color-mix(in srgb, var(--panel) 70%, transparent);
   color: var(--text);
 }
 
-/* NEW: nav items tokenisés (évite "dark blocks") */
+/* nav items */
 .theme-nav-item {
   background-color: color-mix(in srgb, var(--panel2) 78%, transparent);
   border: 1px solid var(--border);
@@ -149,89 +110,84 @@
   border: 1px solid var(--border);
   color: var(--text);
 }
-.theme-input::placeholder {
-  color: var(--textMuted);
-}
+.theme-input::placeholder { color: var(--textMuted); }
 
 /* Tables */
-.theme-table {
-  background-color: var(--panel);
-  border: 1px solid var(--border);
-}
+.theme-table { background-color: var(--panel); border: 1px solid var(--border); }
 .theme-table-head {
   background-color: var(--panel2);
   color: var(--textMuted);
   border-bottom: 1px solid var(--border);
 }
 
-/* Chips / badges (ghost style in light mode via tokens) */
-.badge-success {
-  background-color: var(--role-success-soft);
-  border: 1px solid var(--role-success-border);
-  color: var(--role-success-ink);
-}
-.badge-warning {
-  background-color: var(--role-warning-soft);
-  border: 1px solid var(--role-warning-border);
-  color: var(--role-warning-ink);
-}
-.badge-danger {
-  background-color: var(--role-danger-soft);
-  border: 1px solid var(--role-danger-border);
-  color: var(--role-danger-ink);
-}
-.badge-info {
-  background-color: var(--role-info-soft);
-  border: 1px solid var(--role-info-border);
-  color: var(--role-info-ink);
-}
-.badge-neutral {
-  background-color: var(--role-neutral-soft);
-  border: 1px solid var(--role-neutral-border);
-  color: var(--role-neutral-ink);
-}
+/* Chips / badges */
+.badge-success { background-color: var(--role-success-soft); border: 1px solid var(--role-success-border); color: var(--role-success-ink); }
+.badge-warning { background-color: var(--role-warning-soft); border: 1px solid var(--role-warning-border); color: var(--role-warning-ink); }
+.badge-danger { background-color: var(--role-danger-soft); border: 1px solid var(--role-danger-border); color: var(--role-danger-ink); }
+.badge-info { background-color: var(--role-info-soft); border: 1px solid var(--role-info-border); color: var(--role-info-ink); }
+.badge-neutral { background-color: var(--role-neutral-soft); border: 1px solid var(--role-neutral-border); color: var(--role-neutral-ink); }
 
-.accent-soft {
-  background-color: var(--accent-soft);
-  border: 1px solid var(--accent);
-  color: var(--accent-ink);
-}
+.accent-soft { background-color: var(--accent-soft); border: 1px solid var(--accent); color: var(--accent-ink); }
 
 /* =========================
-   Light-theme overrides (theme scope)
+   KPI — Executive accent-only (Light)
+   ========================= */
+.kpi-card { position: relative; }
+
+.kpi-light {
+  /* subtle executive depth */
+  box-shadow: var(--shadow1);
+}
+
+/* Accent stripe */
+.kpi-card.kpi-light::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  top: 10px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--kpi-accent, transparent);
+  opacity: 0.95;
+}
+
+/* Make KPI title a bit more “console” without changing component code */
+.kpi-card.kpi-light [data-kpi-title],
+.kpi-card.kpi-light .kpi-title {
+  letter-spacing: 0.18em;
+}
+
+/* tones set accent only (no pastel fills) */
+.kpi-tone-neutral { --kpi-accent: rgba(28,24,20,0.18); }
+.kpi-tone-emerald { --kpi-accent: rgba(22,163,74,0.55); }
+.kpi-tone-sky { --kpi-accent: rgba(2,132,199,0.55); }
+.kpi-tone-amber { --kpi-accent: rgba(217,119,6,0.55); }
+.kpi-tone-violet { --kpi-accent: rgba(109,94,252,0.55); }
+.kpi-tone-rose { --kpi-accent: rgba(225,29,72,0.55); }
+
+/* =========================
+   Light-theme safety net for old slate classes inside theme-scope
    ========================= */
 :root[data-theme="light"] .theme-scope .text-slate-50,
 :root[data-theme="light"] .theme-scope .text-slate-100,
 :root[data-theme="light"] .theme-scope .text-slate-200,
-:root[data-theme="light"] .theme-scope .text-slate-300 {
-  color: var(--text);
-}
+:root[data-theme="light"] .theme-scope .text-slate-300 { color: var(--text); }
+
 :root[data-theme="light"] .theme-scope .text-slate-400,
 :root[data-theme="light"] .theme-scope .text-slate-500,
 :root[data-theme="light"] .theme-scope .text-slate-600,
-:root[data-theme="light"] .theme-scope .text-slate-700 {
-  color: var(--textMuted);
-}
+:root[data-theme="light"] .theme-scope .text-slate-700 { color: var(--textMuted); }
 
 :root[data-theme="light"] .theme-scope .border-slate-800,
 :root[data-theme="light"] .theme-scope .border-slate-700,
-:root[data-theme="light"] .theme-scope .border-slate-600 {
-  border-color: var(--border);
-}
+:root[data-theme="light"] .theme-scope .border-slate-600 { border-color: var(--border); }
 
-:root[data-theme="light"] .theme-scope [class*="bg-slate-950"] {
-  background-color: var(--panel);
-}
+:root[data-theme="light"] .theme-scope [class*="bg-slate-950"] { background-color: var(--panel); }
 :root[data-theme="light"] .theme-scope [class*="bg-slate-900"],
 :root[data-theme="light"] .theme-scope [class*="bg-slate-800"],
-:root[data-theme="light"] .theme-scope [class*="bg-slate-700"] {
-  background-color: var(--panel2);
-}
+:root[data-theme="light"] .theme-scope [class*="bg-slate-700"] { background-color: var(--panel2); }
 
-:root[data-theme="light"] .theme-scope .bg-\[\#050910\] {
-  background-color: var(--panel);
-}
+:root[data-theme="light"] .theme-scope .bg-\[\#050910\] { background-color: var(--panel); }
 
-:root[data-theme="light"] .theme-scope .divide-slate-800 > :not([hidden]) ~ :not([hidden]) {
-  border-color: var(--border);
-}
+:root[data-theme="light"] .theme-scope .divide-slate-800 > :not([hidden]) ~ :not([hidden]) { border-color: var(--border); }
