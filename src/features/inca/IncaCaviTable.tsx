@@ -229,41 +229,20 @@ export default function IncaCaviTable({
         sortValue: (r) => norm(r.codice).toLowerCase(),
         render: (r) => (
           <div className="flex items-center gap-2">
-            <span
-              className="inline-block h-2 w-2 rounded-full"
-              style={{ background: colorForSituazione(toAtom((r as any)?.situazione)) }}
-            />
+            <span className="inline-block h-2 w-2 rounded-full" style={{ background: colorForSituazione(toAtom((r as any)?.situazione)) }} />
             <span className="text-[13px] font-semibold text-slate-100">{norm(r.codice) || "—"}</span>
           </div>
         ),
       },
       {
-        id: "situazione",
-        label: "Sit.",
-        width: "84px",
-        sortValue: (r) => toAtom((r as any)?.situazione),
+        id: "sit_cantiere",
+        label: "Sit cant.",
+        width: "110px",
+        sortValue: (r) => norm((r as any)?.stato_cantiere).toLowerCase(),
         render: (r) => {
-          const a = toAtom((r as any)?.situazione);
-          return (
-            <span
-              className="inline-flex items-center rounded-full border border-slate-700/70 px-2 py-0.5 text-[12px] font-semibold"
-              style={{ color: colorForSituazione(a) }}
-            >
-              {a}
-            </span>
-          );
-        },
-      },
-      {
-        id: "progress",
-        label: "Prog.",
-        width: "72px",
-        sortValue: (r) => {
-          const p = typeof (r as any)?.progress_percent === "number" ? Number((r as any).progress_percent) : -1;
-          return p;
-        },
-        render: (r) => {
-          const label = progressLabel((r as any)?.progress_percent, (r as any)?.situazione);
+          const v = norm((r as any)?.stato_cantiere);
+          const label = v || "—";
+
           const is50 = label === "5";
           const is70 = label === "7";
           const isP = label === "P";
@@ -273,202 +252,129 @@ export default function IncaCaviTable({
               ? "border-sky-300/25 bg-sky-400/10 text-sky-200"
               : is50
                 ? "border-amber-300/25 bg-amber-400/10 text-amber-200"
-                : "border-slate-700/70 bg-white/5 text-slate-400";
-
-          const title =
-            label === "—"
-              ? "Progress non disponibile"
-              : label === "P"
-                ? "Progress 100% (P)"
-                : label === "7"
-                  ? "Progress 70% (Excel=7)"
-                  : "Progress 50% (Excel=5)";
+                : "border-slate-700/70 bg-white/5 text-slate-300";
 
           return (
-            <span title={title} className={`inline-flex items-center justify-center rounded-full border px-2 py-0.5 text-[12px] font-semibold ${tone}`}>
+            <span className={`inline-flex items-center justify-center rounded-full border px-2 py-0.5 text-[12px] font-semibold ${tone}`}>
               {label}
             </span>
           );
         },
       },
       {
-        id: "stato_cantiere",
-        label: "Cantiere",
-        width: "120px",
-        sortValue: (r) => norm(r.stato_cantiere).toLowerCase(),
-        render: (r) => <span className="text-[12px] text-slate-400">{norm(r.stato_cantiere) || "—"}</span>,
-        hideOnMobile: true,
-      },
-      {
-        id: "metri_ref",
-        label: "m",
+        id: "metri_teo",
+        label: "m teo",
         width: "90px",
-        sortValue: (r) => lengthRefMeters(r),
-        render: (r) => <span className="text-[12px] text-slate-200 tabular-nums">{fmtMeters(lengthRefMeters(r))}</span>,
+        sortValue: (r) => (typeof (r as any)?.metri_teo === "number" ? Number((r as any).metri_teo) : lengthRefMeters(r)),
+        render: (r) => {
+          const m = typeof (r as any)?.metri_teo === "number" ? Number((r as any).metri_teo) : lengthRefMeters(r);
+          return <span className="text-[12px] text-slate-200 tabular-nums">{fmtMeters(m)}</span>;
+        },
       },
       {
-        id: "ultimo_report",
-        label: "Ultimo report",
-        width: "240px",
+        id: "posa_capo",
+        label: "Posa / Capo",
+        width: "260px",
         sortValue: (r) => {
           const d = norm((r as any)?.data_posa);
           const c = norm((r as any)?.capo_label);
-          // Sort by date first, then capo label.
           return (d ? d : "0000-00-00") + "|" + c.toLowerCase();
         },
         render: (r) => {
           const dateRaw = (r as any)?.data_posa;
           const dateTxt = norm(dateRaw ? fmtDate(dateRaw) : "");
           const capo = norm((r as any)?.capo_label);
-          const line1 = [dateTxt, capo].filter(Boolean).join(" · ");
 
-          const hasReport = Boolean(line1);
-          if (!hasReport) {
+          if (!dateTxt && !capo) {
             return (
-              <div className="flex items-start gap-2">
-                <span className="inline-flex items-center rounded-full border border-slate-800 bg-slate-950/60 px-2 py-0.5 text-[11px] font-semibold text-slate-300">
-                  NO REPORT
-                </span>
-                <div className="leading-tight">
-                  <div className="text-[12px] font-semibold text-slate-200">Nessun report validato</div>
-                  <div className="text-[11px] text-slate-500">In attesa di consuntivazione</div>
+              <div className="leading-tight">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center rounded-full border border-slate-700/70 bg-white/5 px-2 py-0.5 text-[11px] font-semibold text-slate-300">
+                    NO-HIST
+                  </span>
+                  <div className="text-[12px] font-semibold text-slate-200">Nessun storico trovato</div>
                 </div>
+                <div className="pl-[52px] text-[11px] text-slate-500">Nessun rapportino collegato</div>
               </div>
             );
           }
 
           return (
             <div className="leading-tight">
-              <div className="text-[12px] font-semibold text-slate-200">{line1}</div>
-              <div className="text-[11px] text-slate-500">Report validato</div>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center rounded-full border border-slate-700/70 bg-white/5 px-2 py-0.5 text-[11px] font-semibold text-slate-200">
+                  HIST
+                </span>
+                <div className="text-[12px] font-semibold text-slate-200">{dateTxt || "—"}</div>
+              </div>
+              <div className="pl-[52px] text-[11px] text-slate-500">{capo ? `Capo: ${capo}` : "Capo: —"}</div>
             </div>
           );
         },
+      },
+      {
+        id: "da_a",
+        label: "Da → A",
+        width: "360px",
+        sortValue: (r) => (norm((r as any)?.apparato_da) + "->" + norm((r as any)?.apparato_a)).toLowerCase(),
+        render: (r) => (
+          <div className="flex items-center gap-2">
+            {renderAppChip("DA", (r as any)?.apparato_da)}
+            <span className="text-slate-600">→</span>
+            {renderAppChip("A", (r as any)?.apparato_a)}
+          </div>
+        ),
         hideOnMobile: true,
       },
       {
-        id: "pagina_pdf",
-        label: "PDF",
-        width: "90px",
-        sortValue: (r) => norm(r.pagina_pdf),
-        render: (r) => <span className="text-[12px] text-slate-400 tabular-nums">{r.pagina_pdf ?? "—"}</span>,
+        id: "tipo",
+        label: "Tipo cavo",
+        width: "160px",
+        sortValue: (r) => norm((r as any)?.tipo).toLowerCase(),
+        render: (r) => <span className="text-[12px] text-slate-300">{norm((r as any)?.tipo) || norm((r as any)?.marca_cavo) || "—"}</span>,
         hideOnMobile: true,
       },
-    ];
+    ].filter(Boolean);
 
-    // Safety: never let an accidental `undefined` column crash render.
-    let out: Column<IncaCavoRow>[] = base.filter(Boolean);
+    let out: Column<IncaCavoRow>[] = base;
 
     if (viewMode === "audit") {
       const auditExtras: Column<IncaCavoRow>[] = [
         {
-          id: "da_a",
-          label: "DA → A",
-          width: "360px",
-          sortValue: (r) => (norm(r.apparato_da) + " " + norm(r.apparato_a)).toLowerCase(),
-          render: (r) => (
-            <div className="text-[12px] text-slate-300">
-              <span className="font-semibold text-slate-200">{norm(r.apparato_da) || "—"}</span>
-              <span className="text-slate-600 mx-2">→</span>
-              <span className="font-semibold text-slate-200">{norm(r.apparato_a) || "—"}</span>
-              <div className="text-[11px] text-slate-500 mt-0.5">
-                {norm(r.zona_da) || "—"} <span className="mx-1">→</span> {norm(r.zona_a) || "—"}
-              </div>
-            </div>
-          ),
-          hideOnMobile: true,
-        },
-        {
-          id: "tipo",
-          label: "Tipo",
-          width: "140px",
-          sortValue: (r) => norm(r.tipo).toLowerCase(),
-          render: (r) => <span className="text-[12px] text-slate-300">{norm(r.tipo) || norm(r.marca_cavo) || "—"}</span>,
-          hideOnMobile: true,
-        },
-        {
-          id: "sezione",
-          label: "Sezione",
-          width: "90px",
-          sortValue: (r) => norm(r.sezione).toLowerCase(),
-          render: (r) => <span className="text-[12px] text-slate-300">{norm(r.sezione) || "—"}</span>,
-          hideOnMobile: true,
-        },
-        {
-          id: "disturbo",
-          label: "Dist.",
-          width: "90px",
-          sortValue: (r) => norm(r.livello_disturbo).toLowerCase(),
-          render: (r) => <span className="text-[12px] text-slate-300">{norm(r.livello_disturbo) || "—"}</span>,
-          hideOnMobile: true,
-        },
-        {
-          id: "metri_teo",
-          label: "m teo",
-          width: "90px",
-          sortValue: (r) => Number(r.metri_teo) || 0,
-          render: (r) => <span className="text-[12px] text-slate-200 tabular-nums">{fmtMeters(Number(r.metri_teo) || 0)}</span>,
-          hideOnMobile: true,
-        },
-        {
           id: "metri_dis",
           label: "m dis",
           width: "90px",
-          sortValue: (r) => Number(r.metri_dis) || 0,
-          render: (r) => <span className="text-[12px] text-slate-200 tabular-nums">{fmtMeters(Number(r.metri_dis) || 0)}</span>,
+          sortValue: (r) => (typeof (r as any)?.metri_dis === "number" ? Number((r as any).metri_dis) : -1),
+          render: (r) => {
+            const m = typeof (r as any)?.metri_dis === "number" ? Number((r as any).metri_dis) : null;
+            return <span className="text-[12px] text-slate-300 tabular-nums">{m == null ? "—" : fmtMeters(m)}</span>;
+          },
           hideOnMobile: true,
         },
         {
           id: "wbs",
           label: "WBS",
-          width: "160px",
-          sortValue: (r) => norm(r.wbs).toLowerCase(),
-          render: (r) => <span className="text-[12px] text-slate-300">{norm(r.wbs) || "—"}</span>,
-          hideOnMobile: true,
-        },
-        {
-          id: "stato_tec",
-          label: "Tec",
-          width: "120px",
-          sortValue: (r) => norm(r.stato_tec).toLowerCase(),
-          render: (r) => <span className="text-[12px] text-slate-300">{norm(r.stato_tec) || "—"}</span>,
-          hideOnMobile: true,
-        },
-        {
-          id: "impianto",
-          label: "Impianto",
-          width: "140px",
-          sortValue: (r) => norm(r.impianto).toLowerCase(),
-          render: (r) => <span className="text-[12px] text-slate-300">{norm(r.impianto) || "—"}</span>,
-          hideOnMobile: true,
-        },
-        {
-          id: "livello",
-          label: "Livello",
-          width: "100px",
-          sortValue: (r) => norm(r.livello).toLowerCase(),
-          render: (r) => <span className="text-[12px] text-slate-300">{norm(r.livello) || "—"}</span>,
+          width: "90px",
+          sortValue: (r) => norm((r as any)?.wbs).toLowerCase(),
+          render: (r) => <span className="text-[12px] text-slate-400">{norm((r as any)?.wbs) || "—"}</span>,
           hideOnMobile: true,
         },
       ];
 
-      out = [...out, ...auditExtras].filter(Boolean);
-    }
-
-    // Raw columns (opt-in, Excel-like). We append at the end to keep stable core columns.
-    if (visibleRawKeys.length > 0) {
+      // Keep raw/debug columns only in audit mode
       const rawCols: Column<IncaCavoRow>[] = visibleRawKeys.map((k) => ({
         id: `raw:${k}`,
         label: k,
-        width: "180px",
-        sortValue: (r) => asText((r as any)?.raw?.[k]).toLowerCase(),
-        render: (r) => <span className="text-[12px] text-slate-300">{asText((r as any)?.raw?.[k]) || "—"}</span>,
+        width: "160px",
+        sortValue: (r) => norm((r as any)?.raw?.[k]).toLowerCase(),
+        render: (r) => <span className="text-[12px] text-slate-400">{norm((r as any)?.raw?.[k]) || "—"}</span>,
         hideOnMobile: true,
       }));
-      out = [...out, ...rawCols].filter(Boolean);
+
+      out = [...base, ...auditExtras, ...rawCols].filter(Boolean);
     }
 
-    return out;
+    return out.filter(Boolean);
   }, [viewMode, visibleRawKeys]);
 
   const sortedRows = useMemo(() => {

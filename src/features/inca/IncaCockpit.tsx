@@ -585,10 +585,7 @@ export default function IncaCockpit(props: IncaCockpitProps) {
                   Cavi visibili: <span className="text-slate-200 font-semibold">{totalCavi}</span>
                 </span>
               )}
-              <div className="mt-1">
-                <span className="text-slate-500">Ultimo report: solo report validati</span>
-              </div>
-            </div>
+</div>
           </div>
         </div>
 
