@@ -1,6 +1,8 @@
 // src/admin/users/AdminUsersPage.tsx
 
 import React, { useCallback, useMemo, useState } from "react";
+import { useOutletContext } from "react-router-dom";
+import { t } from "../i18n";
 
 import { useAdminUsersData } from "./hooks/useAdminUsersData";
 import { PAGE_SIZE, type RoleFilter, useAdminUsersUi } from "./hooks/useAdminUsersUi";
@@ -20,6 +22,9 @@ function clamp(n: number, min: number, max: number): number {
 }
 
 export default function AdminUsersPage(): JSX.Element {
+  const outlet = useOutletContext() || ({} as any);
+  const lang = outlet.lang || "it";
+
   const {
     loading,
     rows,
@@ -28,6 +33,7 @@ export default function AdminUsersPage(): JSX.Element {
     createUser,
     setPassword,
     suspendUser,
+    reactivateUser,
     hardDeleteUser,
     lastPassword,
     lastPasswordEmail,
@@ -87,7 +93,7 @@ export default function AdminUsersPage(): JSX.Element {
           default_commessa: (form.default_commessa || "").trim() || null,
           allowed_cantieri: cantieri,
         });
-        toastOk("Utente creato");
+        toastOk(t(lang, "ADMIN_USERS_TOAST_CREATED", "Utente creato"));
         setInviteOpen(false);
       } catch (e: any) {
         console.error("[AdminUsersPage] invite error:", e);
@@ -96,7 +102,7 @@ export default function AdminUsersPage(): JSX.Element {
         setInviteBusy(false);
       }
     },
-    [createUser, parseCsv, toastOk, toastErr]
+    [createUser, parseCsv, toastOk, toastErr, lang]
   );
 
   const onRowSelect = useCallback(
@@ -113,7 +119,14 @@ export default function AdminUsersPage(): JSX.Element {
       try {
         if (action === "reset_pwd") {
           await setPassword(row.id);
-          toastOk("Password resettata");
+          toastOk(t(lang, "ADMIN_USERS_TOAST_PASSWORD_RESET", "Password resettata"));
+          return;
+        }
+
+        if (action === "reactivate") {
+          // NOTE: we enforce a premium “reason confirm” later in UserDrawer/Danger dialog.
+          await reactivateUser(row.id, undefined);
+          toastOk(t(lang, "ADMIN_USERS_TOAST_REACTIVATED", "Utente riattivato"));
           return;
         }
 
@@ -133,7 +146,7 @@ export default function AdminUsersPage(): JSX.Element {
         toastErr(e?.message || String(e));
       }
     },
-    [setPassword, toastOk, toastErr, setSelectedUserId]
+    [setPassword, reactivateUser, toastOk, toastErr, setSelectedUserId, lang]
   );
 
   const confirmDanger = useCallback(
@@ -143,10 +156,10 @@ export default function AdminUsersPage(): JSX.Element {
       try {
         if (dangerMode === "suspend") {
           await suspendUser(selectedUser.id, reason || undefined);
-          toastOk("Utente sospeso");
+          toastOk(t(lang, "ADMIN_USERS_TOAST_SUSPENDED", "Utente sospeso"));
         } else {
           await hardDeleteUser(selectedUser.id, reason || undefined);
-          toastOk("Utente eliminato");
+          toastOk(t(lang, "ADMIN_USERS_TOAST_DELETED", "Utente eliminato"));
           setSelectedUserId(null);
         }
         closeDanger();
@@ -157,7 +170,7 @@ export default function AdminUsersPage(): JSX.Element {
         setDangerBusy(false);
       }
     },
-    [selectedUser, dangerMode, suspendUser, hardDeleteUser, toastOk, toastErr, closeDanger, setSelectedUserId]
+    [selectedUser, dangerMode, suspendUser, hardDeleteUser, toastOk, toastErr, closeDanger, setSelectedUserId, lang]
   );
 
   const onPrev = useCallback(() => {
@@ -174,11 +187,11 @@ export default function AdminUsersPage(): JSX.Element {
     if (!selectedUser) return;
     try {
       await setPassword(selectedUser.id);
-      toastOk("Password resettata");
+      toastOk(t(lang, "ADMIN_USERS_TOAST_PASSWORD_RESET", "Password resettata"));
     } catch (e: any) {
       toastErr(e?.message || String(e));
     }
-  }, [selectedUser, setPassword, toastOk, toastErr]);
+  }, [selectedUser, setPassword, toastOk, toastErr, lang]);
 
   const onSideSuspend = useCallback(() => {
     if (!selectedUser) return;
@@ -206,7 +219,7 @@ export default function AdminUsersPage(): JSX.Element {
 
       {lastError ? (
         <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-rose-100">
-          <div className="text-[12px] font-semibold">Errore</div>
+          <div className="text-[12px] font-semibold">{t(lang, "COMMON_ERROR", "Errore")}</div>
           <div className="mt-1 text-[12px] opacity-90">{lastError}</div>
         </div>
       ) : null}
@@ -240,10 +253,13 @@ export default function AdminUsersPage(): JSX.Element {
 
         <div className="flex items-center justify-between gap-3">
           <div className="text-[12px] text-slate-400">
-            Page <span className="text-slate-200 font-semibold">{ui.page}</span> /{" "}
-            <span className="text-slate-200 font-semibold">{ui.totalPages}</span> — {ui.filtered.length} results
+            {t(lang, "COMMON_PAGE", "Page")}{" "}
+            <span className="text-slate-200 font-semibold">{ui.page}</span> /{" "}
+            <span className="text-slate-200 font-semibold">{ui.totalPages}</span> —{" "}
+            {ui.filtered.length} {t(lang, "COMMON_RESULTS", "results")}
             <span className="ml-2 text-slate-500">(PAGE_SIZE={PAGE_SIZE})</span>
           </div>
+
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -255,8 +271,9 @@ export default function AdminUsersPage(): JSX.Element {
                   : "rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[12px] font-semibold text-slate-200 hover:bg-slate-900/40"
               }
             >
-              Prev
+              {t(lang, "COMMON_PREV", "Prev")}
             </button>
+
             <button
               type="button"
               onClick={onNext}
@@ -267,7 +284,7 @@ export default function AdminUsersPage(): JSX.Element {
                   : "rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[12px] font-semibold text-slate-200 hover:bg-slate-900/40"
               }
             >
-              Next
+              {t(lang, "COMMON_NEXT", "Next")}
             </button>
           </div>
         </div>
@@ -289,11 +306,15 @@ export default function AdminUsersPage(): JSX.Element {
       <DangerConfirmDialog
         open={dangerOpen}
         mode={dangerMode}
-        title={dangerMode === "hard_delete" ? "Hard delete utente" : "Sospendere utente"}
+        title={dangerMode === "hard_delete" ? t(lang, "ADMIN_USERS_DANGER_DELETE_TITLE", "Hard delete utente") : t(lang, "ADMIN_USERS_DANGER_SUSPEND_TITLE", "Sospendere utente")}
         subtitle={
           dangerMode === "hard_delete"
-            ? "Questa azione è irreversibile. Elimina l’utente e i riferimenti auth. Usa solo se sei sicuro al 100%."
-            : "Sospende l’utente (accesso bloccato) senza cancellare i dati storici."
+            ? t(
+                lang,
+                "ADMIN_USERS_DANGER_DELETE_SUBTITLE",
+                "Questa azione è irreversibile. Elimina l’utente e i riferimenti auth. Usa solo se sei sicuro al 100%."
+              )
+            : t(lang, "ADMIN_USERS_DANGER_SUSPEND_SUBTITLE", "Sospende l’utente (accesso bloccato) senza cancellare i dati storici.")
         }
         confirmLabel={dangerMode === "hard_delete" ? "DELETE" : "SUSPEND"}
         emailToConfirm={selectedUser?.email || null}
