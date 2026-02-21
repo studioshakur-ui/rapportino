@@ -6,47 +6,25 @@
 // - New users are provisioned via Admin createUser (NO email sent; avoids Supabase email rate limits)
 // - OPTION B (CNCS): generate initial password at creation (server-side) and return it to Admin UI
 // - Enforces profiles.app_role and profiles.role are always synced (DB constraint)
+// - Harden invite redirect (never localhost) via ADMIN_INVITE_REDIRECT_TO/SITE_URL fallback
 // - CNCS-grade append-only admin audit (public.admin_actions_audit)
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { corsHeaders } from "../_shared/cors.ts";
 
 type Json = Record<string, unknown>;
 
-// ── CORS ──────────────────────────────────────────────────────────────────────
-// Supabase gateway forwards OPTIONS to the function — we must respond 200/204
-// with the correct headers, otherwise the browser blocks the actual POST.
-// Security: we reflect the Origin (any authenticated caller is fine — the real
-// authz is done via requireAdmin which checks the Bearer token + ADMIN role).
-
-function corsHeaders(req: Request): Record<string, string> {
-  const origin = req.headers.get("origin") || req.headers.get("Origin") || "*";
-  return {
-    "access-control-allow-origin": origin,
-    "access-control-allow-methods": "POST, OPTIONS",
-    "access-control-allow-headers":
-      "authorization, x-client-info, apikey, content-type",
-    "access-control-max-age": "86400",
-    vary: "Origin",
-  };
-}
-
-function okPreflight(req: Request): Response {
-  return new Response(null, { status: 204, headers: corsHeaders(req) });
-}
-
-function json(req: Request, status: number, body: Json): Response {
+function json(_req: Request, status: number, body: Json) {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
+      ...corsHeaders,
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",
-      ...corsHeaders(req),
     },
   });
 }
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getBearerToken(req: Request): string | null {
   const h = req.headers.get("authorization") || req.headers.get("Authorization");
@@ -55,9 +33,8 @@ function getBearerToken(req: Request): string | null {
   return m?.[1] ?? null;
 }
 
-function randomPassword(len = 16): string {
-  const alphabet =
-    "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*";
+function randomPassword(len = 16) {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*";
   const bytes = crypto.getRandomValues(new Uint8Array(len));
   let out = "";
   for (let i = 0; i < bytes.length; i++) out += alphabet[bytes[i] % alphabet.length];
@@ -67,13 +44,16 @@ function randomPassword(len = 16): string {
 function normalizeEmail(v: unknown): string | null {
   if (typeof v !== "string") return null;
   const e = v.trim().toLowerCase();
-  if (!e || !e.includes("@") || e.length > 254) return null;
+  if (!e) return null;
+  // minimal sanity (CNCS: do not over-validate here)
+  if (!e.includes("@") || e.length > 254) return null;
   return e;
 }
 
 function normalizeRole(v: unknown): string | null {
   if (typeof v !== "string") return null;
   const r = v.trim().toUpperCase();
+  if (!r) return null;
   const allowed = new Set(["CAPO", "UFFICIO", "MANAGER", "ADMIN", "DIREZIONE"]);
   return allowed.has(r) ? r : null;
 }
@@ -87,8 +67,11 @@ function safeText(v: unknown, maxLen = 120): string | null {
 
 function normalizeRedirectUrl(v: string | undefined | null): string | null {
   if (!v) return null;
+  const s = String(v).trim();
+  if (!s) return null;
   try {
-    const u = new URL(String(v).trim());
+    const u = new URL(s);
+    // CNCS: never allow localhost or insecure origins in redirect
     if (u.protocol !== "https:") return null;
     if (u.hostname === "localhost" || u.hostname.endsWith(".local")) return null;
     return u.toString().replace(/\/+$/, "");
@@ -97,22 +80,14 @@ function normalizeRedirectUrl(v: string | undefined | null): string | null {
   }
 }
 
-// ── Auth guard ────────────────────────────────────────────────────────────────
+type Gate = { ok: true; callerId: string } | { ok: false; status: number; error: string };
 
-type Gate =
-  | { ok: true; callerId: string }
-  | { ok: false; status: number; error: string };
-
-async function requireAdmin(
-  admin: ReturnType<typeof createClient>,
-  req: Request
-): Promise<Gate> {
+async function requireAdmin(admin: ReturnType<typeof createClient>, req: Request): Promise<Gate> {
   const token = getBearerToken(req);
   if (!token) return { ok: false, status: 401, error: "Missing bearer token" };
 
   const { data: userRes, error: uErr } = await admin.auth.getUser(token);
-  if (uErr || !userRes?.user?.id)
-    return { ok: false, status: 401, error: "Invalid token" };
+  if (uErr || !userRes?.user?.id) return { ok: false, status: 401, error: "Invalid token" };
 
   const callerId = userRes.user.id;
 
@@ -122,15 +97,11 @@ async function requireAdmin(
     .eq("id", callerId)
     .maybeSingle();
 
-  if (pErr || !prof?.id)
-    return { ok: false, status: 403, error: "Profile not found" };
-  if (String(prof.app_role || "").toUpperCase() !== "ADMIN")
-    return { ok: false, status: 403, error: "ADMIN only" };
+  if (pErr || !prof?.id) return { ok: false, status: 403, error: "Profile not found" };
+  if (String(prof.app_role || "").toUpperCase() !== "ADMIN") return { ok: false, status: 403, error: "ADMIN only" };
 
   return { ok: true, callerId };
 }
-
-// ── Audit ─────────────────────────────────────────────────────────────────────
 
 type AuditInsert = {
   actor_id: string;
@@ -142,42 +113,48 @@ type AuditInsert = {
   meta: Json | null;
 };
 
-async function insertAdminAudit(
-  admin: ReturnType<typeof createClient>,
-  row: AuditInsert
-): Promise<void> {
+async function insertAdminAudit(admin: ReturnType<typeof createClient>, row: AuditInsert) {
+  // CNCS: append-only log; do not throw hard here (avoid blocking provisioning on audit failure)
   try {
-    await admin.from("admin_actions_audit").insert(row);
+    await admin.from("admin_actions_audit").insert({
+      actor_id: row.actor_id,
+      actor_email: row.actor_email,
+      action: row.action,
+      target_user_id: row.target_user_id,
+      target_email: row.target_email,
+      reason: row.reason,
+      meta: row.meta,
+    });
   } catch {
-    // swallow — audit must never block provisioning
+    // swallow
   }
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
-
 serve(async (req) => {
-  // 1) Preflight FIRST — always before any other logic
-  if (req.method === "OPTIONS") return okPreflight(req);
+  // CNCS: Always handle CORS preflight first
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
 
-  // 2) Method guard
-  if (req.method !== "POST")
+  if (req.method !== "POST") {
     return json(req, 405, { ok: false, error: "Method not allowed" });
+  }
+
+  const url = new URL(req.url);
+  if (url.pathname.endsWith("/")) url.pathname = url.pathname.slice(0, -1);
 
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!SUPABASE_URL || !SERVICE_ROLE_KEY)
-      return json(req, 500, { ok: false, error: "Server misconfigured" });
+    if (!SUPABASE_URL || !SERVICE_ROLE_KEY) return json(req, 500, { ok: false, error: "Server misconfigured" });
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    // 3) Auth check (ADMIN only)
     const gate = await requireAdmin(admin, req);
     if (!gate.ok) return json(req, gate.status, { ok: false, error: gate.error });
 
-    // 4) Parse payload
     const payload = (await req.json().catch(() => null)) as Json | null;
     if (!payload) return json(req, 400, { ok: false, error: "Invalid JSON body" });
 
@@ -189,34 +166,32 @@ serve(async (req) => {
     if (!email) return json(req, 400, { ok: false, error: "Invalid email" });
     if (!app_role) return json(req, 400, { ok: false, error: "Invalid app_role" });
 
-    const actorEmail =
-      typeof payload.actor_email === "string" ? payload.actor_email : null;
+    const actorEmail = typeof payload.actor_email === "string" ? payload.actor_email : null;
 
+    // CNCS: redirect must be stable and safe; fallback to production base.
+    // NOTE: kept for audit continuity even though we no longer send invite emails.
     const base =
       normalizeRedirectUrl(Deno.env.get("ADMIN_INVITE_REDIRECT_TO")) ||
       normalizeRedirectUrl(Deno.env.get("SITE_URL")) ||
       "https://core.cncs.systems";
-    const redirectTo = `${base}/auth/confirm`;
 
-    // OPTION B: generate password server-side
+    const redirectTo = `${base.replace(/\/+$/, "")}/auth/confirm`;
+
+    // OPTION B: always create an initial password server-side (do NOT audit/store the password itself)
     const password = randomPassword(16);
 
+    // Helper: set AUTH password + flag onboarding
     const setAuthPasswordAndFlag = async (userId: string) => {
-      const { error: pwdErr } = await admin.auth.admin.updateUserById(userId, {
-        password,
-      });
-      if (pwdErr)
-        return { ok: false as const, error: pwdErr.message || "Auth password update failed" };
+      const { error: pwdErr } = await admin.auth.admin.updateUserById(userId, { password });
+      if (pwdErr) return { ok: false as const, error: pwdErr.message || "Auth password update failed" };
 
-      const { error: flagErr } = await admin
-        .from("profiles")
-        .update({ must_change_password: true })
-        .eq("id", userId);
+      const { error: flagErr } = await admin.from("profiles").update({ must_change_password: true }).eq("id", userId);
       if (flagErr) return { ok: false as const, error: "Profile update failed" };
 
       return { ok: true as const };
     };
 
+    // Helper: profile upsert enforcing role coherence
     const upsertProfile = async (userId: string, mustChangePassword: boolean) => {
       const { error } = await admin.from("profiles").upsert(
         {
@@ -225,7 +200,7 @@ serve(async (req) => {
           full_name,
           display_name,
           app_role,
-          role: app_role,
+          role: app_role, // keep legacy compatibility if role column mirrors app_role
           must_change_password: mustChangePassword,
         },
         { onConflict: "id" }
@@ -233,7 +208,7 @@ serve(async (req) => {
       return error ? error.message || "Profile upsert failed" : null;
     };
 
-    // 5) Idempotence: check existing profile by email
+    // 1) Check if profile already exists for this email (idempotent behavior)
     const { data: existingProfile, error: profErr } = await admin
       .from("profiles")
       .select("id, email")
@@ -245,22 +220,26 @@ serve(async (req) => {
       return json(req, 500, { ok: false, error: "Profile lookup failed" });
     }
 
+    // 4) If profile exists, repair + set new password (Option B behavior)
     if (existingProfile?.id) {
       const userId = String(existingProfile.id);
 
-      const { data: authUser, error: getAuthErr } =
-        await admin.auth.admin.getUserById(userId);
+      // Safety: ensure auth user exists for this profile id.
+      const { data: authUser, error: getAuthErr } = await admin.auth.admin.getUserById(userId);
       if (getAuthErr || !authUser?.user?.id) {
+        // CNCS: refuse to silently create a second auth user for the same email (would corrupt references).
         return json(req, 409, {
           ok: false,
           error:
-            "Profile exists but Auth user is missing. Hard delete and recreate.",
+            "Profile exists but Auth user is missing for this id. Hard delete the profile/user (or repair auth) then recreate.",
         });
       }
 
+      // Upsert profile (keep coherence) and force onboarding
       const upErr = await upsertProfile(userId, true);
       if (upErr) return json(req, 500, { ok: false, error: "Profile upsert failed" });
 
+      // Set initial password now
       const setRes = await setAuthPasswordAndFlag(userId);
       if (!setRes.ok) return json(req, 500, { ok: false, error: setRes.error });
 
@@ -274,47 +253,56 @@ serve(async (req) => {
         meta: { mode: "updated_existing", app_role, redirectTo, password_generated: true },
       });
 
+      await insertAdminAudit(admin, {
+        actor_id: gate.callerId,
+        actor_email: actorEmail,
+        action: "user.set_password",
+        target_user_id: userId,
+        target_email: email,
+        reason: "create_user_option_b",
+        meta: { generated: true, method: "updateUserById" },
+      });
+
       return json(req, 200, {
         ok: true,
         mode: "updated_existing",
         user_id: userId,
         email,
-        password,
+        password, // returned to ADMIN UI banner (shown once)
       });
     }
 
-    // 6) New user — createUser directly (no email sent)
-    const { data: created, error: createErr } =
-      await admin.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: {
-          full_name: full_name ?? undefined,
-          display_name: display_name ?? undefined,
-          app_role,
-        },
-      });
+    // 5) New provisioning: create user directly (NO email is sent)
+    // This avoids Supabase Auth email rate limits (invites / confirmations / magic links / reset).
+    const { data: created, error: createErr } = await admin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: {
+        full_name: full_name ?? undefined,
+        display_name: display_name ?? undefined,
+        app_role,
+      },
+    });
 
     if (createErr || !created?.user?.id) {
-      console.error("[admin-create-user] createUser failed:", createErr?.message);
+      console.error("[admin-create-user] createUser failed:", createErr?.message || createErr);
       return json(req, 500, { ok: false, error: "Create user failed" });
     }
 
     const newUserId = created.user.id;
 
+    // 6) Force profile coherence + onboarding flag
     const upErr = await upsertProfile(newUserId, true);
     if (upErr) {
-      console.error("[admin-create-user] profile upsert failed:", upErr);
+      console.error("[admin-create-user] profile upsert failed after createUser:", upErr);
       return json(req, 500, { ok: false, error: "Profile upsert failed" });
     }
 
-    const { error: flagErrNew } = await admin
-      .from("profiles")
-      .update({ must_change_password: true })
-      .eq("id", newUserId);
+    // 7) OPTION B: password already set at createUser; enforce onboarding flag
+    const { error: flagErrNew } = await admin.from("profiles").update({ must_change_password: true }).eq("id", newUserId);
     if (flagErrNew) {
-      console.error("[admin-create-user] flag update failed:", flagErrNew);
+      console.error("[admin-create-user] profile flag update failed after createUser:", flagErrNew);
       return json(req, 500, { ok: false, error: "Profile update failed" });
     }
 
@@ -325,20 +313,26 @@ serve(async (req) => {
       target_user_id: newUserId,
       target_email: email,
       reason: null,
-      meta: {
-        mode: "created_direct_no_email",
-        app_role,
-        email_confirm: true,
-        password_generated: true,
-      },
+      meta: { mode: "created_direct_no_email", app_role, email_confirm: true, password_generated: true },
     });
 
+    await insertAdminAudit(admin, {
+      actor_id: gate.callerId,
+      actor_email: actorEmail,
+      action: "user.set_password",
+      target_user_id: newUserId,
+      target_email: email,
+      reason: "create_user_option_b",
+      meta: { generated: true, method: "createUser" },
+    });
+
+    // Front expects data.ok + (optional) password to show banner
     return json(req, 200, {
       ok: true,
       mode: "created_direct_no_email",
       user_id: newUserId,
       email,
-      password,
+      password, // returned to ADMIN UI banner (shown once)
     });
   } catch (e) {
     console.error("[admin-create-user] fatal:", e);
