@@ -34,9 +34,28 @@ function lower(s: unknown): string {
   return String(s ?? "").toLowerCase();
 }
 
-function isMissingColumnError(msg: string, col: string): boolean {
-  const m = lower(msg);
-  return m.includes("does not exist") && m.includes(`column`) && m.includes(col);
+type PgRestishError = {
+  code?: string | null;
+  message?: string | null;
+  details?: unknown;
+  hint?: unknown;
+};
+
+/**
+ * Robust detection of missing-column errors across PostgREST / supabase-js variants.
+ *
+ * We MUST be tolerant because environments may lag migrations (preview/prod/local).
+ */
+function isMissingColumnError(err: unknown, col: string): boolean {
+  const e = err as PgRestishError;
+  const code = String(e?.code ?? "");
+  const msg = lower(e?.message ?? err);
+
+  // Postgres undefined_column
+  if (code === "42703") return msg.includes(col);
+
+  // Typical message: "column profiles.disabled_at does not exist"
+  return msg.includes("does not exist") && msg.includes("column") && msg.includes(col);
 }
 
 function normEmail(email: string): string {
@@ -51,52 +70,6 @@ function parseCsv(raw: string): string[] | null {
     .map((x) => x.trim())
     .filter(Boolean);
   return arr.length ? arr : null;
-}
-
-/**
- * Appel direct aux Edge Functions via fetch natif.
- *
- * Pourquoi : supabase.functions.invoke() déclenche un preflight OPTIONS que
- * Supabase gateway rejette avec 405 si le header apikey est absent de la
- * requête OPTIONS elle-même. En appelant fetch directement avec
- * Content-Type: application/json + Authorization + apikey, le browser
- * considère la requête comme "simple" (pas de preflight) et Supabase
- * l'accepte directement.
- */
-async function invokeAdminFunction(
-  name: string,
-  body: unknown,
-  accessToken: string
-): Promise<Record<string, unknown>> {
-  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${name}`;
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-    },
-    body: JSON.stringify(body),
-  });
-
-  const data = (await res.json()) as Record<string, unknown>;
-
-  if (!res.ok) {
-    throw new Error(
-      (data?.error as string | undefined) || `HTTP ${res.status}`
-    );
-  }
-
-  return data;
-}
-
-async function getAccessToken(): Promise<string> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (!session?.access_token) throw new Error("No active session");
-  return session.access_token;
 }
 
 export function useAdminUsersData() {
@@ -127,8 +100,7 @@ export function useAdminUsersData() {
         .limit(2000);
 
       if (error) {
-        const msg = error.message || String(error);
-        if (preferWith && isMissingColumnError(msg, "disabled_at")) {
+        if (preferWith && isMissingColumnError(error, "disabled_at")) {
           supportsDisabledAtRef.current = false;
           const retry = await supabase
             .from("profiles")
@@ -145,10 +117,10 @@ export function useAdminUsersData() {
 
       if (preferWith) supportsDisabledAtRef.current = true;
       setRows((data as unknown as ProfileRow[]) || []);
-    } catch (e: unknown) {
+    } catch (e: any) {
       console.error("[useAdminUsersData] loadUsers error:", e);
       setRows([]);
-      setLastError((e as Error)?.message || String(e));
+      setLastError(e?.message || String(e));
     } finally {
       setLoading(false);
     }
@@ -169,10 +141,9 @@ export function useAdminUsersData() {
         email: normEmail(payload.email),
       };
 
-      const token = await getAccessToken();
-      const data = await invokeAdminFunction("admin-create-user", body, token);
-
-      if (!data?.ok) throw new Error((data?.error as string) || "Create user failed");
+      const { data, error } = await supabase.functions.invoke("admin-create-user", { body });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.error || "Create user failed");
 
       if (data?.password) {
         setLastPassword(String(data.password));
@@ -191,14 +162,9 @@ export function useAdminUsersData() {
       setLastPassword(null);
       setLastPasswordEmail(null);
 
-      const token = await getAccessToken();
-      const data = await invokeAdminFunction(
-        "admin-set-password",
-        { user_id: userId },
-        token
-      );
-
-      if (!data?.ok) throw new Error((data?.error as string) || "Set password failed");
+      const { data, error } = await supabase.functions.invoke("admin-set-password", { body: { user_id: userId } });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.error || "Set password failed");
 
       if (data?.password) setLastPassword(String(data.password));
       if (data?.email) setLastPasswordEmail(String(data.email));
@@ -212,15 +178,11 @@ export function useAdminUsersData() {
   const suspendUser = useCallback(
     async (userId: string, reason?: string) => {
       setLastError(null);
-
-      const token = await getAccessToken();
-      const data = await invokeAdminFunction(
-        "admin-delete-user",
-        { user_id: userId, mode: "suspend", reason: reason || "Admin suspend" },
-        token
-      );
-
-      if (!data?.ok) throw new Error((data?.error as string) || "Suspend failed");
+      const { data, error } = await supabase.functions.invoke("admin-delete-user", {
+        body: { user_id: userId, mode: "suspend", reason: reason || "Admin suspend" },
+      });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.error || "Suspend failed");
       await loadUsers();
       return data;
     },
@@ -230,15 +192,11 @@ export function useAdminUsersData() {
   const hardDeleteUser = useCallback(
     async (userId: string, reason?: string) => {
       setLastError(null);
-
-      const token = await getAccessToken();
-      const data = await invokeAdminFunction(
-        "admin-delete-user",
-        { user_id: userId, mode: "hard_delete", reason: reason || "Admin hard delete" },
-        token
-      );
-
-      if (!data?.ok) throw new Error((data?.error as string) || "Hard delete failed");
+      const { data, error } = await supabase.functions.invoke("admin-delete-user", {
+        body: { user_id: userId, mode: "hard_delete", reason: reason || "Admin hard delete" },
+      });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.error || "Hard delete failed");
       await loadUsers();
       return data;
     },

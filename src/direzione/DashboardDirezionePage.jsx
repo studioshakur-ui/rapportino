@@ -23,7 +23,7 @@ export default function DashboardDirezionePage({
   onResetFilters,
   headerRight,
 }) {
-  const { lang, setLang, t } = useCoreI18n();
+  const { t } = useCoreI18n();
   const [modalKey, setModalKey] = useState(null);
 
   const km = kpiModel || {};
@@ -149,8 +149,14 @@ export default function DashboardDirezionePage({
 
   const topBar = (
     <div className="px-3 sm:px-4 pt-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+      {/*
+        ✅ Layout stabilisé (Apple-grade):
+        - Sépare clairement "titre" vs "cluster droite".
+        - Évite justify-between + flex-wrap (fragile aux variations i18n).
+        - Le switch langue vit au niveau AppShell (global), PAS dans cette page.
+      */}
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-start">
+        <div className="min-w-0">
           <div className={cn("text-[11px] uppercase tracking-[0.18em]", isDark ? "text-slate-500" : "text-slate-600")}>
             DIREZIONE · CNCS / CORE
           </div>
@@ -159,7 +165,7 @@ export default function DashboardDirezionePage({
           </h1>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 justify-self-start sm:justify-self-end">
           <span
             className={cn(
               "px-3 py-1.5 rounded-full border text-[11px] uppercase tracking-[0.18em]",
@@ -169,17 +175,11 @@ export default function DashboardDirezionePage({
             {t("DIR_READONLY")}
           </span>
 
-          <div className="flex items-center gap-1">
-            <LangChip label="IT" active={lang === "it"} onClick={() => setLang("it")} isDark={isDark} />
-            <LangChip label="FR" active={lang === "fr"} onClick={() => setLang("fr")} isDark={isDark} />
-            <LangChip label="EN" active={lang === "en"} onClick={() => setLang("en")} isDark={isDark} />
-          </div>
-
           {headerRight ? headerRight : null}
         </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-3">
+      <div className="mt-3 grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-center">
         <div className={cn("text-xs", isDark ? "text-slate-400" : "text-slate-600")}>
           {t("DIR_WINDOW")}: <span className={cn("font-semibold", isDark ? "text-slate-200" : "text-slate-900")}>{km.windowLabel ?? "—"}</span>
         </div>
@@ -188,7 +188,7 @@ export default function DashboardDirezionePage({
           type="button"
           onClick={onResetFilters}
           className={cn(
-            "ml-auto px-3 py-1.5 rounded-full border text-[11px] uppercase tracking-[0.18em] transition",
+            "justify-self-start sm:justify-self-end min-w-[160px] px-3 py-1.5 rounded-full border text-[11px] uppercase tracking-[0.18em] transition",
             isDark ? "border-slate-700/70 bg-slate-950/30 text-slate-200 hover:bg-slate-900/40" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
           )}
         >
@@ -215,27 +215,5 @@ export default function DashboardDirezionePage({
         isDark={isDark}
       />
     </div>
-  );
-}
-
-function LangChip({ label, active, onClick, isDark }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "px-2.5 py-1 rounded-full border text-[11px] uppercase tracking-[0.18em] transition",
-        active
-          ? isDark
-            ? "border-slate-500/70 bg-slate-200/10 text-slate-50"
-            : "border-slate-300 bg-slate-100 text-slate-900"
-          : isDark
-          ? "border-slate-800/70 bg-slate-950/30 text-slate-400 hover:bg-slate-900/35 hover:text-slate-200"
-          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-      )}
-      aria-pressed={active ? "true" : "false"}
-    >
-      {label}
-    </button>
   );
 }

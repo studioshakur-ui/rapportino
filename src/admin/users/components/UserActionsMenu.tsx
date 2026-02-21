@@ -5,8 +5,13 @@ import { cn } from "./ui";
 
 export type UserAction = "reset_pwd" | "suspend" | "hard_delete";
 
-export default function UserActionsMenu(props: { disabled?: boolean; onAction: (action: UserAction) => void }) {
-  const { disabled, onAction } = props;
+export default function UserActionsMenu(props: {
+  disabled?: boolean;
+  /** Capability flag: if false, the "Suspend" action is shown disabled and never fired. */
+  canSuspend?: boolean;
+  onAction: (action: UserAction) => void;
+}) {
+  const { disabled, canSuspend = true, onAction } = props;
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -68,8 +73,16 @@ export default function UserActionsMenu(props: { disabled?: boolean; onAction: (
 
           <button
             type="button"
-            onClick={() => fire("suspend")}
-            className={cn("w-full text-left px-3 py-2 text-[12px] font-semibold", "text-amber-100 hover:bg-amber-500/10")}
+            disabled={!canSuspend}
+            onClick={() => {
+              if (!canSuspend) return;
+              fire("suspend");
+            }}
+            title={!canSuspend ? "Funzione in deploy" : undefined}
+            className={cn(
+              "w-full text-left px-3 py-2 text-[12px] font-semibold",
+              canSuspend ? "text-amber-100 hover:bg-amber-500/10" : "text-slate-500 cursor-not-allowed"
+            )}
           >
             Suspend
           </button>

@@ -17,9 +17,10 @@ export default function UserDrawer(props: {
   onResetPwd: () => void;
   onSuspend: () => void;
   onHardDelete: () => void;
+  canSuspend: boolean;
   busy?: boolean;
 }) {
-  const { open, user, onClose, onResetPwd, onSuspend, onHardDelete, busy } = props;
+  const { open, user, onClose, onResetPwd, onSuspend, onHardDelete, canSuspend, busy } = props;
 
   const [dangerOpen, setDangerOpen] = useState(false);
 
@@ -215,12 +216,15 @@ export default function UserDrawer(props: {
             <button
               type="button"
               onClick={onSuspend}
-              disabled={!!busy}
+              disabled={!!busy || !canSuspend}
+              title={!canSuspend ? "Funzione in deploy" : undefined}
               className={cn(
                 "rounded-xl border px-4 py-2 text-[12px] font-semibold",
                 busy
                   ? "border-slate-800 bg-slate-950/40 text-slate-500"
-                  : "border-amber-500/45 bg-amber-500/10 text-amber-100 hover:bg-amber-500/15"
+                  : canSuspend
+                    ? "border-amber-500/45 bg-amber-500/10 text-amber-100 hover:bg-amber-500/15"
+                    : "border-slate-800 bg-slate-950/40 text-slate-500 cursor-not-allowed"
               )}
             >
               Suspend

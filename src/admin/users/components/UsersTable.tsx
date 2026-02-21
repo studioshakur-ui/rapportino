@@ -16,11 +16,12 @@ function statusBadge(row: ProfileRow): { label: string; cls: string } {
 export default function UsersTable(props: {
   rows: ProfileRow[];
   loading: boolean;
+  canSuspend: boolean;
   selectedUserId: string | null;
   onSelect: (id: string) => void;
   onAction: (row: ProfileRow, action: UserAction) => void;
 }) {
-  const { rows, loading, selectedUserId, onSelect, onAction } = props;
+  const { rows, loading, canSuspend, selectedUserId, onSelect, onAction } = props;
 
   const empty = !loading && rows.length === 0;
 
@@ -139,7 +140,7 @@ export default function UsersTable(props: {
 
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-end">
-                        <UserActionsMenu onAction={(a) => onAction(r, a)} />
+                        <UserActionsMenu canSuspend={canSuspend} onAction={(a) => onAction(r, a)} />
                       </div>
                     </td>
                   </tr>

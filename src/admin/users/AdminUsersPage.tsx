@@ -31,6 +31,7 @@ export default function AdminUsersPage(): JSX.Element {
     hardDeleteUser,
     lastPassword,
     lastPasswordEmail,
+    supportsDisabledAt,
     parseCsv,
   } = useAdminUsersData();
 
@@ -231,6 +232,7 @@ export default function AdminUsersPage(): JSX.Element {
         <UsersTable
           rows={ui.pageRows}
           loading={loading}
+          canSuspend={supportsDisabledAt}
           selectedUserId={selectedUserId}
           onSelect={onRowSelect}
           onAction={onAction}
@@ -278,6 +280,7 @@ export default function AdminUsersPage(): JSX.Element {
         onResetPwd={onSideResetPwd}
         onSuspend={onSideSuspend}
         onHardDelete={onSideHardDelete}
+        canSuspend={supportsDisabledAt}
         busy={dangerBusy}
       />
 

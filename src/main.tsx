@@ -8,6 +8,7 @@ import AppRoutes from "./routes";
 import { AuthProvider } from "./auth/AuthProvider";
 import { ShipProvider } from "./context/ShipContext";
 import { I18nProvider } from "./i18n/I18nProvider";
+import { dictionaries } from "./i18n/dictionaries";
 
 import "./index.css";
 import "./styles/inca-percorso-search.css";
@@ -143,7 +144,7 @@ function installRapportinoPrintIsolation(): void {
     const onChange = (e: MediaQueryListEvent | MediaQueryList) => {
       // Some browsers call with MediaQueryList, some with event
       const matches = "matches" in e ? e.matches : false;
-      if (matches) prepare();
+      if (matches) prepare;
       else cleanup();
     };
 
@@ -184,7 +185,7 @@ ReactDOM.createRoot(rootEl).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <I18nProvider>
+        <I18nProvider dictionaries={dictionaries}>
           <ShipProvider>
             <BrowserRouter>
               <AppRoutes />
