@@ -27,11 +27,25 @@ export const coreLayout = {
   },
 
   mainBg(_isDark: boolean): string {
+    // Main area behind content
     return "theme-scope theme-bg";
   },
 
+  /**
+   * Primary content surface (workspace)
+   * - Adds cncs-workspace + cncs-container to remove “landing centered module” feel
+   */
   primaryPanel(_isDark: boolean): string {
-    return "theme-scope theme-panel";
+    // NOTE: cncs-workspace controls padding; cncs-container keeps wide but NOT centered.
+    return "theme-scope theme-panel cncs-workspace";
+  },
+
+  /**
+   * Optional inner container if you want to wrap sections inside the workspace.
+   * (Use it in pages where you want consistent gutters without centering.)
+   */
+  container(): string {
+    return "cncs-container";
   },
 
   themeToggle(_isDark: boolean): string {
@@ -40,20 +54,18 @@ export const coreLayout = {
 
   /**
    * KPI Card (Executive)
-   * - Dark: keep the existing “war room” look (tinted panels are OK).
-   * - Light: NEVER pastel fills (banal). Use neutral surface + accent stripe only.
+   * - Dark: tinted OK
+   * - Light: accent-only (no pastel fill)
    */
   kpiCard(isDark: boolean, tone: KpiTone = "neutral"): string {
     const base =
       "relative overflow-hidden rounded-2xl border px-4 py-3 flex flex-col gap-1.5 min-h-[96px] theme-scope kpi-card";
 
     if (!isDark) {
-      // Accent-only in light
       const toneCls = `kpi-tone-${tone}`;
       return [base, "theme-panel-2 theme-border", "kpi-light", toneCls].join(" ");
     }
 
-    // Dark behavior: keep your existing tinted cards (premium dark OK)
     if (tone === "neutral") {
       return [base, "theme-panel theme-border"].join(" ");
     }

@@ -27,37 +27,23 @@
 .text-inca { color: var(--inca-400); }
 
 /* =========================
-   Buttons
-   ========================= */
-.btn-core {
-  background-color: var(--core-bg-600);
-  border: 1px solid var(--core-border-500);
-  color: var(--core-text-200);
-}
-.btn-core:hover { background-color: var(--core-bg-700); }
-
-.btn-inca {
-  background-color: transparent;
-  border: 1px solid rgba(129, 140, 248, 0.55);
-  color: var(--inca-300);
-}
-.btn-inca:hover { background-color: rgba(99, 102, 241, 0.08); }
-
-/* =========================
    Theme surfaces (semantic)
    ========================= */
 .theme-bg { background-color: var(--bg); color: var(--text); }
+
 .theme-panel {
   background-color: var(--panel);
   border: 1px solid var(--border);
   box-shadow: var(--shadow1);
   color: var(--text);
 }
+
 .theme-panel-2 {
   background-color: var(--panel2);
   border: 1px solid var(--border);
   color: var(--text);
 }
+
 .theme-overlay { background-color: var(--overlay); }
 
 .theme-border { border-color: var(--border); }
@@ -84,18 +70,18 @@
 }
 .theme-topbar {
   border: 1px solid var(--border);
-  background-color: color-mix(in srgb, var(--panel) 70%, transparent);
+  background-color: color-mix(in srgb, var(--panel) 72%, transparent);
   color: var(--text);
 }
 
 /* nav items */
 .theme-nav-item {
-  background-color: color-mix(in srgb, var(--panel2) 78%, transparent);
+  background-color: color-mix(in srgb, var(--panel2) 80%, transparent);
   border: 1px solid var(--border);
   color: var(--textMuted);
 }
 .theme-nav-item:hover {
-  background-color: color-mix(in srgb, var(--panel) 78%, transparent);
+  background-color: color-mix(in srgb, var(--panel) 80%, transparent);
   color: var(--text);
 }
 .theme-nav-item-active {
@@ -107,39 +93,126 @@
 /* Inputs */
 .theme-input {
   background-color: var(--panel2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--borderStrong);
   color: var(--text);
 }
-.theme-input::placeholder { color: var(--textMuted); }
-
-/* Tables */
-.theme-table { background-color: var(--panel); border: 1px solid var(--border); }
-.theme-table-head {
-  background-color: var(--panel2);
-  color: var(--textMuted);
-  border-bottom: 1px solid var(--border);
-}
-
-/* Chips / badges */
-.badge-success { background-color: var(--role-success-soft); border: 1px solid var(--role-success-border); color: var(--role-success-ink); }
-.badge-warning { background-color: var(--role-warning-soft); border: 1px solid var(--role-warning-border); color: var(--role-warning-ink); }
-.badge-danger { background-color: var(--role-danger-soft); border: 1px solid var(--role-danger-border); color: var(--role-danger-ink); }
-.badge-info { background-color: var(--role-info-soft); border: 1px solid var(--role-info-border); color: var(--role-info-ink); }
-.badge-neutral { background-color: var(--role-neutral-soft); border: 1px solid var(--role-neutral-border); color: var(--role-neutral-ink); }
-
-.accent-soft { background-color: var(--accent-soft); border: 1px solid var(--accent); color: var(--accent-ink); }
+.theme-input::placeholder { color: var(--textSubtle); }
 
 /* =========================
-   KPI — Executive accent-only (Light)
+   CONSOLE LAYOUT (Light polish 2)
+   - Remove “module centered landing” feel
+   - Wider, structured workspace
    ========================= */
-.kpi-card { position: relative; }
-
-.kpi-light {
-  /* subtle executive depth */
-  box-shadow: var(--shadow1);
+.cncs-workspace {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 18px 18px;
 }
 
-/* Accent stripe */
+@media (min-width: 1024px) {
+  .cncs-workspace {
+    padding: 22px 26px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .cncs-workspace {
+    padding: 26px 34px;
+  }
+}
+
+/* Optional container for inner content (not “centered landing”: it stays wide) */
+.cncs-container {
+  width: 100%;
+  max-width: 1680px;
+  margin: 0; /* IMPORTANT: not centered */
+}
+
+/* =========================
+   Typography authority (Light polish 2)
+   ========================= */
+.theme-scope h1,
+.theme-scope h2,
+.theme-scope h3 {
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+:root[data-theme="light"] .theme-scope h1 {
+  font-weight: 750;
+}
+
+:root[data-theme="light"] .theme-scope h2 {
+  font-weight: 720;
+}
+
+:root[data-theme="light"] .theme-scope .kicker,
+:root[data-theme="light"] .theme-scope [data-kicker] {
+  color: var(--textSubtle);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+
+/* =========================
+   Tables premium (Light polish 2)
+   - clean separators
+   - structured head
+   - hover
+   - no “dark-in-light”
+   ========================= */
+.theme-table {
+  background-color: var(--panel2);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow1);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.theme-table table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.theme-table thead th {
+  background-color: color-mix(in srgb, var(--panel) 55%, var(--panel2));
+  color: var(--textMuted);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  padding: 10px 12px;
+}
+
+.theme-table tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+
+.theme-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+:root[data-theme="light"] .theme-table tbody tr:hover td {
+  background-color: color-mix(in srgb, var(--accent-soft) 40%, transparent);
+}
+
+/* Hairline separators for compact tables */
+.table-hairlines td,
+.table-hairlines th {
+  border-color: var(--border) !important;
+}
+
+/* =========================
+   KPI — Executive accent-only (Light polish 1 retained)
+   ========================= */
+.kpi-card { position: relative; }
+.kpi-light { box-shadow: var(--shadow1); }
+
 .kpi-card.kpi-light::before {
   content: "";
   position: absolute;
@@ -152,14 +225,7 @@
   opacity: 0.95;
 }
 
-/* Make KPI title a bit more “console” without changing component code */
-.kpi-card.kpi-light [data-kpi-title],
-.kpi-card.kpi-light .kpi-title {
-  letter-spacing: 0.18em;
-}
-
-/* tones set accent only (no pastel fills) */
-.kpi-tone-neutral { --kpi-accent: rgba(28,24,20,0.18); }
+.kpi-tone-neutral { --kpi-accent: rgba(25,24,22,0.18); }
 .kpi-tone-emerald { --kpi-accent: rgba(22,163,74,0.55); }
 .kpi-tone-sky { --kpi-accent: rgba(2,132,199,0.55); }
 .kpi-tone-amber { --kpi-accent: rgba(217,119,6,0.55); }
@@ -167,7 +233,7 @@
 .kpi-tone-rose { --kpi-accent: rgba(225,29,72,0.55); }
 
 /* =========================
-   Light-theme safety net for old slate classes inside theme-scope
+   Safety net for old slate classes inside theme-scope
    ========================= */
 :root[data-theme="light"] .theme-scope .text-slate-50,
 :root[data-theme="light"] .theme-scope .text-slate-100,

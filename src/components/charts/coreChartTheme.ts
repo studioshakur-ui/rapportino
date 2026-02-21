@@ -77,6 +77,15 @@ const DARK_THEME: CoreChartTheme = {
   animMs: 520,
 };
 
+/**
+ * Backward-compatible named export expected by several KPI/Direzione chart modules.
+ *
+ * NOTE:
+ * - Historically charts imported { CORE_CHART_THEME } as a dark-first baseline.
+ * - We keep it as the dark theme to preserve existing visuals and avoid refactor churn.
+ */
+export const CORE_CHART_THEME: CoreChartTheme = DARK_THEME;
+
 export function getCoreChartTheme(isDark: boolean): CoreChartTheme {
   if (isDark) return DARK_THEME;
 
@@ -124,7 +133,7 @@ export function getCoreChartTheme(isDark: boolean): CoreChartTheme {
  * IMPORTANT:
  * - `border` is kept as a COLOR string because some callers use it as `borderColor`.
  */
-export function coreTooltipStyle(theme: CoreChartTheme, isDark: boolean): {
+export function coreTooltipStyle(theme: CoreChartTheme, isDark: boolean = true): {
   backgroundColor: string;
   border: string; // color
   color: string;
@@ -181,15 +190,23 @@ export function formatNumberIT(v: unknown, decimals = 0): string {
 }
 
 /**
- * Compact formatting used in KPI cards.
+ * Compact formatting (e.g. 1.2k, 3.4M) with IT locale decimal separator.
+ * Used in KPI small cards / axes.
  */
-export function formatCompactNumber(v: number): string {
-  if (!Number.isFinite(v)) return "0";
-  const abs = Math.abs(v);
+export function formatCompactNumber(v: unknown, decimals = 1): string {
+  const n = toNumber(v, 0);
+  const abs = Math.abs(n);
 
-  if (abs >= 1_000_000) return `${(v / 1_000_000).toFixed(2)}M`;
-  if (abs >= 1_000) return `${(v / 1_000).toFixed(1)}k`;
+  const d = Math.max(0, Math.min(2, Math.trunc(Number(decimals) || 0)));
 
-  const isInt = Math.round(v) === v;
-  return isInt ? String(v) : v.toFixed(1);
+  const fmt = (x: number) =>
+    new Intl.NumberFormat("it-IT", {
+      minimumFractionDigits: d,
+      maximumFractionDigits: d,
+    }).format(x);
+
+  if (abs >= 1_000_000_000) return `${fmt(n / 1_000_000_000)}B`;
+  if (abs >= 1_000_000) return `${fmt(n / 1_000_000)}M`;
+  if (abs >= 1_000) return `${fmt(n / 1_000)}k`;
+  return fmt(n);
 }
