@@ -375,11 +375,11 @@ export default function AdminCatalogoPage(): JSX.Element {
       <div className="rounded-2xl theme-panel-2 p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Catalogo · Ship + Commessa</div>
-            <div className="mt-1 text-[14px] font-semibold text-slate-100">Gestione catalogo operativo (scopato)</div>
-            <div className="mt-1 text-[12px] text-slate-400">
-              Regola canonica: il Capo vede solo le attività attive per <span className="text-slate-200">Ship</span> e{" "}
-              <span className="text-slate-200">Commessa</span>.
+            <div className="kicker">Catalogo · Ship + Commessa</div>
+            <div className="mt-1 text-[14px] font-semibold theme-text">Gestione catalogo operativo (scopato)</div>
+            <div className="mt-1 text-[12px] theme-text-muted">
+              Regola canonica: il Capo vede solo le attività attive per <span className="theme-text">Ship</span> e{" "}
+              <span className="theme-text">Commessa</span>.
             </div>
           </div>
 
@@ -394,14 +394,14 @@ export default function AdminCatalogoPage(): JSX.Element {
 
         <div className="mt-4 grid grid-cols-1 lg:grid-cols-[1fr_240px_240px] gap-3">
           <div>
-            <div className="text-[11px] uppercase tracking-[0.20em] text-slate-500 mb-2">Ship</div>
+            <div className="text-[11px] uppercase tracking-[0.20em] theme-text-muted mb-2">Ship</div>
             <select
               value={shipId}
               onChange={(e) => setShipId(e.target.value)}
               className={cn(
                 "w-full rounded-2xl border theme-border bg-[var(--panel2)]",
                 "px-3 py-3 text-[13px] theme-text",
-                "outline-none focus:ring-2 focus:ring-sky-500/35"
+                "outline-none focus:ring-2 focus:ring-[var(--accent)]/30"
               )}
             >
               <option value="">Seleziona Ship…</option>
@@ -417,20 +417,20 @@ export default function AdminCatalogoPage(): JSX.Element {
               })}
             </select>
             {effectiveShip ? (
-              <div className="mt-2 text-[11px] text-slate-400">
+              <div className="mt-2 text-[11px] theme-text-muted">
                 Selezionato:{" "}
-                <span className="text-slate-200 font-semibold">
+                <span className="theme-text font-semibold">
                   {safeText(effectiveShip.code)} · {safeText(effectiveShip.name)}
                 </span>{" "}
                 {safeText(effectiveShip.commessa) ? (
-                  <span className="text-slate-500">· ships.commessa={safeText(effectiveShip.commessa)}</span>
+                  <span className="theme-text-muted">· ships.commessa={safeText(effectiveShip.commessa)}</span>
                 ) : null}
               </div>
             ) : null}
           </div>
 
           <div>
-            <div className="text-[11px] uppercase tracking-[0.20em] text-slate-500 mb-2">Commessa</div>
+            <div className="text-[11px] uppercase tracking-[0.20em] theme-text-muted mb-2">Commessa</div>
             <input
               value={commessa}
               onChange={(e) => setCommessa(e.target.value)}
@@ -438,11 +438,10 @@ export default function AdminCatalogoPage(): JSX.Element {
               className={cn(
                 "w-full rounded-2xl border theme-border bg-[var(--panel2)]",
                 "px-3 py-3 text-[13px] theme-text",
-                "placeholder:text-slate-500",
-                "outline-none focus:ring-2 focus:ring-sky-500/35"
+                "outline-none focus:ring-2 focus:ring-[var(--accent)]/30"
               )}
             />
-            <div className="mt-2 text-[11px] text-slate-400">
+            <div className="mt-2 text-[11px] theme-text-muted">
               Commessa è un contesto operativo del rapportino (es: SDC). Non dipende dal campo ships.commessa.
             </div>
           </div>
@@ -465,7 +464,7 @@ export default function AdminCatalogoPage(): JSX.Element {
         </div>
 
         {err ? (
-          <div className="mt-3 rounded-2xl border border-rose-400/40 bg-[var(--panel2)] px-3 py-2 text-[12px] text-rose-200">
+          <div className="mt-3 rounded-2xl border border-[var(--role-danger-border)] bg-[var(--role-danger-soft)] px-3 py-2 text-[12px] text-[var(--role-danger-ink)]">
             {err}
           </div>
         ) : null}
@@ -474,7 +473,7 @@ export default function AdminCatalogoPage(): JSX.Element {
       <div className="rounded-2xl theme-panel-2 p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex-1">
-            <div className="text-[11px] uppercase tracking-[0.20em] text-slate-500 mb-2">Filtro</div>
+            <div className="text-[11px] uppercase tracking-[0.20em] theme-text-muted mb-2">Filtro</div>
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
@@ -482,29 +481,28 @@ export default function AdminCatalogoPage(): JSX.Element {
               className={cn(
                 "w-full rounded-2xl border theme-border bg-[var(--panel2)]",
                 "px-3 py-3 text-[13px] theme-text",
-                "placeholder:text-slate-500",
-                "outline-none focus:ring-2 focus:ring-sky-500/35"
+                "outline-none focus:ring-2 focus:ring-[var(--accent)]/30"
               )}
             />
           </div>
 
           <div className="flex items-center gap-2">
-            <label className="flex items-center gap-2 text-[12px] text-slate-300">
+            <label className="flex items-center gap-2 text-[12px] theme-text-muted">
               <input
                 type="checkbox"
                 checked={onlyScoped}
                 onChange={(e) => setOnlyScoped(e.target.checked)}
-                className="h-4 w-4 rounded border-slate-600 bg-slate-950"
+                className="h-4 w-4 rounded theme-border bg-[var(--panel2)]"
               />
               Solo scoped
             </label>
 
-            <label className="flex items-center gap-2 text-[12px] text-slate-300">
+            <label className="flex items-center gap-2 text-[12px] theme-text-muted">
               <input
                 type="checkbox"
                 checked={onlyActive}
                 onChange={(e) => setOnlyActive(e.target.checked)}
-                className="h-4 w-4 rounded border-slate-600 bg-slate-950"
+                className="h-4 w-4 rounded theme-border bg-[var(--panel2)]"
               />
               Solo attivi
             </label>
@@ -540,24 +538,22 @@ export default function AdminCatalogoPage(): JSX.Element {
 
                 return (
                   <tr key={aid} className={cn("text-[13px]", rowDisabled ? "opacity-60" : "")}>
-                    <td className="px-3 py-3 text-slate-300 whitespace-nowrap">{safeText(a.categoria)}</td>
-                    <td className="px-3 py-3 text-slate-50">{safeText(a.descrizione)}</td>
+                    <td className="px-3 py-3 theme-text-muted whitespace-nowrap">{safeText(a.categoria)}</td>
+                    <td className="px-3 py-3 theme-text">{safeText(a.descrizione)}</td>
 
                     <td className="px-3 py-3">
                       <span
                         className={cn(
                           "inline-flex items-center rounded-full border px-2 py-1 text-[11px] font-semibold",
-                          effectiveActive
-                            ? "border-emerald-900/50 bg-emerald-950/25 text-emerald-200"
-                            : "border-slate-800 bg-slate-950/40 text-slate-400"
+                          effectiveActive ? "badge-success" : "badge-neutral"
                         )}
                       >
                         {effectiveActive ? "ACTIVE" : "OFF"}
                       </span>
                       {isScoped ? (
-                        <span className="ml-2 text-[11px] text-slate-500">scoped</span>
+                        <span className="ml-2 text-[11px] theme-text-muted">scoped</span>
                       ) : (
-                        <span className="ml-2 text-[11px] text-slate-600">global</span>
+                        <span className="ml-2 text-[11px] theme-text-muted">global</span>
                       )}
                     </td>
 
@@ -568,7 +564,7 @@ export default function AdminCatalogoPage(): JSX.Element {
                         disabled={rowDisabled}
                         className={cn(
                           "w-[120px] rounded-xl px-2 py-2 text-[13px] outline-none theme-input",
-                          "focus:ring-2 focus:ring-sky-500/35",
+                          "focus:ring-2 focus:ring-[var(--accent)]/30",
                           rowDisabled ? "cursor-not-allowed" : ""
                         )}
                       />
@@ -593,7 +589,7 @@ export default function AdminCatalogoPage(): JSX.Element {
                         disabled={rowDisabled}
                         className={cn(
                           "w-[140px] rounded-xl px-2 py-2 text-[13px] outline-none theme-input",
-                          "focus:ring-2 focus:ring-sky-500/35",
+                          "focus:ring-2 focus:ring-[var(--accent)]/30",
                           rowDisabled ? "cursor-not-allowed" : ""
                         )}
                       >
@@ -618,7 +614,7 @@ export default function AdminCatalogoPage(): JSX.Element {
                         =Global
                       </button>
 
-                      <div className="mt-1 text-[11px] text-slate-600">eff: {safeText(effectiveUnit)}</div>
+                      <div className="mt-1 text-[11px] theme-text-muted">eff: {safeText(effectiveUnit)}</div>
                     </td>
 
                     <td className="px-3 py-3">
@@ -628,8 +624,8 @@ export default function AdminCatalogoPage(): JSX.Element {
                         disabled={rowDisabled}
                         placeholder="Nota…"
                         className={cn(
-                          "w-[260px] rounded-xl px-2 py-2 text-[13px] outline-none theme-input placeholder:text-slate-600",
-                          "focus:ring-2 focus:ring-sky-500/35",
+                          "w-[260px] rounded-xl px-2 py-2 text-[13px] outline-none theme-input",
+                          "focus:ring-2 focus:ring-[var(--accent)]/30",
                           rowDisabled ? "cursor-not-allowed" : ""
                         )}
                       />
@@ -668,7 +664,7 @@ export default function AdminCatalogoPage(): JSX.Element {
 
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-3 py-8 text-center text-[12px] text-slate-500">
+                  <td colSpan={7} className="px-3 py-8 text-center text-[12px] theme-text-muted">
                     Nessun risultato.
                   </td>
                 </tr>

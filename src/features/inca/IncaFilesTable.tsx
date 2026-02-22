@@ -86,13 +86,13 @@ export default function IncaFilesTable({
   }, [files, search, costrFilter]);
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-950/80 overflow-hidden">
-      <div className="px-3 py-2 border-b border-slate-800 flex items-center justify-between gap-2">
+    <div className="rounded-xl theme-panel overflow-hidden">
+      <div className="px-3 py-2 border-b theme-border flex items-center justify-between gap-2">
         <div>
-          <div className="text-[12px] font-semibold text-slate-100">
+          <div className="text-[12px] font-semibold theme-text">
             File INCA caricati
           </div>
-          <div className="text-[11px] text-slate-500">
+          <div className="text-[11px] theme-text-muted">
             {loading
               ? 'Caricamento in corso…'
               : `${filtered.length} file su ${files?.length || 0}`}
@@ -104,7 +104,7 @@ export default function IncaFilesTable({
           <select
             value={costrFilter}
             onChange={(e) => setCostrFilter(e.target.value)}
-            className="text-[11px] rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+            className="theme-input text-[11px] rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20"
           >
             <option value="">Tutti i COSTR</option>
             {distinctCostr.map((c) => (
@@ -120,13 +120,13 @@ export default function IncaFilesTable({
             placeholder="Cerca per file, commessa, project…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="text-[11px] rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 w-40 lg:w-52"
+            className="theme-input text-[11px] rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20 w-40 lg:w-52"
           />
 
           <button
             type="button"
             onClick={onRefresh}
-            className="text-[11px] px-2 py-1 rounded-md border border-slate-600 bg-slate-900 text-slate-100 hover:bg-slate-800"
+            className="btn-instrument text-[11px] px-2 py-1 rounded-md"
           >
             {refreshing ? 'Aggiorno…' : 'Aggiorna'}
           </button>
@@ -135,8 +135,8 @@ export default function IncaFilesTable({
 
       <div className="max-h-[360px] overflow-auto text-[11px]">
         <table className="w-full border-collapse">
-          <thead className="bg-slate-900 sticky top-0 z-10 border-b border-slate-800">
-            <tr className="text-slate-400">
+          <thead className="theme-table-head sticky top-0 z-10">
+            <tr className="theme-text-muted">
               <th className="px-3 py-2 text-left font-normal">COSTR</th>
               <th className="px-3 py-2 text-left font-normal">Commessa</th>
               <th className="px-3 py-2 text-left font-normal">Progetto</th>
@@ -151,7 +151,7 @@ export default function IncaFilesTable({
               <tr>
                 <td
                   colSpan={7}
-                  className="px-3 py-4 text-center text-slate-500"
+                  className="px-3 py-4 text-center theme-text-muted"
                 >
                   Nessun file INCA trovato con questi filtri.
                 </td>
@@ -168,30 +168,30 @@ export default function IncaFilesTable({
                     onOpenCockpit && onOpenCockpit(f)
                   }
                   className={[
-                    'border-t border-slate-900 cursor-pointer',
-                    active ? 'bg-sky-950/60' : 'hover:bg-slate-900/60',
+                    'border-t theme-border cursor-pointer',
+                    active ? 'theme-row-selected' : '',
                   ].join(' ')}
                   title="Doppio clic per aprire il cockpit INCA"
                 >
-                  <td className="px-3 py-2 text-slate-100 font-medium">
+                  <td className="px-3 py-2 theme-text font-medium">
                     {(f.costr || '').trim() || '—'}
                   </td>
-                  <td className="px-3 py-2 text-slate-300">
+                  <td className="px-3 py-2 theme-text-muted">
                     {(f.commessa || '').trim() || '—'}
                   </td>
-                  <td className="px-3 py-2 text-slate-300">
+                  <td className="px-3 py-2 theme-text-muted">
                     {(f.project_code || '').trim() || '—'}
                   </td>
-                  <td className="px-3 py-2 text-slate-100">
+                  <td className="px-3 py-2 theme-text">
                     {f.file_name || '—'}
                   </td>
-                  <td className="px-3 py-2 text-slate-400">
+                  <td className="px-3 py-2 theme-text-muted">
                     {(f.file_type || '').toUpperCase() || '—'}
                   </td>
-                  <td className="px-3 py-2 text-right text-slate-300">
+                  <td className="px-3 py-2 text-right theme-text-muted">
                     {f.cavi_count != null ? f.cavi_count : '—'}
                   </td>
-                  <td className="px-3 py-2 text-right text-slate-400">
+                  <td className="px-3 py-2 text-right theme-text-muted">
                     {formatDate(f.uploaded_at)}
                   </td>
                 </tr>
@@ -202,7 +202,7 @@ export default function IncaFilesTable({
               <tr>
                 <td
                   colSpan={7}
-                  className="px-3 py-4 text-center text-slate-500"
+                  className="px-3 py-4 text-center theme-text-muted"
                 >
                   Caricamento file INCA…
                 </td>

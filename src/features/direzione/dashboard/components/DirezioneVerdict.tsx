@@ -53,6 +53,7 @@ function i18nFmt(template: string, vars: Record<string, string>): string {
 }
 
 export default function DirezioneVerdict({ isDark = true, model, t }: DirezioneVerdictProps) {
+  void isDark;
   const m: DirezioneVerdictModel = model || {};
 
   const tone: DirezioneVerdictTone = m.tone || "WARN";
@@ -127,68 +128,60 @@ export default function DirezioneVerdict({ isDark = true, model, t }: DirezioneV
 
   const toneClasses =
     tone === "OK"
-      ? isDark
-        ? "border-emerald-500/35 bg-emerald-950/20 text-emerald-200"
-        : "border-emerald-300 bg-emerald-50 text-emerald-800"
+      ? "chip chip-success"
       : tone === "BLOCK"
-      ? isDark
-        ? "border-rose-500/35 bg-rose-950/20 text-rose-200"
-        : "border-rose-300 bg-rose-50 text-rose-800"
-      : isDark
-      ? "border-amber-500/35 bg-amber-950/20 text-amber-200"
-      : "border-amber-300 bg-amber-50 text-amber-800";
+      ? "chip chip-danger"
+      : "chip chip-alert";
 
   return (
     <section className="px-3 sm:px-4 mt-4">
-      <div className={["rounded-2xl border", isDark ? "border-slate-800/70 bg-slate-950/20" : "border-slate-200 bg-white"].join(" ")}>
+      <div className="theme-panel rounded-2xl">
         <div className="p-4 sm:p-5">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className={["text-[11px] uppercase tracking-[0.18em]", isDark ? "text-slate-500" : "text-slate-600"].join(" ")}>
+              <div className="text-[11px] uppercase tracking-[0.18em] theme-text-muted">
                 {verdictTitle}
               </div>
-              <div className={["mt-1 text-sm", isDark ? "text-slate-200" : "text-slate-900"].join(" ")}>{verdictSub}</div>
+              <div className="mt-1 text-sm theme-text">{verdictSub}</div>
               {m.missingMetrics && m.missingMetrics.length ? (
-                <div className={["mt-2 text-[11px]", isDark ? "text-amber-300" : "text-amber-700"].join(" ")}>
+                <div className="mt-2 text-[11px] theme-text-muted">
                   {missingLabel}
                 </div>
               ) : null}
             </div>
 
             <div className="flex items-center gap-3 shrink-0">
-              <span className={["px-3 py-1.5 rounded-full border text-[11px] uppercase tracking-[0.18em]", toneClasses].join(" ")}>
-                {statusLabel}
-              </span>
+              <span className={toneClasses}>{statusLabel}</span>
 
-              <div className={["rounded-2xl border px-4 py-3", isDark ? "border-slate-800/70 bg-slate-950/30" : "border-slate-200 bg-white"].join(" ")}>
-                <div className={["text-[11px] uppercase tracking-[0.18em]", isDark ? "text-slate-500" : "text-slate-600"].join(" ")}>
+              <div className="theme-panel-2 rounded-2xl px-4 py-3">
+                <div className="text-[11px] uppercase tracking-[0.18em] theme-text-muted">
                   {scoreLabel}
                 </div>
-                <div className={["mt-1 text-2xl font-semibold", isDark ? "text-slate-50" : "text-slate-900"].join(" ")}>
+                <div className="mt-1 text-2xl font-semibold theme-text">
                   {m.scoreFormatted ?? (score == null ? "—" : String(score))}
                 </div>
                 {m.scoreFormula ? (
-                  <div className={["mt-1 text-[11px]", isDark ? "text-slate-400" : "text-slate-600"].join(" ")}>
+                  <div className="mt-1 text-[11px] theme-text-muted">
                     {m.scoreFormula}
                   </div>
                 ) : null}
                 {m.scoreInclusion ? (
-                  <div className={["mt-1 text-[11px]", isDark ? "text-slate-400" : "text-slate-600"].join(" ")}>
+                  <div className="mt-1 text-[11px] theme-text-muted">
                     {m.scoreInclusion}
                   </div>
                 ) : null}
                 {m.scoreStats ? (
-                  <div className={["mt-1 text-[11px]", isDark ? "text-slate-400" : "text-slate-600"].join(" ")}>
+                  <div className="mt-1 text-[11px] theme-text-muted">
                     {m.scoreStats}
                   </div>
                 ) : null}
               </div>
 
-              <div className={["rounded-2xl border px-4 py-3", isDark ? "border-slate-800/70 bg-slate-950/30" : "border-slate-200 bg-white"].join(" ")}>
-                <div className={["text-[11px] uppercase tracking-[0.18em]", isDark ? "text-slate-500" : "text-slate-600"].join(" ")}>
+              <div className="theme-panel-2 rounded-2xl px-4 py-3">
+                <div className="text-[11px] uppercase tracking-[0.18em] theme-text-muted">
                   {reliabilityLabel}
                 </div>
-                <div className={["mt-1 text-sm font-semibold", isDark ? "text-slate-200" : "text-slate-900"].join(" ")}>
+                <div className="mt-1 text-sm font-semibold theme-text">
                   {reliabilityValue}
                 </div>
               </div>
@@ -197,14 +190,14 @@ export default function DirezioneVerdict({ isDark = true, model, t }: DirezioneV
 
           <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Reasons */}
-            <div className={["rounded-2xl border p-4", isDark ? "border-slate-800/70 bg-slate-950/10" : "border-slate-200 bg-white"].join(" ")}>
-              <div className={["text-[11px] uppercase tracking-[0.18em]", isDark ? "text-slate-500" : "text-slate-600"].join(" ")}>
+            <div className="theme-panel-2 rounded-2xl p-4">
+              <div className="text-[11px] uppercase tracking-[0.18em] theme-text-muted">
                 {reasonsTitle}
               </div>
               <ul className="mt-3 space-y-2">
                 {computedReasons.map((r, idx) => (
-                  <li key={idx} className={["flex items-start gap-2 text-sm", isDark ? "text-slate-200" : "text-slate-900"].join(" ")}>
-                    <span className={["mt-2 h-1.5 w-1.5 rounded-full", isDark ? "bg-slate-400" : "bg-slate-500"].join(" ")} />
+                  <li key={idx} className="flex items-start gap-2 text-sm theme-text">
+                    <span className="mt-2 h-1.5 w-1.5 rounded-full bg-[var(--borderStrong)]" />
                     <span className="min-w-0">{r}</span>
                   </li>
                 ))}
@@ -212,8 +205,8 @@ export default function DirezioneVerdict({ isDark = true, model, t }: DirezioneV
             </div>
 
             {/* Insights */}
-            <div className={["rounded-2xl border p-4", isDark ? "border-slate-800/70 bg-slate-950/10" : "border-slate-200 bg-white"].join(" ")}>
-              <div className={["text-[11px] uppercase tracking-[0.18em]", isDark ? "text-slate-500" : "text-slate-600"].join(" ")}>
+            <div className="theme-panel-2 rounded-2xl p-4">
+              <div className="text-[11px] uppercase tracking-[0.18em] theme-text-muted">
                 {insightsTitle}
               </div>
 
@@ -221,10 +214,7 @@ export default function DirezioneVerdict({ isDark = true, model, t }: DirezioneV
                 {computedInsights.map((ins, idx) => (
                   <div
                     key={idx}
-                    className={[
-                      "rounded-xl border px-4 py-3 text-sm",
-                      isDark ? "border-slate-800/70 bg-slate-950/30 text-slate-200" : "border-slate-200 bg-white text-slate-900",
-                    ].join(" ")}
+                    className="theme-panel-2 rounded-xl px-4 py-3 text-sm theme-text"
                   >
                     {ins}
                   </div>

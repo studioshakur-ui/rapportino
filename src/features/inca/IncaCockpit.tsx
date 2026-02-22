@@ -538,21 +538,23 @@ export default function IncaCockpit(props: IncaCockpitProps) {
   return (
     <div className="p-3">
       {/* Header */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+      <div className="theme-panel rounded-2xl p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[11px] uppercase tracking-wide text-slate-500">INCA · Cockpit</div>
-            <div className="text-2xl font-semibold text-slate-50 leading-tight truncate">{headerTitle}</div>
+            <div className="text-[11px] uppercase tracking-wide theme-text-muted">INCA · Cockpit</div>
+            <div className="text-2xl font-semibold theme-text leading-tight truncate">{headerTitle}</div>
 
-            <div className="text-[12px] text-slate-400 mt-1 truncate">
+            <div className="text-[12px] theme-text-muted mt-1 truncate">
               {chosenUpload ? (chosenUpload.file_name || "—") : "—"}
             </div>
 
             {chosenHead && (
-              <div className="text-[11px] text-slate-500 mt-1 truncate">
-                Dataset attivo (HEAD): <span className="text-slate-300">{chosenHead.head_file_name || "—"}</span>
+              <div className="text-[11px] theme-text-muted mt-1 truncate">
+                Dataset attivo (HEAD): <span className="theme-text">{chosenHead.head_file_name || "—"}</span>
                 {chosenHead.last_uploaded_at ? (
-                  <span className="text-slate-600"> · ultimo upload {new Date(chosenHead.last_uploaded_at).toLocaleString()}</span>
+                  <span className="theme-text-muted">
+                    {" "}· ultimo upload {new Date(chosenHead.last_uploaded_at).toLocaleString()}
+                  </span>
                 ) : null}
               </div>
             )}
@@ -563,7 +565,7 @@ export default function IncaCockpit(props: IncaCockpitProps) {
               <button
                 type="button"
                 onClick={() => props.onRequestClose?.()}
-                className="shrink-0 rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[12px] text-slate-200"
+                className="btn-instrument shrink-0 rounded-xl px-3 py-2 text-[12px]"
               >
                 Chiudi
               </button>
@@ -571,7 +573,7 @@ export default function IncaCockpit(props: IncaCockpitProps) {
               <button
                 type="button"
                 onClick={() => navigate(-1)}
-                className="shrink-0 rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[12px] text-slate-200"
+                className="btn-instrument shrink-0 rounded-xl px-3 py-2 text-[12px]"
               >
                 Indietro
               </button>
@@ -579,19 +581,19 @@ export default function IncaCockpit(props: IncaCockpitProps) {
 
             <div className="text-right text-[11px]">
               {loading ? (
-                <span className="text-slate-400">Caricamento cavi…</span>
+                <span className="theme-text-muted">Caricamento cavi…</span>
               ) : (
-                <span className="text-slate-400">
-                  Cavi visibili: <span className="text-slate-200 font-semibold">{totalCavi}</span>
+                <span className="theme-text-muted">
+                  Cavi visibili: <span className="theme-text font-semibold">{totalCavi}</span>
                 </span>
               )}
-</div>
+            </div>
           </div>
         </div>
 
         {/* Archive banner */}
         {isArchiveSelection && chosenUpload && chosenHead && (
-          <div className="mt-3 rounded-xl border border-amber-700/50 bg-amber-950/25 px-3 py-2 text-[12px] text-amber-200">
+          <div className="mt-3 rounded-xl border border-[var(--role-warning-border)] bg-[var(--role-warning-soft)] px-3 py-2 text-[12px] text-[var(--role-warning-ink)]">
             Stai auditando un <b>upload storico</b> ({chosenUpload.file_name || chosenUpload.id}).
             Il cockpit mostra il <b>dataset attivo (HEAD)</b> per evitare incoerenze.
           </div>
@@ -599,29 +601,29 @@ export default function IncaCockpit(props: IncaCockpitProps) {
 
         {/* Signals (max 6) */}
         <div className="mt-3 grid grid-cols-2 md:grid-cols-6 gap-2">
-          <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2">
-            <div className="text-[10px] text-slate-500 uppercase tracking-wide">Cavi</div>
-            <div className="text-[14px] text-slate-100 font-semibold tabular-nums">{totalCavi}</div>
+          <div className="rounded-xl theme-panel-2 px-3 py-2">
+            <div className="text-[10px] theme-text-muted uppercase tracking-wide">Cavi</div>
+            <div className="text-[14px] theme-text font-semibold tabular-nums">{totalCavi}</div>
           </div>
-          <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2">
-            <div className="text-[10px] text-slate-500 uppercase tracking-wide">P</div>
-            <div className="text-[14px] text-emerald-200 font-semibold tabular-nums">{pCount}</div>
+          <div className="rounded-xl theme-panel-2 px-3 py-2">
+            <div className="text-[10px] theme-text-muted uppercase tracking-wide">P</div>
+            <div className="text-[14px] tone-good font-semibold tabular-nums">{pCount}</div>
           </div>
-          <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2">
-            <div className="text-[10px] text-slate-500 uppercase tracking-wide">NP</div>
-            <div className="text-[14px] text-fuchsia-200 font-semibold tabular-nums">{npCount}</div>
+          <div className="rounded-xl theme-panel-2 px-3 py-2">
+            <div className="text-[10px] theme-text-muted uppercase tracking-wide">NP</div>
+            <div className="text-[14px] tone-bad font-semibold tabular-nums">{npCount}</div>
           </div>
-          <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2">
-            <div className="text-[10px] text-slate-500 uppercase tracking-wide">Prod.</div>
-            <div className="text-[14px] text-sky-200 font-semibold tabular-nums">{prodPercent.toFixed(1)}%</div>
+          <div className="rounded-xl theme-panel-2 px-3 py-2">
+            <div className="text-[10px] theme-text-muted uppercase tracking-wide">Prod.</div>
+            <div className="text-[14px] tone-ok font-semibold tabular-nums">{prodPercent.toFixed(1)}%</div>
           </div>
-          <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2">
-            <div className="text-[10px] text-slate-500 uppercase tracking-wide">Metri</div>
-            <div className="text-[14px] text-slate-100 font-semibold tabular-nums">{formatMeters(totalMetri)}</div>
+          <div className="rounded-xl theme-panel-2 px-3 py-2">
+            <div className="text-[10px] theme-text-muted uppercase tracking-wide">Metri</div>
+            <div className="text-[14px] theme-text font-semibold tabular-nums">{formatMeters(totalMetri)}</div>
           </div>
-          <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2">
-            <div className="text-[10px] text-slate-500 uppercase tracking-wide">Metri P</div>
-            <div className="text-[14px] text-emerald-200 font-semibold tabular-nums">{formatMeters(totalMetriPosati)}</div>
+          <div className="rounded-xl theme-panel-2 px-3 py-2">
+            <div className="text-[10px] theme-text-muted uppercase tracking-wide">Metri P</div>
+            <div className="text-[14px] tone-good font-semibold tabular-nums">{formatMeters(totalMetriPosati)}</div>
           </div>
         </div>
       </div>
@@ -629,17 +631,17 @@ export default function IncaCockpit(props: IncaCockpitProps) {
       {/* Controls + Pills */}
       <div className="mt-3 grid grid-cols-1 lg:grid-cols-12 gap-3">
         {/* Controls */}
-        <div className="lg:col-span-4 rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
-          <div className="text-[11px] text-slate-500 uppercase tracking-wide mb-2">Controlli</div>
+        <div className="lg:col-span-4 theme-panel rounded-2xl p-3">
+          <div className="text-[11px] theme-text-muted uppercase tracking-wide mb-2">Controlli</div>
 
           <div className="space-y-3">
             <div>
-              <label className="text-[12px] text-slate-400 block mb-1">File INCA</label>
+              <label className="text-[12px] theme-text-muted block mb-1">File INCA</label>
 
               <select
                 value={selectedUploadId}
                 onChange={(e) => setSelectedUploadId(e.target.value)}
-                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[13px] text-slate-100"
+                className="w-full rounded-xl theme-input px-3 py-2 text-[13px]"
               >
                 <option value="" disabled>
                   {(heads || []).length ? "Seleziona un dataset / upload…" : "Nessun file disponibile"}
@@ -670,40 +672,40 @@ export default function IncaCockpit(props: IncaCockpitProps) {
               </select>
 
               {chosenHead && (
-                <div className="mt-2 text-[11px] text-slate-500">
+                <div className="mt-2 text-[11px] theme-text-muted">
                   Dataset attivo usato dal cockpit:{" "}
-                  <span className="text-slate-300 font-semibold">{chosenHead.head_file_name || chosenHead.id}</span>
+                  <span className="theme-text font-semibold">{chosenHead.head_file_name || chosenHead.id}</span>
                 </div>
               )}
             </div>
 
             <div>
-              <label className="text-[12px] text-slate-400 block mb-1">Ricerca globale</label>
+              <label className="text-[12px] theme-text-muted block mb-1">Ricerca globale</label>
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Codice, zona, apparato, descrizione, data posa, capo..."
-                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[13px] text-slate-100"
+                className="w-full rounded-xl theme-input px-3 py-2 text-[13px]"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-[12px] text-slate-400 block mb-1">Apparato DA (exact)</label>
+                <label className="text-[12px] theme-text-muted block mb-1">Apparato DA (exact)</label>
                 <input
                   value={apparatoDa}
                   onChange={(e) => setApparatoDa(e.target.value)}
                   placeholder="Es: QUADRO..."
-                  className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[13px] text-slate-100"
+                  className="w-full rounded-xl theme-input px-3 py-2 text-[13px]"
                 />
               </div>
               <div>
-                <label className="text-[12px] text-slate-400 block mb-1">Apparato A (exact)</label>
+                <label className="text-[12px] theme-text-muted block mb-1">Apparato A (exact)</label>
                 <input
                   value={apparatoA}
                   onChange={(e) => setApparatoA(e.target.value)}
                   placeholder="Es: MOTORE..."
-                  className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[13px] text-slate-100"
+                  className="w-full rounded-xl theme-input px-3 py-2 text-[13px]"
                 />
               </div>
             </div>
@@ -712,27 +714,27 @@ export default function IncaCockpit(props: IncaCockpitProps) {
               <button
                 type="button"
                 onClick={clearFilters}
-                className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[12px] text-slate-200"
+                className="btn-instrument rounded-xl px-3 py-2 text-[12px]"
               >
                 Reset
               </button>
 
-              <div className="text-[11px] text-slate-500">Filtri attivi: {situazioni.length}</div>
+              <div className="text-[11px] theme-text-muted">Filtri attivi: {situazioni.length}</div>
             </div>
           </div>
         </div>
 
         {/* Pills + Table */}
         <div className="lg:col-span-8 space-y-3">
-          <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
-            <div className="text-[11px] text-slate-500 uppercase tracking-wide mb-2">Pills (Quick filters)</div>
+          <div className="rounded-2xl theme-panel p-3">
+            <div className="text-[11px] theme-text-muted uppercase tracking-wide mb-2">Pills (Quick filters)</div>
             <div className="flex flex-wrap gap-2">
               {distribBase.map((it) => (
                 <CodicePill
                   key={it.code}
                   value={`${it.code} (${it.count})`}
                   title={it.label}
-                  className={situazioni.includes(it.code) ? "border-sky-500/40 bg-sky-500/10 text-sky-100" : ""}
+                  className={situazioni.includes(it.code) ? "accent-soft" : ""}
                   onClick={() => {
                     setSituazioni((prev) => {
                       const has = prev.includes(it.code);
@@ -745,11 +747,11 @@ export default function IncaCockpit(props: IncaCockpitProps) {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-800 bg-slate-950/40 overflow-hidden">
+          <div className="rounded-2xl theme-panel overflow-hidden">
             {loading ? (
-              <div className="p-6 text-[12px] text-slate-400">Caricamento…</div>
+              <div className="p-6 text-[12px] theme-text-muted">Caricamento…</div>
             ) : error ? (
-              <div className="p-6 text-[12px] text-amber-200">{error}</div>
+              <div className="p-6 text-[12px] text-[var(--role-warning-ink)]">{error}</div>
             ) : (
               <IncaCaviTable
                 rows={filteredCavi}

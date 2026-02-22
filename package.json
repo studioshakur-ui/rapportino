@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:win": "powershell -ExecutionPolicy Bypass -Command \"$env:ESBUILD_DISABLE_SERVICE=1; vite build\"",
     "preview": "vite preview",
     "db:update": "powershell -ExecutionPolicy Bypass -File scripts/db-update.ps1",
     "typecheck": "tsc -p tsconfig.json --noEmit"

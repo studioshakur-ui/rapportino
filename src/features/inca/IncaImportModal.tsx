@@ -2,7 +2,6 @@
 import { useEffect, useMemo, useRef, useState  } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { useIncaImporter } from "./useIncaImporter";
-import { corePills, cardSurface } from "../../ui/designSystem";
 
 import {
   clearIncaImportDraft,
@@ -272,14 +271,14 @@ export default function IncaImportModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 md:p-6">
-      <div className="w-full max-w-5xl rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
-        <div className="shrink-0 px-6 py-4 border-b border-slate-800">
+    <div className="fixed inset-0 z-50 flex items-center justify-center theme-overlay p-3 md:p-6">
+      <div className="w-full max-w-5xl rounded-2xl theme-panel shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+        <div className="shrink-0 px-6 py-4 border-b theme-border">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Import INCA</div>
-              <div className="text-lg font-semibold mt-1">Analisi + Sync robusta</div>
-              <div className="text-xs text-slate-400 mt-1">
+              <div className="text-xs uppercase tracking-[0.18em] theme-text-muted">Import INCA</div>
+              <div className="text-lg font-semibold mt-1 theme-text">Analisi + Sync robusta</div>
+              <div className="text-xs theme-text-muted mt-1">
                 Step 1: <b>Analizza</b> (inca-import DRY_RUN) → Step 2: <b>Sync</b> (inca-sync).
               </div>
             </div>
@@ -290,7 +289,7 @@ export default function IncaImportModal({
                 clearDraft();
                 onClose();
               }}
-              className="px-4 py-2 rounded-full border border-slate-700 bg-slate-900/60 text-slate-200 hover:bg-slate-900"
+              className="btn-instrument px-4 py-2 rounded-full"
             >
               Chiudi
             </button>
@@ -299,15 +298,15 @@ export default function IncaImportModal({
 
         <div className="flex-1 overflow-auto px-6 py-5 space-y-4">
           {resumeBanner && (
-            <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-100">
+            <div className="rounded-xl border border-[var(--role-warning-border)] bg-[var(--role-warning-soft)] p-4 text-sm text-[var(--role-warning-ink)]">
               iOS: dopo la selezione file, la pagina può ricaricare. Seleziona di nuovo il file e continua.
             </div>
           )}
 
-          <div className={cardSurface(true)}>
+          <div className="theme-panel-2 rounded-2xl p-4">
             <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold">Dati import</div>
-              <div className="text-xs text-slate-400">{fileType || "—"}</div>
+              <div className="text-sm font-semibold theme-text">Dati import</div>
+              <div className="text-xs theme-text-muted">{fileType || "—"}</div>
             </div>
 
             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -329,46 +328,48 @@ export default function IncaImportModal({
               <button
                 type="button"
                 onClick={handleSelectFileClick}
-                className="px-4 py-2 rounded-full border border-slate-700 bg-slate-900/60 text-slate-200 hover:bg-slate-900"
+                className="btn-instrument px-4 py-2 rounded-full"
               >
                 Seleziona file
               </button>
 
-              <div className="text-xs text-slate-400">
+              <div className="text-xs theme-text-muted">
                 {file ? (
-                  <span className="text-slate-100 font-mono break-all">{file.name}</span>
+                  <span className="theme-text font-mono break-all">{file.name}</span>
                 ) : (
                   "Nessun file selezionato"
                 )}
               </div>
             </div>
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setModeUI("COMMIT")}
-                className={corePills(modeUI === "COMMIT")}
-              >
-                Sync
-              </button>
-              <button
-                type="button"
-                onClick={() => setModeUI("ENRICH_TIPO")}
-                className={corePills(modeUI === "ENRICH_TIPO")}
-              >
-                Enrich TIPO
-              </button>
+            <div className="mt-4">
+              <div className="segmented">
+                <button
+                  type="button"
+                  onClick={() => setModeUI("COMMIT")}
+                  className={["segmented-item", modeUI === "COMMIT" ? "segmented-item-active" : ""].join(" ")}
+                >
+                  Sync
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModeUI("ENRICH_TIPO")}
+                  className={["segmented-item", modeUI === "ENRICH_TIPO" ? "segmented-item-active" : ""].join(" ")}
+                >
+                  Enrich TIPO
+                </button>
+              </div>
             </div>
 
             {modeUI === "ENRICH_TIPO" && (
               <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1">
-                  <div className="text-xs text-slate-400">Target INCA file</div>
+                  <div className="text-xs theme-text-muted">Target INCA file</div>
                   <select
                     value={targetIncaFileId}
                     onChange={(e) => setTargetIncaFileId(e.target.value)}
                     disabled={loadingTargets}
-                    className="rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm outline-none focus:border-sky-500/70"
+                    className="rounded-xl theme-input px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--accent)]/30"
                   >
                     <option value="">— Seleziona —</option>
                     {targets.map((t) => (
@@ -377,38 +378,40 @@ export default function IncaImportModal({
                       </option>
                     ))}
                   </select>
-                  {targetsError && <div className="text-xs text-rose-300 mt-1">{targetsError}</div>}
+                  {targetsError && <div className="text-xs text-[var(--role-danger-ink)] mt-1">{targetsError}</div>}
                 </div>
               </div>
             )}
           </div>
 
           {result?.ok && (
-            <div className={cardSurface(true)}>
-              <div className="text-sm font-semibold">Risultato</div>
+            <div className="theme-panel-2 rounded-2xl p-4">
+              <div className="text-sm font-semibold theme-text">Risultato</div>
 
               <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                <div className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2">
-                  <div className="text-slate-400">File</div>
-                  <div className="mt-1 text-slate-100 font-mono break-all">{received?.fileName || "—"}</div>
+                <div className="rounded-xl theme-panel-2 px-3 py-2">
+                  <div className="theme-text-muted">File</div>
+                  <div className="mt-1 theme-text font-mono break-all">{received?.fileName || "—"}</div>
                 </div>
 
-                <div className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2">
-                  <div className="text-slate-400">COSTR / COMMESSA</div>
-                  <div className="mt-1 text-slate-100 font-semibold">
+                <div className="rounded-xl theme-panel-2 px-3 py-2">
+                  <div className="theme-text-muted">COSTR / COMMESSA</div>
+                  <div className="mt-1 theme-text font-semibold">
                     {received?.costr} / {received?.commessa}
                   </div>
                 </div>
               </div>
 
-              {typeof result?.next === "string" && <div className="mt-3 text-xs text-slate-300 italic">{result.next}</div>}
+              {typeof result?.next === "string" && (
+                <div className="mt-3 text-xs theme-text-muted italic">{result.next}</div>
+              )}
             </div>
           )}
 
           {warnings.length > 0 && (
-            <div className={cardSurface(true, "border-amber-500/50 bg-amber-500/5")}>
-              <div className="text-sm font-semibold text-amber-200 mb-2">Avvisi</div>
-              <ul className="list-disc pl-5 text-xs text-amber-100">
+            <div className="theme-panel-2 rounded-2xl p-4 border border-[var(--role-warning-border)] bg-[var(--role-warning-soft)]">
+              <div className="text-sm font-semibold text-[var(--role-warning-ink)] mb-2">Avvisi</div>
+              <ul className="list-disc pl-5 text-xs text-[var(--role-warning-ink)]">
                 {warnings.map((w, i) => (
                   <li key={i}>{w}</li>
                 ))}
@@ -417,20 +420,17 @@ export default function IncaImportModal({
           )}
 
           {isDryOk && counts && (
-            <div className={cardSurface(true)}>
+            <div className="theme-panel-2 rounded-2xl p-4">
               <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold">Telemetry INCA</div>
-                <div className="text-xs text-slate-400">
-                  Totale: <span className="text-slate-100 font-semibold">{total}</span>
+                <div className="text-sm font-semibold theme-text">Telemetry INCA</div>
+                <div className="text-xs theme-text-muted">
+                  Totale: <span className="theme-text font-semibold">{total}</span>
                 </div>
               </div>
 
               <div className="mt-3 grid grid-cols-3 md:grid-cols-6 gap-2 text-xs">
                 {(["P", "T", "R", "B", "E", "NP"] as const).map((k) => (
-                  <div
-                    key={k}
-                    className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 flex justify-between"
-                  >
+                  <div key={k} className="rounded-xl theme-panel-2 px-3 py-2 flex justify-between">
                     <span>{k}</span>
                     <span className="font-semibold">{(counts as any)[k] ?? 0}</span>
                   </div>
@@ -440,26 +440,26 @@ export default function IncaImportModal({
           )}
 
           {isDryOk && debug && (
-            <details className={cardSurface(true)}>
+            <details className="theme-panel-2 rounded-2xl p-4">
               <summary className="cursor-pointer text-sm font-medium">Debug tecnico (Edge)</summary>
-              <pre className="mt-3 text-[11px] text-slate-300 overflow-auto">{JSON.stringify(debug, null, 2)}</pre>
+              <pre className="mt-3 text-[11px] theme-text-muted overflow-auto">{JSON.stringify(debug, null, 2)}</pre>
             </details>
           )}
 
           {error && (
-            <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-4 text-sm">
+            <div className="rounded-xl border border-[var(--role-danger-border)] bg-[var(--role-danger-soft)] p-4 text-sm text-[var(--role-danger-ink)]">
               {error?.message || String(error)}
             </div>
           )}
 
           {isCommitOk && (
-            <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm">
+            <div className="rounded-xl border border-[var(--role-success-border)] bg-[var(--role-success-soft)] p-4 text-sm text-[var(--role-success-ink)]">
               Sync completato con successo.
             </div>
           )}
 
           {isEnrichOk && (
-            <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm">
+            <div className="rounded-xl border border-[var(--role-success-border)] bg-[var(--role-success-soft)] p-4 text-sm text-[var(--role-success-ink)]">
               Enrich completato con successo (ENRICH_TIPO).
             </div>
           )}
@@ -467,13 +467,13 @@ export default function IncaImportModal({
           <div className="h-20 md:h-0" />
         </div>
 
-        <div className="shrink-0 px-6 py-4 border-t border-slate-800 bg-slate-950/95 backdrop-blur supports-[backdrop-filter]:bg-slate-950/75 sticky bottom-0">
+        <div className="shrink-0 px-6 py-4 border-t theme-border theme-panel-2 backdrop-blur supports-[backdrop-filter]:bg-[var(--panel2)]/75 sticky bottom-0">
           <div className="flex justify-end gap-2">
             <button
               type="button"
               onClick={handleDry}
               disabled={!canDry}
-              className="px-4 py-2 rounded-full border border-sky-500/60 bg-sky-500/15 text-sky-100 disabled:opacity-50"
+              className="btn-instrument px-4 py-2 rounded-full disabled:opacity-50"
             >
               {phase === "analyzing" ? "Analisi…" : "Analizza"}
             </button>
@@ -482,7 +482,7 @@ export default function IncaImportModal({
               type="button"
               onClick={primaryActionHandler}
               disabled={primaryActionDisabled}
-              className="px-4 py-2 rounded-full border border-emerald-500/60 bg-emerald-500/15 text-emerald-100 disabled:opacity-50"
+              className="btn-primary px-4 py-2 rounded-full disabled:opacity-50"
               title={primaryActionTitle}
             >
               {primaryActionLabel}
@@ -504,12 +504,12 @@ type InputProps = {
 function Input({ label, value, onChange, placeholder }: InputProps): JSX.Element {
   return (
     <div className="flex flex-col gap-1">
-      <div className="text-xs text-slate-400">{label}</div>
+      <div className="text-xs theme-text-muted">{label}</div>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm outline-none focus:border-sky-500/70"
+        className="rounded-xl theme-input px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--accent)]/30"
       />
     </div>
   );

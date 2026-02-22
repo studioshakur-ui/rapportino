@@ -20,39 +20,33 @@ function cn(...parts) {
 }
 
 function card() {
-  return cn(
-    "rounded-2xl border border-slate-800 bg-slate-950",
-    "shadow-[0_10px_40px_rgba(0,0,0,0.35)]"
-  );
+  return cn("rounded-2xl theme-panel");
 }
 
 function btnGhost() {
   return cn(
-    "inline-flex items-center justify-center rounded-full border px-3 py-2",
-    "text-[12px] font-semibold",
-    "border-slate-700 text-slate-100 bg-slate-950/60 hover:bg-slate-900/50",
-    "focus:outline-none focus:ring-2 focus:ring-sky-500/35",
+    "inline-flex items-center justify-center rounded-full px-3 py-2",
+    "text-[12px] font-semibold btn-instrument",
+    "focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]",
     "disabled:opacity-50 disabled:cursor-not-allowed"
   );
 }
 
 function btnPrimary() {
   return cn(
-    "inline-flex items-center gap-2 rounded-full border px-3 py-2",
-    "text-[12px] font-semibold",
-    "border-sky-400/55 text-slate-50 bg-slate-950/60 hover:bg-slate-900/50",
-    "focus:outline-none focus:ring-2 focus:ring-sky-500/35",
+    "inline-flex items-center gap-2 rounded-full px-3 py-2",
+    "text-[12px] font-semibold btn-primary",
+    "focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]",
     "disabled:opacity-50 disabled:cursor-not-allowed"
   );
 }
 
 function badgeStatus(status) {
   const s = String(status || "").trim().toUpperCase();
-  const base =
-    "inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-extrabold tracking-[0.16em]";
-  if (s === "FROZEN") return cn(base, "border-rose-400/45 bg-rose-500/10 text-rose-100");
-  if (s === "PUBLISHED") return cn(base, "border-emerald-400/45 bg-emerald-500/10 text-emerald-100");
-  return cn(base, "border-slate-600/60 bg-slate-900/35 text-slate-200");
+  const base = "inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-extrabold tracking-[0.16em]";
+  if (s === "FROZEN") return cn(base, "badge-danger");
+  if (s === "PUBLISHED") return cn(base, "badge-success");
+  return cn(base, "badge-neutral");
 }
 
 function safeText(v) {
@@ -336,14 +330,14 @@ export default function AdminPlanningOverview({ isDark = true }) {
   };
 
   return (
-    <div className={cn("min-h-screen", isDark ? "bg-[#050910] text-slate-50" : "bg-white text-slate-900")}>
+    <div className={cn("min-h-screen theme-bg theme-scope")}>
       <div className="mx-auto max-w-7xl px-4 py-6">
         <div className={card() + " p-4"}>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">ADMIN · PLANNING</div>
-              <div className="mt-1 text-[16px] font-semibold text-slate-50">Overview · Assignments · Audit</div>
-              <div className="mt-1 text-[12px] text-slate-500">
+              <div className="kicker">ADMIN · PLANNING</div>
+              <div className="mt-1 text-[16px] font-semibold theme-text">Overview · Assignments · Audit</div>
+              <div className="mt-1 text-[12px] theme-text-muted">
                 Controllo centralizzato: piani, capi assegnati ai manager, audit delle azioni.
               </div>
             </div>
@@ -364,33 +358,25 @@ export default function AdminPlanningOverview({ isDark = true }) {
             </div>
           </div>
 
-          {err ? (
-            <div className="mt-4 rounded-xl border border-rose-400/25 bg-rose-500/10 px-3 py-2 text-[13px] text-rose-100">
-              {err}
-            </div>
-          ) : null}
+          {err ? <div className="mt-4 rounded-xl px-3 py-2 text-[13px] badge-danger">{err}</div> : null}
 
-          {toast ? (
-            <div className="mt-4 rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-[13px] text-emerald-100">
-              {toast}
-            </div>
-          ) : null}
+          {toast ? <div className="mt-4 rounded-xl px-3 py-2 text-[13px] badge-success">{toast}</div> : null}
 
           <div className="mt-4 grid grid-cols-1 lg:grid-cols-12 gap-3">
             {/* Assignments editor */}
-            <div className="lg:col-span-4 rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
-              <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">Manager ↔ Capo</div>
-              <div className="mt-1 text-[14px] font-semibold text-slate-50">Assegna un Capo a un Manager</div>
+            <div className="lg:col-span-4 rounded-2xl theme-panel-2 p-3">
+              <div className="kicker">Manager ↔ Capo</div>
+              <div className="mt-1 text-[14px] font-semibold theme-text">Assegna un Capo a un Manager</div>
 
               <div className="mt-3">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">CAPO</div>
+                <div className="kicker">CAPO</div>
                 <select
                   value={selectedCapoId}
                   onChange={(e) => setSelectedCapoId(e.target.value)}
                   className={cn(
                     "mt-1 w-full rounded-2xl border px-3 py-2.5 text-[13px]",
-                    "border-slate-800 bg-slate-950/70 text-slate-50",
-                    "outline-none focus:ring-2 focus:ring-sky-500/35"
+                    "theme-input",
+                    "outline-none focus:ring-2 focus:ring-[color:var(--accent)]"
                   )}
                 >
                   <option value="">— Seleziona —</option>
@@ -406,14 +392,14 @@ export default function AdminPlanningOverview({ isDark = true }) {
               </div>
 
               <div className="mt-3">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">MANAGER</div>
+                <div className="kicker">MANAGER</div>
                 <select
                   value={selectedManagerId}
                   onChange={(e) => setSelectedManagerId(e.target.value)}
                   className={cn(
                     "mt-1 w-full rounded-2xl border px-3 py-2.5 text-[13px]",
-                    "border-slate-800 bg-slate-950/70 text-slate-50",
-                    "outline-none focus:ring-2 focus:ring-sky-500/35"
+                    "theme-input",
+                    "outline-none focus:ring-2 focus:ring-[color:var(--accent)]"
                   )}
                 >
                   <option value="">— Seleziona —</option>
@@ -436,7 +422,7 @@ export default function AdminPlanningOverview({ isDark = true }) {
                   onChange={(e) => setActiveFlag(e.target.checked)}
                   className="h-4 w-4"
                 />
-                <label htmlFor="activeFlag" className="text-[12px] text-slate-300">
+                <label htmlFor="activeFlag" className="text-[12px] theme-text-muted">
                   Attivo
                 </label>
               </div>
@@ -461,22 +447,22 @@ export default function AdminPlanningOverview({ isDark = true }) {
                 </button>
               </div>
 
-              <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950/60 overflow-hidden">
-                <div className="px-3 py-2 border-b border-slate-800 bg-slate-950/70 text-[11px] text-slate-400">
+              <div className="mt-4 rounded-2xl border theme-border bg-[var(--panel)] overflow-hidden">
+                <div className="px-3 py-2 border-b theme-border bg-[var(--panel2)] text-[11px] theme-text-muted">
                   Assegnazioni correnti ({loadingAssignments ? "…" : assignments.length})
                 </div>
                 <div className="max-h-[44vh] overflow-auto">
                   {loadingAssignments ? (
-                    <div className="px-3 py-4 text-[13px] text-slate-400">Caricamento…</div>
+                    <div className="px-3 py-4 text-[13px] theme-text-muted">Caricamento…</div>
                   ) : assignments.length === 0 ? (
-                    <div className="px-3 py-4 text-[13px] text-slate-400">Nessuna assegnazione.</div>
+                    <div className="px-3 py-4 text-[13px] theme-text-muted">Nessuna assegnazione.</div>
                   ) : (
                     assignments.map((a) => (
-                      <div key={a.capo_id} className="px-3 py-2 border-b border-slate-800 last:border-b-0">
-                        <div className="text-[13px] font-semibold text-slate-50 truncate">{a.capo_label}</div>
-                        <div className="mt-0.5 text-[12px] text-slate-400 truncate">
-                          → <span className="text-slate-200 font-semibold">{a.manager_label}</span>{" "}
-                          {a.active ? <span className="text-emerald-200">· attivo</span> : <span className="text-rose-200">· disattivo</span>}
+                      <div key={a.capo_id} className="px-3 py-2 border-b theme-border last:border-b-0">
+                        <div className="text-[13px] font-semibold theme-text truncate">{a.capo_label}</div>
+                        <div className="mt-0.5 text-[12px] theme-text-muted truncate">
+                          → <span className="theme-text font-semibold">{a.manager_label}</span>{" "}
+                          {a.active ? <span className="badge-success px-2 py-0.5 rounded-full">· attivo</span> : <span className="badge-danger px-2 py-0.5 rounded-full">· disattivo</span>}
                         </div>
                       </div>
                     ))
@@ -486,9 +472,9 @@ export default function AdminPlanningOverview({ isDark = true }) {
             </div>
 
             {/* Overview */}
-            <div className="lg:col-span-5 rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
-              <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">Overview</div>
-              <div className="mt-1 text-[14px] font-semibold text-slate-50">Piani (vista admin_planning_overview_v1)</div>
+            <div className="lg:col-span-5 rounded-2xl theme-panel-2 p-3">
+              <div className="kicker">Overview</div>
+              <div className="mt-1 text-[14px] font-semibold theme-text">Piani (vista admin_planning_overview_v1)</div>
 
               <div className="mt-3 grid grid-cols-1 md:grid-cols-12 gap-2">
                 <div className="md:col-span-6">
@@ -498,8 +484,8 @@ export default function AdminPlanningOverview({ isDark = true }) {
                     placeholder="Cerca plan_id / manager_id / capo_id / operator_id…"
                     className={cn(
                       "w-full rounded-2xl border px-3 py-2.5 text-[13px]",
-                      "border-slate-800 bg-slate-950/70 text-slate-50 placeholder:text-slate-500",
-                      "outline-none focus:ring-2 focus:ring-sky-500/35"
+                      "theme-input",
+                      "outline-none focus:ring-2 focus:ring-[color:var(--accent)]"
                     )}
                   />
                 </div>
@@ -510,8 +496,8 @@ export default function AdminPlanningOverview({ isDark = true }) {
                     onChange={(e) => setPeriodFilter(e.target.value)}
                     className={cn(
                       "w-full rounded-2xl border px-3 py-2.5 text-[13px]",
-                      "border-slate-800 bg-slate-950/70 text-slate-50",
-                      "outline-none focus:ring-2 focus:ring-sky-500/35"
+                      "theme-input",
+                      "outline-none focus:ring-2 focus:ring-[color:var(--accent)]"
                     )}
                   >
                     <option value="ALL">Periodo: ALL</option>
@@ -526,8 +512,8 @@ export default function AdminPlanningOverview({ isDark = true }) {
                     onChange={(e) => setStatusFilter(e.target.value)}
                     className={cn(
                       "w-full rounded-2xl border px-3 py-2.5 text-[13px]",
-                      "border-slate-800 bg-slate-950/70 text-slate-50",
-                      "outline-none focus:ring-2 focus:ring-sky-500/35"
+                      "theme-input",
+                      "outline-none focus:ring-2 focus:ring-[color:var(--accent)]"
                     )}
                   >
                     <option value="ALL">Stato: ALL</option>
@@ -542,21 +528,21 @@ export default function AdminPlanningOverview({ isDark = true }) {
                 <button type="button" className={btnPrimary()} disabled={busy} onClick={loadOverview}>
                   Applica
                 </button>
-                <div className="text-[12px] text-slate-500">
-                  Righe: <span className="text-slate-200 font-semibold">{loadingRows ? "…" : filteredRows.length}</span>
+                <div className="text-[12px] theme-text-muted">
+                  Righe: <span className="theme-text font-semibold">{loadingRows ? "…" : filteredRows.length}</span>
                 </div>
               </div>
 
-              <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/60 overflow-hidden">
-                <div className="px-3 py-2 border-b border-slate-800 bg-slate-950/70 text-[11px] text-slate-400">
+              <div className="mt-3 rounded-2xl border theme-border bg-[var(--panel)] overflow-hidden">
+                <div className="px-3 py-2 border-b theme-border bg-[var(--panel2)] text-[11px] theme-text-muted">
                   Piani raggruppati ({loadingRows ? "…" : groupedByPlan.length})
                 </div>
 
                 <div className="max-h-[62vh] overflow-auto">
                   {loadingRows ? (
-                    <div className="px-3 py-5 text-[13px] text-slate-400">Caricamento…</div>
+                    <div className="px-3 py-5 text-[13px] theme-text-muted">Caricamento…</div>
                   ) : groupedByPlan.length === 0 ? (
-                    <div className="px-3 py-5 text-[13px] text-slate-400">Nessun piano.</div>
+                    <div className="px-3 py-5 text-[13px] theme-text-muted">Nessun piano.</div>
                   ) : (
                     groupedByPlan.map(([planId, items]) => {
                       const head = items?.[0] || {};
@@ -572,44 +558,44 @@ export default function AdminPlanningOverview({ isDark = true }) {
                       const membersCount = items.filter((x) => safeText(x.operator_id)).length;
 
                       return (
-                        <div key={planId} className="px-3 py-3 border-b border-slate-800 last:border-b-0">
+                        <div key={planId} className="px-3 py-3 border-b theme-border last:border-b-0">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Plan</div>
-                              <div className="mt-1 text-[13px] font-semibold text-slate-50 truncate">{label}</div>
-                              <div className="mt-1 text-[12px] text-slate-400 truncate">
-                                plan_id: <span className="text-slate-200">{planId}</span>
+                              <div className="kicker">Plan</div>
+                              <div className="mt-1 text-[13px] font-semibold theme-text truncate">{label}</div>
+                              <div className="mt-1 text-[12px] theme-text-muted truncate">
+                                plan_id: <span className="theme-text">{planId}</span>
                               </div>
                               {head.manager_id ? (
-                                <div className="mt-1 text-[12px] text-slate-400 truncate">
-                                  manager_id: <span className="text-slate-200">{safeText(head.manager_id)}</span>
+                                <div className="mt-1 text-[12px] theme-text-muted truncate">
+                                  manager_id: <span className="theme-text">{safeText(head.manager_id)}</span>
                                 </div>
                               ) : null}
                             </div>
 
                             <div className="shrink-0 text-right">
                               <div className={badgeStatus(status)}>{status.toUpperCase()}</div>
-                              <div className="mt-2 text-[12px] text-slate-400">
-                                Slots: <span className="text-slate-200 font-semibold">{slotsCount}</span>
+                              <div className="mt-2 text-[12px] theme-text-muted">
+                                Slots: <span className="theme-text font-semibold">{slotsCount}</span>
                               </div>
-                              <div className="mt-1 text-[12px] text-slate-400">
-                                Membri: <span className="text-slate-200 font-semibold">{membersCount}</span>
+                              <div className="mt-1 text-[12px] theme-text-muted">
+                                Membri: <span className="theme-text font-semibold">{membersCount}</span>
                               </div>
                             </div>
                           </div>
 
                           {/* compact preview rows */}
-                          <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/50 overflow-hidden">
-                            <div className="grid grid-cols-12 gap-2 px-3 py-2 border-b border-slate-800 bg-slate-950/70 text-[11px] text-slate-400">
-                              <div className="col-span-4 text-slate-200">Capo</div>
-                              <div className="col-span-4 text-slate-200">Operatore</div>
-                              <div className="col-span-2 text-slate-200">Pos</div>
-                              <div className="col-span-2 text-slate-200">Slot</div>
+                          <div className="mt-3 rounded-2xl border theme-border bg-[var(--panel)] overflow-hidden">
+                            <div className="grid grid-cols-12 gap-2 px-3 py-2 border-b theme-border bg-[var(--panel2)] text-[11px] theme-text-muted">
+                              <div className="col-span-4 theme-text">Capo</div>
+                              <div className="col-span-4 theme-text">Operatore</div>
+                              <div className="col-span-2 theme-text">Pos</div>
+                              <div className="col-span-2 theme-text">Slot</div>
                             </div>
 
-                            <div className="max-h-[220px] overflow-auto divide-y divide-slate-800">
+                            <div className="max-h-[220px] overflow-auto">
                               {items.slice(0, 18).map((r, i) => (
-                                <div key={`${planId}-${i}`} className="grid grid-cols-12 gap-2 px-3 py-2 text-[12px] text-slate-300">
+                                <div key={`${planId}-${i}`} className="grid grid-cols-12 gap-2 px-3 py-2 text-[12px] theme-text">
                                   <div className="col-span-4 truncate">{safeText(r.capo_id) || "—"}</div>
                                   <div className="col-span-4 truncate">{safeText(r.operator_id) || "—"}</div>
                                   <div className="col-span-2 tabular-nums">{safeText(r.operator_position) || "—"}</div>
@@ -617,7 +603,7 @@ export default function AdminPlanningOverview({ isDark = true }) {
                                 </div>
                               ))}
                               {items.length > 18 ? (
-                                <div className="px-3 py-2 text-[12px] text-slate-500">… {items.length - 18} righe in più</div>
+                                <div className="px-3 py-2 text-[12px] theme-text-muted">… {items.length - 18} righe in più</div>
                               ) : null}
                             </div>
                           </div>
@@ -628,37 +614,37 @@ export default function AdminPlanningOverview({ isDark = true }) {
                 </div>
               </div>
 
-              <div className="mt-3 text-[12px] text-slate-500">
+              <div className="mt-3 text-[12px] theme-text-muted">
                 Nota: la vista admin è volutamente “defensiva” (colonne non hardcodate). Se vuoi label leggibili (nomi capo/operatori),
                 si aggiunge una view v2 con join su profiles/operators.
               </div>
             </div>
 
             {/* Audit */}
-            <div className="lg:col-span-3 rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
-              <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">Audit</div>
-              <div className="mt-1 text-[14px] font-semibold text-slate-50">Ultime azioni</div>
+            <div className="lg:col-span-3 rounded-2xl theme-panel-2 p-3">
+              <div className="kicker">Audit</div>
+              <div className="mt-1 text-[14px] font-semibold theme-text">Ultime azioni</div>
 
-              <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/60 overflow-hidden">
-                <div className="px-3 py-2 border-b border-slate-800 bg-slate-950/70 text-[11px] text-slate-400">
+              <div className="mt-3 rounded-2xl border theme-border bg-[var(--panel)] overflow-hidden">
+                <div className="px-3 py-2 border-b theme-border bg-[var(--panel2)] text-[11px] theme-text-muted">
                   Eventi ({loadingAudit ? "…" : auditRows.length})
                 </div>
                 <div className="max-h-[70vh] overflow-auto">
                   {loadingAudit ? (
-                    <div className="px-3 py-5 text-[13px] text-slate-400">Caricamento…</div>
+                    <div className="px-3 py-5 text-[13px] theme-text-muted">Caricamento…</div>
                   ) : auditRows.length === 0 ? (
-                    <div className="px-3 py-5 text-[13px] text-slate-400">Nessun evento.</div>
+                    <div className="px-3 py-5 text-[13px] theme-text-muted">Nessun evento.</div>
                   ) : (
                     auditRows.map((a) => (
-                      <div key={a.id} className="px-3 py-2 border-b border-slate-800 last:border-b-0">
-                        <div className="text-[12px] text-slate-400">
-                          <span className="text-slate-200 font-semibold">{safeText(a.action) || "—"}</span>{" "}
-                          <span className="text-slate-600">·</span>{" "}
-                          <span className="text-slate-300">{safeText(a.actor_label)}</span>{" "}
-                          <span className="text-slate-600">·</span>{" "}
-                          <span className="text-slate-500">{safeText(a.created_at) ? new Date(a.created_at).toLocaleString() : "—"}</span>
+                      <div key={a.id} className="px-3 py-2 border-b theme-border last:border-b-0">
+                        <div className="text-[12px] theme-text-muted">
+                          <span className="theme-text font-semibold">{safeText(a.action) || "—"}</span>{" "}
+                          <span className="theme-text-muted">·</span>{" "}
+                          <span className="theme-text">{safeText(a.actor_label)}</span>{" "}
+                          <span className="theme-text-muted">·</span>{" "}
+                          <span className="theme-text-muted">{safeText(a.created_at) ? new Date(a.created_at).toLocaleString() : "—"}</span>
                         </div>
-                        <div className="mt-1 text-[11px] text-slate-500 truncate">
+                        <div className="mt-1 text-[11px] theme-text-muted truncate">
                           plan: {safeText(a.plan_id) ? safeText(a.plan_id).slice(0, 10) : "—"} · target:{" "}
                           {safeText(a.target_type) || "—"} {safeText(a.target_id) ? safeText(a.target_id).slice(0, 10) : ""}
                         </div>
@@ -678,9 +664,9 @@ export default function AdminPlanningOverview({ isDark = true }) {
         </div>
 
         {/* Quick checks */}
-        <div className="mt-4 text-[12px] text-slate-500">
+        <div className="mt-4 text-[12px] theme-text-muted">
           Stato profilo:{" "}
-          <span className="text-slate-200 font-semibold">
+          <span className="theme-text font-semibold">
             {me?.app_role ? String(me.app_role).toUpperCase() : "—"}
           </span>
         </div>

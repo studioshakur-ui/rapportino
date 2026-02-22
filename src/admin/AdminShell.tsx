@@ -175,9 +175,8 @@ export default function AdminShell(): JSX.Element {
         type="button"
         onClick={handleLogout}
         className={cn(
-          "inline-flex items-center rounded-full border px-3 py-2",
-          "text-[12px] font-semibold",
-          "border-rose-400/45 bg-[var(--panel2)] text-rose-100 hover:bg-rose-500/15"
+          "inline-flex items-center rounded-full px-3 py-2",
+          "text-[12px] font-semibold badge-danger"
         )}
         title="Logout"
       >

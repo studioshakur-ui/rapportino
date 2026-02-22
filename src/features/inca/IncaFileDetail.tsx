@@ -51,80 +51,70 @@ export default function IncaFileDetail({ file, metrics }: { file?: IncaFile | nu
       {/* Ligne principale */}
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div className="space-y-1">
-          <div className="text-[12px] text-slate-400 uppercase tracking-[0.18em]">
-            INCA · File selezionato
-          </div>
-          <div className="text-[16px] font-semibold text-slate-50">
-            {file.file_name || 'File INCA'}
-          </div>
-          <div className="text-[12px] text-slate-400 flex flex-wrap gap-2">
+          <div className="text-[12px] theme-text-muted uppercase tracking-[0.18em]">INCA · File selezionato</div>
+          <div className="text-[16px] font-semibold theme-text">{file.file_name || 'File INCA'}</div>
+          <div className="text-[12px] theme-text-muted flex flex-wrap gap-2">
             <span>
               COSTR&nbsp;
-              <span className="font-mono text-slate-100">
+              <span className="font-mono theme-text">
                 {(file.costr || '').trim() || '—'}
               </span>
             </span>
-            <span className="text-slate-600">·</span>
+            <span className="theme-text-muted">·</span>
             <span>
               Commessa&nbsp;
-              <span className="font-mono text-slate-100">
+              <span className="font-mono theme-text">
                 {(file.commessa || '').trim() || '—'}
               </span>
             </span>
-            <span className="text-slate-600">·</span>
+            <span className="theme-text-muted">·</span>
             <span>
               Progetto&nbsp;
-              <span className="font-mono text-slate-100">
+              <span className="font-mono theme-text">
                 {(file.project_code || '').trim() || '—'}
               </span>
             </span>
           </div>
           {file.note && (
-            <div className="text-[12px] text-slate-400 max-w-xl">
+            <div className="text-[12px] theme-text-muted max-w-xl">
               Nota:&nbsp;
-              <span className="text-slate-200">{file.note}</span>
+              <span className="theme-text">{file.note}</span>
             </div>
           )}
         </div>
 
-        <div className="flex flex-col items-end gap-1 text-[11px] text-slate-400">
-          <div className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900/80 px-3 py-1">
+        <div className="flex flex-col items-end gap-1 text-[11px] theme-text-muted">
+          <div className="inline-flex items-center gap-2 rounded-full border theme-border bg-[var(--panel2)] px-3 py-1">
             <span className="uppercase tracking-[0.18em]">
               {file.file_type ? file.file_type.toUpperCase() : 'FILE'}
             </span>
-            <span className="w-[1px] h-4 bg-slate-700" />
+            <span className="w-[1px] h-4 bg-[var(--borderStrong)]" />
             <span>Importato il {formatDateTime(file.uploaded_at)}</span>
           </div>
-          <div className="font-mono text-slate-500">
+          <div className="font-mono theme-text-muted">
             ID:&nbsp;
-            <span className="text-slate-400">{file.id}</span>
+            <span className="theme-text-muted">{file.id}</span>
           </div>
         </div>
       </div>
 
       {/* Strip KPI */}
       <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px]">
-        <div className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2">
-          <div className="text-slate-500 uppercase tracking-[0.16em] mb-1">
-            Cavi
-          </div>
-          <div className="text-lg font-semibold text-slate-50">{totalCavi}</div>
+        <div className="rounded-lg theme-panel-2 px-3 py-2">
+          <div className="theme-text-muted uppercase tracking-[0.16em] mb-1">Cavi</div>
+          <div className="text-lg font-semibold theme-text">{totalCavi}</div>
         </div>
-        <div className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2">
-          <div className="text-slate-500 uppercase tracking-[0.16em] mb-1">
-            Metri teorici
-          </div>
-          <div className="text-lg font-semibold text-slate-50">
+        <div className="rounded-lg theme-panel-2 px-3 py-2">
+          <div className="theme-text-muted uppercase tracking-[0.16em] mb-1">Metri teorici</div>
+          <div className="text-lg font-semibold theme-text">
             {metriTeo.toLocaleString('it-IT', {
               maximumFractionDigits: 1,
             })}
           </div>
         </div>
-        <div className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2">
-          <div className="text-slate-500 uppercase tracking-[0.16em] mb-1">
-            Previsti / Posati
-          </div>
-          <div className="text-[12px] text-slate-100">
+        <div className="rounded-lg theme-panel-2 px-3 py-2">
+          <div className="theme-text-muted uppercase tracking-[0.16em] mb-1">Previsti / Posati</div>
+          <div className="text-[12px] theme-text">
             Prev:&nbsp;
             <span className="font-mono">
               {metriPrev.toLocaleString('it-IT', {
@@ -139,11 +129,9 @@ export default function IncaFileDetail({ file, metrics }: { file?: IncaFile | nu
             </span>
           </div>
         </div>
-        <div className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2">
-          <div className="text-slate-500 uppercase tracking-[0.16em] mb-1">
-            Metri totali
-          </div>
-          <div className="text-lg font-semibold text-slate-50">
+        <div className="rounded-lg theme-panel-2 px-3 py-2">
+          <div className="theme-text-muted uppercase tracking-[0.16em] mb-1">Metri totali</div>
+          <div className="text-lg font-semibold theme-text">
             {metriTot.toLocaleString('it-IT', {
               maximumFractionDigits: 1,
             })}
@@ -152,17 +140,15 @@ export default function IncaFileDetail({ file, metrics }: { file?: IncaFile | nu
       </div>
 
       {/* Distribution stato cantiere */}
-          {byStatoCantiere && Object.keys(byStatoCantiere).length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5 text-[10px]">
-              {Object.entries(byStatoCantiere).map(([key, value]) => (
+      {byStatoCantiere && Object.keys(byStatoCantiere).length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5 text-[10px]">
+          {Object.entries(byStatoCantiere).map(([key, value]) => (
             <span
               key={key || 'vuoto'}
-              className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-900/70 px-2 py-1 text-slate-200"
+              className="inline-flex items-center gap-1 rounded-full border theme-border bg-[var(--panel2)] px-2 py-1 theme-text"
             >
-              <span className="font-semibold">
-                {key && key.trim() ? key : 'Senza stato'}
-              </span>
-              <span className="w-[1px] h-3 bg-slate-700" />
+              <span className="font-semibold">{key && key.trim() ? key : 'Senza stato'}</span>
+              <span className="w-[1px] h-3 bg-[var(--borderStrong)]" />
               <span className="font-mono">{value}</span>
             </span>
           ))}

@@ -58,7 +58,7 @@ export default function DirezioneCharts({
             lineColor={CORE_CHART_THEME.positive}
             emptyHint={t("DIR_TIMELINE_EMPTY", "Nessun piano DAY FROZEN o nessun rapporto nella finestra.")}
           />
-          <div className="mt-2 text-[11px] text-slate-500">
+          <div className="mt-2 text-[11px] theme-text-muted">
             {t(
               "DIR_TIMELINE_NOTE",
               "Nota: “Ritardi Capi” deriva dal planning (DAY FROZEN) e dalla deadline 08:30 del giorno successivo."
@@ -78,7 +78,7 @@ export default function DirezioneCharts({
             empty={!!(!loading && !hasIncaData)}
             emptyHint={t("DIR_INCA_EMPTY", "Import INCA assente o non filtrabile con COSTR/Commessa.")}
           />
-          <div className="mt-2 text-[11px] text-slate-500">
+          <div className="mt-2 text-[11px] theme-text-muted">
             {t(
               "DIR_INCA_NOTE",
               "Baseline chantier = Σ metri_ref (greatest teo/dis). \"Dis\" è audit. \"Posati(ref)\" usa situazione='P'."
@@ -101,7 +101,7 @@ export default function DirezioneCharts({
             yLines={[{ key: "indice", name: t("KPI_INDICE_PROD", "Indice"), stroke: CORE_CHART_THEME.warning }]}
             emptyHint={t("DIR_TREND_EMPTY", "Nessun dato produttività nella finestra.")}
           />
-          <div className="mt-2 text-[11px] text-slate-500">
+          <div className="mt-2 text-[11px] theme-text-muted">
             {t("DIR_PROD_FORMULA_NOTE", "Formula: indice = Σreal_alloc / Σprevisto_alloc (solo unit=MT, rapportini APPROVED_UFFICIO).")}
           </div>
         </CoreChartCard>
@@ -111,15 +111,15 @@ export default function DirezioneCharts({
           title={t("DIR_TOP_PROD_TITLE", "Top · Produzioni (alloc)")}
           subtitle={t("DIR_TOP_PROD_SUB", "Somma prodotto_alloc per descrizione (lettura rapida).")}
         >
-          <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
+          <div className="theme-panel-2 rounded-2xl p-3">
             {!topProduzioni.length ? (
-              <div className="text-[12px] text-slate-400">{t("DIR_NO_DATA", "Nessun dato.")}</div>
+              <div className="text-[12px] theme-text-muted">{t("DIR_NO_DATA", "Nessun dato.")}</div>
             ) : (
               <div className="space-y-2">
                 {topProduzioni.map((r, idx) => (
                   <div key={`${r.descrizione}-${idx}`} className="flex items-center justify-between gap-3">
-                    <div className="text-[12px] text-slate-200 truncate">{String(r.descrizione || "—")}</div>
-                    <div className="text-[12px] text-slate-300 tabular-nums">
+                    <div className="text-[12px] theme-text truncate">{String(r.descrizione || "—")}</div>
+                    <div className="text-[12px] theme-text-muted tabular-nums">
                       {formatNumberByLang(lang, r.prodotto_sum, 0)}
                     </div>
                   </div>
@@ -127,7 +127,7 @@ export default function DirezioneCharts({
               </div>
             )}
           </div>
-          <div className="mt-2 text-[11px] text-slate-500">
+          <div className="mt-2 text-[11px] theme-text-muted">
             {t(
               "DIR_TOP_PROD_NOTE",
               "Nota: breakdown informativo; il drill-down “Righe attività” mostra dettagli e ranking completo."

@@ -280,7 +280,7 @@ export default function AdminUsersPage(): JSX.Element {
       ) : null}
 
       {lastError ? (
-        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-rose-100">
+        <div className="rounded-2xl border border-[var(--role-danger-border)] bg-[var(--role-danger-soft)] p-4 text-[var(--role-danger-ink)]">
           <div className="text-[12px] font-semibold">{t(lang, "COMMON_ERROR", "Errore")}</div>
           <div className="mt-1 text-[12px] opacity-90">{lastError}</div>
         </div>
@@ -314,12 +314,12 @@ export default function AdminUsersPage(): JSX.Element {
         />
 
         <div className="flex items-center justify-between gap-3">
-          <div className="text-[12px] text-slate-400">
+          <div className="text-[12px] theme-text-muted">
             {t(lang, "COMMON_PAGE", "Page")}{" "}
-            <span className="text-slate-200 font-semibold">{ui.page}</span> /{" "}
-            <span className="text-slate-200 font-semibold">{ui.totalPages}</span> — {ui.filtered.length}{" "}
+            <span className="theme-text font-semibold">{ui.page}</span> /{" "}
+            <span className="theme-text font-semibold">{ui.totalPages}</span> — {ui.filtered.length}{" "}
             {t(lang, "COMMON_RESULTS", "results")}
-            <span className="ml-2 text-slate-500">(PAGE_SIZE={PAGE_SIZE})</span>
+            <span className="ml-2 theme-text-muted">(PAGE_SIZE={PAGE_SIZE})</span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -327,11 +327,7 @@ export default function AdminUsersPage(): JSX.Element {
               type="button"
               onClick={onPrev}
               disabled={ui.page <= 1}
-              className={
-                ui.page <= 1
-                  ? "rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-[12px] font-semibold text-slate-600"
-                  : "rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[12px] font-semibold text-slate-200 hover:bg-slate-900/40"
-              }
+              className={`btn-instrument rounded-xl px-3 py-2 text-[12px] font-semibold ${ui.page <= 1 ? "opacity-50 cursor-not-allowed" : ""}`}
             >
               {t(lang, "COMMON_PREV", "Prev")}
             </button>
@@ -340,11 +336,7 @@ export default function AdminUsersPage(): JSX.Element {
               type="button"
               onClick={onNext}
               disabled={ui.page >= ui.totalPages}
-              className={
-                ui.page >= ui.totalPages
-                  ? "rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-[12px] font-semibold text-slate-600"
-                  : "rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[12px] font-semibold text-slate-200 hover:bg-slate-900/40"
-              }
+              className={`btn-instrument rounded-xl px-3 py-2 text-[12px] font-semibold ${ui.page >= ui.totalPages ? "opacity-50 cursor-not-allowed" : ""}`}
             >
               {t(lang, "COMMON_NEXT", "Next")}
             </button>
@@ -395,8 +387,8 @@ export default function AdminUsersPage(): JSX.Element {
           <div
             className={
               toast.kind === "ok"
-                ? "rounded-2xl border border-emerald-500/35 bg-emerald-500/10 px-4 py-3 text-emerald-100 shadow-[0_20px_60px_rgba(0,0,0,0.6)]"
-                : "rounded-2xl border border-rose-500/35 bg-rose-500/10 px-4 py-3 text-rose-100 shadow-[0_20px_60px_rgba(0,0,0,0.6)]"
+                ? "rounded-2xl border border-[var(--role-success-border)] bg-[var(--role-success-soft)] px-4 py-3 text-[var(--role-success-ink)] shadow-[0_20px_60px_rgba(0,0,0,0.35)]"
+                : "rounded-2xl border border-[var(--role-danger-border)] bg-[var(--role-danger-soft)] px-4 py-3 text-[var(--role-danger-ink)] shadow-[0_20px_60px_rgba(0,0,0,0.35)]"
             }
           >
             <div className="text-[12px] font-semibold">{toast.kind === "ok" ? "OK" : "ERROR"}</div>

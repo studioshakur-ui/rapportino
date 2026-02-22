@@ -98,26 +98,20 @@ export default function IncaFileViewer({ file }: { file?: IncaFile | null }) {
 
   if (!file) {
     return (
-      <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-4 py-4 text-[13px] text-slate-300">
-        <div className="text-[11px] text-slate-500 uppercase tracking-[0.18em] mb-1">
-          INCA
-        </div>
-        <div className="text-[15px] font-semibold text-slate-50 mb-1">
-          Nessun file selezionato
-        </div>
-        <div className="text-[12px] text-slate-400">
-          Seleziona un file dalla lista per aprire i cavi.
-        </div>
+      <div className="rounded-xl theme-panel px-4 py-4 text-[13px] theme-text-muted">
+        <div className="text-[11px] theme-text-muted uppercase tracking-[0.18em] mb-1">INCA</div>
+        <div className="text-[15px] font-semibold theme-text mb-1">Nessun file selezionato</div>
+        <div className="text-[12px] theme-text-muted">Seleziona un file dalla lista per aprire i cavi.</div>
       </div>
     );
   }
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-4 py-4">
+    <div className="rounded-xl theme-panel px-4 py-4">
       <IncaFileDetail file={file} metrics={metrics} />
 
       {error && (
-        <div className="mb-3 rounded-md border border-amber-600 bg-amber-900/40 px-3 py-2 text-[12px] text-amber-100">
+        <div className="mb-3 rounded-md border border-[var(--role-warning-border)] bg-[var(--role-warning-soft)] px-3 py-2 text-[12px] text-[var(--role-warning-ink)]">
           {error}
         </div>
       )}

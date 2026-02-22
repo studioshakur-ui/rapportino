@@ -96,27 +96,27 @@
   color-scheme: light;
 
   /* Warm Metal Executive (premium console) */
-  --bg: #f2eee7;      /* page matte warm (never pure white) */
-  --panel: #eae5dc;   /* workspace frame */
-  --panel2: #f9f6f1;  /* cards / subcards (ivory controlled) */
+  --bg: #eef1f3;      /* page matte neutral (never pure white) */
+  --panel: #e6eaee;   /* workspace frame */
+  --panel2: #fbfbf9;  /* cards / subcards (ivory controlled) */
   --overlay: rgba(20, 18, 16, 0.22);
 
   /* Structure (hairlines) */
-  --border: rgba(25, 24, 22, 0.12);
-  --borderStrong: rgba(25, 24, 22, 0.18);
+  --border: rgba(23, 28, 34, 0.14);
+  --borderStrong: rgba(23, 32, 44, 0.26);
 
   /* Graphite authority */
-  --text: #191816;
-  --textMuted: #47433c;
+  --text: #1a1c1f;
+  --textMuted: #4b4f56;
 
   /* Subtle depth */
   --shadow1: 0 1px 2px rgba(0, 0, 0, 0.05);
   --shadow2: 0 14px 34px rgba(0, 0, 0, 0.10);
 
   /* Accent (conservative) */
-  --accent: rgba(106, 141, 163, 0.32);
-  --accent-soft: rgba(106, 141, 163, 0.10);
-  --accent-ink: #1f2b33;
+  --accent: #3b6f92;
+  --accent-soft: rgba(59, 111, 146, 0.16);
+  --accent-ink: #162733;
 
   --role-success: #3d9477;
   --role-success-soft: rgba(61, 148, 119, 0.10);

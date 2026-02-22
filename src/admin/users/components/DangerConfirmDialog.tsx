@@ -40,15 +40,15 @@ export default function DangerConfirmDialog(props: {
 
       <div className={cn("relative w-full max-w-lg rounded-2xl", "theme-modal")} onClick={(e) => e.stopPropagation()}>
         <div className="p-5 border-b theme-border">
-          <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">CNCS · Admin</div>
-          <div className="mt-1 text-[18px] font-semibold text-slate-50">{title}</div>
-          {subtitle ? <div className="mt-1 text-[12px] text-slate-300">{subtitle}</div> : null}
-          {emailHint ? <div className="mt-2 text-[11px] text-slate-400">Target: {emailHint}</div> : null}
+          <div className="kicker">CNCS · Admin</div>
+          <div className="mt-1 text-[18px] font-semibold theme-text">{title}</div>
+          {subtitle ? <div className="mt-1 text-[12px] theme-text-muted">{subtitle}</div> : null}
+          {emailHint ? <div className="mt-2 text-[11px] theme-text-muted">Target: {emailHint}</div> : null}
         </div>
 
         <div className="p-5 flex flex-col gap-4">
           <label className="flex flex-col gap-1">
-            <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">Motivo (opzionale)</div>
+            <div className="kicker">Motivo (opzionale)</div>
             <input
               value={reason}
               onChange={(e) => setReason(e.target.value)}
@@ -67,8 +67,7 @@ export default function DangerConfirmDialog(props: {
             disabled={Boolean(busy)}
             onClick={() => void onConfirm(reason)}
             className={cn(
-              "rounded-xl border px-4 py-2 text-[13px] font-semibold transition-opacity",
-              "border-rose-500/45 bg-rose-500/10 text-rose-50 hover:bg-rose-500/15",
+              "rounded-xl px-4 py-2 text-[13px] font-semibold transition-opacity badge-danger",
               Boolean(busy) && "opacity-60 cursor-not-allowed"
             )}
           >

@@ -18,6 +18,13 @@ export type ProfileRow = {
   created_at?: string | null;
   updated_at?: string | null;
   disabled_at?: string | null;
+
+  /**
+   * AUTH SIGNALS (SOURCE OF TRUTH FOR ACTIVITY)
+   * Provided by ADMIN-only RPC: public.admin_list_users_v1
+   */
+  auth_created_at?: string | null;
+  last_sign_in_at?: string | null;
 };
 
 type CreateUserPayload = {
@@ -81,6 +88,7 @@ export function useAdminUsersData() {
   const [lastPasswordEmail, setLastPasswordEmail] = useState<string | null>(null);
 
   const supportsDisabledAtRef = useRef<boolean | null>(null);
+  const supportsAdminRpcRef = useRef<boolean | null>(null);
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -92,6 +100,24 @@ export function useAdminUsersData() {
       "id,email,full_name,display_name,app_role,default_costr,default_commessa,allowed_cantieri,must_change_password,created_at,updated_at";
 
     try {
+      // =========================================================
+      // Preferred (CNCS-grade): AUTH-backed activity via RPC
+      // - exposes auth.users.last_sign_in_at
+      // - guarded server-side (ADMIN-only)
+      // =========================================================
+      if (supportsAdminRpcRef.current !== false) {
+        const rpc = await supabase.rpc("admin_list_users_v1", { p_q: null, p_role: null });
+        if (!rpc.error) {
+          supportsAdminRpcRef.current = true;
+          // If RPC works, we can trust disabled_at presence (it is selected in the function).
+          supportsDisabledAtRef.current = true;
+          setRows((rpc.data as unknown as ProfileRow[]) || []);
+          setLoading(false);
+          return;
+        }
+        supportsAdminRpcRef.current = false;
+      }
+
       const preferWith = supportsDisabledAtRef.current !== false;
       const { data, error } = await supabase
         .from("profiles")

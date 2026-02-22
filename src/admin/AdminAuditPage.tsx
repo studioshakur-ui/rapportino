@@ -146,14 +146,10 @@ export default function AdminAuditPage(): JSX.Element {
       <div className="rounded-2xl theme-panel p-4">
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">
-              ADMIN · AUDIT PLANNING
-            </div>
-            <div className="mt-1 text-[14px] font-semibold text-slate-50">
-              Journal (actions / payload)
-            </div>
-            <div className="mt-1 text-[12px] text-slate-400">
-              Table: <span className="text-slate-200 font-semibold">planning_audit</span>
+            <div className="kicker">ADMIN · AUDIT PLANNING</div>
+            <div className="mt-1 text-[14px] font-semibold theme-text">Journal (actions / payload)</div>
+            <div className="mt-1 text-[12px] theme-text-muted">
+              Table: <span className="theme-text font-semibold">planning_audit</span>
             </div>
           </div>
 
@@ -167,17 +163,17 @@ export default function AdminAuditPage(): JSX.Element {
         </div>
 
         <div className="mt-3">
-          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Search</div>
+          <div className="text-[11px] uppercase tracking-[0.22em] theme-text-muted">Search</div>
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Cerca action, actor, plan_id, payload…"
-            className="mt-1 w-full rounded-xl theme-input px-3 py-2 text-[13px] placeholder:text-slate-500 outline-none"
+            className="mt-1 w-full rounded-xl theme-input px-3 py-2 text-[13px] outline-none"
           />
         </div>
 
         {err ? (
-          <div className="mt-3 rounded-xl border border-rose-400/25 bg-rose-500/10 px-3 py-2 text-[13px] text-rose-100">
+          <div className="mt-3 rounded-xl border border-[var(--role-danger-border)] bg-[var(--role-danger-soft)] px-3 py-2 text-[13px] text-[var(--role-danger-ink)]">
             {err}
           </div>
         ) : null}
@@ -185,20 +181,20 @@ export default function AdminAuditPage(): JSX.Element {
 
       <div className="rounded-2xl theme-panel overflow-hidden">
         <div className="px-4 py-3 border-b theme-border bg-[var(--panel2)] flex items-center justify-between">
-          <div className="text-[12px] text-slate-300">
+          <div className="text-[12px] theme-text-muted">
             {loading ? "Caricamento…" : `${filtered.length} eventi`}
           </div>
-          <div className="text-[11px] text-slate-500">limit 250</div>
+          <div className="text-[11px] theme-text-muted">limit 250</div>
         </div>
 
         {loading ? (
-          <div className="px-4 py-6 text-[13px] text-slate-400">Caricamento…</div>
+          <div className="px-4 py-6 text-[13px] theme-text-muted">Caricamento…</div>
         ) : filtered.length === 0 ? (
-          <div className="px-4 py-6 text-[13px] text-slate-400">
+          <div className="px-4 py-6 text-[13px] theme-text-muted">
             Nessun evento audit trovato.
           </div>
         ) : (
-          <div className="divide-y divide-slate-800">
+          <div className="divide-y theme-border">
             {filtered.map((r) => {
               const actor = r.actor || {};
               const actorLabel =
@@ -208,41 +204,41 @@ export default function AdminAuditPage(): JSX.Element {
                 <div key={r.id} className="px-4 py-4">
                   <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="text-[12px] text-slate-500">Action</div>
-                      <div className="mt-1 text-[13px] text-slate-50 font-semibold">
+                      <div className="text-[12px] theme-text-muted">Action</div>
+                      <div className="mt-1 text-[13px] theme-text font-semibold">
                         {r.action || "—"}
                       </div>
-                      <div className="mt-1 text-[12px] text-slate-500">
-                        Actor: <span className="text-slate-300">{actorLabel}</span>{" "}
+                      <div className="mt-1 text-[12px] theme-text-muted">
+                        Actor: <span className="theme-text">{actorLabel}</span>{" "}
                         {actor.app_role ? (
-                          <span className="ml-2 text-slate-500">({actor.app_role})</span>
+                          <span className="ml-2 theme-text-muted">({actor.app_role})</span>
                         ) : null}
                       </div>
-                      <div className="mt-1 text-[12px] text-slate-500">
-                        Plan: <span className="text-slate-300">{r.plan_id || "—"}</span>
+                      <div className="mt-1 text-[12px] theme-text-muted">
+                        Plan: <span className="theme-text">{r.plan_id || "—"}</span>
                         {r.target_type ? (
                           <>
-                            {" "}· Target: <span className="text-slate-300">{r.target_type}</span>
+                            {" "}· Target: <span className="theme-text">{r.target_type}</span>
                           </>
                         ) : null}
                         {r.target_id ? (
                           <>
-                            {" "}· Target ID: <span className="text-slate-400">{r.target_id}</span>
+                            {" "}· Target ID: <span className="theme-text-muted">{r.target_id}</span>
                           </>
                         ) : null}
                       </div>
                     </div>
 
-                    <div className="text-[12px] text-slate-500">
+                    <div className="text-[12px] theme-text-muted">
                       {r.created_at ? String(r.created_at) : "—"}
                     </div>
                   </div>
 
                   <div className="mt-3 rounded-2xl border theme-border bg-[var(--panel2)] p-3">
-                    <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
+                    <div className="text-[11px] uppercase tracking-[0.22em] theme-text-muted">
                       Payload
                     </div>
-                    <pre className="mt-2 text-[11px] text-slate-200 whitespace-pre-wrap break-words">
+                    <pre className="mt-2 text-[11px] theme-text whitespace-pre-wrap break-words">
                       {JSON.stringify(r.payload || {}, null, 2)}
                     </pre>
                   </div>

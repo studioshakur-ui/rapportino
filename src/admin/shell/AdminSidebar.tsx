@@ -39,7 +39,7 @@ export default function AdminSidebar({
               <div className="kicker">Profilo</div>
               <div className="mt-1 flex items-center justify-between gap-2">
                 <div className="text-[13px] font-semibold theme-text truncate">{displayEmail}</div>
-                <div className="h-2 w-2 rounded-full bg-emerald-400" title="Online" />
+                <div className="h-2 w-2 rounded-full dot-good" title="Online" />
               </div>
             </div>
           </div>

@@ -1,7 +1,6 @@
 // src/components/charts/DirezioneChartsSection.jsx
 import { useMemo } from "react";
 import type { EChartsOption } from "echarts";
-import { cn } from "../../ui/cn";
 import { useCoreI18n } from "../../i18n/coreI18n";
 import EChart from "./EChart";
 import ECharts from "./ECharts";
@@ -27,10 +26,7 @@ export default function DirezioneChartsSection({
 }) {
   const { t } = useCoreI18n();
 
-  const cardBase = cn(
-    "rounded-3xl border px-4 py-3",
-    isDark ? "border-slate-800/70 bg-slate-950/55" : "border-slate-200 bg-white"
-  );
+  const cardBase = "theme-panel rounded-3xl px-4 py-3";
 
   const trendOpt = useMemo<EChartsOption>(() => {
     const x = (trend?.x || []) as any[];
@@ -43,14 +39,14 @@ export default function DirezioneChartsSection({
       xAxis: {
         type: "category" as const,
         data: x,
-        axisLabel: { color: "rgba(226,232,240,0.75)" },
-        axisLine: { lineStyle: { color: "rgba(148,163,184,0.25)" } },
+        axisLabel: { color: "var(--textMuted)" },
+        axisLine: { lineStyle: { color: "var(--border)" } },
       },
       yAxis: {
         type: "value" as const,
-        axisLabel: { color: "rgba(226,232,240,0.75)" },
-        splitLine: { lineStyle: { color: "rgba(148,163,184,0.18)" } },
-        axisLine: { lineStyle: { color: "rgba(148,163,184,0.25)" } },
+        axisLabel: { color: "var(--textMuted)" },
+        splitLine: { lineStyle: { color: "var(--border)" } },
+        axisLine: { lineStyle: { color: "var(--border)" } },
       },
       series: [
         {
@@ -79,19 +75,19 @@ export default function DirezioneChartsSection({
       tooltip: { trigger: "axis" },
       legend: {
         top: 0,
-        textStyle: { color: "rgba(226,232,240,0.78)" },
+        textStyle: { color: "var(--textMuted)" },
       },
       xAxis: {
         type: "category" as const,
         data: labels,
-        axisLabel: { color: "rgba(226,232,240,0.75)", rotate: 22 },
-        axisLine: { lineStyle: { color: "rgba(148,163,184,0.25)" } },
+        axisLabel: { color: "var(--textMuted)", rotate: 22 },
+        axisLine: { lineStyle: { color: "var(--border)" } },
       },
       yAxis: {
         type: "value" as const,
-        axisLabel: { color: "rgba(226,232,240,0.75)" },
-        splitLine: { lineStyle: { color: "rgba(148,163,184,0.18)" } },
-        axisLine: { lineStyle: { color: "rgba(148,163,184,0.25)" } },
+        axisLabel: { color: "var(--textMuted)" },
+        splitLine: { lineStyle: { color: "var(--border)" } },
+        axisLine: { lineStyle: { color: "var(--border)" } },
       },
       series: [
         { name: "Previsti", type: "bar" as const, data: previsti, barMaxWidth: 38 },
@@ -118,14 +114,14 @@ export default function DirezioneChartsSection({
       xAxis: {
         type: "category",
         data: ["Q1", "Q2", "Q3", "Q4"],
-        axisLabel: { color: "rgba(226,232,240,0.75)" },
-        axisLine: { lineStyle: { color: "rgba(148,163,184,0.25)" } },
+        axisLabel: { color: "var(--textMuted)" },
+        axisLine: { lineStyle: { color: "var(--border)" } },
       },
       yAxis: {
         type: "value",
-        axisLabel: { color: "rgba(226,232,240,0.75)" },
-        splitLine: { lineStyle: { color: "rgba(148,163,184,0.18)" } },
-        axisLine: { lineStyle: { color: "rgba(148,163,184,0.25)" } },
+        axisLabel: { color: "var(--textMuted)" },
+        splitLine: { lineStyle: { color: "var(--border)" } },
+        axisLine: { lineStyle: { color: "var(--border)" } },
       },
       series: [
         {
@@ -144,7 +140,7 @@ export default function DirezioneChartsSection({
 
   return (
     <section className="px-3 sm:px-4 mt-3">
-      <div className={cn("text-[11px] uppercase tracking-[0.18em] mb-2", isDark ? "text-slate-500" : "text-slate-600")}>
+      <div className="text-[11px] uppercase tracking-[0.18em] mb-2 theme-text-muted">
         {t("CHARTS_TITLE")}
       </div>
 
@@ -152,10 +148,10 @@ export default function DirezioneChartsSection({
         <div className={cardBase}>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className={cn("text-[11px] uppercase tracking-[0.18em]", isDark ? "text-slate-500" : "text-slate-600")}>
+              <div className="text-[11px] uppercase tracking-[0.18em] theme-text-muted">
                 {t("CHART_TREND_TITLE")}
               </div>
-              <div className={cn("text-xs mt-1", isDark ? "text-slate-400" : "text-slate-600")}>{t("CHART_TREND_SUB")}</div>
+              <div className="text-xs mt-1 theme-text-muted">{t("CHART_TREND_SUB")}</div>
             </div>
           </div>
 
@@ -167,10 +163,10 @@ export default function DirezioneChartsSection({
         <div className={cardBase}>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className={cn("text-[11px] uppercase tracking-[0.18em]", isDark ? "text-slate-500" : "text-slate-600")}>
+              <div className="text-[11px] uppercase tracking-[0.18em] theme-text-muted">
                 {t("CHART_INCA_TITLE")}
               </div>
-              <div className={cn("text-xs mt-1", isDark ? "text-slate-400" : "text-slate-600")}>{t("CHART_INCA_SUB")}</div>
+              <div className="text-xs mt-1 theme-text-muted">{t("CHART_INCA_SUB")}</div>
             </div>
           </div>
 
@@ -181,8 +177,8 @@ export default function DirezioneChartsSection({
       </div>
 
       {showEChartsPreview ? (
-        <div className={cn("mt-3 rounded-3xl border px-4 py-3", isDark ? "border-slate-800/70 bg-slate-950/55" : "border-slate-200 bg-white")}>
-          <div className={cn("text-[11px] uppercase tracking-[0.18em]", isDark ? "text-slate-500" : "text-slate-600")}>
+        <div className="mt-3 theme-panel rounded-3xl px-4 py-3">
+          <div className="text-[11px] uppercase tracking-[0.18em] theme-text-muted">
             ECharts Preview
           </div>
           <div className="mt-3">

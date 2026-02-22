@@ -9,12 +9,12 @@ function cn(...p) {
 function Pill({ children, tone = "slate" }) {
   const cls =
     tone === "sky"
-      ? "border-sky-500/40 bg-sky-500/10 text-sky-100"
+      ? "badge-info"
       : tone === "emerald"
-      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
+      ? "badge-success"
       : tone === "amber"
-      ? "border-amber-500/40 bg-amber-500/10 text-amber-100"
-      : "border-slate-700 bg-slate-950/20 text-slate-200";
+      ? "badge-warning"
+      : "badge-neutral";
   return (
     <span className={cn("inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold", cls)}>
       {children}
@@ -25,7 +25,7 @@ function Pill({ children, tone = "slate" }) {
 function Field({ label, children }) {
   return (
     <label className="block">
-      <div className="text-[10px] uppercase tracking-[0.20em] text-slate-500">{label}</div>
+      <div className="kicker">{label}</div>
       <div className="mt-1">{children}</div>
     </label>
   );
@@ -381,12 +381,12 @@ export default function AdminCatalogoAttivitaPage() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/20 p-4">
+      <div className="rounded-2xl border theme-border bg-[var(--panel2)] p-4">
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[11px] uppercase tracking-[0.24em] text-slate-500">ADMIN</div>
-            <div className="mt-1 text-[16px] font-semibold text-slate-50">Catalogo attività (Ship + Commessa)</div>
-            <div className="mt-1 text-[12px] text-slate-400">
+            <div className="text-[11px] uppercase tracking-[0.24em] theme-text-muted">ADMIN</div>
+            <div className="mt-1 text-[16px] font-semibold theme-text">Catalogo attività (Ship + Commessa)</div>
+            <div className="mt-1 text-[12px] theme-text-muted">
               Règle canonique: le Capo consomme un catalogo contextuel. Le dizionario global sert de base.
             </div>
           </div>
@@ -395,7 +395,7 @@ export default function AdminCatalogoAttivitaPage() {
             <button
               type="button"
               onClick={openCreate}
-              className="rounded-full border border-slate-800 bg-slate-950/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-100 hover:bg-slate-900/35"
+              className="rounded-full border theme-border bg-[var(--panel2)] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] theme-text hover:opacity-95"
             >
               + Nuova attività (dizionario)
             </button>
@@ -407,7 +407,7 @@ export default function AdminCatalogoAttivitaPage() {
             <select
               value={shipId}
               onChange={(e) => setShipId(e.target.value)}
-              className="w-full rounded-2xl border border-slate-800 bg-slate-950/40 px-3 py-3 text-[13px] text-slate-50 outline-none focus:ring-2 focus:ring-sky-500/35"
+              className="w-full rounded-2xl border theme-border bg-[var(--panel2)] px-3 py-3 text-[13px] theme-text outline-none focus:ring-2 focus:ring-[color:var(--accent)]"
             >
               <option value="">Seleziona nave…</option>
               {ships.map((s) => (
@@ -423,21 +423,21 @@ export default function AdminCatalogoAttivitaPage() {
               value={commessa}
               onChange={(e) => setCommessa(e.target.value)}
               placeholder="Es: SDC / 12345"
-              className="w-full rounded-2xl border border-slate-800 bg-slate-950/40 px-3 py-3 text-[13px] text-slate-50 placeholder:text-slate-600 outline-none focus:ring-2 focus:ring-sky-500/35"
+              className="w-full rounded-2xl border theme-border bg-[var(--panel2)] px-3 py-3 text-[13px] theme-text  outline-none focus:ring-2 focus:ring-[color:var(--accent)]"
             />
           </Field>
 
           <Field label="Stato contesto">
-            <div className="h-[46px] flex items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/30 px-3">
+            <div className="h-[46px] flex items-center gap-2 rounded-2xl border theme-border bg-[var(--panel2)] px-3">
               {contextReady ? (
                 <>
-                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                  <span className="text-[12px] font-semibold text-emerald-200">READY</span>
+                  <span className="h-2 w-2 rounded-full dot-good" />
+                  <span className="text-[12px] font-semibold theme-text">READY</span>
                 </>
               ) : (
                 <>
-                  <span className="h-2 w-2 rounded-full bg-amber-400" />
-                  <span className="text-[12px] font-semibold text-amber-200">Seleziona ship + commessa</span>
+                  <span className="h-2 w-2 rounded-full dot-warn" />
+                  <span className="text-[12px] font-semibold theme-text-muted">Seleziona ship + commessa</span>
                 </>
               )}
             </div>
@@ -445,7 +445,7 @@ export default function AdminCatalogoAttivitaPage() {
         </div>
 
         {(dictErr || ctxErr) ? (
-          <div className="mt-3 rounded-xl border border-rose-500/35 bg-rose-500/10 px-3 py-2 text-[12px] text-rose-100">
+          <div className="mt-3 rounded-xl px-3 py-2 text-[12px] badge-danger">
             {dictErr || ctxErr}
           </div>
         ) : null}
@@ -453,18 +453,18 @@ export default function AdminCatalogoAttivitaPage() {
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         {/* LEFT: Dictionary */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/20 p-4">
+        <div className="rounded-2xl border theme-border bg-[var(--panel2)] p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Dizionario globale</div>
-              <div className="mt-1 text-[13px] font-semibold text-slate-50">Attività base</div>
+              <div className="text-[11px] uppercase tracking-[0.22em] theme-text-muted">Dizionario globale</div>
+              <div className="mt-1 text-[13px] font-semibold theme-text">Attività base</div>
             </div>
             <div className="flex items-center gap-2">
               <Pill tone="slate">{dict.length} items</Pill>
               <button
                 type="button"
                 onClick={loadDict}
-                className="rounded-full border border-slate-800 bg-slate-950/20 px-3 py-2 text-[11px] font-semibold text-slate-100 hover:bg-slate-900/35"
+                className="rounded-full border theme-border bg-[var(--panel2)] px-3 py-2 text-[11px] font-semibold theme-text hover:opacity-95"
               >
                 Ricarica
               </button>
@@ -476,15 +476,15 @@ export default function AdminCatalogoAttivitaPage() {
               value={qDict}
               onChange={(e) => setQDict(e.target.value)}
               placeholder="Cerca categoria / descrizione / sinonimi…"
-              className="w-full rounded-2xl border border-slate-800 bg-slate-950/40 px-3 py-3 text-[13px] text-slate-50 placeholder:text-slate-600 outline-none focus:ring-2 focus:ring-sky-500/35"
+              className="w-full rounded-2xl border theme-border bg-[var(--panel2)] px-3 py-3 text-[13px] theme-text  outline-none focus:ring-2 focus:ring-[color:var(--accent)]"
             />
           </div>
 
           <div className="mt-3 max-h-[62vh] overflow-auto space-y-2 pr-1">
             {dictLoading ? (
-              <div className="text-[12px] text-slate-400">Caricamento…</div>
+              <div className="text-[12px] theme-text-muted">Caricamento…</div>
             ) : dictFiltered.length === 0 ? (
-              <div className="rounded-xl border border-slate-800 bg-slate-950/30 p-3 text-[12px] text-slate-400">
+              <div className="rounded-xl border theme-border bg-[var(--panel2)] p-3 text-[12px] theme-text-muted">
                 Nessuna attività trovata.
               </div>
             ) : (
@@ -512,16 +512,16 @@ export default function AdminCatalogoAttivitaPage() {
                     className={cn(
                       "w-full text-left rounded-2xl border px-3 py-3 transition",
                       active
-                        ? "border-sky-500/55 bg-sky-500/10"
-                        : "border-slate-800 bg-slate-950/30 hover:bg-slate-900/35"
+                        ? "border-[color:var(--accent)] bg-[var(--accent-soft)]"
+                        : "theme-border bg-[var(--panel2)] hover:opacity-95"
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="text-[11px] uppercase tracking-[0.20em] text-slate-400 truncate">
+                        <div className="text-[11px] uppercase tracking-[0.20em] theme-text-muted truncate">
                           {it.categoria}
                         </div>
-                        <div className="mt-1 text-[13px] font-semibold text-slate-50 truncate">
+                        <div className="mt-1 text-[13px] font-semibold theme-text truncate">
                           {it.descrizione}
                         </div>
                         <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -540,7 +540,7 @@ export default function AdminCatalogoAttivitaPage() {
                             e.stopPropagation();
                             openEdit(it);
                           }}
-                          className="rounded-full border border-slate-800 bg-slate-950/20 px-3 py-1.5 text-[11px] font-semibold text-slate-100 hover:bg-slate-900/35"
+                          className="rounded-full border theme-border bg-[var(--panel2)] px-3 py-1.5 text-[11px] font-semibold theme-text hover:opacity-95"
                         >
                           Modifica
                         </button>
@@ -555,8 +555,8 @@ export default function AdminCatalogoAttivitaPage() {
                           className={cn(
                             "rounded-full border px-3 py-1.5 text-[11px] font-semibold",
                             it.is_active
-                              ? "border-amber-500/40 bg-amber-500/10 text-amber-100 hover:bg-amber-500/15"
-                              : "border-emerald-500/40 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15"
+                              ? "badge-warning"
+                              : "badge-success"
                           )}
                         >
                           {it.is_active ? "Disattiva" : "Attiva"}
@@ -571,11 +571,11 @@ export default function AdminCatalogoAttivitaPage() {
         </div>
 
         {/* RIGHT: Context Catalog */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/20 p-4">
+        <div className="rounded-2xl border theme-border bg-[var(--panel2)] p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Catalogo operativo</div>
-              <div className="mt-1 text-[13px] font-semibold text-slate-50">{ctxHeader}</div>
+              <div className="text-[11px] uppercase tracking-[0.22em] theme-text-muted">Catalogo operativo</div>
+              <div className="mt-1 text-[13px] font-semibold theme-text">{ctxHeader}</div>
             </div>
             <div className="flex items-center gap-2">
               <Pill tone="slate">{ctxItems.length} items</Pill>
@@ -584,10 +584,10 @@ export default function AdminCatalogoAttivitaPage() {
                 onClick={loadCtx}
                 disabled={!contextReady}
                 className={cn(
-                  "rounded-full border px-3 py-2 text-[11px] font-semibold text-slate-100",
+                  "rounded-full border px-3 py-2 text-[11px] font-semibold theme-text",
                   !contextReady
-                    ? "border-slate-800 bg-slate-950/10 text-slate-600 cursor-not-allowed"
-                    : "border-slate-800 bg-slate-950/20 hover:bg-slate-900/35"
+                    ? "theme-border bg-[var(--panel2)] theme-text-muted cursor-not-allowed"
+                    : "theme-border bg-[var(--panel2)] hover:opacity-95"
                 )}
               >
                 Ricarica
@@ -601,26 +601,26 @@ export default function AdminCatalogoAttivitaPage() {
                 value={qCtx}
                 onChange={(e) => setQCtx(e.target.value)}
                 placeholder="Cerca nel catalogo…"
-                className="w-full rounded-2xl border border-slate-800 bg-slate-950/40 px-3 py-3 text-[13px] text-slate-50 placeholder:text-slate-600 outline-none focus:ring-2 focus:ring-sky-500/35"
+                className="w-full rounded-2xl border theme-border bg-[var(--panel2)] px-3 py-3 text-[13px] theme-text  outline-none focus:ring-2 focus:ring-[color:var(--accent)]"
               />
             </Field>
 
             <Field label="Attività selezionata">
-              <div className="h-[46px] flex items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/30 px-3">
+              <div className="h-[46px] flex items-center gap-2 rounded-2xl border theme-border bg-[var(--panel2)] px-3">
                 {selectedDict ? (
                   <div className="min-w-0">
-                    <div className="text-[11px] text-slate-300 truncate">{selectedDict.categoria}</div>
-                    <div className="text-[12px] font-semibold text-slate-50 truncate">{selectedDict.descrizione}</div>
+                    <div className="text-[11px] theme-text-muted truncate">{selectedDict.categoria}</div>
+                    <div className="text-[12px] font-semibold theme-text truncate">{selectedDict.descrizione}</div>
                   </div>
                 ) : (
-                  <div className="text-[12px] text-slate-500">Seleziona a sinistra…</div>
+                  <div className="text-[12px] theme-text-muted">Seleziona a sinistra…</div>
                 )}
               </div>
             </Field>
           </div>
 
-          <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/25 p-3">
-            <div className="text-[11px] uppercase tracking-[0.20em] text-slate-500">Parametri locali (ship + commessa)</div>
+          <div className="mt-3 rounded-2xl border theme-border bg-[var(--panel2)] p-3">
+            <div className="text-[11px] uppercase tracking-[0.20em] theme-text-muted">Parametri locali (ship + commessa)</div>
 
             <div className="mt-3 grid grid-cols-1 md:grid-cols-[1fr_1fr_160px] gap-3">
               <Field label="Previsto (override)">
@@ -628,7 +628,7 @@ export default function AdminCatalogoAttivitaPage() {
                   value={ctxPrevisto}
                   onChange={(e) => setCtxPrevisto(e.target.value)}
                   placeholder="Es: 12,5"
-                  className="w-full rounded-2xl border border-slate-800 bg-slate-950/40 px-3 py-3 text-[13px] text-slate-50 placeholder:text-slate-600 outline-none focus:ring-2 focus:ring-sky-500/35"
+                  className="w-full rounded-2xl border theme-border bg-[var(--panel2)] px-3 py-3 text-[13px] theme-text  outline-none focus:ring-2 focus:ring-[color:var(--accent)]"
                 />
               </Field>
 
@@ -636,7 +636,7 @@ export default function AdminCatalogoAttivitaPage() {
                 <select
                   value={ctxUnitOverride}
                   onChange={(e) => setCtxUnitOverride(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-800 bg-slate-950/40 px-3 py-3 text-[13px] text-slate-50 outline-none focus:ring-2 focus:ring-sky-500/35"
+                  className="w-full rounded-2xl border theme-border bg-[var(--panel2)] px-3 py-3 text-[13px] theme-text outline-none focus:ring-2 focus:ring-[color:var(--accent)]"
                 >
                   <option value="">(usa unit default)</option>
                   {ACTIVITY_UNITS.map((u) => (
@@ -648,7 +648,7 @@ export default function AdminCatalogoAttivitaPage() {
               </Field>
 
               <Field label="Attiva">
-                <div className="h-[46px] flex items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/30 px-3">
+                <div className="h-[46px] flex items-center gap-2 rounded-2xl border theme-border bg-[var(--panel2)] px-3">
                   <input
                     id="ctxIsActive"
                     type="checkbox"
@@ -656,7 +656,7 @@ export default function AdminCatalogoAttivitaPage() {
                     onChange={(e) => setCtxIsActive(e.target.checked)}
                     className="h-4 w-4"
                   />
-                  <label htmlFor="ctxIsActive" className="text-[12px] text-slate-200 font-semibold">
+                  <label htmlFor="ctxIsActive" className="text-[12px] theme-text font-semibold">
                     {ctxIsActive ? "SI" : "NO"}
                   </label>
                 </div>
@@ -671,8 +671,8 @@ export default function AdminCatalogoAttivitaPage() {
                 className={cn(
                   "rounded-full border px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em]",
                   !contextReady || !selectedActivityId || saving
-                    ? "border-slate-800 bg-slate-950/10 text-slate-600 cursor-not-allowed"
-                    : "border-emerald-500/40 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15"
+                    ? "theme-border bg-[var(--panel2)] theme-text-muted cursor-not-allowed"
+                    : "badge-success"
                 )}
               >
                 {ctxByActivityId.has(String(selectedActivityId)) ? "Aggiorna catalogo" : "Aggiungi al catalogo"}
@@ -682,27 +682,27 @@ export default function AdminCatalogoAttivitaPage() {
 
           <div className="mt-3 max-h-[48vh] overflow-auto space-y-2 pr-1">
             {!contextReady ? (
-              <div className="rounded-xl border border-slate-800 bg-slate-950/30 p-3 text-[12px] text-slate-400">
+              <div className="rounded-xl border theme-border bg-[var(--panel2)] p-3 text-[12px] theme-text-muted">
                 Seleziona prima una Nave e una Commessa.
               </div>
             ) : ctxLoading ? (
-              <div className="text-[12px] text-slate-400">Caricamento…</div>
+              <div className="text-[12px] theme-text-muted">Caricamento…</div>
             ) : ctxFiltered.length === 0 ? (
-              <div className="rounded-xl border border-slate-800 bg-slate-950/30 p-3 text-[12px] text-slate-400">
+              <div className="rounded-xl border theme-border bg-[var(--panel2)] p-3 text-[12px] theme-text-muted">
                 Nessuna attività nel catalogo per questo contesto.
               </div>
             ) : (
               ctxFiltered.map((it) => (
                 <div
                   key={it.catalogo_item_id}
-                  className="rounded-2xl border border-slate-800 bg-slate-950/30 px-3 py-3"
+                  className="rounded-2xl border theme-border bg-[var(--panel2)] px-3 py-3"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="text-[11px] uppercase tracking-[0.20em] text-slate-400 truncate">
+                      <div className="text-[11px] uppercase tracking-[0.20em] theme-text-muted truncate">
                         {it.categoria}
                       </div>
-                      <div className="mt-1 text-[13px] font-semibold text-slate-50 truncate">
+                      <div className="mt-1 text-[13px] font-semibold theme-text truncate">
                         {it.descrizione}
                       </div>
 
@@ -723,7 +723,7 @@ export default function AdminCatalogoAttivitaPage() {
                           setCtxUnitOverride(it.unit_override || "");
                           setCtxIsActive(!!it.is_active);
                         }}
-                        className="rounded-full border border-slate-800 bg-slate-950/20 px-3 py-1.5 text-[11px] font-semibold text-slate-100 hover:bg-slate-900/35"
+                        className="rounded-full border theme-border bg-[var(--panel2)] px-3 py-1.5 text-[11px] font-semibold theme-text hover:opacity-95"
                       >
                         Carica parametri
                       </button>
@@ -735,8 +735,8 @@ export default function AdminCatalogoAttivitaPage() {
                         className={cn(
                           "rounded-full border px-3 py-1.5 text-[11px] font-semibold",
                           saving
-                            ? "border-slate-800 bg-slate-950/10 text-slate-600 cursor-not-allowed"
-                            : "border-rose-500/40 bg-rose-500/10 text-rose-100 hover:bg-rose-500/15"
+                            ? "theme-border bg-[var(--panel2)] theme-text-muted cursor-not-allowed"
+                            : "badge-danger"
                         )}
                       >
                         Rimuovi
@@ -759,21 +759,21 @@ export default function AdminCatalogoAttivitaPage() {
               if (e.target === e.currentTarget) setCreateOpen(false);
             }}
           />
-          <div className="relative w-full sm:w-[min(880px,96vw)] rounded-t-3xl sm:rounded-3xl border border-slate-800 bg-[#050910] px-4 pt-4 pb-4 shadow-[0_-40px_120px_rgba(0,0,0,0.70)]">
+          <div className="relative w-full sm:w-[min(880px,96vw)] rounded-t-3xl sm:rounded-3xl border theme-border bg-[var(--panel)] px-4 pt-4 pb-4 theme-shadow-2">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Dizionario attività</div>
-                <div className="mt-1 text-[14px] font-semibold text-slate-50">
+                <div className="text-[11px] uppercase tracking-[0.22em] theme-text-muted">Dizionario attività</div>
+                <div className="mt-1 text-[14px] font-semibold theme-text">
                   {editing ? "Modifica attività" : "Nuova attività"}
                 </div>
-                <div className="mt-1 text-[12px] text-slate-400">
+                <div className="mt-1 text-[12px] theme-text-muted">
                   Nota: il catalogo operativo si definisce sempre per ship + commessa.
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setCreateOpen(false)}
-                className="rounded-full border border-slate-800 bg-slate-950/40 px-3 py-2 text-[12px] font-semibold text-slate-100 hover:bg-slate-900/35"
+                className="rounded-full border theme-border bg-[var(--panel2)] px-3 py-2 text-[12px] font-semibold theme-text hover:opacity-95"
               >
                 Chiudi
               </button>
@@ -784,7 +784,7 @@ export default function AdminCatalogoAttivitaPage() {
                 <input
                   value={fCategoria}
                   onChange={(e) => setFCategoria(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-800 bg-slate-950/50 px-3 py-3 text-[13px] text-slate-50 outline-none focus:ring-2 focus:ring-sky-500/35"
+                  className="w-full rounded-2xl border theme-border bg-[var(--panel2)] px-3 py-3 text-[13px] theme-text outline-none focus:ring-2 focus:ring-[color:var(--accent)]"
                 />
               </Field>
 
@@ -792,7 +792,7 @@ export default function AdminCatalogoAttivitaPage() {
                 <select
                   value={fType}
                   onChange={(e) => setFType(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-800 bg-slate-950/50 px-3 py-3 text-[13px] text-slate-50 outline-none focus:ring-2 focus:ring-sky-500/35"
+                  className="w-full rounded-2xl border theme-border bg-[var(--panel2)] px-3 py-3 text-[13px] theme-text outline-none focus:ring-2 focus:ring-[color:var(--accent)]"
                 >
                   {ACTIVITY_TYPES.map((t) => (
                     <option key={t} value={t}>
@@ -807,7 +807,7 @@ export default function AdminCatalogoAttivitaPage() {
                   <input
                     value={fDescrizione}
                     onChange={(e) => setFDescrizione(e.target.value)}
-                    className="w-full rounded-2xl border border-slate-800 bg-slate-950/50 px-3 py-3 text-[13px] text-slate-50 outline-none focus:ring-2 focus:ring-sky-500/35"
+                    className="w-full rounded-2xl border theme-border bg-[var(--panel2)] px-3 py-3 text-[13px] theme-text outline-none focus:ring-2 focus:ring-[color:var(--accent)]"
                   />
                 </Field>
               </div>
@@ -816,7 +816,7 @@ export default function AdminCatalogoAttivitaPage() {
                 <select
                   value={fUnit}
                   onChange={(e) => setFUnit(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-800 bg-slate-950/50 px-3 py-3 text-[13px] text-slate-50 outline-none focus:ring-2 focus:ring-sky-500/35"
+                  className="w-full rounded-2xl border theme-border bg-[var(--panel2)] px-3 py-3 text-[13px] theme-text outline-none focus:ring-2 focus:ring-[color:var(--accent)]"
                 >
                   {ACTIVITY_UNITS.map((u) => (
                     <option key={u} value={u}>
@@ -831,7 +831,7 @@ export default function AdminCatalogoAttivitaPage() {
                   value={fSynonyms}
                   onChange={(e) => setFSynonyms(e.target.value)}
                   placeholder="Es: posa cavi, installazione, ..."
-                  className="w-full rounded-2xl border border-slate-800 bg-slate-950/50 px-3 py-3 text-[13px] text-slate-50 placeholder:text-slate-600 outline-none focus:ring-2 focus:ring-sky-500/35"
+                  className="w-full rounded-2xl border theme-border bg-[var(--panel2)] px-3 py-3 text-[13px] theme-text  outline-none focus:ring-2 focus:ring-[color:var(--accent)]"
                 />
               </Field>
             </div>
@@ -844,8 +844,8 @@ export default function AdminCatalogoAttivitaPage() {
                 className={cn(
                   "rounded-full border px-4 py-2 text-[12px] font-semibold",
                   saving
-                    ? "border-slate-800 bg-slate-950/10 text-slate-600 cursor-not-allowed"
-                    : "border-emerald-500/40 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15"
+                    ? "theme-border bg-[var(--panel2)] theme-text-muted cursor-not-allowed"
+                    : "badge-success"
                 )}
               >
                 {saving ? "Salvataggio…" : "Salva"}
@@ -857,3 +857,5 @@ export default function AdminCatalogoAttivitaPage() {
     </div>
   );
 }
+
+

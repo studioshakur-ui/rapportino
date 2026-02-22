@@ -40,7 +40,7 @@ export default function IncaCockpitModal({ open, incaFileId, onClose }: IncaCock
 
   return (
     <div
-      className="fixed inset-0 z-[80] bg-black/45 backdrop-blur-md"
+      className="fixed inset-0 z-[80] theme-overlay backdrop-blur-md"
       role="dialog"
       aria-modal="true"
       aria-label="INCA Cockpit"
@@ -49,7 +49,7 @@ export default function IncaCockpitModal({ open, incaFileId, onClose }: IncaCock
       }}
     >
       <div className="absolute inset-0 p-2 sm:p-3 md:p-4">
-        <div className="h-full w-full overflow-hidden rounded-2xl border border-slate-700 bg-slate-950/85 shadow-2xl">
+        <div className="h-full w-full overflow-hidden rounded-2xl theme-panel shadow-2xl">
           <div className="h-full overflow-auto">
             <IncaCockpit mode="modal" fileId={incaFileId} onRequestClose={onClose ?? null} />
           </div>

@@ -101,9 +101,9 @@ export default function InviteUserDialog(props: {
       <div className={cn("relative w-full max-w-2xl rounded-2xl", "theme-modal")} onClick={(e) => e.stopPropagation()}>
         <div className="p-5 border-b theme-border flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">CNCS · Admin</div>
-            <div className="mt-1 text-[18px] font-semibold text-slate-50">Invita utente</div>
-            <div className="mt-1 text-[12px] text-slate-300">Ctrl/⌘ + Enter per inviare</div>
+            <div className="kicker">CNCS · Admin</div>
+            <div className="mt-1 text-[18px] font-semibold theme-text">Invita utente</div>
+            <div className="mt-1 text-[12px] theme-text-muted">Ctrl/⌘ + Enter per inviare</div>
           </div>
           <button
             type="button"
@@ -117,22 +117,22 @@ export default function InviteUserDialog(props: {
         <div className="p-5">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
             <div className="md:col-span-8">
-              <label className="block text-[11px] uppercase tracking-[0.18em] text-slate-500">Email</label>
+              <label className="kicker">Email</label>
               <input
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="nome.cognome@azienda.it"
-                className={cn("mt-2 w-full rounded-xl px-3 py-2 text-[14px]", "theme-input", "focus:outline-none focus:ring-2 focus:ring-sky-500/25")}
+                className={cn("mt-2 w-full rounded-xl px-3 py-2 text-[14px]", "theme-input", "focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]")}
                 autoFocus
               />
             </div>
 
             <div className="md:col-span-4">
-              <label className="block text-[11px] uppercase tracking-[0.18em] text-slate-500">Ruolo</label>
+              <label className="kicker">Ruolo</label>
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value as AppRole)}
-                className={cn("mt-2 w-full rounded-xl px-3 py-2 text-[14px]", "theme-input", "focus:outline-none focus:ring-2 focus:ring-sky-500/25")}
+                className={cn("mt-2 w-full rounded-xl px-3 py-2 text-[14px]", "theme-input", "focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]")}
               >
                 <option value="CAPO">CAPO</option>
                 <option value="UFFICIO">UFFICIO</option>
@@ -143,22 +143,22 @@ export default function InviteUserDialog(props: {
             </div>
 
             <div className="md:col-span-6">
-              <label className="block text-[11px] uppercase tracking-[0.18em] text-slate-500">Full name</label>
+              <label className="kicker">Full name</label>
               <input
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="Nome Cognome"
-                className={cn("mt-2 w-full rounded-xl px-3 py-2 text-[14px]", "theme-input", "focus:outline-none focus:ring-2 focus:ring-sky-500/25")}
+                className={cn("mt-2 w-full rounded-xl px-3 py-2 text-[14px]", "theme-input", "focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]")}
               />
             </div>
 
             <div className="md:col-span-6">
-              <label className="block text-[11px] uppercase tracking-[0.18em] text-slate-500">Display name</label>
+              <label className="kicker">Display name</label>
               <input
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="Display label"
-                className={cn("mt-2 w-full rounded-xl px-3 py-2 text-[14px]", "theme-input", "focus:outline-none focus:ring-2 focus:ring-sky-500/25")}
+                className={cn("mt-2 w-full rounded-xl px-3 py-2 text-[14px]", "theme-input", "focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]")}
               />
             </div>
           </div>
@@ -167,7 +167,7 @@ export default function InviteUserDialog(props: {
             <button
               type="button"
               onClick={() => setShowAdvanced((v) => !v)}
-              className={cn("text-[12px] font-semibold underline decoration-dotted underline-offset-4", "text-slate-300 hover:text-slate-100")}
+              className={cn("text-[12px] font-semibold underline decoration-dotted underline-offset-4", "theme-text-muted hover:opacity-80")}
             >
               {showAdvanced ? "Nascondi opzioni avanzate" : "Mostra opzioni avanzate"}
             </button>
@@ -176,7 +176,7 @@ export default function InviteUserDialog(props: {
           {showAdvanced ? (
             <div className="mt-3 grid grid-cols-1 md:grid-cols-12 gap-3">
               <div className="md:col-span-4">
-                <label className="block text-[11px] uppercase tracking-[0.18em] text-slate-500">Default COSTR</label>
+                <label className="kicker">Default COSTR</label>
                 <input
                   value={defaultCostr}
                   onChange={(e) => setDefaultCostr(e.target.value)}
@@ -185,7 +185,7 @@ export default function InviteUserDialog(props: {
                 />
               </div>
               <div className="md:col-span-4">
-                <label className="block text-[11px] uppercase tracking-[0.18em] text-slate-500">Default Commessa</label>
+                <label className="kicker">Default Commessa</label>
                 <input
                   value={defaultCommessa}
                   onChange={(e) => setDefaultCommessa(e.target.value)}
@@ -194,7 +194,7 @@ export default function InviteUserDialog(props: {
                 />
               </div>
               <div className="md:col-span-4">
-                <label className="block text-[11px] uppercase tracking-[0.18em] text-slate-500">Allowed cantieri</label>
+                <label className="kicker">Allowed cantieri</label>
                 <input
                   value={allowedCantieri}
                   onChange={(e) => setAllowedCantieri(e.target.value)}
@@ -215,8 +215,7 @@ export default function InviteUserDialog(props: {
               disabled={!canSubmit || Boolean(busy)}
               onClick={() => void submit()}
               className={cn(
-                "rounded-xl border px-4 py-2 text-[13px] font-semibold transition-opacity",
-                "border-sky-500/40 bg-sky-500/10 text-sky-50 hover:bg-sky-500/15",
+                "rounded-xl px-4 py-2 text-[13px] font-semibold transition-opacity btn-primary",
                 (!canSubmit || Boolean(busy)) && "opacity-60 cursor-not-allowed"
               )}
             >

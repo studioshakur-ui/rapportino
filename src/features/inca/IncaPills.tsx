@@ -119,20 +119,20 @@ export function computeApparatoPMaps(caviScope: IncaCavoLike[]) {
 function toneForStatus(status: "GREEN" | "YELLOW" | "RED") {
   if (status === "GREEN") {
     return {
-      pill: "border-emerald-300/25 bg-emerald-400/10 text-emerald-200",
-      dot: "bg-emerald-400",
+      pill: "chip chip-success",
+      dot: "dot-good",
     };
   }
   if (status === "YELLOW") {
     return {
-      pill: "border-amber-300/25 bg-amber-400/10 text-amber-200",
-      dot: "bg-amber-400",
+      pill: "chip chip-alert",
+      dot: "dot-warn",
     };
   }
   // RED (default)
   return {
-    pill: "border-rose-300/25 bg-rose-400/10 text-rose-200",
-    dot: "bg-rose-400",
+    pill: "chip chip-danger",
+    dot: "dot-bad",
   };
 }
 
@@ -158,9 +158,9 @@ export function ApparatoPill({
   const base =
     "inline-flex items-center gap-2 rounded-xl border px-2.5 py-1.5 " +
     "text-[11px] leading-none select-none focus:outline-none focus-visible:ring-2 " +
-    "focus-visible:ring-emerald-300/40";
+    "focus-visible:ring-[var(--accent)]/30";
 
-  const disabledTone = "border-white/10 bg-white/5 text-slate-500 cursor-not-allowed";
+  const disabledTone = "border-[var(--border)] bg-[var(--panel2)] theme-text-muted cursor-not-allowed";
 
   const title =
     !v || disabled
@@ -184,8 +184,8 @@ export function ApparatoPill({
       className={[base, disabled ? disabledTone : pill, className].join(" ")}
       aria-label={title}
     >
-      <span className={["h-1.5 w-1.5 rounded-full", disabled ? "bg-slate-400" : dot].join(" ")} />
-      <span className="inline-flex items-center justify-center rounded-lg border border-white/10 bg-white/5 px-1.5 py-[2px] font-semibold tracking-[0.14em] text-[10px] text-slate-200">
+      <span className={["h-1.5 w-1.5 rounded-full", disabled ? "dot-neutral" : dot].join(" ")} />
+      <span className="inline-flex items-center justify-center rounded-lg border theme-border bg-[var(--panel2)] px-1.5 py-[2px] font-semibold tracking-[0.14em] text-[10px] theme-text">
         {side}
       </span>
       <span className="max-w-[210px] truncate font-semibold">{v || "—"}</span>
@@ -214,9 +214,9 @@ export function CodicePill({
   const base =
     "inline-flex items-center gap-2 rounded-xl border px-2.5 py-1.5 " +
     "text-[12px] leading-none select-none focus:outline-none focus-visible:ring-2 " +
-    "focus-visible:ring-emerald-300/40";
+    "focus-visible:ring-[var(--accent)]/30";
 
-  const tone = "border-slate-700/70 bg-slate-950/40 text-slate-100";
+  const tone = "border-[var(--border)] bg-[var(--panel2)] theme-text";
 
   const effectiveTitle = title || v;
 

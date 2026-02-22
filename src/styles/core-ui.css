@@ -226,7 +226,7 @@
 .theme-table-head {
   background-color: color-mix(in srgb, var(--panel) 55%, var(--panel2));
   color: var(--textMuted);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--borderStrong);
 }
 
 .theme-table thead th {
@@ -246,6 +246,14 @@
 
 :root[data-theme="light"] .theme-table tbody tr:hover td {
   background-color: color-mix(in srgb, var(--accent-soft) 40%, transparent);
+}
+
+.theme-table tbody tr.theme-row-selected td {
+  background-color: var(--accent-soft);
+}
+
+.theme-table tbody tr.theme-row-selected td:first-child {
+  box-shadow: inset 3px 0 0 0 var(--accent);
 }
 
 /* =========================
@@ -328,6 +336,120 @@
   background-color: var(--accent-soft);
   border: 1px solid var(--accent);
   color: var(--accent-ink);
+}
+
+/* =========================
+   KPI cards (Direzione / KPI strip)
+   ========================= */
+.kpi-card {
+  position: relative;
+  background-color: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px 14px 12px 16px;
+  box-shadow: var(--shadow1);
+  color: var(--text);
+}
+
+.kpi-card::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 0;
+  width: 3px;
+  border-top-left-radius: 16px;
+  border-bottom-left-radius: 16px;
+  background-color: var(--kpi-accent, var(--borderStrong));
+  opacity: 0.75;
+}
+
+.kpi-card--interactive {
+  transition: box-shadow 160ms ease, border-color 160ms ease, background-color 160ms ease;
+}
+
+.kpi-card--interactive:hover {
+  border-color: var(--kpi-border, var(--borderStrong));
+  background-color: color-mix(in srgb, var(--panel2) 88%, var(--accent-soft));
+  box-shadow: var(--shadow2);
+}
+
+.kpi-tone-neutral {
+  --kpi-accent: var(--borderStrong);
+  --kpi-border: var(--borderStrong);
+}
+
+.kpi-tone-sky {
+  --kpi-accent: var(--role-info);
+  --kpi-border: var(--role-info-border);
+}
+
+.kpi-tone-emerald {
+  --kpi-accent: var(--role-success);
+  --kpi-border: var(--role-success-border);
+}
+
+.kpi-tone-fuchsia {
+  --kpi-accent: var(--accent);
+  --kpi-border: var(--borderStrong);
+}
+
+.kpi-tone-rose {
+  --kpi-accent: var(--role-danger);
+  --kpi-border: var(--role-danger-border);
+}
+
+/* Operator KPI tones */
+.tone-neutral {
+  color: var(--textMuted);
+}
+
+.tone-good {
+  color: var(--role-success-ink);
+}
+
+.tone-ok {
+  color: var(--role-info-ink);
+}
+
+.tone-bad {
+  color: var(--role-danger-ink);
+}
+
+.dot-neutral {
+  background-color: color-mix(in srgb, var(--textMuted) 45%, transparent);
+}
+
+.dot-good {
+  background-color: var(--role-success-border);
+}
+
+.dot-ok {
+  background-color: var(--role-info-border);
+}
+
+.dot-warn {
+  background-color: var(--role-warning-border);
+}
+
+.dot-bad {
+  background-color: var(--role-danger-border);
+}
+
+.kpi-halo-neutral {
+  box-shadow: var(--shadow1);
+}
+
+.kpi-halo-good {
+  box-shadow: 0 0 0 1px var(--role-success-border), var(--shadow2);
+}
+
+.kpi-halo-ok {
+  box-shadow: 0 0 0 1px var(--role-info-border), var(--shadow2);
+}
+
+.kpi-halo-bad {
+  box-shadow: 0 0 0 1px var(--role-danger-border), var(--shadow2);
 }
 
 /* =========================

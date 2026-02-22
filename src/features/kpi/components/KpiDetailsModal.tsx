@@ -1,7 +1,6 @@
 // src/components/kpi/KpiDetailsModal.jsx
 import type { ReactNode } from "react";
 import CenterModal from "../../../components/overlay/CenterModal";
-import { cn } from "../../../ui/cn";
 import { useCoreI18n } from "../../../i18n/coreI18n";
 import { formatNumberIT, safeText } from "../../../ui/format";
 
@@ -50,10 +49,7 @@ export default function KpiDetailsModal({
 
   const title = titleByKey[String(kpiKey || "")] || t("KPI_DETAILS_TITLE");
 
-  const box = cn(
-    "rounded-2xl border p-4",
-    isDark ? "border-slate-800/70 bg-slate-950/35" : "border-slate-200 bg-white"
-  );
+  const box = "theme-panel-2 rounded-2xl p-4";
 
   // payload est volontairement souple: on affiche ce qu’on a sans casser.
   const summaryPairs = (payload?.summaryPairs || []).slice(0, 12);
@@ -62,20 +58,20 @@ export default function KpiDetailsModal({
     <CenterModal open={open} onClose={onClose} title={title} subtitle={t("KPI_HINT_CLICK")} isDark={isDark}>
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-3">
         <div className={box}>
-          <div className={cn("text-[11px] uppercase tracking-[0.18em]", isDark ? "text-slate-500" : "text-slate-600")}>
+          <div className="text-[11px] uppercase tracking-[0.18em] theme-text-muted">
             {t("MODAL_SECTION_SUMMARY")}
           </div>
 
           {summaryPairs.length === 0 ? (
-            <div className={cn("mt-3 text-sm", isDark ? "text-slate-300" : "text-slate-700")}>
+            <div className="mt-3 text-sm theme-text-muted">
               Nessun dettaglio disponibile (ancora). Collega i “details payload” a questo KPI.
             </div>
           ) : (
             <div className="mt-3 space-y-2">
               {summaryPairs.map((p, idx) => (
                 <div key={idx} className="flex items-center justify-between gap-3">
-                  <div className={cn("text-xs", isDark ? "text-slate-400" : "text-slate-600")}>{safeText(p.label)}</div>
-                  <div className={cn("text-sm font-semibold", isDark ? "text-slate-100" : "text-slate-900")}>
+                  <div className="text-xs theme-text-muted">{safeText(p.label)}</div>
+                  <div className="text-sm font-semibold theme-text">
                     {p.kind === "number" ? formatNumberIT(p.value, p.maxFrac ?? 2) : safeText(p.value)}
                   </div>
                 </div>
@@ -85,11 +81,11 @@ export default function KpiDetailsModal({
         </div>
 
         <div className={box}>
-          <div className={cn("text-[11px] uppercase tracking-[0.18em]", isDark ? "text-slate-500" : "text-slate-600")}>
+          <div className="text-[11px] uppercase tracking-[0.18em] theme-text-muted">
             {t("MODAL_SECTION_RULES")}
           </div>
 
-          <div className={cn("mt-3 text-sm leading-relaxed", isDark ? "text-slate-300" : "text-slate-700")}>
+          <div className="mt-3 text-sm leading-relaxed theme-text">
             {payload?.rulesText ? (
               payload.rulesText
             ) : (
@@ -100,11 +96,11 @@ export default function KpiDetailsModal({
             )}
           </div>
 
-          <div className="mt-4 border-t border-white/5 pt-4">
-            <div className={cn("text-[11px] uppercase tracking-[0.18em]", isDark ? "text-slate-500" : "text-slate-600")}>
+          <div className="mt-4 border-t theme-border pt-4">
+            <div className="text-[11px] uppercase tracking-[0.18em] theme-text-muted">
               {t("MODAL_SECTION_NOTES")}
             </div>
-            <div className={cn("mt-2 text-sm", isDark ? "text-slate-400" : "text-slate-600")}>
+            <div className="mt-2 text-sm theme-text-muted">
               {payload?.notesText ? payload.notesText : "—"}
             </div>
           </div>

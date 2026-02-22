@@ -60,17 +60,30 @@ export default function UsersTable(props: {
                 const role = String(row.app_role || "").toUpperCase();
                 const isAdmin = role === "ADMIN";
                 const isCritical = role === "ADMIN" || role === "DIREZIONE";
-                const lastActivity = row.updated_at || row.created_at || null;
-                const inactivityDays = daysSince(lastActivity);
-                const isInactive = typeof inactivityDays === "number" && inactivityDays > 30;
+
+                // =========================================================
+                // CNCS-grade activity truth:
+                // - MUST be based on auth.users.last_sign_in_at (via RPC)
+                // - profiles.updated_at/created_at are NOT activity
+                // =========================================================
+                const lastSignInDays = daysSince(row.last_sign_in_at ?? null);
+                const authCreatedDays = daysSince(row.auth_created_at ?? null);
+
+                const hasAuthSignal = row.last_sign_in_at != null || row.auth_created_at != null;
+                const neverLoggedIn = row.last_sign_in_at == null && row.auth_created_at != null;
+
+                const isInactive = hasAuthSignal
+                  ? lastSignInDays != null
+                    ? lastSignInDays > 30
+                    : neverLoggedIn
+                      ? authCreatedDays != null && authCreatedDays > 30
+                      : false
+                  : false;
 
                 return (
                   <tr
                     key={row.id}
-                    className={cn(
-                      "border-t theme-border cursor-pointer",
-                      isSelected && "bg-[var(--accent-soft)]"
-                    )}
+                    className={cn("border-t theme-border cursor-pointer", isSelected && "bg-[var(--accent-soft)]")}
                     onClick={() => onSelect(row.id)}
                   >
                     <td className="px-5 py-3">
@@ -89,29 +102,21 @@ export default function UsersTable(props: {
                           <div className="text-[12px] theme-text-muted truncate">{row.email || "—"}</div>
 
                           <div className="mt-1 flex flex-wrap gap-1.5">
-                            {mustChange ? (
-                              <span className="chip chip-alert">
-                                MUST CHANGE PASSWORD
-                              </span>
-                            ) : null}
+                            {mustChange ? <span className="chip chip-alert">MUST CHANGE PASSWORD</span> : null}
 
-                            {isInactive ? (
-                              <span className="chip chip-danger">
-                                INACTIVE &gt;30d
-                              </span>
-                            ) : null}
+                            {hasAuthSignal ? (
+                              <>
+                                {neverLoggedIn ? <span className="chip chip-info">NEVER LOGGED IN</span> : null}
 
-                            {isCritical ? (
-                              <span className="chip chip-info">
-                                CRITICAL ROLE
-                              </span>
-                            ) : null}
+                                {isInactive ? <span className="chip chip-danger">INACTIVE &gt;30d</span> : null}
+                              </>
+                            ) : (
+                              <span className="chip chip-status">ACTIVITY UNKNOWN</span>
+                            )}
 
-                            {isAdmin ? (
-                              <span className="chip chip-status">
-                                ADMIN
-                              </span>
-                            ) : null}
+                            {isCritical ? <span className="chip chip-info">CRITICAL ROLE</span> : null}
+
+                            {isAdmin ? <span className="chip chip-status">ADMIN</span> : null}
                           </div>
                         </div>
                       </div>

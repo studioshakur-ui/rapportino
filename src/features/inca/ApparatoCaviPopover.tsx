@@ -19,17 +19,17 @@ import { supabase } from "../../lib/supabaseClient";
 function badgeClass(s: unknown): string {
   switch (s) {
     case "P":
-      return "bg-emerald-500/15 text-emerald-200 border-emerald-500/25";
+      return "chip chip-success";
     case "T":
-      return "bg-sky-500/15 text-sky-200 border-sky-500/25";
+      return "chip chip-info";
     case "R":
-      return "bg-amber-500/15 text-amber-200 border-amber-500/25";
+      return "chip chip-alert";
     case "B":
-      return "bg-fuchsia-500/15 text-fuchsia-200 border-fuchsia-500/25";
+      return "chip chip-danger";
     case "E":
-      return "bg-rose-500/15 text-rose-200 border-rose-500/25";
+      return "chip chip-danger";
     default:
-      return "bg-slate-500/15 text-slate-200 border-slate-500/25";
+      return "chip chip-status";
   }
 }
 
@@ -171,11 +171,7 @@ export default function ApparatoCaviPopover({
   }, [loading, total, rows, side]);
 
   const statusDot =
-    headerStatus === "GREEN"
-      ? "bg-emerald-400"
-      : headerStatus === "YELLOW"
-      ? "bg-amber-400"
-      : "bg-rose-400";
+    headerStatus === "GREEN" ? "dot-good" : headerStatus === "YELLOW" ? "dot-warn" : "dot-bad";
 
   const sideLabel = side === "DA" ? "APP PARTENZA" : "APP ARRIVO";
 
@@ -184,40 +180,38 @@ export default function ApparatoCaviPopover({
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center">
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-md"
+        className="absolute inset-0 theme-overlay backdrop-blur-md"
         onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}
       />
 
       <div
         className={[
           "relative w-[min(760px,calc(100vw-24px))] max-h-[90vh]",
-          "rounded-2xl border border-slate-800",
-          "bg-slate-950 shadow-2xl",
+          "rounded-2xl theme-panel shadow-2xl",
           "flex flex-col overflow-hidden",
         ].join(" ")}
         role="dialog"
         aria-modal="true"
       >
         {/* header */}
-        <div className="px-4 py-3 flex justify-between items-start border-b border-slate-800 bg-slate-950/80">
+        <div className="px-4 py-3 flex justify-between items-start border-b theme-border theme-panel-2">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-[11px] uppercase tracking-[0.22em] text-slate-400">{sideLabel}</span>
+              <span className="text-[11px] uppercase tracking-[0.22em] theme-text-muted">{sideLabel}</span>
               <span className={`h-2 w-2 rounded-full ${statusDot}`} />
-              <span className="text-[11px] text-slate-500">
-                <span className="text-slate-200 font-semibold">{visible}</span> / {total}
+              <span className="text-[11px] theme-text-muted">
+                <span className="theme-text font-semibold">{visible}</span> / {total}
               </span>
             </div>
-            <div className="text-lg font-semibold text-slate-100 mt-0.5 truncate">{apparato}</div>
+            <div className="text-lg font-semibold theme-text mt-0.5 truncate">{apparato}</div>
           </div>
 
           <button
             onClick={onClose}
             className={[
-              "rounded-xl border border-slate-700 bg-slate-950/60",
-              "px-3 py-2 text-[12px] font-semibold text-slate-200",
-              "hover:bg-slate-900/50",
-              "focus:outline-none focus:ring-2 focus:ring-sky-500/35",
+              "btn-instrument rounded-xl",
+              "px-3 py-2 text-[12px] font-semibold",
+              "focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/30",
             ].join(" ")}
           >
             Chiudi
@@ -225,25 +219,24 @@ export default function ApparatoCaviPopover({
         </div>
 
         {/* controls */}
-        <div className="px-4 py-3 border-b border-slate-800 bg-slate-950/60 flex flex-col sm:flex-row gap-2">
+        <div className="px-4 py-3 border-b theme-border theme-panel-2 flex flex-col sm:flex-row gap-2">
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Cerca…"
             className={[
-              "flex-1 rounded-xl border border-slate-800 bg-slate-950/70",
-              "px-3 py-2 text-[13px] text-slate-100",
-              "placeholder:text-slate-500",
-              "focus:outline-none focus:ring-2 focus:ring-sky-500/35",
+              "flex-1 rounded-xl theme-input",
+              "px-3 py-2 text-[13px]",
+              "focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/30",
             ].join(" ")}
           />
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             className={[
-              "w-full sm:w-[160px] rounded-xl border border-slate-800 bg-slate-950/70",
-              "px-3 py-2 text-[13px] text-slate-100",
-              "focus:outline-none focus:ring-2 focus:ring-sky-500/35",
+              "w-full sm:w-[160px] rounded-xl theme-input",
+              "px-3 py-2 text-[13px]",
+              "focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/30",
             ].join(" ")}
           >
             <option value="">Tutte</option>
@@ -259,14 +252,14 @@ export default function ApparatoCaviPopover({
         {/* list */}
         <div className="flex-1 overflow-auto">
           <table className="w-full text-[13px]">
-            <tbody className="divide-y divide-slate-800">
+            <tbody className="divide-y theme-border">
               {loading ? (
                 <tr>
-                  <td className="px-4 py-6 text-slate-300">Caricamento…</td>
+                  <td className="px-4 py-6 theme-text-muted">Caricamento…</td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-6 text-slate-400">Nessun cavo visibile</td>
+                  <td className="px-4 py-6 theme-text-muted">Nessun cavo visibile</td>
                 </tr>
               ) : (
                 filtered.map((r) => {
@@ -277,11 +270,11 @@ export default function ApparatoCaviPopover({
                   const pagina = r.pagina_pdf ? `p.${r.pagina_pdf}` : "—";
 
                   return (
-                    <tr key={r.id} className="hover:bg-slate-900/25">
-                      <td className="px-4 py-3 text-slate-100">
+                    <tr key={r.id} className="hover:bg-[var(--accent-soft)]/40">
+                      <td className="px-4 py-3 theme-text">
                         <div className="font-semibold truncate">{title}</div>
                         {r.codice && title !== r.codice ? (
-                          <div className="mt-0.5 text-[12px] text-slate-500 truncate">{r.codice}</div>
+                          <div className="mt-0.5 text-[12px] theme-text-muted truncate">{r.codice}</div>
                         ) : null}
                       </td>
 
@@ -296,9 +289,9 @@ export default function ApparatoCaviPopover({
                         </span>
                       </td>
 
-                      <td className="px-4 py-3 text-right text-slate-100 tabular-nums">
+                      <td className="px-4 py-3 text-right theme-text tabular-nums">
                         <div>{metri}</div>
-                        <div className="text-[12px] text-slate-500">{pagina}</div>
+                        <div className="text-[12px] theme-text-muted">{pagina}</div>
                       </td>
                     </tr>
                   );

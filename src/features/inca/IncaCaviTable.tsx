@@ -29,7 +29,7 @@ function formatDateIT(value?: string | null) {
 }
 
 function pillClass() {
-  return "inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold border border-white/10 bg-white/5";
+  return "chip chip-status px-2 py-0.5 text-xs font-semibold";
 }
 
 function SitCantPill({ value }: { value?: string | number | null }) {
@@ -62,7 +62,7 @@ function PosaCapoCell(row: IncaRow) {
   if (!hasHistory) {
     return (
       <div className="flex items-start gap-3">
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border border-white/10 bg-white/5">
+        <span className="chip chip-status px-2 py-0.5 text-[11px] font-semibold">
           NO-HIST
         </span>
         <div className="leading-tight">
@@ -75,7 +75,7 @@ function PosaCapoCell(row: IncaRow) {
 
   return (
     <div className="flex items-start gap-3">
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border border-white/10 bg-white/5">
+      <span className="chip chip-status px-2 py-0.5 text-[11px] font-semibold">
         HIST
       </span>
       <div className="leading-tight">
@@ -119,7 +119,7 @@ export default function IncaCaviTable(props: IncaCaviTableProps) {
       align: "left",
       render: (r) => (
         <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-emerald-400/80 shrink-0" />
+          <span className="h-2 w-2 rounded-full dot-good shrink-0" />
           <span className="font-semibold">{r.codice ?? r.code ?? "—"}</span>
         </div>
       ),
@@ -202,9 +202,9 @@ export default function IncaCaviTable(props: IncaCaviTableProps) {
 
   return (
     <div className="w-full">
-      <div className="w-full overflow-auto rounded-2xl border border-white/10 bg-black/10">
+      <div className="w-full overflow-auto rounded-2xl theme-table">
         <table className="w-full border-separate border-spacing-0">
-          <thead className="sticky top-0 z-10 bg-black/30 backdrop-blur">
+          <thead className="sticky top-0 z-10 theme-table-head backdrop-blur">
             <tr>
               {columns.map((c) => (
                 <th
@@ -225,7 +225,7 @@ export default function IncaCaviTable(props: IncaCaviTableProps) {
             {rows.map((r, idx) => (
               <tr
                 key={r.id ?? r.uuid ?? `${r.codice ?? "row"}-${idx}`}
-                className="border-t border-white/5 hover:bg-white/5 cursor-pointer"
+                className="border-t theme-border cursor-pointer"
                 onClick={() => onRowClick?.(r)}
               >
                 {columns.map((c) => (
@@ -244,7 +244,7 @@ export default function IncaCaviTable(props: IncaCaviTableProps) {
 
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="px-3 py-10 text-center opacity-60">
+                <td colSpan={columns.length} className="px-3 py-10 text-center theme-text-muted">
                   Nessun cavo visibile
                 </td>
               </tr>

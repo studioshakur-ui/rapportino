@@ -427,11 +427,9 @@ export default function AdminOperatorsPage(): JSX.Element {
       {/* HEADER */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-            {t(lang, "OPERATORS") || "Operators"}
-          </div>
-          <div className="text-xs text-slate-400 mt-1">
-            Admin operai. Identità obbligatoria: <span className="text-slate-200">cognome, nome, birth_date</span>.
+          <div className="kicker">{t(lang, "OPERATORS") || "Operators"}</div>
+          <div className="text-xs theme-text-muted mt-1">
+            Admin operai. Identità obbligatoria: <span className="theme-text">cognome, nome, birth_date</span>.
             Il trigger blocca insert/update incompleti.
           </div>
         </div>
@@ -459,10 +457,8 @@ export default function AdminOperatorsPage(): JSX.Element {
       {msg && (
         <div
           className={[
-            "mt-4 text-[13px] rounded-xl px-3 py-2 border",
-            msg.ok
-              ? "text-emerald-200 bg-emerald-900/20 border-emerald-800"
-              : "text-amber-200 bg-amber-900/30 border-amber-800",
+            "mt-4 text-[13px] rounded-xl px-3 py-2",
+            msg.ok ? "badge-success" : "badge-warning",
           ].join(" ")}
         >
           {msg.text}
@@ -471,66 +467,64 @@ export default function AdminOperatorsPage(): JSX.Element {
 
       {/* CREATE */}
       <div className="mt-4 border theme-border rounded-2xl bg-[var(--panel2)] p-4 sm:p-5">
-        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-          {t(lang, "CREATE_OPERATOR") || "Create operator"}
-        </div>
+        <div className="kicker">{t(lang, "CREATE_OPERATOR") || "Create operator"}</div>
 
         <form onSubmit={onCreate} className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
-            <label className="block text-[12px] mb-1 text-slate-300">Cognome *</label>
+            <label className="block text-[12px] mb-1 theme-text-muted">Cognome *</label>
             <input
               value={cognome}
               onChange={(e) => setCognome(e.target.value)}
               type="text"
               required
-              className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-sky-500"
+              className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-[color:var(--accent)]"
             />
           </div>
 
           <div>
-            <label className="block text-[12px] mb-1 text-slate-300">Nome *</label>
+            <label className="block text-[12px] mb-1 theme-text-muted">Nome *</label>
             <input
               value={nome}
               onChange={(e) => setNome(e.target.value)}
               type="text"
               required
-              className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-sky-500"
+              className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-[color:var(--accent)]"
             />
           </div>
 
           <div>
-            <label className="block text-[12px] mb-1 text-slate-300">Data di nascita * (YYYY-MM-DD)</label>
+            <label className="block text-[12px] mb-1 theme-text-muted">Data di nascita * (YYYY-MM-DD)</label>
             <input
               value={birthDate}
               onChange={(e) => setBirthDate(e.target.value)}
               type="date"
               required
-              className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-sky-500"
+              className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-[color:var(--accent)]"
             />
           </div>
 
           <div>
-            <label className="block text-[12px] mb-1 text-slate-300">Operator code (opzionale)</label>
+            <label className="block text-[12px] mb-1 theme-text-muted">Operator code (opzionale)</label>
             <input
               value={operatorCode}
               onChange={(e) => setOperatorCode(e.target.value)}
               type="text"
               placeholder="es: OP-001"
-              className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-sky-500"
+              className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-[color:var(--accent)]"
             />
           </div>
 
           <div className="md:col-span-2">
-            <label className="block text-[12px] mb-1 text-slate-300">Roles (CSV) *</label>
+            <label className="block text-[12px] mb-1 theme-text-muted">Roles (CSV) *</label>
             <input
               value={rolesCsv}
               onChange={(e) => setRolesCsv(e.target.value)}
               type="text"
               placeholder="es: OPERAIO, ELETTRICISTA"
-              className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-sky-500"
+              className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-[color:var(--accent)]"
             />
-            <div className="text-[12px] text-slate-500 mt-1">
-              Minimo: <span className="text-slate-300">OPERAIO</span>.
+            <div className="text-[12px] theme-text-muted mt-1">
+              Minimo: <span className="theme-text">OPERAIO</span>.
             </div>
           </div>
 
@@ -538,7 +532,7 @@ export default function AdminOperatorsPage(): JSX.Element {
             <button
               type="submit"
               disabled={creating}
-              className="text-[12px] px-4 py-2 rounded-full border border-emerald-600 text-emerald-100 hover:bg-emerald-600/15 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="text-[12px] px-4 py-2 rounded-full btn-primary disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {creating ? (t(lang, "CREATING") || "Creating…") : (t(lang, "CREATE") || "Create")}
             </button>
@@ -550,10 +544,8 @@ export default function AdminOperatorsPage(): JSX.Element {
       <div className="mt-4 border theme-border rounded-2xl bg-[var(--panel)] p-4 sm:p-5">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-              {t(lang, "LIST") || "List"}
-            </div>
-            <div className="text-xs text-slate-400 mt-1">{loading ? "Loading…" : `${filtered.length} operatori`}</div>
+            <div className="kicker">{t(lang, "LIST") || "List"}</div>
+            <div className="text-xs theme-text-muted mt-1">{loading ? "Loading…" : `${filtered.length} operatori`}</div>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
@@ -561,10 +553,10 @@ export default function AdminOperatorsPage(): JSX.Element {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder={t(lang, "SEARCH") || "Search"}
-              className="w-full sm:w-72 rounded-xl px-3 py-2 text-[13px] focus:ring-1 focus:outline-none theme-input focus:ring-sky-500"
+              className="w-full sm:w-72 rounded-xl px-3 py-2 text-[13px] focus:ring-1 focus:outline-none theme-input focus:ring-[color:var(--accent)]"
             />
 
-            <label className="flex items-center gap-2 text-[12px] text-slate-300 select-none">
+            <label className="flex items-center gap-2 text-[12px] theme-text-muted select-none">
               <input
                 type="checkbox"
                 checked={onlyIncomplete}
@@ -592,16 +584,16 @@ export default function AdminOperatorsPage(): JSX.Element {
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-slate-800">
+            <tbody>
               {loading ? (
                 <tr>
-                  <td className="px-3 py-3 text-slate-500" colSpan={10}>
+                  <td className="px-3 py-3 theme-text-muted" colSpan={10}>
                     Loading…
                   </td>
                 </tr>
               ) : pageRows.length === 0 ? (
                 <tr>
-                  <td className="px-3 py-3 text-slate-500" colSpan={10}>
+                  <td className="px-3 py-3 theme-text-muted" colSpan={10}>
                     {t(lang, "NO_ROWS") || "No rows"}
                   </td>
                 </tr>
@@ -611,24 +603,24 @@ export default function AdminOperatorsPage(): JSX.Element {
                   const roles = Array.isArray(r.roles) ? r.roles.join(", ") : "";
 
                   return (
-                    <tr key={r.id} className="text-slate-200 hover:bg-slate-900/30">
+                    <tr key={r.id} className="theme-text hover:bg-[color:var(--accent-soft)]">
                       <td className="px-4 py-2.5">
                         <div className="flex flex-col">
                           <span className="font-medium">{r.display_name || "—"}</span>
-                          <span className="text-slate-500">{r.legacy_name || ""}</span>
+                          <span className="theme-text-muted">{r.legacy_name || ""}</span>
                         </div>
                       </td>
 
-                      <td className="px-4 py-2.5">{r.cognome || <span className="text-slate-600">—</span>}</td>
-                      <td className="px-4 py-2.5">{r.nome || <span className="text-slate-600">—</span>}</td>
+                      <td className="px-4 py-2.5">{r.cognome || <span className="theme-text-muted">—</span>}</td>
+                      <td className="px-4 py-2.5">{r.nome || <span className="theme-text-muted">—</span>}</td>
                       <td className="px-4 py-2.5">{fmtDate(r.birth_date)}</td>
 
-                      <td className="px-4 py-2.5">{r.operator_code || <span className="text-slate-600">—</span>}</td>
-                      <td className="px-4 py-2.5 font-mono text-[11px] text-slate-400">
-                        {r.operator_key || <span className="text-slate-600">—</span>}
+                      <td className="px-4 py-2.5">{r.operator_code || <span className="theme-text-muted">—</span>}</td>
+                      <td className="px-4 py-2.5 font-mono text-[11px] theme-text-muted">
+                        {r.operator_key || <span className="theme-text-muted">—</span>}
                       </td>
 
-                      <td className="px-4 py-2.5">{roles || <span className="text-slate-600">—</span>}</td>
+                      <td className="px-4 py-2.5">{roles || <span className="theme-text-muted">—</span>}</td>
 
                       <td className="px-4 py-2.5">
                         {incomplete ? (
@@ -642,7 +634,7 @@ export default function AdminOperatorsPage(): JSX.Element {
                         )}
                       </td>
 
-                      <td className="px-4 py-2.5 font-mono text-[11px] text-slate-400">
+                      <td className="px-4 py-2.5 font-mono text-[11px] theme-text-muted">
                         {String(r.id).slice(0, 8)}…
                       </td>
 
@@ -651,21 +643,21 @@ export default function AdminOperatorsPage(): JSX.Element {
                           <button
                             type="button"
                             onClick={() => openEdit(r)}
-                            className="px-2 py-1 rounded-xl border border-slate-800 text-slate-200 hover:bg-slate-900/50"
+                            className="px-2 py-1 rounded-xl border theme-border theme-text bg-[var(--panel2)] hover:bg-[var(--panel)]"
                           >
                             Edit
                           </button>
                           <button
                             type="button"
                             onClick={() => copy(r.id)}
-                            className="px-2 py-1 rounded-xl border border-slate-800 text-slate-200 hover:bg-slate-900/50"
+                            className="px-2 py-1 rounded-xl border theme-border theme-text bg-[var(--panel2)] hover:bg-[var(--panel)]"
                           >
                             ID
                           </button>
                           <button
                             type="button"
                             onClick={() => copy(r.display_name || "")}
-                            className="px-2 py-1 rounded-xl border border-slate-800 text-slate-200 hover:bg-slate-900/50"
+                            className="px-2 py-1 rounded-xl border theme-border theme-text bg-[var(--panel2)] hover:bg-[var(--panel)]"
                           >
                             Copy name
                           </button>
@@ -680,7 +672,7 @@ export default function AdminOperatorsPage(): JSX.Element {
         </div>
 
         <div className="mt-4 flex items-center justify-between">
-          <div className="text-[12px] text-slate-500">
+          <div className="text-[12px] theme-text-muted">
             {t(lang, "PAGE") || "Page"} {Math.min(Math.max(1, page), totalPages)} / {totalPages}
           </div>
           <div className="flex items-center gap-2">
@@ -688,7 +680,7 @@ export default function AdminOperatorsPage(): JSX.Element {
               type="button"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1}
-              className="text-[12px] px-3 py-1.5 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="text-[12px] px-3 py-1.5 rounded-full border theme-border theme-text bg-[var(--panel2)] hover:bg-[var(--panel)] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {t(lang, "PREV") || "Prev"}
             </button>
@@ -696,7 +688,7 @@ export default function AdminOperatorsPage(): JSX.Element {
               type="button"
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
-              className="text-[12px] px-3 py-1.5 rounded-full border border-slate-800 text-slate-200 hover:bg-slate-900/50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="text-[12px] px-3 py-1.5 rounded-full border theme-border theme-text bg-[var(--panel2)] hover:bg-[var(--panel)] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {t(lang, "NEXT") || "Next"}
             </button>
@@ -710,9 +702,9 @@ export default function AdminOperatorsPage(): JSX.Element {
           <div className="w-full max-w-2xl rounded-2xl theme-panel p-4 sm:p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Edit operator</div>
-                <div className="text-xs text-slate-400 mt-1">
-                  Salvataggio su tabella <span className="text-slate-200 font-mono">operators</span>. Identità obbligatoria.
+                <div className="kicker">Edit operator</div>
+                <div className="text-xs theme-text-muted mt-1">
+                  Salvataggio su tabella <span className="theme-text font-mono">operators</span>. Identità obbligatoria.
                 </div>
               </div>
               <button
@@ -726,67 +718,67 @@ export default function AdminOperatorsPage(): JSX.Element {
 
             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="block text-[12px] mb-1 text-slate-300">Cognome *</label>
+                <label className="block text-[12px] mb-1 theme-text-muted">Cognome *</label>
                 <input
                   value={editDraft.cognome}
                   onChange={(e) => setEditDraft((d) => ({ ...(d || {}), cognome: e.target.value }))}
                   type="text"
                   required
-                  className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-sky-500"
+                  className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-[color:var(--accent)]"
                 />
               </div>
 
               <div>
-                <label className="block text-[12px] mb-1 text-slate-300">Nome *</label>
+                <label className="block text-[12px] mb-1 theme-text-muted">Nome *</label>
                 <input
                   value={editDraft.nome}
                   onChange={(e) => setEditDraft((d) => ({ ...(d || {}), nome: e.target.value }))}
                   type="text"
                   required
-                  className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-sky-500"
+                  className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-[color:var(--accent)]"
                 />
               </div>
 
               <div>
-                <label className="block text-[12px] mb-1 text-slate-300">Data di nascita * (YYYY-MM-DD)</label>
+                <label className="block text-[12px] mb-1 theme-text-muted">Data di nascita * (YYYY-MM-DD)</label>
                 <input
                   value={editDraft.birth_date}
                   onChange={(e) => setEditDraft((d) => ({ ...(d || {}), birth_date: e.target.value }))}
                   type="date"
                   required
-                  className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-sky-500"
+                  className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-[color:var(--accent)]"
                 />
               </div>
 
               <div>
-                <label className="block text-[12px] mb-1 text-slate-300">Operator code (opzionale)</label>
+                <label className="block text-[12px] mb-1 theme-text-muted">Operator code (opzionale)</label>
                 <input
                   value={editDraft.operator_code}
                   onChange={(e) => setEditDraft((d) => ({ ...(d || {}), operator_code: e.target.value }))}
                   type="text"
-                  className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-sky-500"
+                  className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-[color:var(--accent)]"
                 />
               </div>
 
               <div className="md:col-span-2">
-                <label className="block text-[12px] mb-1 text-slate-300">Roles (CSV) *</label>
+                <label className="block text-[12px] mb-1 theme-text-muted">Roles (CSV) *</label>
                 <input
                   value={editDraft.rolesCsv}
                   onChange={(e) => setEditDraft((d) => ({ ...(d || {}), rolesCsv: e.target.value }))}
                   type="text"
-                  className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-sky-500"
+                  className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-[color:var(--accent)]"
                 />
               </div>
 
               <div className="md:col-span-2">
-                <label className="block text-[12px] mb-1 text-slate-300">Legacy name (facoltativo)</label>
+                <label className="block text-[12px] mb-1 theme-text-muted">Legacy name (facoltativo)</label>
                 <input
                   value={editDraft.legacy_name}
                   onChange={(e) => setEditDraft((d) => ({ ...(d || {}), legacy_name: e.target.value }))}
                   type="text"
-                  className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-sky-500"
+                  className="w-full rounded-xl px-3 py-2 text-[14px] focus:ring-1 focus:outline-none theme-input focus:ring-[color:var(--accent)]"
                 />
-                <div className="text-[12px] text-slate-500 mt-1">
+                <div className="text-[12px] theme-text-muted mt-1">
                   Se vuoto, viene impostato automaticamente a “Cognome Nome”.
                 </div>
               </div>
@@ -804,7 +796,7 @@ export default function AdminOperatorsPage(): JSX.Element {
                   type="button"
                   disabled={saving}
                   onClick={onSaveEdit}
-                  className="text-[12px] px-4 py-2 rounded-full border border-emerald-600 text-emerald-100 hover:bg-emerald-600/15 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="text-[12px] px-4 py-2 rounded-full btn-primary disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {saving ? "Saving…" : "Save"}
                 </button>

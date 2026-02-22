@@ -44,11 +44,9 @@ function saveJSON(key: string, value: unknown): void {
  * - Si aucun champ standard, on affiche une table “keys” lisible.
  */
 function FamiliesResultsTable({
-  isDark,
   loading,
   rows,
 }: {
-  isDark: boolean;
   loading: boolean;
   rows: FamilyRow[] | null | undefined;
 }) {
@@ -103,48 +101,27 @@ function FamiliesResultsTable({
   };
 
   if (loading) {
-    return (
-      <div className={["px-3 sm:px-4", isDark ? "text-slate-300" : "text-slate-700"].join(" ")}>
-        Caricamento famiglie…
-      </div>
-    );
+    return <div className="px-3 sm:px-4 theme-text-muted">Caricamento famiglie…</div>;
   }
 
   if (!safeRows.length) {
-    return (
-      <div
-        className={[
-          "mx-3 sm:mx-4 rounded-2xl border p-4",
-          isDark ? "border-slate-800 bg-slate-950/50 text-slate-300" : "border-slate-200 bg-white text-slate-700",
-        ].join(" ")}
-      >
-        Nessun dato “famiglie” disponibile per il periodo selezionato.
-      </div>
-    );
+    return <div className="mx-3 sm:mx-4 theme-panel-2 rounded-2xl p-4">Nessun dato “famiglie” disponibile per il periodo selezionato.</div>;
   }
 
   return (
-    <div
-      className={[
-        "mx-3 sm:mx-4 rounded-2xl border overflow-hidden",
-        isDark ? "border-slate-800 bg-slate-950/40" : "border-slate-200 bg-white",
-      ].join(" ")}
-    >
-      <div className={["px-4 py-3 text-xs", isDark ? "text-slate-400" : "text-slate-600"].join(" ")}>
+    <div className="mx-3 sm:mx-4 theme-table">
+      <div className="px-4 py-3 text-xs theme-text-muted">
         Dettaglio per famiglie (tabella dinamica). Colonne: {columns.join(", ")}
       </div>
 
       <div className="overflow-auto">
         <table className="min-w-full text-sm">
           <thead>
-            <tr className={isDark ? "bg-slate-950/70" : "bg-slate-50"}>
+            <tr className="theme-table-head">
               {columns.map((c) => (
                 <th
                   key={c}
-                  className={[
-                    "text-left px-4 py-2 text-[11px] uppercase tracking-[0.18em] whitespace-nowrap",
-                    isDark ? "text-slate-400 border-b border-slate-800" : "text-slate-600 border-b border-slate-200",
-                  ].join(" ")}
+                  className="text-left px-4 py-2 text-[11px] uppercase tracking-[0.18em] whitespace-nowrap"
                 >
                   {c}
                 </th>
@@ -154,20 +131,11 @@ function FamiliesResultsTable({
 
           <tbody>
             {safeRows.map((r, idx) => (
-              <tr
-                key={idx}
-                className={[
-                  isDark ? "border-b border-slate-900/60" : "border-b border-slate-100",
-                  "hover:bg-slate-900/30",
-                ].join(" ")}
-              >
+              <tr key={idx}>
                 {columns.map((c) => (
                   <td
                     key={c}
-                    className={[
-                      "px-4 py-2 whitespace-nowrap align-top",
-                      isDark ? "text-slate-200" : "text-slate-800",
-                    ].join(" ")}
+                    className="px-4 py-2 whitespace-nowrap align-top theme-text"
                     title={fmt(r?.[c])}
                   >
                     {fmt(r?.[c])}
@@ -360,54 +328,26 @@ export default function OperatorProductivityKpiPanel({
   return (
     <div className="space-y-4">
       <header className="px-3 sm:px-4 pt-3">
-        <div
-          className={[
-            "text-[11px] uppercase tracking-[0.20em] mb-1",
-            isDark ? "text-slate-400" : "text-slate-500",
-          ].join(" ")}
-        >
-          {KICKER}
-        </div>
+        <div className="kicker mb-1">{KICKER}</div>
 
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div className="min-w-0">
-            <h1
-              className={[
-                "text-xl sm:text-2xl font-semibold",
-                isDark ? "text-slate-50" : "text-slate-900",
-              ].join(" ")}
-            >
+            <h1 className="text-xl sm:text-2xl font-semibold theme-text">
               {TITLE}
             </h1>
-            <p className={["text-xs mt-1 max-w-4xl", isDark ? "text-slate-300" : "text-slate-600"].join(" ")}>
+            <p className="text-xs mt-1 max-w-4xl theme-text-muted">
               {t("KPI_OPPROD_DESC")}
             </p>
           </div>
 
           {/* Tabs: Sintesi / Famiglie */}
-          <div
-            className={[
-              "shrink-0 rounded-2xl border p-1 flex items-center gap-1",
-              isDark ? "border-slate-800 bg-slate-950/40" : "border-slate-200 bg-white",
-            ].join(" ")}
-            role="tablist"
-            aria-label="Vista KPI"
-          >
+          <div className="segmented" role="tablist" aria-label="Vista KPI">
             <button
               type="button"
               role="tab"
               aria-selected={view === "SINTESI"}
               onClick={() => setView("SINTESI")}
-              className={[
-                "px-3 py-1.5 rounded-xl text-xs font-semibold transition",
-                view === "SINTESI"
-                  ? isDark
-                    ? "bg-slate-900 text-slate-50"
-                    : "bg-slate-900 text-white"
-                  : isDark
-                  ? "text-slate-300 hover:bg-slate-900/50"
-                  : "text-slate-700 hover:bg-slate-100",
-              ].join(" ")}
+              className={["segmented-item", view === "SINTESI" ? "segmented-item-active" : ""].join(" ")}
               title="Vista sintesi operatori"
             >
               Sintesi
@@ -418,16 +358,7 @@ export default function OperatorProductivityKpiPanel({
               role="tab"
               aria-selected={view === "FAMIGLIE"}
               onClick={() => setView("FAMIGLIE")}
-              className={[
-                "px-3 py-1.5 rounded-xl text-xs font-semibold transition",
-                view === "FAMIGLIE"
-                  ? isDark
-                    ? "bg-slate-900 text-slate-50"
-                    : "bg-slate-900 text-white"
-                  : isDark
-                  ? "text-slate-300 hover:bg-slate-900/50"
-                  : "text-slate-700 hover:bg-slate-100",
-              ].join(" ")}
+              className={["segmented-item", view === "FAMIGLIE" ? "segmented-item-active" : ""].join(" ")}
               title="Vista dettaglio per famiglie"
             >
               Famiglie
@@ -474,7 +405,7 @@ export default function OperatorProductivityKpiPanel({
           onOpenOperator={(operatorId: string) => setOpenOperatorId(operatorId)}
         />
       ) : (
-        <FamiliesResultsTable isDark={isDark} loading={loading} rows={familyRows} />
+        <FamiliesResultsTable loading={loading} rows={familyRows} />
       )}
 
       <OperatorDetailsModal

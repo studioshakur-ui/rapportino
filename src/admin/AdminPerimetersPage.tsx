@@ -72,7 +72,7 @@ function btnPrimary(): string {
 function inputClass(): string {
   return cn(
     "w-full rounded-2xl px-3 py-2.5 text-[13px]",
-    "theme-input placeholder:text-slate-500",
+    "theme-input placeholder:theme-text-muted",
     "outline-none focus:ring-2 focus:ring-sky-500/35"
   );
 }
@@ -441,11 +441,11 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
         <div className={cardClass() + " p-4"}>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">ADMIN · PERIMETRI</div>
-              <div className="mt-1 text-[14px] font-semibold text-slate-50 truncate">
+              <div className="text-[10px] uppercase tracking-[0.26em] theme-text-muted">ADMIN · PERIMETRI</div>
+              <div className="mt-1 text-[14px] font-semibold theme-text truncate">
                 {t(lang, "perimeters.title", "Perimetri operatori")}
               </div>
-              <div className="mt-1 text-[12px] text-slate-500">
+              <div className="mt-1 text-[12px] theme-text-muted">
                 {t(
                   lang,
                   "perimeters.hint",
@@ -454,15 +454,15 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
               </div>
             </div>
             <div className="text-right">
-              <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">SCOPE</div>
-              <div className="mt-1 text-[12px] font-semibold text-slate-200">{scopeLabel}</div>
+              <div className="text-[10px] uppercase tracking-[0.26em] theme-text-muted">SCOPE</div>
+              <div className="mt-1 text-[12px] font-semibold theme-text">{scopeLabel}</div>
             </div>
           </div>
 
           <div className="mt-4 grid grid-cols-1 lg:grid-cols-12 gap-3">
             {/* Left: ship selector */}
             <div className="lg:col-span-4 rounded-2xl border theme-border bg-[var(--panel2)] p-3">
-              <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Nave</div>
+              <div className="text-[11px] uppercase tracking-[0.22em] theme-text-muted">Nave</div>
 
               <select
                 value={selectedShipId}
@@ -494,16 +494,16 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
 
               {selectedShip ? (
                 <div className="mt-3 rounded-2xl border theme-border bg-[var(--panel2)] px-3 py-2">
-                  <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Dettagli</div>
-                  <div className="mt-1 text-[12px] text-slate-300">
+                  <div className="text-[11px] uppercase tracking-[0.22em] theme-text-muted">Dettagli</div>
+                  <div className="mt-1 text-[12px] theme-text-muted">
                     Commessa:{" "}
-                    <span className="text-slate-50 font-semibold">{safeText(selectedShip.commessa) || "—"}</span>
+                    <span className="theme-text font-semibold">{safeText(selectedShip.commessa) || "—"}</span>
                   </div>
-                  <div className="mt-1 text-[12px] text-slate-300">
-                    Ship: <span className="text-slate-50 font-semibold">{safeText(selectedShip.code) || "—"}</span>
+                  <div className="mt-1 text-[12px] theme-text-muted">
+                    Ship: <span className="theme-text font-semibold">{safeText(selectedShip.code) || "—"}</span>
                   </div>
-                  <div className="mt-1 text-[12px] text-slate-300">
-                    Costr: <span className="text-slate-50 font-semibold">{safeText(selectedShip.costr) || "—"}</span>
+                  <div className="mt-1 text-[12px] theme-text-muted">
+                    Costr: <span className="theme-text font-semibold">{safeText(selectedShip.costr) || "—"}</span>
                   </div>
                 </div>
               ) : null}
@@ -513,8 +513,8 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
             <div className="lg:col-span-8 rounded-2xl border theme-border bg-[var(--panel2)] p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Perim add op</div>
-                  <div className="mt-1 text-[12px] text-slate-500">
+                  <div className="text-[11px] uppercase tracking-[0.22em] theme-text-muted">Perim add op</div>
+                  <div className="mt-1 text-[12px] theme-text-muted">
                     Seleziona un operatore esistente (Admin → Operatori) e collegalo alla nave.
                   </div>
                 </div>
@@ -527,7 +527,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
 
               <div className="mt-3 grid grid-cols-1 md:grid-cols-12 gap-3">
                 <div className="md:col-span-7">
-                  <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Operatore (ricerca)</div>
+                  <div className="text-[11px] uppercase tracking-[0.22em] theme-text-muted">Operatore (ricerca)</div>
                   <input
                     value={opQuery}
                     onChange={(e) => {
@@ -567,8 +567,8 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
                             >
                               <div className="flex items-center justify-between gap-3">
                                 <div className="min-w-0">
-                                  <div className="text-[13px] font-semibold text-slate-50 truncate">{o.display_name}</div>
-                                  <div className="text-[11px] text-slate-500 truncate">
+                                  <div className="text-[13px] font-semibold theme-text truncate">{o.display_name}</div>
+                                  <div className="text-[11px] theme-text-muted truncate">
                                     Roles: {o.roles.length ? o.roles.join(", ") : "—"}
                                   </div>
                                 </div>
@@ -587,7 +587,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
                 </div>
 
                 <div className="md:col-span-3">
-                  <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Role tag (opzionale)</div>
+                  <div className="text-[11px] uppercase tracking-[0.22em] theme-text-muted">Role tag (opzionale)</div>
                   <input
                     value={roleTag}
                     onChange={(e) => setRoleTag(e.target.value)}
@@ -596,9 +596,9 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
                   />
 
                   <div className="mt-3 rounded-2xl border theme-border bg-[var(--panel2)] px-3 py-2">
-                    <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Selezionato</div>
-                    <div className="mt-1 text-[12px] text-slate-200 font-semibold truncate">{selectedOp?.display_name || "—"}</div>
-                    <div className="mt-1 text-[11px] text-slate-500 truncate">
+                    <div className="text-[11px] uppercase tracking-[0.22em] theme-text-muted">Selezionato</div>
+                    <div className="mt-1 text-[12px] theme-text font-semibold truncate">{selectedOp?.display_name || "—"}</div>
+                    <div className="mt-1 text-[11px] theme-text-muted truncate">
                       Roles: {selectedOp?.roles?.length ? selectedOp.roles.join(", ") : "—"}
                     </div>
                     <div className="mt-2">
@@ -629,19 +629,19 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
               </div>
 
               {alreadyInPerimeter ? (
-                <div className="mt-3 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-[13px] text-amber-100">
+                <div className="mt-3 rounded-xl px-3 py-2 text-[13px] badge-warning">
                   Operatore già presente nel perimetro attivo.
                 </div>
               ) : null}
 
               {err ? (
-                <div className="mt-3 rounded-xl border border-rose-400/25 bg-rose-500/10 px-3 py-2 text-[13px] text-rose-100">
+                <div className="mt-3 rounded-xl px-3 py-2 text-[13px] badge-danger">
                   {err}
                 </div>
               ) : null}
 
               {toast ? (
-                <div className="mt-3 rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-[13px] text-emerald-100">
+                <div className="mt-3 rounded-xl px-3 py-2 text-[13px] badge-success">
                   {toast}
                 </div>
               ) : null}
@@ -653,12 +653,12 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
         <div className={cardClass() + " p-4"}>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">PERIM OPS</div>
-              <div className="mt-1 text-[12px] text-slate-500">Operatori collegati alla nave selezionata.</div>
+              <div className="text-[10px] uppercase tracking-[0.26em] theme-text-muted">PERIM OPS</div>
+              <div className="mt-1 text-[12px] theme-text-muted">Operatori collegati alla nave selezionata.</div>
             </div>
             <div className="text-right">
-              <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">Perim status</div>
-              <div className="mt-1 text-[12px] text-slate-200 font-semibold">
+              <div className="text-[10px] uppercase tracking-[0.26em] theme-text-muted">Perim status</div>
+              <div className="mt-1 text-[12px] theme-text font-semibold">
                 {loadingPerimOps ? "…" : `Elenco · ${perimOps.filter((x) => x.active).length} attivi`}
               </div>
             </div>
@@ -666,10 +666,10 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
 
         <div className="mt-3 rounded-2xl border theme-border bg-[var(--panel2)] overflow-hidden">
           <div className="grid grid-cols-12 gap-2 px-3 py-2 border-b theme-border bg-[var(--panel2)] text-[11px] theme-text-muted">
-              <div className="col-span-5 text-slate-200">Nome</div>
-              <div className="col-span-3 text-slate-200">Ruoli</div>
-              <div className="col-span-2 text-slate-200">Perim Status</div>
-              <div className="col-span-2 text-right text-slate-200">Actions</div>
+              <div className="col-span-5 theme-text">Nome</div>
+              <div className="col-span-3 theme-text">Ruoli</div>
+              <div className="col-span-2 theme-text">Perim Status</div>
+              <div className="col-span-2 text-right theme-text">Actions</div>
             </div>
 
             <div className="divide-y theme-border">
@@ -682,10 +682,10 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
                   <div key={o.operator_id} className="px-3 py-2">
                     <div className="grid grid-cols-12 gap-2 items-center">
                       <div className="col-span-5 min-w-0">
-                        <div className="text-[13px] font-semibold text-slate-50 truncate">{o.display_name}</div>
-                        <div className="text-[11px] text-slate-500 truncate">Tag: {safeText(o.role_tag) || "—"}</div>
+                        <div className="text-[13px] font-semibold theme-text truncate">{o.display_name}</div>
+                        <div className="text-[11px] theme-text-muted truncate">Tag: {safeText(o.role_tag) || "—"}</div>
                       </div>
-                      <div className="col-span-3 text-[12px] text-slate-300 truncate">
+                      <div className="col-span-3 text-[12px] theme-text-muted truncate">
                         {o.roles.length ? o.roles.join(", ") : "—"}
                       </div>
                       <div className="col-span-2">
@@ -707,4 +707,6 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
     </div>
   );
 }
+
+
 

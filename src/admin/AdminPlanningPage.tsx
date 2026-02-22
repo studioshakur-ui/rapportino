@@ -288,14 +288,12 @@ export default function AdminPlanningPage(): JSX.Element {
       <div className="rounded-2xl theme-panel p-4">
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">
-              ADMIN · PLANNING OVERVIEW
-            </div>
-            <div className="mt-1 text-[14px] font-semibold text-slate-50">
+            <div className="kicker">ADMIN · PLANNING OVERVIEW</div>
+            <div className="mt-1 text-[14px] font-semibold theme-text">
               Plans (DAY/WEEK) · Slots Capo · Membri
             </div>
-            <div className="mt-1 text-[12px] text-slate-400">
-              Fonte: <span className="text-slate-200 font-semibold">admin_planning_overview_v1</span>
+            <div className="mt-1 text-[12px] theme-text-muted">
+              Fonte: <span className="theme-text font-semibold">admin_planning_overview_v1</span>
             </div>
           </div>
 
@@ -310,7 +308,7 @@ export default function AdminPlanningPage(): JSX.Element {
 
         <div className="mt-3 grid grid-cols-1 md:grid-cols-12 gap-2">
           <div className="md:col-span-3">
-            <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Period</div>
+            <div className="kicker">Period</div>
             <select
               value={periodType}
               onChange={(e) => setPeriodType(e.target.value)}
@@ -323,7 +321,7 @@ export default function AdminPlanningPage(): JSX.Element {
           </div>
 
           <div className="md:col-span-3">
-            <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Status</div>
+            <div className="kicker">Status</div>
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
@@ -337,18 +335,18 @@ export default function AdminPlanningPage(): JSX.Element {
           </div>
 
           <div className="md:col-span-6">
-            <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Search</div>
+            <div className="kicker">Search</div>
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Cerca plan_id, manager_id, capo_id, operator_id, week/date…"
-              className="mt-1 w-full rounded-xl theme-input px-3 py-2 text-[13px] placeholder:text-slate-500 outline-none"
+              className="mt-1 w-full rounded-xl theme-input px-3 py-2 text-[13px] outline-none"
             />
           </div>
         </div>
 
         {err ? (
-          <div className="mt-3 rounded-xl border border-rose-400/25 bg-rose-500/10 px-3 py-2 text-[13px] text-rose-100">
+          <div className="mt-3 rounded-xl px-3 py-2 text-[13px] badge-danger">
             {err}
           </div>
         ) : null}
@@ -356,22 +354,22 @@ export default function AdminPlanningPage(): JSX.Element {
 
       <div className="rounded-2xl theme-panel overflow-hidden">
         <div className="px-4 py-3 border-b theme-border bg-[var(--panel2)] flex items-center justify-between">
-          <div className="text-[12px] text-slate-300">
+          <div className="text-[12px] theme-text-muted">
             {loading ? "Caricamento…" : `${plans.length} piani`}
           </div>
-          <div className="text-[11px] text-slate-500">
+          <div className="text-[11px] theme-text-muted">
             Ultimi dati · limit 1200 righe view
           </div>
         </div>
 
         {loading ? (
-          <div className="px-4 py-6 text-[13px] text-slate-400">Caricamento…</div>
+          <div className="px-4 py-6 text-[13px] theme-text-muted">Caricamento…</div>
         ) : plans.length === 0 ? (
-          <div className="px-4 py-6 text-[13px] text-slate-400">
+          <div className="px-4 py-6 text-[13px] theme-text-muted">
             Nessun piano trovato con questi filtri.
           </div>
         ) : (
-          <div className="divide-y divide-slate-800">
+          <div>
             {plans.map((p) => (
               <div key={p.plan_id} className="px-4 py-4">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
@@ -387,18 +385,18 @@ export default function AdminPlanningPage(): JSX.Element {
                       ) : null}
                     </div>
 
-                    <div className="mt-2 text-[12px] text-slate-400">
-                      Plan ID: <span className="text-slate-200 font-semibold">{p.plan_id}</span>
+                    <div className="mt-2 text-[12px] theme-text-muted">
+                      Plan ID: <span className="theme-text font-semibold">{p.plan_id}</span>
                     </div>
-                    <div className="mt-1 text-[12px] text-slate-500">
-                      Manager: <span className="text-slate-300">{p.manager_id || "—"}</span> · Updated:{" "}
-                      <span className="text-slate-300">{p.updated_at ? String(p.updated_at) : "—"}</span>
+                    <div className="mt-1 text-[12px] theme-text-muted">
+                      Manager: <span className="theme-text">{p.manager_id || "—"}</span> · Updated:{" "}
+                      <span className="theme-text">{p.updated_at ? String(p.updated_at) : "—"}</span>
                     </div>
                   </div>
 
-                  <div className="text-[12px] text-slate-400">
-                    Slots: <span className="text-slate-50 font-semibold">{p.slots.length}</span> · Membri:{" "}
-                    <span className="text-slate-50 font-semibold">
+                  <div className="text-[12px] theme-text-muted">
+                    Slots: <span className="theme-text font-semibold">{p.slots.length}</span> · Membri:{" "}
+                    <span className="theme-text font-semibold">
                       {p.slots.reduce((sum: number, s: SlotAccum) => sum + (s.members?.length || 0), 0)}
                     </span>
                   </div>
@@ -406,28 +404,24 @@ export default function AdminPlanningPage(): JSX.Element {
 
                 <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2">
                   {p.slots.length === 0 ? (
-                    <div className="text-[12px] text-slate-500">
+                    <div className="text-[12px] theme-text-muted">
                       Nessuno slot (plan senza capi).
                     </div>
                   ) : (
                     p.slots.map((s: SlotAccum) => (
                       <div key={s.slot_id} className="rounded-2xl border theme-border bg-[var(--panel2)] p-3">
-                        <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
-                          Slot Capo
-                        </div>
-                        <div className="mt-1 text-[12px] text-slate-200">
+                        <div className="kicker">Slot Capo</div>
+                        <div className="mt-1 text-[12px] theme-text">
                           Capo: <span className="font-semibold">{s.capo_id || "—"}</span>
                         </div>
-                        <div className="mt-1 text-[12px] text-slate-500">
-                          Slot ID: <span className="text-slate-400">{s.slot_id}</span>
+                        <div className="mt-1 text-[12px] theme-text-muted">
+                          Slot ID: <span className="theme-text-muted">{s.slot_id}</span>
                         </div>
 
                         <div className="mt-2">
-                          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
-                            Membri
-                          </div>
+                          <div className="kicker">Membri</div>
                           {(!s.members || s.members.length === 0) ? (
-                            <div className="mt-1 text-[12px] text-slate-500">Nessun operatore.</div>
+                            <div className="mt-1 text-[12px] theme-text-muted">Nessun operatore.</div>
                           ) : (
                             <div className="mt-1 space-y-1">
                               {s.members.map((m: SlotMember) => (
@@ -435,10 +429,10 @@ export default function AdminPlanningPage(): JSX.Element {
                                   key={`${s.slot_id}-${m.operator_id}`}
                                   className="flex items-center justify-between rounded-xl border theme-border bg-[var(--panel2)] px-2 py-1.5"
                                 >
-                                  <div className="text-[12px] text-slate-200 truncate">
+                                  <div className="text-[12px] theme-text truncate">
                                     {m.operator_id}
                                   </div>
-                                  <div className="text-[12px] text-slate-500 tabular-nums">
+                                  <div className="text-[12px] theme-text-muted tabular-nums">
                                     #{m.position ?? "—"}
                                   </div>
                                 </div>

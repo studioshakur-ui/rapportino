@@ -70,7 +70,7 @@ export default function UserActionsMenu(props: {
               className={cn(
                 "w-full text-left px-3 py-2 rounded-xl border text-[13px] font-semibold transition-colors",
                 "theme-panel-2 theme-border hover:opacity-95",
-                it.tone === "danger" && "border-rose-500/30 bg-rose-500/8 text-rose-50"
+                it.tone === "danger" && "badge-danger"
               )}
             >
               {it.label}

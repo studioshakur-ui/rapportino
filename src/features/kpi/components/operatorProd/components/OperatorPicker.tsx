@@ -60,35 +60,16 @@ export function OperatorPicker({
   setSelectedIds: (next: string[] | ((prev: string[]) => string[])) => void;
 }) {
   const { t } = useI18n();
+  void isDark;
 
-  const cardBase = cn(
-    "rounded-2xl border px-4 py-3 relative overflow-hidden",
-    isDark ? "border-slate-700/70 bg-slate-950/55" : "border-slate-200 bg-white",
-    isDark
-      ? "before:absolute before:inset-0 before:bg-[radial-gradient(70%_70%_at_30%_0%,rgba(56,189,248,0.10),transparent_60%)] before:pointer-events-none"
-      : ""
-  );
+  const cardBase = "theme-panel rounded-2xl px-4 py-3 relative overflow-hidden";
 
-  const smallInput = cn(
-    "rounded-lg border px-2 py-1 text-[12px] outline-none",
-    isDark
-      ? "border-slate-700 bg-slate-950/70 text-slate-50 placeholder:text-slate-500 focus:border-emerald-400/70"
-      : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-emerald-500/60"
-  );
+  const smallInput =
+    "theme-input rounded-lg px-2 py-1 text-[12px] outline-none focus:ring-2 focus:ring-[var(--accent)]/20";
 
-  const pillBtn = cn(
-    "px-3 py-1.5 rounded-full border text-[11px] uppercase tracking-[0.16em] transition",
-    isDark
-      ? "border-slate-700 bg-slate-950/30 text-slate-100 hover:bg-slate-900/40"
-      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-  );
+  const pillBtn = "btn-instrument px-3 py-1.5 rounded-full text-[11px] uppercase tracking-[0.16em]";
 
-  const dangerPill = cn(
-    "px-3 py-1.5 rounded-full border text-[11px] uppercase tracking-[0.16em] transition",
-    isDark
-      ? "border-rose-400/55 bg-rose-950/20 text-rose-100 hover:bg-rose-900/25"
-      : "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
-  );
+  const dangerPill = "chip chip-danger px-3 py-1.5 text-[11px] uppercase tracking-[0.16em]";
 
   const selectedSet = useMemo(() => new Set(selectedIds || []), [selectedIds]);
 
@@ -112,17 +93,17 @@ export function OperatorPicker({
   return (
     <section className="px-3 sm:px-4 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
       <div className={cardBase}>
-        <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{t("KPI_OPPROD_WINDOW")}</div>
+        <div className="text-[11px] uppercase tracking-[0.16em] theme-text-muted">{t("KPI_OPPROD_WINDOW")}</div>
         <div className="mt-2 flex items-center gap-2">
           <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className={smallInput} />
-          <span className="text-xs text-slate-400">→</span>
+          <span className="text-xs theme-text-muted">→</span>
           <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={smallInput} />
         </div>
 
         {showCostrCommessaFilters ? (
           <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
-              <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">COSTR</div>
+              <div className="text-[11px] uppercase tracking-[0.16em] theme-text-muted">COSTR</div>
               <select
                 value={costrFilter}
                 onChange={(e) => setCostrFilter(e.target.value)}
@@ -143,7 +124,7 @@ export function OperatorPicker({
             </div>
 
             <div>
-              <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Commessa</div>
+              <div className="text-[11px] uppercase tracking-[0.16em] theme-text-muted">Commessa</div>
               <select
                 value={commessaFilter}
                 onChange={(e) => setCommessaFilter(e.target.value)}
@@ -166,7 +147,7 @@ export function OperatorPicker({
         ) : null}
 
         {error ? (
-          <div className={cn("mt-3 rounded-2xl border px-3 py-2 text-xs", isDark ? "border-rose-400/55 bg-rose-500/10 text-rose-100" : "border-rose-200 bg-rose-50 text-rose-700")}>
+          <div className="mt-3 rounded-2xl border px-3 py-2 text-xs chip-danger">
             <div className="font-semibold">{t("COMMON_ERROR")}</div>
             <div className="mt-1">{error}</div>
           </div>
@@ -176,16 +157,16 @@ export function OperatorPicker({
       <div className={cardBase}>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{t("KPI_OPPROD_OPERATORS")}</div>
-            <div className={cn("text-sm font-medium", isDark ? "text-slate-50" : "text-slate-900")}>
+            <div className="text-[11px] uppercase tracking-[0.16em] theme-text-muted">{t("KPI_OPPROD_OPERATORS")}</div>
+            <div className="text-sm font-medium theme-text">
               {t("KPI_OPPROD_OPERATORS_HINT")}
             </div>
-            <div className={cn("text-xs mt-1", isDark ? "text-slate-300" : "text-slate-600")}>
+            <div className="text-xs mt-1 theme-text-muted">
               {t("KPI_OPPROD_OPERATORS_DERIVED")}
             </div>
           </div>
 
-          <div className="text-[11px] text-slate-400">
+          <div className="text-[11px] theme-text-muted">
             {(t as unknown as (key: string, params?: Record<string, unknown>) => string)(
               "KPI_OPPROD_TOTAL_IN_RANGE",
               { n: operatorsCount }
@@ -201,14 +182,14 @@ export function OperatorPicker({
             {t("KPI_OPPROD_CLEAR")}
           </button>
 
-          <span className="ml-auto text-[11px] text-slate-400">
+          <span className="ml-auto text-[11px] theme-text-muted">
             {(t as unknown as (key: string, params?: Record<string, unknown>) => string)("KPI_OPPROD_SELECTED_N", {
               n: selectedIds.length,
             })}
           </span>
         </div>
 
-        <div className="mt-2 text-[11px] text-slate-400">
+        <div className="mt-2 text-[11px] theme-text-muted">
           {(t as unknown as (key: string, params?: Record<string, unknown>) => string)("KPI_OPPROD_SCOPE_ACTIVE", {
             scope,
           })}
@@ -225,9 +206,9 @@ export function OperatorPicker({
 
         <div className="mt-3 max-h-[420px] overflow-auto pr-1">
           {loading ? (
-            <div className="py-8 text-center text-[12px] text-slate-400">{t("KPI_OPPROD_LOADING_LIST")}</div>
+            <div className="py-8 text-center text-[12px] theme-text-muted">{t("KPI_OPPROD_LOADING_LIST")}</div>
           ) : filteredOperators.length === 0 ? (
-            <div className="py-8 text-center text-[12px] text-slate-400">{t("KPI_OPPROD_NO_OPERATOR")}</div>
+            <div className="py-8 text-center text-[12px] theme-text-muted">{t("KPI_OPPROD_NO_OPERATOR")}</div>
           ) : (
             <ul className="space-y-1">
               {filteredOperators.map((o) => {
@@ -241,21 +222,14 @@ export function OperatorPicker({
                       type="button"
                       onClick={() => toggleOperator(id)}
                       className={cn(
-                        "w-full text-left flex items-center gap-2 rounded-xl border px-3 py-2 transition",
-                        isDark ? "border-slate-700 bg-slate-950/35 hover:bg-slate-900/45" : "border-slate-200 bg-white hover:bg-slate-50",
-                        checked ? (isDark ? "ring-1 ring-emerald-400/60" : "ring-1 ring-emerald-500/50") : ""
+                        "w-full text-left flex items-center gap-2 rounded-xl px-3 py-2 transition theme-panel-2",
+                        checked ? "accent-soft" : ""
                       )}
                     >
                       <span
                         className={cn(
-                          "h-4 w-4 rounded border flex items-center justify-center text-[10px]",
-                          checked
-                            ? isDark
-                              ? "border-emerald-400/70 bg-emerald-400/20 text-emerald-100"
-                              : "border-emerald-500/60 bg-emerald-50 text-emerald-800"
-                            : isDark
-                            ? "border-slate-600 bg-slate-950/70 text-slate-500"
-                            : "border-slate-300 bg-white text-slate-400"
+                          "h-4 w-4 rounded border flex items-center justify-center text-[10px] theme-border",
+                          checked ? "accent-soft" : "theme-text-muted"
                         )}
                         aria-hidden="true"
                       >
@@ -263,22 +237,16 @@ export function OperatorPicker({
                       </span>
 
                       <div className="min-w-0 flex-1">
-                        <div className={cn("text-sm font-medium truncate", isDark ? "text-slate-50" : "text-slate-900")}>
+                        <div className="text-sm font-medium truncate theme-text">
                           {(o.operator_name ?? "—").toString().trim() || "—"}
                         </div>
-                        <div className="text-[11px] text-slate-400 font-mono truncate">{id}</div>
+                        <div className="text-[11px] theme-text-muted font-mono truncate">{id}</div>
                       </div>
 
                       <span
                         className={cn(
-                          "px-2 py-0.5 rounded-full border text-[10px] uppercase tracking-[0.18em]",
-                          checked
-                            ? isDark
-                              ? "border-emerald-400/55 bg-emerald-400/10 text-emerald-100"
-                              : "border-emerald-500/35 bg-emerald-50 text-emerald-700"
-                            : isDark
-                            ? "border-slate-700 bg-slate-950/20 text-slate-300"
-                            : "border-slate-200 bg-slate-50 text-slate-500"
+                          "px-2 py-0.5 rounded-full border text-[10px] uppercase tracking-[0.18em] theme-border",
+                          checked ? "accent-soft" : "theme-text-muted"
                         )}
                       >
                         {checked ? "ON" : "OFF"}

@@ -354,16 +354,12 @@ export default function ImportOperatorsExcel({ shipId, onDone }) {
       <div
         className={cn(
           "flex items-center gap-2 rounded-full border px-3 py-2 text-[11px] font-extrabold tracking-[0.16em]",
-          active
-            ? "border-sky-400/60 bg-sky-500/10 text-sky-100"
-            : done
-            ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
-            : "border-slate-700 bg-slate-950/40 text-slate-300"
+          active ? "badge-info" : done ? "badge-success" : "badge-neutral"
         )}
       >
-        <span className={cn("h-1.5 w-1.5 rounded-full", active ? "bg-sky-300" : done ? "bg-emerald-300" : "bg-slate-500")} />
+        <span className={cn("h-1.5 w-1.5 rounded-full", active ? "dot-ok" : done ? "dot-good" : "dot-neutral")} />
         <span>{n}</span>
-        <span className="text-slate-400 font-bold tracking-normal">{label}</span>
+        <span className="theme-text-muted font-bold tracking-normal">{label}</span>
       </div>
     );
   };
@@ -371,18 +367,18 @@ export default function ImportOperatorsExcel({ shipId, onDone }) {
   const disabledBecauseNoShip = !shipId;
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-3 sm:p-4">
+    <div className="rounded-2xl border theme-border bg-[var(--panel2)] p-3 sm:p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Import Excel</div>
-          <div className="text-sm font-medium text-slate-100">Lista operai (wizard)</div>
-          <div className="text-xs text-slate-400 mt-1">
+          <div className="text-[11px] uppercase tracking-[0.16em] theme-text-muted">Import Excel</div>
+          <div className="text-sm font-medium theme-text">Lista operai (wizard)</div>
+          <div className="text-xs theme-text-muted mt-1">
             Flusso: File → Mapping → Dry-run/Anteprima → Import. Nessuna creazione account.
           </div>
         </div>
 
-        <div className="text-[11px] text-slate-500 text-right">
-          <div className="uppercase tracking-[0.18em] text-slate-600">Modalità</div>
+        <div className="text-[11px] theme-text-muted text-right">
+          <div className="uppercase tracking-[0.18em] theme-text-muted">Modalità</div>
           <div>Import elenco + link cantiere</div>
         </div>
       </div>
@@ -397,7 +393,7 @@ export default function ImportOperatorsExcel({ shipId, onDone }) {
             onClick={resetAll}
             className={cn(
               "h-9 px-3 rounded-xl border text-xs font-semibold transition",
-              "border-slate-700 text-slate-100 hover:bg-slate-900/60",
+              "theme-border bg-[var(--panel2)] theme-text hover:opacity-95",
               busy && "opacity-50 cursor-not-allowed"
             )}
             disabled={busy}
@@ -417,7 +413,7 @@ export default function ImportOperatorsExcel({ shipId, onDone }) {
       {/* STEP 1 — FILE */}
       {step === 1 ? (
         <div className="mt-3">
-          <div className="text-xs text-slate-400">
+          <div className="text-xs theme-text-muted">
             Seleziona un file Excel (.xlsx/.xls). Verrà letto il primo foglio.
           </div>
 
@@ -426,7 +422,7 @@ export default function ImportOperatorsExcel({ shipId, onDone }) {
               type="file"
               accept=".xlsx,.xls"
               onChange={(e) => setFile(e.target.files?.[0] || null)}
-              className="block w-full text-xs text-slate-300"
+              className="block w-full text-xs theme-text-muted"
               disabled={busy || disabledBecauseNoShip}
             />
 
@@ -436,7 +432,7 @@ export default function ImportOperatorsExcel({ shipId, onDone }) {
               disabled={!canRead}
               className={cn(
                 "h-9 px-3 rounded-xl border text-xs font-semibold",
-                "border-slate-700 text-slate-100 hover:bg-slate-900/60",
+                "border-slate-700 theme-text hover:opacity-95",
                 "disabled:opacity-50 disabled:cursor-not-allowed"
               )}
             >
@@ -449,20 +445,20 @@ export default function ImportOperatorsExcel({ shipId, onDone }) {
       {/* STEP 2 — MAPPING */}
       {step === 2 ? (
         <div className="mt-4 grid grid-cols-1 md:grid-cols-12 gap-3">
-          <div className="md:col-span-7 rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Mapping colonne</div>
-            <div className="text-xs text-slate-400 mt-1">
-              Scegli quali colonne usare per <span className="text-slate-200">Nome</span> e{" "}
-              <span className="text-slate-200">Ruolo</span>. Nome è obbligatorio.
+          <div className="md:col-span-7 rounded-2xl border theme-border bg-[var(--panel2)] p-3">
+            <div className="text-[11px] uppercase tracking-[0.18em] theme-text-muted">Mapping colonne</div>
+            <div className="text-xs theme-text-muted mt-1">
+              Scegli quali colonne usare per <span className="theme-text">Nome</span> e{" "}
+              <span className="theme-text">Ruolo</span>. Nome è obbligatorio.
             </div>
 
             <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-1">Colonna Nome *</div>
+                <div className="text-[11px] uppercase tracking-[0.18em] theme-text-muted mb-1">Colonna Nome *</div>
                 <select
                   value={nameCol}
                   onChange={(e) => setNameCol(e.target.value)}
-                  className={cn("w-full h-10 rounded-xl border bg-slate-950/30 px-3 text-sm", "border-slate-800 text-slate-100")}
+                  className={cn("w-full h-10 rounded-xl border bg-[var(--panel2)] px-3 text-sm", "theme-border theme-text")}
                   disabled={busy}
                 >
                   <option value="">— Seleziona —</option>
@@ -475,11 +471,11 @@ export default function ImportOperatorsExcel({ shipId, onDone }) {
               </div>
 
               <div>
-                <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-1">Colonna Ruolo (opz.)</div>
+                <div className="text-[11px] uppercase tracking-[0.18em] theme-text-muted mb-1">Colonna Ruolo (opz.)</div>
                 <select
                   value={roleCol}
                   onChange={(e) => setRoleCol(e.target.value)}
-                  className={cn("w-full h-10 rounded-xl border bg-slate-950/30 px-3 text-sm", "border-slate-800 text-slate-100")}
+                  className={cn("w-full h-10 rounded-xl border bg-[var(--panel2)] px-3 text-sm", "theme-border theme-text")}
                   disabled={busy}
                 >
                   <option value="">— Nessuna —</option>
@@ -498,7 +494,7 @@ export default function ImportOperatorsExcel({ shipId, onDone }) {
                 onClick={() => setStep(1)}
                 className={cn(
                   "h-9 px-3 rounded-xl border text-xs font-semibold transition",
-                  "border-slate-700 text-slate-100 hover:bg-slate-900/60",
+                  "border-slate-700 theme-text hover:opacity-95",
                   busy && "opacity-50 cursor-not-allowed"
                 )}
                 disabled={busy}
@@ -512,7 +508,7 @@ export default function ImportOperatorsExcel({ shipId, onDone }) {
                 disabled={!canDryRun}
                 className={cn(
                   "h-9 px-3 rounded-xl border text-xs font-semibold transition",
-                  "border-sky-500/50 bg-sky-500/10 text-sky-100 hover:bg-sky-500/15",
+                  "border-[color:var(--accent)] bg-[var(--accent-soft)] text-sky-100 hover:bg-sky-500/15",
                   "disabled:opacity-50 disabled:cursor-not-allowed"
                 )}
               >
@@ -521,23 +517,23 @@ export default function ImportOperatorsExcel({ shipId, onDone }) {
             </div>
           </div>
 
-          <div className="md:col-span-5 rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Info file</div>
-            <div className="mt-2 text-xs text-slate-400">
+          <div className="md:col-span-5 rounded-2xl border theme-border bg-[var(--panel2)] p-3">
+            <div className="text-[11px] uppercase tracking-[0.18em] theme-text-muted">Info file</div>
+            <div className="mt-2 text-xs theme-text-muted">
               <div>
-                Righe lette: <span className="text-slate-200 font-semibold">{rows.length}</span>
+                Righe lette: <span className="theme-text font-semibold">{rows.length}</span>
               </div>
               <div className="mt-1">
-                Colonne trovate: <span className="text-slate-200 font-semibold">{headers.length}</span>
+                Colonne trovate: <span className="theme-text font-semibold">{headers.length}</span>
               </div>
-              <div className="mt-2 text-[11px] text-slate-500">
+              <div className="mt-2 text-[11px] theme-text-muted">
                 Suggerimenti: Nome auto-detect ={" "}
-                <span className="text-slate-200 font-semibold">{nameCol || "—"}</span>, Ruolo auto-detect ={" "}
-                <span className="text-slate-200 font-semibold">{roleCol || "—"}</span>
+                <span className="theme-text font-semibold">{nameCol || "—"}</span>, Ruolo auto-detect ={" "}
+                <span className="theme-text font-semibold">{roleCol || "—"}</span>
               </div>
             </div>
 
-            <div className="mt-3 rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2 text-[11px] text-slate-500">
+            <div className="mt-3 rounded-xl border theme-border bg-[var(--panel2)] px-3 py-2 text-[11px] theme-text-muted">
               Nota: se il file ha intestazioni strane, usa il mapping manuale qui.
             </div>
           </div>
@@ -547,11 +543,11 @@ export default function ImportOperatorsExcel({ shipId, onDone }) {
       {/* STEP 3 — DRY-RUN */}
       {step === 3 ? (
         <div className="mt-4 space-y-3">
-          <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
+          <div className="rounded-2xl border theme-border bg-[var(--panel2)] p-3">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Risultato Dry-run</div>
-                <div className="text-xs text-slate-400 mt-1">
+                <div className="text-[11px] uppercase tracking-[0.18em] theme-text-muted">Risultato Dry-run</div>
+                <div className="text-xs theme-text-muted mt-1">
                   Anteprima deterministica prima di scrivere su DB.
                 </div>
               </div>
@@ -562,7 +558,7 @@ export default function ImportOperatorsExcel({ shipId, onDone }) {
                   onClick={() => setStep(2)}
                   className={cn(
                     "h-9 px-3 rounded-xl border text-xs font-semibold transition",
-                    "border-slate-700 text-slate-100 hover:bg-slate-900/60",
+                    "border-slate-700 theme-text hover:opacity-95",
                     busy && "opacity-50 cursor-not-allowed"
                   )}
                   disabled={busy}
@@ -587,25 +583,25 @@ export default function ImportOperatorsExcel({ shipId, onDone }) {
             </div>
 
             <div className="mt-3 grid grid-cols-2 md:grid-cols-5 gap-2">
-              <div className="rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2">
-                <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Righe file</div>
-                <div className="text-lg font-semibold text-slate-100">{dry?.stats?.imported_rows ?? "—"}</div>
+              <div className="rounded-xl border theme-border bg-[var(--panel2)] px-3 py-2">
+                <div className="text-[10px] uppercase tracking-[0.18em] theme-text-muted">Righe file</div>
+                <div className="text-lg font-semibold theme-text">{dry?.stats?.imported_rows ?? "—"}</div>
               </div>
-              <div className="rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2">
-                <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Valide</div>
-                <div className="text-lg font-semibold text-slate-100">{dry?.stats?.valid_rows ?? "—"}</div>
+              <div className="rounded-xl border theme-border bg-[var(--panel2)] px-3 py-2">
+                <div className="text-[10px] uppercase tracking-[0.18em] theme-text-muted">Valide</div>
+                <div className="text-lg font-semibold theme-text">{dry?.stats?.valid_rows ?? "—"}</div>
               </div>
-              <div className="rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2">
-                <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Scartate</div>
-                <div className="text-lg font-semibold text-slate-100">{dry?.stats?.invalid_rows ?? "—"}</div>
+              <div className="rounded-xl border theme-border bg-[var(--panel2)] px-3 py-2">
+                <div className="text-[10px] uppercase tracking-[0.18em] theme-text-muted">Scartate</div>
+                <div className="text-lg font-semibold theme-text">{dry?.stats?.invalid_rows ?? "—"}</div>
               </div>
-              <div className="rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2">
-                <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Nomi unici</div>
-                <div className="text-lg font-semibold text-slate-100">{dry?.stats?.unique_names ?? "—"}</div>
+              <div className="rounded-xl border theme-border bg-[var(--panel2)] px-3 py-2">
+                <div className="text-[10px] uppercase tracking-[0.18em] theme-text-muted">Nomi unici</div>
+                <div className="text-lg font-semibold theme-text">{dry?.stats?.unique_names ?? "—"}</div>
               </div>
-              <div className="rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2">
-                <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Link creati</div>
-                <div className="text-lg font-semibold text-slate-100">{dry?.imported?.linked ?? "—"}</div>
+              <div className="rounded-xl border theme-border bg-[var(--panel2)] px-3 py-2">
+                <div className="text-[10px] uppercase tracking-[0.18em] theme-text-muted">Link creati</div>
+                <div className="text-lg font-semibold theme-text">{dry?.imported?.linked ?? "—"}</div>
               </div>
             </div>
 
@@ -629,10 +625,10 @@ export default function ImportOperatorsExcel({ shipId, onDone }) {
           </div>
 
           {/* Preview valid unique */}
-          <div className="rounded-2xl border border-slate-800 bg-slate-950/40 overflow-hidden">
-            <div className="px-3 py-2 border-b border-slate-800 bg-slate-950/60">
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Anteprima import (nomi unici)</div>
-              <div className="text-xs text-slate-400 mt-0.5">Mostra i primi 50 record che verranno salvati/aggiornati.</div>
+          <div className="rounded-2xl border theme-border bg-[var(--panel2)] overflow-hidden">
+            <div className="px-3 py-2 border-b theme-border bg-[var(--panel2)]">
+              <div className="text-[11px] uppercase tracking-[0.18em] theme-text-muted">Anteprima import (nomi unici)</div>
+              <div className="text-xs theme-text-muted mt-0.5">Mostra i primi 50 record che verranno salvati/aggiornati.</div>
             </div>
 
             <div className="max-h-[360px] overflow-auto">
@@ -641,36 +637,36 @@ export default function ImportOperatorsExcel({ shipId, onDone }) {
                   {dry.unique.slice(0, 50).map((u, idx) => (
                     <div key={`${safeLower(u.name)}-${idx}`} className="px-3 py-2 flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="text-sm font-semibold text-slate-100 truncate">{u.name}</div>
-                        <div className="text-xs text-slate-500 mt-0.5">{u.role ? `Ruolo: ${u.role}` : "Ruolo: —"}</div>
+                        <div className="text-sm font-semibold theme-text truncate">{u.name}</div>
+                        <div className="text-xs theme-text-muted mt-0.5">{u.role ? `Ruolo: ${u.role}` : "Ruolo: —"}</div>
                       </div>
                       <div className="text-[11px] text-slate-600">#{idx + 1}</div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="px-3 py-6 text-sm text-slate-500">Nessun record valido.</div>
+                <div className="px-3 py-6 text-sm theme-text-muted">Nessun record valido.</div>
               )}
             </div>
           </div>
 
           {/* Preview invalid (first 20) */}
           {Array.isArray(dry?.invalid) && dry.invalid.length > 0 ? (
-            <div className="rounded-2xl border border-slate-800 bg-slate-950/40 overflow-hidden">
-              <div className="px-3 py-2 border-b border-slate-800 bg-slate-950/60">
-                <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Righe scartate (preview)</div>
-                <div className="text-xs text-slate-400 mt-0.5">Mostra le prime 20 righe scartate con motivo.</div>
+            <div className="rounded-2xl border theme-border bg-[var(--panel2)] overflow-hidden">
+              <div className="px-3 py-2 border-b theme-border bg-[var(--panel2)]">
+                <div className="text-[11px] uppercase tracking-[0.18em] theme-text-muted">Righe scartate (preview)</div>
+                <div className="text-xs theme-text-muted mt-0.5">Mostra le prime 20 righe scartate con motivo.</div>
               </div>
 
               <div className="max-h-[240px] overflow-auto">
                 <div className="divide-y divide-slate-800">
                   {dry.invalid.slice(0, 20).map((r, idx) => (
                     <div key={`${r.row}-${idx}`} className="px-3 py-2">
-                      <div className="text-xs text-slate-300">
-                        Riga <span className="font-semibold text-slate-100">{r.row}</span> ·{" "}
+                      <div className="text-xs theme-text-muted">
+                        Riga <span className="font-semibold theme-text">{r.row}</span> ·{" "}
                         <span className="text-amber-200 font-semibold">{r.reason}</span>
                       </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">
+                      <div className="text-[11px] theme-text-muted mt-0.5">
                         Nome: {r.name ? r.name : "—"} · Ruolo: {r.role ? r.role : "—"}
                       </div>
                     </div>
@@ -688,9 +684,11 @@ export default function ImportOperatorsExcel({ shipId, onDone }) {
         </div>
       ) : null}
 
-      <div className="mt-3 text-[11px] text-slate-500">
+      <div className="mt-3 text-[11px] theme-text-muted">
         Colonne accettate: Nome (obbligatoria), Ruolo (opzionale). Dedup: case-insensitive, merge ruolo (prima occorrenza non vuota).
       </div>
     </div>
   );
 }
+
+

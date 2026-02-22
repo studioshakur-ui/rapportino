@@ -225,14 +225,10 @@ export default function AdminAssignmentsPage(): JSX.Element {
       <div className="rounded-2xl theme-panel p-4">
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">
-              ADMIN · MANAGER ↔ CAPO
-            </div>
-            <div className="mt-1 text-[14px] font-semibold text-slate-50">
-              Assignments (source des équipes Capo)
-            </div>
-            <div className="mt-1 text-[12px] text-slate-400">
-              Table: <span className="text-slate-200 font-semibold">manager_capo_assignments</span> (PK: capo_id)
+            <div className="kicker">ADMIN · MANAGER ↔ CAPO</div>
+            <div className="mt-1 text-[14px] font-semibold theme-text">Assignments (source des équipes Capo)</div>
+            <div className="mt-1 text-[12px] theme-text-muted">
+              Table: <span className="theme-text font-semibold">manager_capo_assignments</span> (PK: capo_id)
             </div>
           </div>
 
@@ -247,26 +243,26 @@ export default function AdminAssignmentsPage(): JSX.Element {
 
         <div className="mt-3 grid grid-cols-1 md:grid-cols-12 gap-2">
           <div className="md:col-span-8">
-            <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Search</div>
+            <div className="text-[11px] uppercase tracking-[0.22em] theme-text-muted">Search</div>
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Cerca capo o manager…"
-              className="mt-1 w-full rounded-xl theme-input px-3 py-2 text-[13px] placeholder:text-slate-500 outline-none"
+              className="mt-1 w-full rounded-xl theme-input px-3 py-2 text-[13px] outline-none"
             />
           </div>
           <div className="md:col-span-4 flex items-end gap-2">
             <span className={pill()}>
-              Managers: <span className="ml-2 text-slate-50">{managers.length}</span>
+              Managers: <span className="ml-2 theme-text">{managers.length}</span>
             </span>
             <span className={pill()}>
-              Capi: <span className="ml-2 text-slate-50">{capi.length}</span>
+              Capi: <span className="ml-2 theme-text">{capi.length}</span>
             </span>
           </div>
         </div>
 
         {err ? (
-          <div className="mt-3 rounded-xl border border-rose-400/25 bg-rose-500/10 px-3 py-2 text-[13px] text-rose-100">
+          <div className="mt-3 rounded-xl border border-[var(--role-danger-border)] bg-[var(--role-danger-soft)] px-3 py-2 text-[13px] text-[var(--role-danger-ink)]">
             {err}
           </div>
         ) : null}
@@ -274,35 +270,35 @@ export default function AdminAssignmentsPage(): JSX.Element {
 
       <div className="rounded-2xl theme-panel overflow-hidden">
         <div className="px-4 py-3 border-b theme-border bg-[var(--panel2)] flex items-center justify-between">
-          <div className="text-[12px] text-slate-300">
+          <div className="text-[12px] theme-text-muted">
             {loading ? "Caricamento…" : `${merged.length} capi`}
           </div>
-          <div className="text-[11px] text-slate-500">Edita assignment per capo</div>
+          <div className="text-[11px] theme-text-muted">Edita assignment per capo</div>
         </div>
 
         {loading ? (
-          <div className="px-4 py-6 text-[13px] text-slate-400">Caricamento…</div>
+          <div className="px-4 py-6 text-[13px] theme-text-muted">Caricamento…</div>
         ) : merged.length === 0 ? (
-          <div className="px-4 py-6 text-[13px] text-slate-400">
+          <div className="px-4 py-6 text-[13px] theme-text-muted">
             Nessun capo trovato.
           </div>
         ) : (
-          <div className="divide-y divide-slate-800">
+          <div className="divide-y theme-border">
             {merged.map((r) => (
               <div key={r.capo_id} className="px-4 py-4">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="text-[12px] text-slate-500">Capo</div>
-                    <div className="mt-1 text-[13px] text-slate-50 font-semibold truncate">
+                    <div className="text-[12px] theme-text-muted">Capo</div>
+                    <div className="mt-1 text-[13px] theme-text font-semibold truncate">
                       {r.capo_label}
                     </div>
-                    <div className="mt-1 text-[11px] text-slate-500">
-                      ID: <span className="text-slate-400">{r.capo_id}</span>
+                    <div className="mt-1 text-[11px] theme-text-muted">
+                      ID: <span className="theme-text-muted">{r.capo_id}</span>
                     </div>
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className="text-[12px] text-slate-500">Manager</div>
+                    <div className="text-[12px] theme-text-muted">Manager</div>
                     <select
                       value={r.manager_id || ""}
                       onChange={(e) =>
@@ -321,8 +317,8 @@ export default function AdminAssignmentsPage(): JSX.Element {
                         </option>
                       ))}
                     </select>
-                    <div className="mt-1 text-[11px] text-slate-500 truncate">
-                      Attuale: <span className="text-slate-300">{r.manager_label}</span>
+                    <div className="mt-1 text-[11px] theme-text-muted truncate">
+                      Attuale: <span className="theme-text">{r.manager_label}</span>
                     </div>
                   </div>
 
@@ -360,7 +356,7 @@ export default function AdminAssignmentsPage(): JSX.Element {
                 </div>
 
                 {!r.manager_id ? (
-                  <div className="mt-3 text-[12px] text-amber-200">
+                  <div className="mt-3 text-[12px] text-[var(--role-warning-ink)]">
                     Nessun manager assegnato: questo capo non comparirà come “slot” in un plan generato da quel manager.
                   </div>
                 ) : null}

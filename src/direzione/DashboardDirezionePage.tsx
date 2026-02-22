@@ -1,6 +1,5 @@
-// src/direzione/DashboardDirezionePage.jsx
-import React, { useMemo, useState } from "react";
-import { cn } from "../ui/cn";
+// src/direzione/DashboardDirezionePage.tsx
+import { useMemo, useState, type ReactNode } from "react";
 import { formatNumberIT } from "../ui/format";
 import { useCoreI18n } from "../i18n/coreI18n";
 import KpiCard from "../features/kpi/components/KpiCard";
@@ -17,14 +16,39 @@ import DirezioneChartsSection from "../components/charts/DirezioneChartsSection"
  * - Cette page est "UI-first": elle attend un "kpiModel" prêt.
  * - Branche ton loader Supabase existant en amont et remplis kpiModel.
  */
+type KpiModel = {
+  rapportini?: number | string;
+  rapportini_prev?: number | string;
+  righe_attivita?: number | string;
+  righe_attivita_vs_prev?: string;
+  indice_prod?: number;
+  indice_prod_sub?: string;
+  inca_prev?: number;
+  inca_real?: number;
+  ritardi_capi?: number | string;
+  ritardi_deadline?: string;
+  windowLabel?: string;
+  trend?: { x?: unknown[]; y?: unknown[]; min?: unknown; max?: unknown } | null;
+  inca?: { labels?: unknown[]; previsti?: unknown[]; realizzati?: unknown[]; posati?: unknown[] } | null;
+};
+
+type Props = {
+  isDark?: boolean;
+  kpiModel?: KpiModel;
+  onResetFilters?: () => void;
+  headerRight?: ReactNode;
+};
+
+type KpiKey = "rapportini" | "righe" | "prod_index" | "inca_prev" | "inca_real" | "ritardi";
+
 export default function DashboardDirezionePage({
   isDark = true,
   kpiModel,
   onResetFilters,
   headerRight,
-}) {
+}: Props): JSX.Element {
   const { t } = useCoreI18n();
-  const [modalKey, setModalKey] = useState(null);
+  const [modalKey, setModalKey] = useState<KpiKey | null>(null);
 
   const km = kpiModel || {};
   const hint = t("KPI_HINT_CLICK");
@@ -78,7 +102,7 @@ export default function DashboardDirezionePage({
     };
   }, [km, t]);
 
-  const openModal = (key) => setModalKey(key);
+  const openModal = (key: KpiKey) => setModalKey(key);
   const closeModal = () => setModalKey(null);
 
   const strip = (
@@ -90,7 +114,6 @@ export default function DashboardDirezionePage({
           sub={km.rapportini_prev != null ? `Prev: ${km.rapportini_prev}` : "—"}
           tone="neutral"
           onClick={() => openModal("rapportini")}
-          isDark={isDark}
           hint={hint}
         />
 
@@ -100,7 +123,6 @@ export default function DashboardDirezionePage({
           sub={km.righe_attivita_vs_prev ?? "—"}
           tone="sky"
           onClick={() => openModal("righe")}
-          isDark={isDark}
           hint={hint}
         />
 
@@ -110,7 +132,6 @@ export default function DashboardDirezionePage({
           sub={km.indice_prod_sub ?? "Σrealizzato / Σprevisto_eff"}
           tone="fuchsia"
           onClick={() => openModal("prod_index")}
-          isDark={isDark}
           hint={hint}
         />
 
@@ -120,7 +141,6 @@ export default function DashboardDirezionePage({
           sub="metri"
           tone="neutral"
           onClick={() => openModal("inca_prev")}
-          isDark={isDark}
           hint={hint}
         />
 
@@ -130,7 +150,6 @@ export default function DashboardDirezionePage({
           sub="metri"
           tone="emerald"
           onClick={() => openModal("inca_real")}
-          isDark={isDark}
           hint={hint}
         />
 
@@ -140,7 +159,6 @@ export default function DashboardDirezionePage({
           sub={km.ritardi_deadline ? `deadline ${km.ritardi_deadline}` : "deadline 08:30 (J+1)"}
           tone="rose"
           onClick={() => openModal("ritardi")}
-          isDark={isDark}
           hint={hint}
         />
       </div>
@@ -157,21 +175,12 @@ export default function DashboardDirezionePage({
       */}
       <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-start">
         <div className="min-w-0">
-          <div className={cn("text-[11px] uppercase tracking-[0.18em]", isDark ? "text-slate-500" : "text-slate-600")}>
-            DIREZIONE · CNCS / CORE
-          </div>
-          <h1 className={cn("text-xl sm:text-2xl font-semibold mt-1", isDark ? "text-slate-50" : "text-slate-900")}>
-            {t("DIR_DASH_TITLE")}
-          </h1>
+          <div className="kicker">DIREZIONE · CNCS / CORE</div>
+          <h1 className="text-xl sm:text-2xl font-semibold mt-1 theme-text">{t("DIR_DASH_TITLE")}</h1>
         </div>
 
         <div className="flex items-center gap-2 justify-self-start sm:justify-self-end">
-          <span
-            className={cn(
-              "px-3 py-1.5 rounded-full border text-[11px] uppercase tracking-[0.18em]",
-              isDark ? "border-emerald-500/35 bg-emerald-950/20 text-emerald-200" : "border-emerald-300 bg-emerald-50 text-emerald-800"
-            )}
-          >
+          <span className="chip chip-status px-3 py-1.5 text-[11px] uppercase tracking-[0.18em]">
             {t("DIR_READONLY")}
           </span>
 
@@ -180,17 +189,14 @@ export default function DashboardDirezionePage({
       </div>
 
       <div className="mt-3 grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-center">
-        <div className={cn("text-xs", isDark ? "text-slate-400" : "text-slate-600")}>
-          {t("DIR_WINDOW")}: <span className={cn("font-semibold", isDark ? "text-slate-200" : "text-slate-900")}>{km.windowLabel ?? "—"}</span>
+        <div className="text-xs theme-text-muted">
+          {t("DIR_WINDOW")}: <span className="font-semibold theme-text">{km.windowLabel ?? "—"}</span>
         </div>
 
         <button
           type="button"
           onClick={onResetFilters}
-          className={cn(
-            "justify-self-start sm:justify-self-end min-w-[160px] px-3 py-1.5 rounded-full border text-[11px] uppercase tracking-[0.18em] transition",
-            isDark ? "border-slate-700/70 bg-slate-950/30 text-slate-200 hover:bg-slate-900/40" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-          )}
+          className="justify-self-start sm:justify-self-end min-w-[160px] px-3 py-1.5 rounded-full text-[11px] uppercase tracking-[0.18em] transition btn-instrument"
         >
           {t("DIR_RESET_FILTERS")}
         </button>
@@ -210,7 +216,7 @@ export default function DashboardDirezionePage({
       <KpiDetailsModal
         open={!!modalKey}
         onClose={closeModal}
-        kpiKey={modalKey}
+        kpiKey={modalKey ?? undefined}
         payload={modalKey ? modalPayloadByKey[modalKey] : null}
         isDark={isDark}
       />
