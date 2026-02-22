@@ -14,6 +14,21 @@ export type ShipLite = {
   is_active?: boolean | null;
 };
 
+export type NavemasterLatestImportV1 = {
+  id: string;
+  ship_id: string;
+  costr: string | null;
+  commessa: string | null;
+  file_name: string | null;
+  file_bucket: string | null;
+  file_path: string | null;
+  source_sha256: string | null;
+  note: string | null;
+  imported_by: string | null;
+  imported_at: string;
+  is_active: boolean | null;
+};
+
 export type NavemasterLiveRowV1 = {
   ship_id: string;
   navemaster_import_id: string;

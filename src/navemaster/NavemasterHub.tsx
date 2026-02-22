@@ -76,20 +76,22 @@ export default function NavemasterHub(): JSX.Element {
 
   useEffect(() => {
     let mounted = true;
-    if (!selectedShipId) {
-      setHasRun(null);
-      setRunMeta(null);
+    async function loadLatestRun(): Promise<void> {
+      if (!selectedShipId) {
+        setHasRun(null);
+        setRunMeta(null);
+        setRunError(null);
+        return;
+      }
+
+      setRunLoading(true);
       setRunError(null);
-      return;
-    }
-    setRunLoading(true);
-    setRunError(null);
-    supabase
-      .from("navemaster_latest_run_v2")
-      .select("id, frozen_at")
-      .eq("ship_id", selectedShipId)
-      .maybeSingle()
-      .then(({ data, error }) => {
+      try {
+        const { data, error } = await supabase
+          .from("navemaster_latest_run_v2")
+          .select("id, frozen_at")
+          .eq("ship_id", selectedShipId)
+          .maybeSingle();
         if (!mounted) return;
         if (error) {
           setRunError(error.message || "run lookup error");
@@ -104,11 +106,13 @@ export default function NavemasterHub(): JSX.Element {
         }
         setHasRun(true);
         setRunMeta({ frozen_at: (data as any).frozen_at ?? null });
-      })
-      .finally(() => {
+      } finally {
         if (!mounted) return;
         setRunLoading(false);
-      });
+      }
+    }
+
+    void loadLatestRun();
 
     return () => {
       mounted = false;

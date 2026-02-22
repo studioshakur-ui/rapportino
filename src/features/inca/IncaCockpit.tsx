@@ -5,7 +5,7 @@ import LoadingScreen from "../../components/LoadingScreen";
 import { supabase } from "../../lib/supabaseClient";
 
 import { CodicePill } from "../inca/IncaPills";
-import IncaCaviTable, { type IncaCavoRow, type IncaTableViewMode } from "./IncaCaviTable";
+import IncaCaviTable, { type IncaCavoRow } from "./IncaCaviTable";
 
 export type IncaCockpitMode = "page" | "modal";
 
@@ -212,9 +212,6 @@ export default function IncaCockpit(props: IncaCockpitProps) {
   const [apparatoDa, setApparatoDa] = useState<string>("");
   const [apparatoA, setApparatoA] = useState<string>("");
 
-  // Table view
-  const [viewMode, setViewMode] = useState<IncaTableViewMode>(mode === "modal" ? "audit" : "standard");
-
   // Data
   const [cavi, setCavi] = useState<IncaCavoRow[]>([]);
 
@@ -222,9 +219,6 @@ export default function IncaCockpit(props: IncaCockpitProps) {
   const [loadingFiles, setLoadingFiles] = useState<boolean>(true);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Selection
-  const [selectedCable, setSelectedCable] = useState<IncaCavoRow | null>(null);
 
   const loadInfo = useMemo(() => ({ pageSize: 1000, maxPages: 200 }), []);
 
@@ -320,14 +314,12 @@ export default function IncaCockpit(props: IncaCockpitProps) {
       if (!effectiveHeadId) {
         setLoading(false);
         setError(null);
-        setSelectedCable(null);
         setCavi([]);
         return;
       }
 
       setLoading(true);
       setError(null);
-      setSelectedCable(null);
 
       try {
         const all: IncaCavoRow[] = [];
@@ -762,8 +754,7 @@ export default function IncaCockpit(props: IncaCockpitProps) {
             ) : (
               <IncaCaviTable
                 rows={filteredCavi}
-                variant={viewMode}
-                onRowClick={(r) => setSelectedCable(r)}
+                variant={mode === "modal" ? "audit" : "standard"}
               />
             )}
           </div>

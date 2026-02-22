@@ -48,8 +48,6 @@ export default function ManagerShell() {
   };
 
   const pathname = location.pathname || "";
-  const isAssignmentsPage =
-    pathname.startsWith("/manager/assegnazioni") || pathname.startsWith("/manager/assignments");
   const pageTitle = pathname.startsWith("/manager/assegnazioni")
     ? t("NAV_ASSIGNMENTS")
     : pathname.startsWith("/manager/capi-cantieri")

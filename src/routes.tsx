@@ -53,7 +53,7 @@ import NavemasterHub from "./navemaster/NavemasterHub";
 // DIREZIONE
 import DirezioneDashboard from "./components/DirezioneDashboard";
 import DirezioneOperatorKPI from "./features/kpi/pages/DirezioneOperatorKPI";
-import ManagerOperatorKPI from "./features/kpi/pages/ManagerOperatorKPI";
+import ManagerOperatorKpi from "./features/kpi/pages/ManagerOperatorKpi";
 import CorePresentation from "./pages/CorePresentation";
 import CapoPresentation from "./pages/CapoPresentation";
 
@@ -136,6 +136,8 @@ export default function AppRoutes(): JSX.Element {
         <Route path="catalogo" element={<AdminCatalogoPage />} />
         <Route path="planning" element={<AdminPlanningPage />} />
         <Route path="assignments" element={<AdminAssignmentsPage />} />
+        <Route path="assegnazioni" element={<Navigate to="../assignments" replace />} />
+        <Route path="assignment" element={<Navigate to="../assignments" replace />} />
         <Route path="audit" element={<AdminAuditPage />} />
         <Route path="perimetri" element={<AdminPerimetersPage />} />
         <Route path="perimeters" element={<Navigate to="../perimetri" replace />} />
@@ -258,7 +260,7 @@ export default function AppRoutes(): JSX.Element {
         <Route path="core-drive" element={<Navigate to="../drive" replace />} />
         <Route path="archive" element={<Navigate to="../drive" replace />} />
         <Route path="analytics" element={<ManagerAnalyticsPage />} />
-        <Route path="kpi-operatori" element={<ManagerOperatorKPI />} />
+        <Route path="kpi-operatori" element={<ManagerOperatorKpi />} />
       </Route>
 
       {/* ===== EVOLUZIONE ===== */}

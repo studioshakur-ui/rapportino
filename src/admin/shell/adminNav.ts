@@ -17,7 +17,7 @@ export function buildAdminMenu(pathname: string): AdminMenuItem[] {
     { to: "/admin/perimetri", label: "Perimetri", active: is("/admin/perimetri") },
     { to: "/admin/catalogo", label: "Catalogo", active: is("/admin/catalogo") },
     { to: "/admin/planning", label: "Planning (overview)", active: is("/admin/planning") },
-    { to: "/admin/assignments", label: "Manager ↔ Capo", active: is("/admin/assignments") },
+    { to: "/admin/assignments", label: "Assignments (Manager ↔ Capo)", active: is("/admin/assignments") || is("/admin/assegnazioni") || is("/admin/assignment") },
     { to: "/admin/audit", label: "Audit planning", active: is("/admin/audit") },
     { to: "/admin/core-drive", label: "CORE Drive", active: is("/admin/core-drive") || is("/admin/archive") },
   ];
@@ -77,7 +77,7 @@ export function defaultConsoleConfig(pathname: string): AdminConsoleConfig {
       searchPlaceholder: "Cerca piani, capi, manager, operatori…",
     };
   }
-  if (pathname.startsWith("/admin/assignments")) {
+  if (pathname.startsWith("/admin/assignments") || pathname.startsWith("/admin/assegnazioni") || pathname.startsWith("/admin/assignment")) {
     return {
       ...base,
       title: "Manager ↔ Capo",

@@ -403,11 +403,6 @@ export default function MegaKpiCapoStesuraPanel({
     return daily.map(() => targetTotal);
   }, [daily, targetTotal]);
 
-  const incaLine = useMemo(() => {
-    if (!daily.length || !incaTotal) return [];
-    return daily.map(() => incaTotal);
-  }, [daily, incaTotal]);
-
   const incaProgressLine = useMemo(() => {
     if (!daily.length || !incaProgressM) return [];
     return daily.map(() => incaProgressM);

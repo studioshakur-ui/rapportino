@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:win": "cmd /c \"set ESBUILD_DISABLE_SERVICE=1&& vite build\"",
+    "build:win": "cmd /c \"set ESBUILD_DISABLE_SERVICE=1&& set ESBUILD_USE_WORKER=0&& set ESBUILD_BINARY_PATH=C:\\dev\\percorso\\viewer\\node_modules\\@esbuild\\win32-x64\\esbuild.exe&& vite build\"",
     "preview": "vite preview",
     "db:update": "powershell -ExecutionPolicy Bypass -File scripts/db-update.ps1",
     "typecheck": "tsc -p tsconfig.json --noEmit"

@@ -23,7 +23,7 @@ export default function IncaFileViewer({ file }: { file?: IncaFile | null }) {
   const [cavi, setCavi] = useState<IncaCavoMetricRow[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<IncaTableViewMode>("standard");
+  const viewMode: IncaTableViewMode = "standard";
 
   useEffect(() => {
     let active = true;
@@ -118,9 +118,8 @@ export default function IncaFileViewer({ file }: { file?: IncaFile | null }) {
 
       <IncaCaviTable
         rows={cavi}
-        loading={loading}
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
+        variant={viewMode}
+        viewLabel={loading ? "Caricamento..." : undefined}
       />
     </div>
   );

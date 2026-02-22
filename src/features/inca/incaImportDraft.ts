@@ -1,7 +1,5 @@
 // src/features/inca/incaImportDraft.ts
 
-export type IncaImportModeUI = "COMMIT" | "ENRICH_TIPO";
-
 export type IncaImportDraftV1 = {
   v: 1;
   open: boolean;
@@ -12,9 +10,6 @@ export type IncaImportDraftV1 = {
   commessa: string;
   projectCode: string;
   note: string;
-
-  modeUI: IncaImportModeUI;
-  targetIncaFileId: string;
 
   // UX: iOS file picker can kill the webview; if true we show a resume banner
   needsReselectFile: boolean;
@@ -46,8 +41,6 @@ export function readIncaImportDraft(): IncaImportDraftV1 | null {
       commessa: String(v.commessa ?? ""),
       projectCode: String(v.projectCode ?? ""),
       note: String(v.note ?? ""),
-      modeUI: (v.modeUI === "ENRICH_TIPO" ? "ENRICH_TIPO" : "COMMIT") as IncaImportModeUI,
-      targetIncaFileId: String(v.targetIncaFileId ?? ""),
       needsReselectFile: !!v.needsReselectFile,
     };
   } catch {

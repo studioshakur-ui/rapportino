@@ -1,4 +1,3 @@
-// src/admin/AdminAssignmentsPage.tsx
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAdminConsole } from "./AdminConsoleContext";
@@ -11,50 +10,77 @@ type ProfileRow = {
   app_role?: string | null;
 };
 
-type AssignmentRow = {
-  capo_id: string;
-  manager_id?: string | null;
-  active?: boolean | null;
-  created_at?: string | null;
-  created_by?: string | null;
+type ShipRow = {
+  id: string;
+  code?: string | null;
+  name?: string | null;
+  costr?: string | null;
+  commessa?: string | null;
 };
 
-type MergedRow = {
+type AssignmentRow = {
   capo_id: string;
-  manager_id: string | null;
+  manager_id: string;
   active: boolean;
-  capo_label: string;
-  manager_label: string;
+  created_at?: string | null;
+};
+
+type ShipManagerRow = {
+  ship_id: string;
+  manager_id: string;
+  created_at?: string | null;
 };
 
 function cn(...p: Array<string | false | null | undefined>): string {
   return p.filter(Boolean).join(" ");
 }
 
-function pill(): string {
-  return cn(
-    "inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold",
-    "badge-neutral"
-  );
+function labelOf(p?: ProfileRow | null): string {
+  return (p?.display_name || p?.full_name || p?.email || p?.id || "—").trim();
+}
+
+function scopeLabelOfShip(s?: ShipRow | null): string {
+  if (!s) return "—";
+  const costr = (s.costr || "").trim();
+  const commessa = (s.commessa || "").trim();
+  if (costr && commessa) return `${costr} · ${commessa}`;
+  return (s.code || s.name || s.id || "—").trim();
+}
+
+function shipLabel(s?: ShipRow | null): string {
+  if (!s) return "—";
+  const code = (s.code || "").trim();
+  const name = (s.name || "").trim();
+  const scope = scopeLabelOfShip(s);
+  if (code && name) return `${code} · ${name} (${scope})`;
+  if (code) return `${code} (${scope})`;
+  if (name) return `${name} (${scope})`;
+  return scope;
 }
 
 export default function AdminAssignmentsPage(): JSX.Element {
   const { setConfig, resetConfig, registerSearchItems, clearSearchItems, setRecentItems } = useAdminConsole();
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState("");
+
+  const [loading, setLoading] = useState<boolean>(true);
+  const [busy, setBusy] = useState<boolean>(false);
+  const [err, setErr] = useState<string>("");
 
   const [managers, setManagers] = useState<ProfileRow[]>([]);
   const [capi, setCapi] = useState<ProfileRow[]>([]);
+  const [ships, setShips] = useState<ShipRow[]>([]);
   const [assignments, setAssignments] = useState<AssignmentRow[]>([]);
+  const [shipManagers, setShipManagers] = useState<ShipManagerRow[]>([]);
 
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState<string>("");
+  const [selectedManagerId, setSelectedManagerId] = useState<string>("");
+  const [newCostr, setNewCostr] = useState<string>("");
+  const [newCommessa, setNewCommessa] = useState<string>("");
 
   const loadAll = async (): Promise<void> => {
     setLoading(true);
     setErr("");
     try {
-      // Profiles: app_role is text in your schema snippet; values are MANAGER / CAPO
-      const [mgrRes, capoRes, asgRes] = await Promise.all([
+      const [mgrRes, capoRes, shipRes, asgRes, shipMgrRes] = await Promise.all([
         supabase
           .from("profiles")
           .select("id, display_name, full_name, email, app_role")
@@ -68,105 +94,175 @@ export default function AdminAssignmentsPage(): JSX.Element {
           .order("display_name", { ascending: true }),
 
         supabase
+          .from("ships")
+          .select("id, code, name, costr, commessa")
+          .order("code", { ascending: true }),
+
+        supabase
           .from("manager_capo_assignments")
-          .select("capo_id, manager_id, active, created_at, created_by")
+          .select("capo_id, manager_id, active, created_at")
+          .order("created_at", { ascending: false }),
+
+        supabase
+          .from("ship_managers")
+          .select("ship_id, manager_id, created_at")
           .order("created_at", { ascending: false }),
       ]);
 
       if (mgrRes.error) throw mgrRes.error;
       if (capoRes.error) throw capoRes.error;
+      if (shipRes.error) throw shipRes.error;
       if (asgRes.error) throw asgRes.error;
+      if (shipMgrRes.error) throw shipMgrRes.error;
 
-      setManagers(Array.isArray(mgrRes.data) ? mgrRes.data : []);
-      setCapi(Array.isArray(capoRes.data) ? capoRes.data : []);
-      setAssignments(Array.isArray(asgRes.data) ? asgRes.data : []);
+      const mgrs = Array.isArray(mgrRes.data) ? (mgrRes.data as ProfileRow[]) : [];
+      setManagers(mgrs);
+      setCapi(Array.isArray(capoRes.data) ? (capoRes.data as ProfileRow[]) : []);
+      setShips(Array.isArray(shipRes.data) ? (shipRes.data as ShipRow[]) : []);
+      setAssignments(Array.isArray(asgRes.data) ? (asgRes.data as AssignmentRow[]) : []);
+      setShipManagers(Array.isArray(shipMgrRes.data) ? (shipMgrRes.data as ShipManagerRow[]) : []);
+
+      if (!selectedManagerId && mgrs.length > 0) {
+        setSelectedManagerId(mgrs[0].id);
+      }
     } catch (e) {
       console.error("[AdminAssignmentsPage] load error:", e);
-      setErr("Impossibile caricare profili o assignments (verifica RLS).");
+      setErr("Impossibile caricare manager/capi/scope (verifica RLS).");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadAll();
+    void loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const capoById = useMemo(() => new Map(capi.map((x) => [x.id, x])), [capi]);
   const managerById = useMemo(() => new Map(managers.map((x) => [x.id, x])), [managers]);
+  const shipById = useMemo(() => new Map(ships.map((x) => [x.id, x])), [ships]);
 
-  const merged = useMemo<MergedRow[]>(() => {
-    const map = new Map<string, { capo_id: string; manager_id: string | null; active: boolean }>(); // capo_id -> assignment row (or empty)
-    for (const c of capi) {
-      map.set(c.id, { capo_id: c.id, manager_id: null, active: false });
+  const assignmentByCapo = useMemo(() => {
+    const map = new Map<string, AssignmentRow>();
+    for (const a of assignments) map.set(a.capo_id, a);
+    return map;
+  }, [assignments]);
+
+  const scopesByManager = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const sm of shipManagers) {
+      const s = shipById.get(sm.ship_id);
+      if (!s) continue;
+      const lbl = scopeLabelOfShip(s);
+      const arr = map.get(sm.manager_id) || [];
+      if (!arr.includes(lbl)) arr.push(lbl);
+      map.set(sm.manager_id, arr);
     }
+    for (const [k, arr] of map) {
+      arr.sort((a, b) => a.localeCompare(b));
+      map.set(k, arr);
+    }
+    return map;
+  }, [shipManagers, shipById]);
+
+  const capiCountByManager = useMemo(() => {
+    const map = new Map<string, number>();
     for (const a of assignments) {
-      if (!a?.capo_id) continue;
-      map.set(a.capo_id, {
-        capo_id: a.capo_id,
-        manager_id: a.manager_id || null,
-        active: Boolean(a.active),
-      });
+      if (!a.manager_id || !a.active) continue;
+      map.set(a.manager_id, (map.get(a.manager_id) || 0) + 1);
     }
+    return map;
+  }, [assignments]);
 
-    const list: MergedRow[] = Array.from(map.values()).map((r) => {
-      const capo = capoById.get(r.capo_id);
-      const mgr = r.manager_id ? managerById.get(r.manager_id) : null;
-      return {
-        ...r,
-        capo_label:
-          capo?.display_name || capo?.full_name || capo?.email || r.capo_id,
-        manager_label:
-          mgr?.display_name || mgr?.full_name || mgr?.email || (r.manager_id || "—"),
-      };
-    });
-
+  const filteredManagers = useMemo(() => {
     const qq = (q || "").trim().toLowerCase();
-    if (!qq) return list;
-
-    return list.filter((x) => {
-      const blob = `${x.capo_id} ${x.capo_label} ${x.manager_id || ""} ${x.manager_label} ${x.active}`
+    if (!qq) return managers;
+    return managers.filter((m) => {
+      const blob = [
+        m.id,
+        m.display_name,
+        m.full_name,
+        m.email,
+        (scopesByManager.get(m.id) || []).join(" "),
+      ]
+        .filter(Boolean)
+        .join(" ")
         .toLowerCase();
       return blob.includes(qq);
     });
-  }, [assignments, capi, capoById, managerById, q]);
+  }, [managers, q, scopesByManager]);
 
-  const searchItems = useMemo(() => {
-    return merged.map((r) => ({
-      id: String(r.capo_id),
-      entity: "Manager ↔ Capo",
-      title: r.capo_label || String(r.capo_id),
-      subtitle: `Manager: ${r.manager_label || "—"}`,
-      route: "/admin/assignments",
-      tokens: [r.capo_id, r.capo_label, r.manager_id, r.manager_label].filter(Boolean).join(" "),
-    }));
-  }, [merged]);
+  const selectedManager = useMemo(
+    () => managers.find((m) => m.id === selectedManagerId) || null,
+    [managers, selectedManagerId]
+  );
 
-  const recent = useMemo(() => {
-    const sorted = [...assignments].sort((a, b) =>
-      String(b.created_at || "").localeCompare(String(a.created_at || ""))
+  const selectedManagerCapos = useMemo(() => {
+    if (!selectedManagerId) return new Set<string>();
+    return new Set(
+      assignments
+        .filter((a) => a.manager_id === selectedManagerId)
+        .map((a) => a.capo_id)
     );
-    return sorted.slice(0, 5).map((a) => {
-      const capo = capoById.get(a.capo_id);
-      const mgr = a.manager_id ? managerById.get(a.manager_id) : null;
+  }, [assignments, selectedManagerId]);
+
+  const selectedManagerShips = useMemo(() => {
+    if (!selectedManagerId) return new Set<string>();
+    return new Set(
+      shipManagers
+        .filter((x) => x.manager_id === selectedManagerId)
+        .map((x) => x.ship_id)
+    );
+  }, [shipManagers, selectedManagerId]);
+
+  const capiRows = useMemo(() => {
+    return capi.map((c) => {
+      const a = assignmentByCapo.get(c.id);
+      const currentManager = a?.manager_id ? managerById.get(a.manager_id) : null;
+      const assignedToSelected = Boolean(a && a.manager_id === selectedManagerId);
       return {
-        id: String(a.capo_id),
-        title: capo?.display_name || capo?.full_name || capo?.email || a.capo_id,
-        subtitle: mgr?.display_name || mgr?.full_name || mgr?.email || a.manager_id || "—",
-        route: "/admin/assignments",
-        timeLabel: a.created_at || undefined,
+        capo: c,
+        assignment: a || null,
+        currentManagerLabel: labelOf(currentManager),
+        assignedToSelected,
       };
     });
-  }, [assignments, capoById, managerById]);
+  }, [capi, assignmentByCapo, managerById, selectedManagerId]);
+
+  const searchItems = useMemo(() => {
+    return managers.map((m) => {
+      const capiCount = capiCountByManager.get(m.id) || 0;
+      const scopes = scopesByManager.get(m.id) || [];
+      return {
+        id: m.id,
+        entity: "Assignments",
+        title: labelOf(m),
+        subtitle: `Capi: ${capiCount} · Scope: ${scopes.length}`,
+        route: "/admin/assignments",
+        tokens: [m.id, m.display_name, m.full_name, m.email, scopes.join(" ")].filter(Boolean).join(" "),
+      };
+    });
+  }, [managers, capiCountByManager, scopesByManager]);
+
+  const recent = useMemo(() => {
+    return managers.slice(0, 5).map((m) => ({
+      id: m.id,
+      title: labelOf(m),
+      subtitle: `Capi ${capiCountByManager.get(m.id) || 0}`,
+      route: "/admin/assignments",
+    }));
+  }, [managers, capiCountByManager]);
 
   useEffect(() => {
-    setConfig({ title: "Manager ↔ Capo", searchPlaceholder: "Cerca capi o manager…" });
+    setConfig({
+      title: "Assignments (Manager scope)",
+      searchPlaceholder: "Cerca manager, costr, commessa…",
+    });
     return () => resetConfig();
   }, [setConfig, resetConfig]);
 
   useEffect(() => {
-    registerSearchItems("Manager ↔ Capo", searchItems);
-    return () => clearSearchItems("Manager ↔ Capo");
+    registerSearchItems("Assignments", searchItems);
+    return () => clearSearchItems("Assignments");
   }, [registerSearchItems, clearSearchItems, searchItems]);
 
   useEffect(() => {
@@ -174,49 +270,165 @@ export default function AdminAssignmentsPage(): JSX.Element {
     return () => setRecentItems([]);
   }, [setRecentItems, recent]);
 
-  const upsertAssignment = async ({
-    capo_id,
-    manager_id,
-    active,
-  }: {
-    capo_id: string;
-    manager_id: string | null;
-    active: boolean;
-  }): Promise<void> => {
+  const assignCapoToManager = async (capoId: string, managerId: string): Promise<void> => {
+    setBusy(true);
     setErr("");
     try {
-      const payload = {
-        capo_id,
-        manager_id: manager_id || null,
-        active: Boolean(active),
-      };
-
-      // PK is capo_id -> upsert is deterministic
       const { error } = await supabase
         .from("manager_capo_assignments")
-        .upsert(payload, { onConflict: "capo_id" });
-
+        .upsert({ capo_id: capoId, manager_id: managerId, active: true }, { onConflict: "capo_id" });
       if (error) throw error;
       await loadAll();
     } catch (e) {
-      console.error("[AdminAssignmentsPage] upsert error:", e);
-      setErr("Errore salvando assignment (upsert).");
+      console.error("[AdminAssignmentsPage] assignCapoToManager error:", e);
+      setErr("Errore salvando assegnazione CAPO → Manager.");
+    } finally {
+      setBusy(false);
     }
   };
 
-  const clearAssignment = async (capo_id: string): Promise<void> => {
+  const unassignCapo = async (capoId: string): Promise<void> => {
+    setBusy(true);
     setErr("");
     try {
       const { error } = await supabase
         .from("manager_capo_assignments")
         .delete()
-        .eq("capo_id", capo_id);
-
+        .eq("capo_id", capoId);
       if (error) throw error;
       await loadAll();
     } catch (e) {
-      console.error("[AdminAssignmentsPage] delete error:", e);
-      setErr("Errore rimuovendo assignment (delete).");
+      console.error("[AdminAssignmentsPage] unassignCapo error:", e);
+      setErr("Errore rimuovendo assegnazione CAPO.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleCapoActive = async (capoId: string, nextActive: boolean): Promise<void> => {
+    setBusy(true);
+    setErr("");
+    try {
+      const { error } = await supabase
+        .from("manager_capo_assignments")
+        .update({ active: nextActive })
+        .eq("capo_id", capoId);
+      if (error) throw error;
+      await loadAll();
+    } catch (e) {
+      console.error("[AdminAssignmentsPage] toggleCapoActive error:", e);
+      setErr("Errore aggiornando stato assegnazione CAPO.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const addScopeShip = async (shipId: string, managerId: string): Promise<void> => {
+    setBusy(true);
+    setErr("");
+    try {
+      const { error } = await supabase
+        .from("ship_managers")
+        .upsert({ ship_id: shipId, manager_id: managerId }, { onConflict: "ship_id,manager_id" });
+      if (error) throw error;
+      await loadAll();
+    } catch (e) {
+      console.error("[AdminAssignmentsPage] addScopeShip error:", e);
+      setErr("Errore salvando scope Manager (nave).");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeScopeShip = async (shipId: string, managerId: string): Promise<void> => {
+    setBusy(true);
+    setErr("");
+    try {
+      const { error } = await supabase
+        .from("ship_managers")
+        .delete()
+        .eq("ship_id", shipId)
+        .eq("manager_id", managerId);
+      if (error) throw error;
+      await loadAll();
+    } catch (e) {
+      console.error("[AdminAssignmentsPage] removeScopeShip error:", e);
+      setErr("Errore rimuovendo scope Manager (nave).");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const createScopeAndAssign = async (): Promise<void> => {
+    const managerId = selectedManagerId;
+    const costr = newCostr.trim();
+    const commessa = newCommessa.trim();
+
+    if (!managerId) {
+      setErr("Seleziona prima un manager.");
+      return;
+    }
+    if (!costr || !commessa) {
+      setErr("Compila costr e commessa per creare un nuovo scope.");
+      return;
+    }
+
+    setBusy(true);
+    setErr("");
+    try {
+      // 1) Reuse existing ship if same scope already exists
+      const existing = ships.find(
+        (s) =>
+          (s.costr || "").trim().toLowerCase() === costr.toLowerCase() &&
+          (s.commessa || "").trim().toLowerCase() === commessa.toLowerCase()
+      );
+      let shipId = existing?.id || "";
+
+      // 2) Otherwise create a new ship with derived code/name
+      if (!shipId) {
+        const code = `${costr}-${commessa}`.replace(/\s+/g, "-").toUpperCase().slice(0, 64);
+        const name = `COSTR ${costr} · ${commessa}`.slice(0, 120);
+
+        const { data: insertedShip, error: shipErr } = await supabase
+          .from("ships")
+          .insert({
+            costr,
+            commessa,
+            code,
+            name,
+            is_active: true,
+          })
+          .select("id")
+          .single();
+        if (shipErr) {
+          const sx = shipErr as { code?: string; message?: string };
+          if (sx?.code === "42501") {
+            setErr(
+              "RLS bloque la création de nave (table ships). Applique la migration policy ADMIN INSERT sur ships, puis réessaie ici."
+            );
+            return;
+          }
+          throw shipErr;
+        }
+        shipId = String((insertedShip as { id: string }).id || "");
+      }
+
+      if (!shipId) throw new Error("Nave non risolta.");
+
+      // 3) Link ship to selected manager
+      const { error: linkErr } = await supabase
+        .from("ship_managers")
+        .upsert({ ship_id: shipId, manager_id: managerId }, { onConflict: "ship_id,manager_id" });
+      if (linkErr) throw linkErr;
+
+      setNewCostr("");
+      setNewCommessa("");
+      await loadAll();
+    } catch (e) {
+      console.error("[AdminAssignmentsPage] createScopeAndAssign error:", e);
+      setErr("Errore creando/collegando scope manager.");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -225,17 +437,18 @@ export default function AdminAssignmentsPage(): JSX.Element {
       <div className="rounded-2xl theme-panel p-4">
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
           <div className="min-w-0">
-            <div className="kicker">ADMIN · MANAGER ↔ CAPO</div>
-            <div className="mt-1 text-[14px] font-semibold theme-text">Assignments (source des équipes Capo)</div>
+            <div className="kicker">ADMIN · MANAGER ORIENTED</div>
+            <div className="mt-1 text-[14px] font-semibold theme-text">Manager → CAPO + Scope (costr/commessa)</div>
             <div className="mt-1 text-[12px] theme-text-muted">
-              Table: <span className="theme-text font-semibold">manager_capo_assignments</span> (PK: capo_id)
+              Tables: <span className="theme-text font-semibold">manager_capo_assignments</span> +{" "}
+              <span className="theme-text font-semibold">ship_managers</span>
             </div>
           </div>
-
           <button
             type="button"
             onClick={loadAll}
             className="inline-flex items-center justify-center rounded-full border theme-border bg-[var(--panel2)] px-4 py-2 text-[12px] font-semibold theme-text hover:bg-[var(--panel)]"
+            disabled={busy}
           >
             Ricarica
           </button>
@@ -243,20 +456,20 @@ export default function AdminAssignmentsPage(): JSX.Element {
 
         <div className="mt-3 grid grid-cols-1 md:grid-cols-12 gap-2">
           <div className="md:col-span-8">
-            <div className="text-[11px] uppercase tracking-[0.22em] theme-text-muted">Cerca</div>
+            <div className="text-[11px] uppercase tracking-[0.22em] theme-text-muted">Cerca manager</div>
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Cerca capo o manager…"
+              placeholder="Nome, email, costr, commessa…"
               className="mt-1 w-full rounded-xl theme-input px-3 py-2 text-[13px] outline-none"
             />
           </div>
           <div className="md:col-span-4 flex items-end gap-2">
-            <span className={pill()}>
+            <span className="inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold badge-neutral">
               Managers: <span className="ml-2 theme-text">{managers.length}</span>
             </span>
-            <span className={pill()}>
-              Capi: <span className="ml-2 theme-text">{capi.length}</span>
+            <span className="inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold badge-neutral">
+              Ships: <span className="ml-2 theme-text">{ships.length}</span>
             </span>
           </div>
         </div>
@@ -268,102 +481,180 @@ export default function AdminAssignmentsPage(): JSX.Element {
         ) : null}
       </div>
 
-      <div className="rounded-2xl theme-panel overflow-hidden">
-        <div className="px-4 py-3 border-b theme-border bg-[var(--panel2)] flex items-center justify-between">
-          <div className="text-[12px] theme-text-muted">
-            {loading ? "Caricamento…" : `${merged.length} capi`}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-3">
+        <div className="xl:col-span-4 rounded-2xl theme-panel overflow-hidden">
+          <div className="px-4 py-3 border-b theme-border bg-[var(--panel2)]">
+            <div className="text-[12px] theme-text-muted">{loading ? "Caricamento…" : `${filteredManagers.length} manager`}</div>
           </div>
-          <div className="text-[11px] theme-text-muted">Edita assignment per capo</div>
+          <div className="divide-y theme-border max-h-[68vh] overflow-auto">
+            {filteredManagers.map((m) => {
+              const isActive = m.id === selectedManagerId;
+              const scopes = scopesByManager.get(m.id) || [];
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setSelectedManagerId(m.id)}
+                  className={cn(
+                    "w-full text-left px-4 py-3 hover:bg-[var(--panel2)]",
+                    isActive ? "bg-[var(--panel2)]" : ""
+                  )}
+                >
+                  <div className="text-[13px] font-semibold theme-text truncate">{labelOf(m)}</div>
+                  <div className="mt-1 text-[11px] theme-text-muted truncate">
+                    Capi attivi: {capiCountByManager.get(m.id) || 0} · Scope: {scopes.length}
+                  </div>
+                  <div className="mt-1 text-[11px] theme-text-muted truncate">
+                    {(m.email || "").trim() || "—"}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        {loading ? (
-          <div className="px-4 py-6 text-[13px] theme-text-muted">Caricamento…</div>
-        ) : merged.length === 0 ? (
-          <div className="px-4 py-6 text-[13px] theme-text-muted">
-            Nessun capo trovato.
+        <div className="xl:col-span-8 space-y-3">
+          <div className="rounded-2xl theme-panel p-4">
+            <div className="text-[12px] theme-text-muted">Manager selezionato</div>
+            <div className="mt-1 text-[14px] font-semibold theme-text">{labelOf(selectedManager)}</div>
+            <div className="mt-1 text-[12px] theme-text-muted">
+              Scope attuale: {(scopesByManager.get(selectedManagerId) || []).length} costr/commessa
+            </div>
           </div>
-        ) : (
-          <div className="divide-y theme-border">
-            {merged.map((r) => (
-              <div key={r.capo_id} className="px-4 py-4">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-[12px] theme-text-muted">Capo</div>
-                    <div className="mt-1 text-[13px] theme-text font-semibold truncate">
-                      {r.capo_label}
+
+          <div className="rounded-2xl theme-panel overflow-hidden">
+            <div className="px-4 py-3 border-b theme-border bg-[var(--panel2)] flex items-center justify-between">
+              <div className="text-[12px] theme-text-muted">CAPO assegnati al manager</div>
+              <div className="text-[11px] theme-text-muted">{selectedManagerCapos.size} assegnati</div>
+            </div>
+            <div className="divide-y theme-border max-h-[34vh] overflow-auto">
+              {capiRows.map((row) => {
+                const c = row.capo;
+                const a = row.assignment;
+                const checked = row.assignedToSelected;
+                return (
+                  <div key={c.id} className="px-4 py-3">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-[13px] font-semibold theme-text truncate">{labelOf(c)}</div>
+                        <div className="text-[11px] theme-text-muted truncate">
+                          Attuale: {a ? row.currentManagerLabel : "— Nessun manager —"}
+                          {a && !a.active ? " · inactive" : ""}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {!checked ? (
+                          <button
+                            type="button"
+                            disabled={!selectedManagerId || busy}
+                            onClick={() => assignCapoToManager(c.id, selectedManagerId)}
+                            className="rounded-full border px-3 py-1 text-[12px] font-semibold badge-info"
+                          >
+                            Assegna
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => toggleCapoActive(c.id, !Boolean(a?.active))}
+                              className={cn(
+                                "rounded-full border px-3 py-1 text-[12px] font-semibold",
+                                a?.active ? "badge-success" : "badge-neutral"
+                              )}
+                            >
+                              {a?.active ? "Active" : "Inactive"}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => unassignCapo(c.id)}
+                              className="rounded-full border px-3 py-1 text-[12px] font-semibold badge-danger"
+                            >
+                              Rimuovi
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <div className="mt-1 text-[11px] theme-text-muted">
-                      ID: <span className="theme-text-muted">{r.capo_id}</span>
-                    </div>
                   </div>
+                );
+              })}
+            </div>
+          </div>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[12px] theme-text-muted">Manager</div>
-                    <select
-                      value={r.manager_id || ""}
-                      onChange={(e) =>
-                        upsertAssignment({
-                          capo_id: r.capo_id,
-                          manager_id: e.target.value || null,
-                          active: r.active,
-                        })
-                      }
-                      className="mt-1 w-full rounded-xl theme-input px-3 py-2 text-[13px] outline-none"
-                    >
-                      <option value="">— Nessun manager —</option>
-                      {managers.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {(m.display_name || m.full_name || m.email || m.id).trim()}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="mt-1 text-[11px] theme-text-muted truncate">
-                      Attuale: <span className="theme-text">{r.manager_label}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        upsertAssignment({
-                          capo_id: r.capo_id,
-                          manager_id: r.manager_id,
-                          active: !r.active,
-                        })
-                      }
-                      className={cn(
-                        "rounded-full border px-4 py-2 text-[12px] font-semibold",
-                        r.active
-                          ? "badge-success"
-                          : "badge-neutral"
-                      )}
-                      title="Toggle active"
-                      disabled={!r.manager_id}
-                    >
-                      {r.active ? "Active" : "Inactive"}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => clearAssignment(r.capo_id)}
-                      className="rounded-full border px-4 py-2 text-[12px] font-semibold badge-danger"
-                      title="Rimuovi"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                </div>
-
-                {!r.manager_id ? (
-                  <div className="mt-3 text-[12px] text-[var(--role-warning-ink)]">
-                    Nessun manager assegnato: questo capo non comparirà come “slot” in un plan generato da quel manager.
-                  </div>
-                ) : null}
+          <div className="rounded-2xl theme-panel overflow-hidden">
+            <div className="px-4 py-3 border-b theme-border bg-[var(--panel2)] flex items-center justify-between">
+              <div className="text-[12px] theme-text-muted">Scope Manager (navi -&gt; costr/commessa)</div>
+              <div className="text-[11px] theme-text-muted">{selectedManagerShips.size} navi nel perimetro</div>
+            </div>
+            <div className="px-4 py-3 border-b theme-border bg-[var(--panel2)]">
+              <div className="text-[12px] font-semibold theme-text">Créer nouveau scope</div>
+              <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
+                <input
+                  value={newCostr}
+                  onChange={(e) => setNewCostr(e.target.value)}
+                  placeholder="costr"
+                  className="rounded-xl theme-input px-3 py-2 text-[13px] outline-none"
+                />
+                <input
+                  value={newCommessa}
+                  onChange={(e) => setNewCommessa(e.target.value)}
+                  placeholder="commessa"
+                  className="rounded-xl theme-input px-3 py-2 text-[13px] outline-none"
+                />
               </div>
-            ))}
+              <div className="mt-2">
+                <button
+                  type="button"
+                  disabled={!selectedManagerId || busy}
+                  onClick={createScopeAndAssign}
+                  className="rounded-full border px-3 py-1 text-[12px] font-semibold badge-info"
+                >
+                  Créer + Ajouter scope
+                </button>
+              </div>
+            </div>
+            <div className="divide-y theme-border max-h-[34vh] overflow-auto">
+              {ships.map((s) => {
+                const linked = selectedManagerShips.has(s.id);
+                return (
+                  <div key={s.id} className="px-4 py-3">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-[13px] font-semibold theme-text truncate">{shipLabel(s)}</div>
+                        <div className="text-[11px] theme-text-muted truncate">
+                          Scope: {scopeLabelOfShip(s)}
+                        </div>
+                      </div>
+                      <div>
+                        {!linked ? (
+                          <button
+                            type="button"
+                            disabled={!selectedManagerId || busy}
+                            onClick={() => addScopeShip(s.id, selectedManagerId)}
+                            className="rounded-full border px-3 py-1 text-[12px] font-semibold badge-info"
+                          >
+                            Aggiungi scope
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => removeScopeShip(s.id, selectedManagerId)}
+                            className="rounded-full border px-3 py-1 text-[12px] font-semibold badge-danger"
+                          >
+                            Rimuovi scope
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

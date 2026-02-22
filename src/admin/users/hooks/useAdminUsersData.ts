@@ -84,11 +84,51 @@ export function useAdminUsersData() {
   const [rows, setRows] = useState<ProfileRow[]>([]);
   const [lastError, setLastError] = useState<string | null>(null);
 
+  /**
+   * Activity provenance (CNCS): whether auth.users signals are available.
+   * - "RPC" means last_sign_in_at/auth_created_at are trustworthy.
+   * - "FALLBACK" means we are listing profiles without auth activity signals.
+   */
+  const [activitySource, setActivitySource] = useState<
+    | { mode: "RPC" }
+    | { mode: "FALLBACK"; reason: "AUTH" | "NOT_SUPPORTED" | "NETWORK" | "UNKNOWN" }
+  >({ mode: "FALLBACK", reason: "UNKNOWN" });
+
   const [lastPassword, setLastPassword] = useState<string | null>(null);
   const [lastPasswordEmail, setLastPasswordEmail] = useState<string | null>(null);
 
   const supportsDisabledAtRef = useRef<boolean | null>(null);
   const supportsAdminRpcRef = useRef<boolean | null>(null);
+
+  function isAuthishRpcError(err: unknown): boolean {
+    const e = err as PgRestishError;
+    const code = String(e?.code ?? "");
+    const msg = lower(e?.message ?? err);
+
+    // Postgres invalid_authorization_specification / not authenticated
+    if (code === "28000") return true;
+
+    // common PostgREST auth shapes
+    if (code.startsWith("PGRST") && msg.includes("not authenticated")) return true;
+    if (msg.includes("not authenticated")) return true;
+    if (msg.includes("jwt") && (msg.includes("expired") || msg.includes("invalid"))) return true;
+    if (msg.includes("missing") && msg.includes("authorization")) return true;
+
+    return false;
+  }
+
+  function isRpcNotSupportedError(err: unknown): boolean {
+    const e = err as PgRestishError;
+    const code = String(e?.code ?? "");
+    const msg = lower(e?.message ?? err);
+
+    // PostgREST "function not found" / schema cache mismatch
+    if (code === "PGRST202") return true;
+    if (msg.includes("could not find the function")) return true;
+    if (msg.includes("function") && msg.includes("does not exist")) return true;
+    if (msg.includes("schema cache") && (msg.includes("not found") || msg.includes("reload"))) return true;
+    return false;
+  }
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -106,20 +146,42 @@ export function useAdminUsersData() {
       // - guarded server-side (ADMIN-only)
       // =========================================================
       if (supportsAdminRpcRef.current !== false) {
-        const rpc = await supabase.rpc("admin_list_users_v1", { p_q: null, p_role: null });
+        // First try
+        let rpc = await supabase.rpc("admin_list_users_v1", { p_q: null, p_role: null });
+
+        // If auth-ish error, attempt a single silent refresh and retry once.
+        if (rpc.error && isAuthishRpcError(rpc.error)) {
+          try {
+            await supabase.auth.refreshSession();
+          } catch {
+            // ignore
+          }
+          rpc = await supabase.rpc("admin_list_users_v1", { p_q: null, p_role: null });
+        }
+
         if (!rpc.error) {
           const rpcRows = (rpc.data as unknown as ProfileRow[]) || [];
+          supportsAdminRpcRef.current = true;
+          // If RPC works, we can trust disabled_at presence (it is selected in the function).
+          supportsDisabledAtRef.current = true;
+          setActivitySource({ mode: "RPC" });
+
+          // RPC ok but empty -> fallback to profiles to avoid false empty state
           if (rpcRows.length > 0) {
-            supportsAdminRpcRef.current = true;
-            // If RPC works, we can trust disabled_at presence (it is selected in the function).
-            supportsDisabledAtRef.current = true;
             setRows(rpcRows);
             setLoading(false);
             return;
           }
-          // RPC ok but empty -> fallback to profiles to avoid false empty state
         } else {
-          supportsAdminRpcRef.current = false;
+          // IMPORTANT CNCS: never "brick" RPC after a transient auth/network error.
+          if (isRpcNotSupportedError(rpc.error)) {
+            supportsAdminRpcRef.current = false;
+            setActivitySource({ mode: "FALLBACK", reason: "NOT_SUPPORTED" });
+          } else if (isAuthishRpcError(rpc.error)) {
+            setActivitySource({ mode: "FALLBACK", reason: "AUTH" });
+          } else {
+            setActivitySource({ mode: "FALLBACK", reason: "NETWORK" });
+          }
         }
       }
 
@@ -148,10 +210,17 @@ export function useAdminUsersData() {
 
       if (preferWith) supportsDisabledAtRef.current = true;
       setRows((data as unknown as ProfileRow[]) || []);
+
+      // If we got here without a prior explicit activitySource, declare fallback.
+      setActivitySource((prev) => {
+        if (prev.mode === "RPC") return prev;
+        return prev.mode === "FALLBACK" ? prev : { mode: "FALLBACK", reason: "UNKNOWN" };
+      });
     } catch (e: any) {
       console.error("[useAdminUsersData] loadUsers error:", e);
       setRows([]);
       setLastError(e?.message || String(e));
+      setActivitySource({ mode: "FALLBACK", reason: "UNKNOWN" });
     } finally {
       setLoading(false);
     }
@@ -255,6 +324,8 @@ export function useAdminUsersData() {
     rows,
     lastError,
     loadUsers,
+
+    activitySource,
 
     createUser,
     setPassword,

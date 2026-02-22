@@ -76,7 +76,7 @@ export default function UfficioIncaAuditPage(): JSX.Element {
   const [rows, setRows] = useState<IncaCavoRow[]>([]);
   const [counts, setCounts] = useState<Counts>(emptyCounts());
 
-  const [viewMode, setViewMode] = useState<IncaTableViewMode>("standard");
+  const [viewMode] = useState<IncaTableViewMode>("standard");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -348,10 +348,8 @@ export default function UfficioIncaAuditPage(): JSX.Element {
           <div className="mt-3">
             <IncaCaviTable
               rows={rows}
-              loading={false}
-              viewMode={viewMode}
-              onViewModeChange={setViewMode}
-              title="Cavi (snapshot)"
+              variant={viewMode}
+              viewLabel="Cavi (snapshot)"
             />
           </div>
         </div>

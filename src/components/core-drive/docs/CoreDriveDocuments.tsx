@@ -377,14 +377,14 @@ export default function CoreDriveDocuments() {
           <KpiTile label="Documenti" value={kpis.total} />
           <KpiTile label="Peso totale" value={bytes(kpis.totalBytes)} />
           <KpiTile label="Ultimi 7 giorni" value={kpis.last7} />
-        <KpiTile
-          label="Origine top"
-          value={
-            String(appRole).toUpperCase() === "CAPO" && String(kpis.topOrigine.k || "").toUpperCase() === "CAPO"
-              ? `${capoLabel} (${kpis.topOrigine.v})`
-              : `${kpis.topOrigine.k} (${kpis.topOrigine.v})`
-          }
-        />
+          <KpiTile
+            label="Origine top"
+            value={
+              String(kpis.topOrigine.k || "").toUpperCase() === "CAPO"
+                ? `${capoLabels[kpis.topCapo.id] || capoLabel || "CAPO"} (${kpis.topOrigine.v})`
+                : `${kpis.topOrigine.k} (${kpis.topOrigine.v})`
+            }
+          />
         </div>
       </section>
 
@@ -593,7 +593,13 @@ export default function CoreDriveDocuments() {
                     {f.cantiere ? <Badge>{f.cantiere}</Badge> : null}
                     {f.categoria ? <Badge>{f.categoria}</Badge> : null}
                     {f.commessa ? <Badge tone="info">{f.commessa}</Badge> : null}
-                    {f.origine ? <Badge tone="neutral">{f.origine}</Badge> : null}
+                    {f.origine ? (
+                      <Badge tone="neutral">
+                        {String(f.origine).toUpperCase() === "CAPO"
+                          ? capoLabels[String(f.created_by || "").trim()] || "CAPO"
+                          : f.origine}
+                      </Badge>
+                    ) : null}
                     {f.is_frozen ? <Badge tone="warn">CONGELATO</Badge> : null}
                     {f.is_deleted ? <Badge tone="danger">STORICO</Badge> : null}
                     {f.stato_doc ? <Badge tone="ok">{f.stato_doc}</Badge> : null}

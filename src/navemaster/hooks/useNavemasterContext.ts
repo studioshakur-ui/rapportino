@@ -2,7 +2,7 @@
 import { useMemo } from "react";
 
 import { useAuth } from "../../auth/AuthProvider";
-import type { AppRole } from "../../types/app";
+import type { AppRole } from "../contracts/navemaster.types";
 
 export type NavemasterAccess = {
   role: AppRole | null;

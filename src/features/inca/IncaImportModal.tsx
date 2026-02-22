@@ -1,12 +1,10 @@
 // src/features/inca/IncaImportModal.tsx
 import { useEffect, useMemo, useRef, useState  } from "react";
-import { supabase } from "../../lib/supabaseClient";
 import { useIncaImporter } from "./useIncaImporter";
 
 import {
   clearIncaImportDraft,
   readIncaImportDraft,
-  type IncaImportModeUI,
   type IncaImportDraftV1,
   writeIncaImportDraft,
 } from "./incaImportDraft";
@@ -14,23 +12,6 @@ import {
 function norm(v: unknown): string {
   return String(v ?? "").trim();
 }
-
-function formatDateTimeIT(value: unknown): string {
-  if (!value) return "—";
-  const d = new Date(String(value));
-  if (Number.isNaN(d.getTime())) return String(value);
-  return d.toLocaleString("it-IT");
-}
-
-type IncaFileTarget = {
-  id: string;
-  costr: string | null;
-  commessa: string | null;
-  file_name: string | null;
-  uploaded_at: string | null;
-  file_type: string | null;
-  file_path?: string | null;
-};
 
 type Props = {
   open: boolean;
@@ -55,19 +36,12 @@ export default function IncaImportModal({
   const [projectCode, setProjectCode] = useState<string>("");
   const [note, setNote] = useState<string>("");
 
-  const [modeUI, setModeUI] = useState<IncaImportModeUI>("COMMIT");
-  const [targets, setTargets] = useState<IncaFileTarget[]>([]);
-  const [loadingTargets, setLoadingTargets] = useState<boolean>(false);
-  const [targetsError, setTargetsError] = useState<string | null>(null);
-  const [targetIncaFileId, setTargetIncaFileId] = useState<string>("");
-
   const [resumeBanner, setResumeBanner] = useState<boolean>(false);
 
   const importer = useIncaImporter() as any;
   const {
     dryRun,
     commit,
-    enrichTipo,
     loading,
     phase,
     error,
@@ -76,7 +50,6 @@ export default function IncaImportModal({
   }: {
     dryRun: (args: any) => Promise<any>;
     commit: (args: any) => Promise<any>;
-    enrichTipo: (args: any) => Promise<any>;
     loading: boolean;
     phase: "idle" | "analyzing" | "importing";
     error: any;
@@ -93,11 +66,9 @@ export default function IncaImportModal({
       commessa,
       projectCode,
       note,
-      modeUI,
-      targetIncaFileId,
       needsReselectFile: false,
     };
-  }, [commessa, costr, modeUI, note, projectCode, targetIncaFileId]);
+  }, [commessa, costr, note, projectCode]);
 
   const persistDraft = (patch?: Partial<IncaImportDraftV1>): void => {
     const next: IncaImportDraftV1 = {
@@ -123,30 +94,24 @@ export default function IncaImportModal({
       setCommessa(d.commessa || defaultCommessa || "");
       setProjectCode(d.projectCode || "");
       setNote(d.note || "");
-      setModeUI(d.modeUI || "COMMIT");
-      setTargetIncaFileId(d.targetIncaFileId || "");
       setResumeBanner(!!d.needsReselectFile);
     } else {
       setCostr(defaultCostr || "");
       setCommessa(defaultCommessa || "");
       setProjectCode("");
       setNote("");
-      setModeUI("COMMIT");
-      setTargetIncaFileId("");
       setResumeBanner(false);
     }
 
     reset();
     setFile(null);
-    setTargets([]);
-    setTargetsError(null);
   }, [open, defaultCostr, defaultCommessa, reset]);
 
   useEffect(() => {
     if (!open) return;
     persistDraft({ needsReselectFile: resumeBanner });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, costr, commessa, projectCode, note, modeUI, targetIncaFileId, resumeBanner]);
+  }, [open, costr, commessa, projectCode, note, resumeBanner]);
 
   const isDryOk = !!(result?.ok && (result as any)?.mode === "DRY_RUN");
   // COMMIT passe désormais par `inca-sync` : il peut ne pas renvoyer `mode`.
@@ -156,8 +121,6 @@ export default function IncaImportModal({
     (result as any)?.mode !== "DRY_RUN" &&
     (Boolean((result as any)?.incaFileId) || Boolean((result as any)?.inca_file_id) || Boolean((result as any)?.importId))
   );
-  const isEnrichOk = !!(result?.ok && (result as any)?.mode === "ENRICH_TIPO");
-
   const counts = (result?.counts as any) || null;
   const debug = (result?.debug as any) || null;
   const total = typeof result?.total === "number" ? (result.total as number) : 0;
@@ -170,8 +133,7 @@ export default function IncaImportModal({
 
   const canDry = !!file && !!norm(costr) && !!norm(commessa) && !loading;
 
-  const canCommit = isDryOk && modeUI === "COMMIT" && !loading;
-  const canEnrich = isDryOk && modeUI === "ENRICH_TIPO" && !!norm(targetIncaFileId) && !loading;
+  const canCommit = isDryOk && !loading;
 
   const warnings = useMemo(() => {
     if (!counts || !total) return [] as string[];
@@ -209,62 +171,9 @@ export default function IncaImportModal({
     onImported?.(data);
     clearDraft();
   };
-
-  const handleEnrich = async (): Promise<void> => {
-    const data = await enrichTipo({
-      file,
-      costr,
-      commessa,
-      projectCode,
-      note,
-      targetIncaFileId,
-    });
-    onImported?.(data);
-    clearDraft();
-  };
-
-  useEffect(() => {
-    let alive = true;
-    const ac = new AbortController();
-
-    async function loadTargets(): Promise<void> {
-      if (!open) return;
-      if (modeUI !== "ENRICH_TIPO") return;
-      if (!norm(costr) || !norm(commessa)) return;
-
-      setLoadingTargets(true);
-      setTargetsError(null);
-
-      const { data, error } = await supabase
-        .from("inca_files")
-        .select("id, costr, commessa, file_name, uploaded_at, file_type, file_path")
-        .eq("costr", norm(costr))
-        .eq("commessa", norm(commessa))
-        .order("uploaded_at", { ascending: false });
-
-      if (!alive) return;
-
-      if (error) {
-        setTargetsError(error.message);
-        setTargets([]);
-      } else {
-        setTargets((data || []) as any);
-      }
-
-      setLoadingTargets(false);
-    }
-
-    loadTargets();
-
-    return () => {
-      alive = false;
-      ac.abort();
-    };
-  }, [open, modeUI, costr, commessa]);
-
-  const primaryActionHandler = modeUI === "ENRICH_TIPO" ? handleEnrich : handleCommit;
-  const primaryActionLabel = modeUI === "ENRICH_TIPO" ? "Enrich TIPO" : "Sync";
-  const primaryActionDisabled = modeUI === "ENRICH_TIPO" ? !canEnrich : !canCommit;
+  const primaryActionHandler = handleCommit;
+  const primaryActionLabel = "Sync";
+  const primaryActionDisabled = !canCommit;
 
   const primaryActionTitle = !isDryOk ? "Esegui prima Analizza (dry-run)" : "";
 
@@ -342,46 +251,6 @@ export default function IncaImportModal({
               </div>
             </div>
 
-            <div className="mt-4">
-              <div className="segmented">
-                <button
-                  type="button"
-                  onClick={() => setModeUI("COMMIT")}
-                  className={["segmented-item", modeUI === "COMMIT" ? "segmented-item-active" : ""].join(" ")}
-                >
-                  Sync
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setModeUI("ENRICH_TIPO")}
-                  className={["segmented-item", modeUI === "ENRICH_TIPO" ? "segmented-item-active" : ""].join(" ")}
-                >
-                  Enrich TIPO
-                </button>
-              </div>
-            </div>
-
-            {modeUI === "ENRICH_TIPO" && (
-              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1">
-                  <div className="text-xs theme-text-muted">Target INCA file</div>
-                  <select
-                    value={targetIncaFileId}
-                    onChange={(e) => setTargetIncaFileId(e.target.value)}
-                    disabled={loadingTargets}
-                    className="rounded-xl theme-input px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--accent)]/30"
-                  >
-                    <option value="">— Seleziona —</option>
-                    {targets.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {(t.file_name || "inca.xlsx") + " · " + formatDateTimeIT(t.uploaded_at)}
-                      </option>
-                    ))}
-                  </select>
-                  {targetsError && <div className="text-xs text-[var(--role-danger-ink)] mt-1">{targetsError}</div>}
-                </div>
-              </div>
-            )}
           </div>
 
           {result?.ok && (
@@ -455,12 +324,6 @@ export default function IncaImportModal({
           {isCommitOk && (
             <div className="rounded-xl border border-[var(--role-success-border)] bg-[var(--role-success-soft)] p-4 text-sm text-[var(--role-success-ink)]">
               Sync completato con successo.
-            </div>
-          )}
-
-          {isEnrichOk && (
-            <div className="rounded-xl border border-[var(--role-success-border)] bg-[var(--role-success-soft)] p-4 text-sm text-[var(--role-success-ink)]">
-              Enrich completato con successo (ENRICH_TIPO).
             </div>
           )}
 

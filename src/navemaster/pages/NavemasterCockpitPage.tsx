@@ -5,7 +5,7 @@ import CockpitTable from "../components/CockpitTable";
 import RowDetailsPanel from "../components/RowDetailsPanel";
 import EmptyState from "../components/EmptyState";
 import { useNavemasterQuery } from "../hooks/useNavemasterQuery";
-import type { CockpitQuery } from "../contracts/navemaster.query";
+import type { CockpitFilters, CockpitQuery } from "../contracts/navemaster.query";
 import { useI18n } from "../../i18n/coreI18n";
 import KpiBar from "../components/KpiBar";
 import { useNavemasterKpis } from "../hooks/useNavemasterKpis";
@@ -20,11 +20,11 @@ export default function NavemasterCockpitPage(props: { shipId: string | null; ha
   const [page, setPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(50);
 
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<CockpitFilters>({
     search: "",
-    navStatus: "ALL" as const,
-    zona: "ALL" as const,
-    sezione: "ALL" as const,
+    navStatus: "ALL",
+    zona: "ALL",
+    sezione: "ALL",
     onlyWithInca: false,
     onlyModified: false,
     onlyNoProof: false,
@@ -205,7 +205,7 @@ export default function NavemasterCockpitPage(props: { shipId: string | null; ha
               type="button"
               onClick={() => {
                 setPage(1);
-                setFilters((prev) => ({ ...prev, ...p.patch }));
+                setFilters((prev) => ({ ...prev, ...p.patch } as CockpitFilters));
               }}
               className={
                 "rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em] transition " +
@@ -231,9 +231,9 @@ export default function NavemasterCockpitPage(props: { shipId: string | null; ha
             setPage(1);
             setFilters({
               search: next.search ?? "",
-              navStatus: (next.navStatus ?? "ALL") as any,
-              zona: (next.zona ?? "ALL") as any,
-              sezione: (next.sezione ?? "ALL") as any,
+              navStatus: next.navStatus ?? "ALL",
+              zona: next.zona ?? "ALL",
+              sezione: next.sezione ?? "ALL",
               onlyWithInca: Boolean(next.onlyWithInca),
               onlyModified: Boolean(next.onlyModified),
               onlyNoProof: Boolean(next.onlyNoProof),

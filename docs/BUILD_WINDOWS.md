@@ -1,23 +1,18 @@
-# Windows Build (EPERM / esbuild spawn)
+# Build Windows (esbuild EPERM)
 
-## Symptom
-`npm run build` fails on Windows with:
+## Sintomi
+- `npm run build` fallisce con: `Error: spawn EPERM` durante il caricamento di `vite.config.mjs`.
 
-- `failed to load config ...`
-- `Error: spawn EPERM` from esbuild
+## Causa probabile
+Su Windows, l’esecuzione del servizio esbuild può essere bloccata da policy o da antivirus/EDR.
 
-## Cause (likely)
-esbuild tries to spawn its background service and is blocked by Windows permissions/AV.
-
-## Fix (auditable)
-Use the Windows build script that disables the esbuild service:
+## Comando consigliato (Windows)
+Usa lo script dedicato che disabilita il service esbuild:
 
 ```powershell
 npm run build:win
 ```
 
-This runs `vite build` with `ESBUILD_DISABLE_SERVICE=1`.
-
-## Success criteria
-- `npm run typecheck` succeeds
-- `npm run build:win` succeeds on Windows
+## Criteri di successo
+- Output `vite build` senza errori.
+- Cartella `dist/` generata correttamente.

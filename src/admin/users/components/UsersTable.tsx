@@ -8,11 +8,14 @@ export default function UsersTable(props: {
   rows: ProfileRow[];
   loading: boolean;
   canSuspend: boolean;
+  activitySource:
+    | { mode: "RPC" }
+    | { mode: "FALLBACK"; reason: "AUTH" | "NOT_SUPPORTED" | "NETWORK" | "UNKNOWN" };
   selectedUserId: string | null;
   onSelect: (id: string) => void;
   onAction: (row: ProfileRow, action: UserAction) => void;
 }) {
-  const { rows, loading, canSuspend, selectedUserId, onSelect, onAction } = props;
+  const { rows, loading, canSuspend, activitySource, selectedUserId, onSelect, onAction } = props;
 
   const daysSince = (iso?: string | null): number | null => {
     if (!iso) return null;
@@ -111,7 +114,17 @@ export default function UsersTable(props: {
                                 {isInactive ? <span className="chip chip-danger">INATTIVO &gt;30g</span> : null}
                               </>
                             ) : (
-                              <span className="chip chip-status">ATTIVITÀ SCONOSCIUTA</span>
+                              <span className="chip chip-status">
+                                {activitySource.mode === "RPC"
+                                  ? "DATI ATTIVITÀ ASSENTI"
+                                  : activitySource.reason === "AUTH"
+                                    ? "DATI ATTIVITÀ NON DISPONIBILI (SESSIONE)"
+                                    : activitySource.reason === "NOT_SUPPORTED"
+                                      ? "DATI ATTIVITÀ NON DISPONIBILI (RPC)"
+                                      : activitySource.reason === "NETWORK"
+                                        ? "DATI ATTIVITÀ NON DISPONIBILI (RETE)"
+                                        : "DATI ATTIVITÀ NON DISPONIBILI"}
+                              </span>
                             )}
 
                             {isCritical ? <span className="chip chip-info">RUOLO CRITICO</span> : null}

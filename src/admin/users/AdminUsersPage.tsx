@@ -33,6 +33,7 @@ export default function AdminUsersPage(): JSX.Element {
     rows,
     lastError,
     loadUsers,
+    activitySource,
     createUser,
     setPassword,
     suspendUser,
@@ -308,6 +309,7 @@ export default function AdminUsersPage(): JSX.Element {
           rows={ui.pageRows}
           loading={loading}
           canSuspend={supportsDisabledAt}
+          activitySource={activitySource}
           selectedUserId={selectedUserId}
           onSelect={onRowSelect}
           onAction={onAction}
