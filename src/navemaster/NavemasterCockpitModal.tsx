@@ -120,7 +120,7 @@ export function NavemasterCockpitModal(props: Props): JSX.Element | null {
         setKpi((data as CockpitKpi) ?? null);
       } catch (e: any) {
         if (!mounted) return;
-        setError(e?.message ?? "Unable to load cockpit");
+        setError(e?.message ?? "Impossibile caricare il cockpit");
       } finally {
         if (!mounted) return;
         setLoading(false);
@@ -135,8 +135,8 @@ export function NavemasterCockpitModal(props: Props): JSX.Element | null {
   const verdict = useMemo(() => {
     // Minimal heuristic: BLOCK if any B, WARN if any R, otherwise OK
     if (!kpi) return { label: "—", tone: "muted" as const, Icon: IconInfo };
-    if (kpi.cnt_b > 0) return { label: "BLOCK", tone: "danger" as const, Icon: IconXCircle };
-    if (kpi.cnt_r > 0) return { label: "WARN", tone: "warn" as const, Icon: IconAlert };
+    if (kpi.cnt_b > 0) return { label: "BLOCCO", tone: "danger" as const, Icon: IconXCircle };
+    if (kpi.cnt_r > 0) return { label: "ATTENZIONE", tone: "warn" as const, Icon: IconAlert };
     return { label: "OK", tone: "ok" as const, Icon: IconCheck };
   }, [kpi]);
 
@@ -149,10 +149,10 @@ export function NavemasterCockpitModal(props: Props): JSX.Element | null {
           <div>
             <div className="text-[11px] uppercase tracking-wider text-slate-400">NAVEMASTER · Cockpit</div>
             <div className="mt-1 text-lg font-semibold text-slate-100">
-              {ship?.code ?? "—"} · {ship?.name ?? "Ship"}
+              {ship?.code ?? "—"} · {ship?.name ?? "Nave"}
             </div>
             <div className="mt-1 text-sm text-slate-400">
-              Baseline INCA + proofs CORE (rapportini APPROVED_UFFICIO) · Audit-ready summary
+              Baseline INCA + prove CORE (rapportini APPROVED_UFFICIO) · Sintesi audit conforme
             </div>
           </div>
           <button
@@ -160,20 +160,20 @@ export function NavemasterCockpitModal(props: Props): JSX.Element | null {
             onClick={onClose}
             className="rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm text-slate-200 hover:bg-slate-900"
           >
-            Close
+            Chiudi
           </button>
         </div>
 
         <div className="p-5">
           {loading ? (
             <div className="flex items-center gap-2 text-slate-300">
-              <IconClock /> Loading…
+              <IconClock /> Caricamento…
             </div>
           ) : error ? (
             <div className="rounded-xl border border-red-900/40 bg-red-950/40 p-4 text-sm text-red-200">{error}</div>
           ) : !kpi ? (
             <div className="rounded-xl border border-slate-800 bg-slate-900/20 p-4 text-sm text-slate-300">
-              No NAVEMASTER import found for this ship.
+              Nessun import NAVEMASTER trovato per questa nave.
             </div>
           ) : (
             <div className="grid gap-4">
@@ -182,10 +182,10 @@ export function NavemasterCockpitModal(props: Props): JSX.Element | null {
                   <div className="text-[11px] uppercase tracking-wider text-slate-400">Run</div>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
                     <span className="rounded-full border border-slate-800 bg-slate-950/30 px-2.5 py-1 text-[12px] text-slate-200">
-                      imported_at: {new Date(kpi.imported_at).toLocaleString()}
+                      importato: {new Date(kpi.imported_at).toLocaleString()}
                     </span>
                     <span className="rounded-full border border-slate-800 bg-slate-950/30 px-2.5 py-1 text-[12px] text-slate-200">
-                      total: {fmtNum(kpi.total)}
+                      totale: {fmtNum(kpi.total)}
                     </span>
                   </div>
                 </div>
@@ -209,29 +209,29 @@ export function NavemasterCockpitModal(props: Props): JSX.Element | null {
 
               <div className="grid gap-3 md:grid-cols-4">
                 <div className="rounded-2xl border border-slate-800 bg-slate-900/20 p-4">
-                  <div className="text-[11px] uppercase tracking-wider text-slate-400">Progress</div>
+                  <div className="text-[11px] uppercase tracking-wider text-slate-400">Avanzamento</div>
                   <div className="mt-1 text-2xl font-semibold text-slate-100">{pct(kpi.progress_ratio)}</div>
                   <div className="mt-1 text-sm text-slate-400">Σ posati / Σ ref</div>
                 </div>
                 <div className="rounded-2xl border border-slate-800 bg-slate-900/20 p-4">
-                  <div className="text-[11px] uppercase tracking-wider text-slate-400">Ref (m)</div>
+                  <div className="text-[11px] uppercase tracking-wider text-slate-400">Rif (m)</div>
                   <div className="mt-1 text-2xl font-semibold text-slate-100">{fmtNum(kpi.metri_ref_sum)}</div>
                   <div className="mt-1 text-sm text-slate-400">baseline</div>
                 </div>
                 <div className="rounded-2xl border border-slate-800 bg-slate-900/20 p-4">
                   <div className="text-[11px] uppercase tracking-wider text-slate-400">Posati (m)</div>
                   <div className="mt-1 text-2xl font-semibold text-slate-100">{fmtNum(kpi.metri_posati_sum)}</div>
-                  <div className="mt-1 text-sm text-slate-400">approved proofs</div>
+                  <div className="mt-1 text-sm text-slate-400">prove approvate</div>
                 </div>
                 <div className="rounded-2xl border border-slate-800 bg-slate-900/20 p-4">
                   <div className="text-[11px] uppercase tracking-wider text-slate-400">Δ (m)</div>
                   <div className="mt-1 text-2xl font-semibold text-slate-100">{fmtNum(kpi.delta_sum)}</div>
-                  <div className="mt-1 text-sm text-slate-400">remaining</div>
+                  <div className="mt-1 text-sm text-slate-400">rimanente</div>
                 </div>
               </div>
 
               <div className="rounded-2xl border border-slate-800 bg-slate-900/20 p-4">
-                <div className="text-[11px] uppercase tracking-wider text-slate-400">Status counts</div>
+                <div className="text-[11px] uppercase tracking-wider text-slate-400">Conteggio stati</div>
                 <div className="mt-3 grid gap-2 md:grid-cols-7">
                   {(
                     [

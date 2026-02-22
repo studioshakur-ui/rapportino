@@ -227,6 +227,10 @@ export default function ManagerDashboard({ isDark = true }) {
 
         setLatestRapportini(Array.isArray(latest) ? latest : []);
       } catch (e) {
+        const msg = String(e?.message || "");
+        if (msg.includes("AbortError")) {
+          return;
+        }
         console.error("[ManagerDashboard] load error:", e);
         if (!alive) return;
         setError(e?.message || "Errore caricamento dashboard Manager.");
@@ -255,7 +259,7 @@ export default function ManagerDashboard({ isDark = true }) {
         <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-1">
           Supervisione cantieri
         </div>
-        <h1 className="text-xl sm:text-2xl font-semibold text-slate-100">Dashboard Manager</h1>
+        <h1 className="text-xl sm:text-2xl font-semibold text-slate-100">Cruscotto Manager</h1>
         <p className="text-xs text-slate-400 mt-1 max-w-3xl">
           KPI reali letti da Supabase (perimetro manager, capi, rapportini, squadre). Nessun dato demo.
         </p>
@@ -297,7 +301,7 @@ export default function ManagerDashboard({ isDark = true }) {
         <div className={cn(cardBase, "border-rose-500/30")}>
           <div className="text-[11px] uppercase tracking-[0.16em] text-rose-300">Da verificare</div>
           <div className="text-2xl font-semibold text-slate-50 mt-1">{loading ? "—" : kpi.toReview}</div>
-          <div className="text-[10px] text-slate-400 mt-1">Status: VALIDATED_CAPO</div>
+          <div className="text-[10px] text-slate-400 mt-1">Stato: VALIDATED_CAPO</div>
         </div>
 
         <div className={cn(cardBase, "border-fuchsia-500/30")}>
@@ -327,7 +331,7 @@ export default function ManagerDashboard({ isDark = true }) {
                 <div className="text-sm font-medium text-slate-100">
                   {s.code || "—"} <span className="text-slate-500">·</span> {s.name || "Cantiere"}
                 </div>
-                <div className="text-[11px] text-slate-500">Ship ID: {s.id}</div>
+                <div className="text-[11px] text-slate-500">ID nave: {s.id}</div>
               </div>
             ))}
 
@@ -353,8 +357,8 @@ export default function ManagerDashboard({ isDark = true }) {
                   <th className="text-left py-2 pr-3">Data</th>
                   <th className="text-left py-2 pr-3">Cantiere</th>
                   <th className="text-left py-2 pr-3">Commessa</th>
-                  <th className="text-left py-2 pr-3">Crew</th>
-                  <th className="text-left py-2 pr-3">Status</th>
+                  <th className="text-left py-2 pr-3">Squadra</th>
+                  <th className="text-left py-2 pr-3">Stato</th>
                 </tr>
               </thead>
               <tbody>

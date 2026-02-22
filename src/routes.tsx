@@ -53,6 +53,7 @@ import NavemasterHub from "./navemaster/NavemasterHub";
 // DIREZIONE
 import DirezioneDashboard from "./components/DirezioneDashboard";
 import DirezioneOperatorKPI from "./features/kpi/pages/DirezioneOperatorKPI";
+import ManagerOperatorKPI from "./features/kpi/pages/ManagerOperatorKPI";
 import CorePresentation from "./pages/CorePresentation";
 import CapoPresentation from "./pages/CapoPresentation";
 
@@ -60,6 +61,7 @@ import CapoPresentation from "./pages/CapoPresentation";
 import ManagerDashboard from "./pages/ManagerDashboard";
 import ManagerAssignments from "./pages/ManagerAssignments";
 import ManagerCapoShipPlanning from "./pages/ManagerCapoShipPlanning";
+import ManagerAnalyticsPage from "./pages/ManagerAnalyticsPage";
 
 // CORE DRIVE
 import ArchivePage from "./pages/Archive";
@@ -135,7 +137,8 @@ export default function AppRoutes(): JSX.Element {
         <Route path="planning" element={<AdminPlanningPage />} />
         <Route path="assignments" element={<AdminAssignmentsPage />} />
         <Route path="audit" element={<AdminAuditPage />} />
-        <Route path="perimeters" element={<AdminPerimetersPage />} />
+        <Route path="perimetri" element={<AdminPerimetersPage />} />
+        <Route path="perimeters" element={<Navigate to="../perimetri" replace />} />
         <Route path="core-drive" element={<CoreDrivePage />} />
         <Route path="archive" element={<Navigate to="../core-drive" replace />} />
       </Route>
@@ -251,6 +254,11 @@ export default function AppRoutes(): JSX.Element {
         <Route path="assegnazioni" element={<ManagerAssignments />} />
         <Route path="capo-ship-planning" element={<ManagerCapoShipPlanning />} />
         <Route path="capi-cantieri" element={<ManagerCapoShipPlanning />} />
+        <Route path="drive" element={<CoreDrivePage />} />
+        <Route path="core-drive" element={<Navigate to="../drive" replace />} />
+        <Route path="archive" element={<Navigate to="../drive" replace />} />
+        <Route path="analytics" element={<ManagerAnalyticsPage />} />
+        <Route path="kpi-operatori" element={<ManagerOperatorKPI />} />
       </Route>
 
       {/* ===== EVOLUZIONE ===== */}

@@ -55,10 +55,10 @@ export default function NavemasterCockpitPage(props: { shipId: string | null; ha
   const deltaMetri = summary?.delta_sum ?? null;
 
   const signal = (() => {
-    if (progressPct == null) return "DATA MISSING";
-    if (progressPct >= 90) return "ON TRACK";
-    if (progressPct >= 70) return "WATCH";
-    return "CRITICAL";
+    if (progressPct == null) return "DATI ASSENTI";
+    if (progressPct >= 90) return "IN LINEA";
+    if (progressPct >= 70) return "ATTENZIONE";
+    return "CRITICO";
   })();
 
   const insight = (() => {
@@ -109,12 +109,12 @@ export default function NavemasterCockpitPage(props: { shipId: string | null; ha
   if (!shipId) return <EmptyState />;
   if (hasRun === false) {
     return (
-      <div className="rounded-2xl border border-slate-800 bg-[#050910] p-6">
-        <div className="text-lg font-semibold text-slate-100">{t("NM_NO_RUN_TITLE")}</div>
-        <div className="mt-2 text-sm text-slate-400">
-          {t("NM_NO_RUN_BODY")}
+        <div className="rounded-2xl border border-slate-800 bg-[#050910] p-6">
+          <div className="text-lg font-semibold text-slate-100">{t("NM_NO_RUN_TITLE")}</div>
+          <div className="mt-2 text-sm text-slate-400">
+            {t("NM_NO_RUN_BODY")}
+          </div>
         </div>
-      </div>
     );
   }
 
@@ -126,20 +126,20 @@ export default function NavemasterCockpitPage(props: { shipId: string | null; ha
           <div className="md:col-span-2 rounded-2xl border border-slate-800 bg-slate-950/30 p-4">
             <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Run</div>
             <div className="mt-1 text-sm text-slate-100">{summary?.frozen_at ? new Date(summary.frozen_at).toLocaleString() : "—"}</div>
-            <div className="mt-1 text-xs text-slate-500">verdict: {summary?.verdict ?? "—"}</div>
-            <div className="mt-3 text-[11px] uppercase tracking-[0.16em] text-slate-400">Signal</div>
+            <div className="mt-1 text-xs text-slate-500">verdetto: {summary?.verdict ?? "—"}</div>
+            <div className="mt-3 text-[11px] uppercase tracking-[0.16em] text-slate-400">Segnale</div>
             <div className="mt-1 text-lg font-semibold text-slate-100">{signal}</div>
             <div className="mt-2 text-xs text-slate-400">{insight}</div>
           </div>
           <div className="rounded-2xl border border-slate-800 bg-slate-950/30 p-4">
-            <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Total</div>
+            <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Totale</div>
             <div className="mt-1 text-2xl font-semibold text-slate-100">
               {total != null ? new Intl.NumberFormat().format(total) : "—"}
             </div>
             <div className="mt-1 text-xs text-slate-500">cavi</div>
           </div>
           <div className="rounded-2xl border border-slate-800 bg-slate-950/30 p-4">
-            <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Progress</div>
+            <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Avanzamento</div>
             <div className="mt-1 text-2xl font-semibold text-slate-100">{progressPct != null ? `${progressPct}%` : "—"}</div>
             <div className="mt-1 text-xs text-slate-500">Σ posati / Σ ref</div>
             <div className="mt-3 h-2 rounded-full bg-slate-900/60 overflow-hidden">
@@ -150,7 +150,7 @@ export default function NavemasterCockpitPage(props: { shipId: string | null; ha
             </div>
           </div>
           <div className="rounded-2xl border border-slate-800 bg-slate-950/30 p-4">
-            <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Ref (m)</div>
+            <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Rif (m)</div>
             <div className="mt-1 text-2xl font-semibold text-slate-100">
               {metriRef != null ? new Intl.NumberFormat().format(metriRef) : "—"}
             </div>
@@ -161,14 +161,14 @@ export default function NavemasterCockpitPage(props: { shipId: string | null; ha
             <div className="mt-1 text-2xl font-semibold text-slate-100">
               {metriPosati != null ? new Intl.NumberFormat().format(metriPosati) : "—"}
             </div>
-            <div className="mt-1 text-xs text-slate-500">approved proofs</div>
+            <div className="mt-1 text-xs text-slate-500">prove approvate</div>
           </div>
           <div className="rounded-2xl border border-slate-800 bg-slate-950/30 p-4">
             <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Δ (m)</div>
             <div className="mt-1 text-2xl font-semibold text-slate-100">
               {deltaMetri != null ? new Intl.NumberFormat().format(deltaMetri) : "—"}
             </div>
-            <div className="mt-1 text-xs text-slate-500">remaining</div>
+            <div className="mt-1 text-xs text-slate-500">rimanente</div>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -195,7 +195,7 @@ export default function NavemasterCockpitPage(props: { shipId: string | null; ha
             { label: "Tutti", patch: { navStatus: "ALL", onlyModified: false, onlyNoProof: false, onlyWithInca: false }, tone: "neutral" as const },
             { label: "Blocchi (B)", patch: { navStatus: "B" }, tone: "danger" as const },
             { label: "Modificati (*)", patch: { onlyModified: true }, tone: "warn" as const },
-            { label: "No proof", patch: { onlyNoProof: true }, tone: "warn" as const },
+            { label: "Senza prova", patch: { onlyNoProof: true }, tone: "warn" as const },
             { label: "Posati (P)", patch: { navStatus: "P" }, tone: "ok" as const },
             { label: "Eliminati (E)", patch: { navStatus: "E" }, tone: "muted" as const },
             { label: "Ripresa (R/L)", patch: { navStatus: "R" }, tone: "info" as const },
@@ -242,7 +242,7 @@ export default function NavemasterCockpitPage(props: { shipId: string | null; ha
         />
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
           <div className={loading ? "animate-pulse" : ""}>
-            {loading ? "loading…" : result.total !== null ? `${result.total} rows` : ""}
+            {loading ? "caricamento…" : result.total !== null ? `${result.total} righe` : ""}
           </div>
           {result.total !== null ? (
             <div className="flex items-center gap-2">
@@ -258,7 +258,7 @@ export default function NavemasterCockpitPage(props: { shipId: string | null; ha
                 <option value={100}>100</option>
               </select>
               <span>
-                page {page} / {Math.max(1, Math.ceil(result.total / pageSize))}
+                pagina {page} / {Math.max(1, Math.ceil(result.total / pageSize))}
               </span>
               <button
                 type="button"
@@ -266,7 +266,7 @@ export default function NavemasterCockpitPage(props: { shipId: string | null; ha
                 disabled={page <= 1}
                 className="rounded-lg border border-slate-800 bg-slate-950/30 px-2 py-1 text-[11px] text-slate-200 disabled:opacity-50"
               >
-                Prev
+                Prec
               </button>
               <button
                 type="button"
@@ -274,7 +274,7 @@ export default function NavemasterCockpitPage(props: { shipId: string | null; ha
                 disabled={!result.hasMore}
                 className="rounded-lg border border-slate-800 bg-slate-950/30 px-2 py-1 text-[11px] text-slate-200 disabled:opacity-50"
               >
-                Next
+                Succ
               </button>
             </div>
           ) : null}

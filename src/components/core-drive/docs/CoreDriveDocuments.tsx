@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../auth/AuthProvider";
+import { formatDisplayName } from "../../../utils/formatHuman";
+import { supabase } from "../../../lib/supabaseClient";
 
 import Badge from "../ui/Badge";
 import KpiTile from "../ui/KpiTile";
@@ -21,7 +23,7 @@ import CoreDrivePreviewDrawer from "../CoreDrivePreviewDrawer";
 
 const VIEW_OPTIONS: Array<{ value: "LIST" | "TIMELINE" | "COMPARE"; label: string }> = [
   { value: "LIST", label: "Lista" },
-  { value: "TIMELINE", label: "Timeline" },
+  { value: "TIMELINE", label: "Linea tempo" },
   { value: "COMPARE", label: "Confronto" },
 ];
 
@@ -29,6 +31,7 @@ type CoreDriveItem = {
   id: string | number;
   filename?: string;
   created_at?: string;
+  created_by?: string | null;
   cantiere?: string;
   categoria?: string;
   commessa?: string;
@@ -51,6 +54,7 @@ export default function CoreDriveDocuments() {
   const navigate = useNavigate();
 
   const appRole = profile?.app_role || profile?.role || "";
+  const capoLabel = formatDisplayName(profile as any, "CAPO");
 
   const canDelete = ["UFFICIO", "MANAGER", "DIREZIONE", "ADMIN"].includes(String(appRole).toUpperCase());
   const canFreeze = ["UFFICIO", "DIREZIONE", "ADMIN"].includes(String(appRole).toUpperCase());
@@ -70,6 +74,7 @@ export default function CoreDriveDocuments() {
   });
 
   const [items, setItems] = useState<CoreDriveItem[]>([]);
+  const [capoLabels, setCapoLabels] = useState<Record<string, string>>({});
   const [cursor, setCursor] = useState<CoreFileCursor | null>(null);
   const [hasMore, setHasMore] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
@@ -205,6 +210,21 @@ export default function CoreDriveDocuments() {
       return best;
     })();
 
+    const topCapo = (() => {
+      const m = new Map<string, number>();
+      items.forEach((x) => {
+        if (String(x.origine || "").toUpperCase() !== "CAPO") return;
+        const id = String(x.created_by || "").trim();
+        if (!id) return;
+        m.set(id, (m.get(id) || 0) + 1);
+      });
+      let best = { id: "", v: 0 };
+      m.forEach((v, id) => {
+        if (v > best.v) best = { id, v };
+      });
+      return best;
+    })();
+
     const oldest = (() => {
       const sorted = [...items]
         .filter((x) => x.created_at)
@@ -218,6 +238,7 @@ export default function CoreDriveDocuments() {
       last7,
       topCategoria,
       topOrigine,
+      topCapo,
       oldest,
     };
   }, [items]);
@@ -259,6 +280,48 @@ export default function CoreDriveDocuments() {
   void timelineData;
   void compare;
 
+  useEffect(() => {
+    const capoIds = Array.from(
+      new Set(
+        items
+          .filter((x) => String(x.origine || "").toUpperCase() === "CAPO")
+          .map((x) => String(x.created_by || "").trim())
+          .filter(Boolean)
+      )
+    );
+
+    if (capoIds.length === 0) {
+      setCapoLabels({});
+      return;
+    }
+
+    let alive = true;
+
+    (async () => {
+      const { data: profs, error: rpcErr } = await supabase.rpc("core_profiles_public_by_ids", {
+        p_ids: capoIds,
+      });
+
+      if (!alive) return;
+      if (rpcErr) {
+        console.warn("[CORE DRIVE] profiles_public failed:", rpcErr);
+        setCapoLabels({});
+        return;
+      }
+
+      const out: Record<string, string> = {};
+      (profs || []).forEach((p: any) => {
+        const label = String(p?.display_name || p?.full_name || p?.email || p?.id || "—").trim();
+        if (p?.id) out[String(p.id)] = label;
+      });
+      setCapoLabels(out);
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [items]);
+
   async function handleDelete(f: CoreDriveItem) {
     if (!canDelete) return;
     const reason = window.prompt("Motivo cancellazione (soft delete):", "");
@@ -279,7 +342,7 @@ export default function CoreDriveDocuments() {
   async function handleFreeze(f: CoreDriveItem) {
     if (!canFreeze) return;
     if (f.is_frozen) return;
-    const reason = window.prompt("Motivo freeze (inviolabile):", "");
+    const reason = window.prompt("Motivo congelamento (inviolabile):", "");
     if (reason === null) return;
     try {
       await (freezeCoreFile as unknown as (arg: { id: string; reason?: string | null }) => Promise<unknown>)({
@@ -289,7 +352,7 @@ export default function CoreDriveDocuments() {
       await loadFirstPage();
     } catch (e) {
       console.error(e);
-      alert("Errore freeze.");
+      alert("Errore congelamento.");
     }
   }
 
@@ -314,7 +377,14 @@ export default function CoreDriveDocuments() {
           <KpiTile label="Documenti" value={kpis.total} />
           <KpiTile label="Peso totale" value={bytes(kpis.totalBytes)} />
           <KpiTile label="Ultimi 7 giorni" value={kpis.last7} />
-          <KpiTile label="Origine top" value={`${kpis.topOrigine.k} (${kpis.topOrigine.v})`} />
+        <KpiTile
+          label="Origine top"
+          value={
+            String(appRole).toUpperCase() === "CAPO" && String(kpis.topOrigine.k || "").toUpperCase() === "CAPO"
+              ? `${capoLabel} (${kpis.topOrigine.v})`
+              : `${kpis.topOrigine.k} (${kpis.topOrigine.v})`
+          }
+        />
         </div>
       </section>
 
@@ -406,7 +476,7 @@ export default function CoreDriveDocuments() {
           </div>
 
           <div className="lg:col-span-3">
-            <label className="text-[12px] text-slate-400">Mime group</label>
+            <label className="text-[12px] text-slate-400">Tipo file</label>
             <select
               value={filters.mimeGroup}
               onChange={(e) => setFilters((p) => ({ ...p, mimeGroup: e.target.value }))}
@@ -455,13 +525,13 @@ export default function CoreDriveDocuments() {
             <div className="text-xs text-slate-500">
               {filters.dateFrom || filters.dateTo ? (
                 <>
-                  Range:{" "}
+                  Intervallo:{" "}
                   <span className="text-slate-200">
                     {filters.dateFrom || "—"} → {filters.dateTo || "—"}
                   </span>
                 </>
               ) : (
-                <>Range: —</>
+                <>Intervallo: —</>
               )}
             </div>
 
@@ -482,7 +552,7 @@ export default function CoreDriveDocuments() {
                 })
               }
             >
-              Reset
+              Resetta
             </button>
           </div>
         </div>
@@ -524,7 +594,7 @@ export default function CoreDriveDocuments() {
                     {f.categoria ? <Badge>{f.categoria}</Badge> : null}
                     {f.commessa ? <Badge tone="info">{f.commessa}</Badge> : null}
                     {f.origine ? <Badge tone="neutral">{f.origine}</Badge> : null}
-                    {f.is_frozen ? <Badge tone="warn">FROZEN</Badge> : null}
+                    {f.is_frozen ? <Badge tone="warn">CONGELATO</Badge> : null}
                     {f.is_deleted ? <Badge tone="danger">STORICO</Badge> : null}
                     {f.stato_doc ? <Badge tone="ok">{f.stato_doc}</Badge> : null}
                     {f.size_bytes ? <span>{bytes(f.size_bytes)}</span> : null}
@@ -541,7 +611,7 @@ export default function CoreDriveDocuments() {
                         handleFreeze(f);
                       }}
                     >
-                      Freeze
+                      Congela
                     </button>
                   ) : null}
                   {canDelete ? (
@@ -579,7 +649,7 @@ export default function CoreDriveDocuments() {
                       }
                     }}
                   >
-                    {canOpenNavemasterCockpit(f) ? "Cockpit" : "Preview"}
+                    {canOpenNavemasterCockpit(f) ? "Cockpit" : "Anteprima"}
                   </button>
                 </div>
               </div>

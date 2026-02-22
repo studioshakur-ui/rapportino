@@ -364,7 +364,7 @@ export default function AdminPlanningPage(): JSX.Element {
           </div>
 
           <div className="md:col-span-3">
-            <div className="kicker">Status</div>
+            <div className="kicker">Stato</div>
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
@@ -378,7 +378,7 @@ export default function AdminPlanningPage(): JSX.Element {
           </div>
 
           <div className="md:col-span-6">
-            <div className="kicker">Search</div>
+            <div className="kicker">Cerca</div>
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}

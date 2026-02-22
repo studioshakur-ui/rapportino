@@ -329,7 +329,7 @@ export default function AdminUsersPage(): JSX.Element {
               disabled={ui.page <= 1}
               className={`btn-instrument rounded-xl px-3 py-2 text-[12px] font-semibold ${ui.page <= 1 ? "opacity-50 cursor-not-allowed" : ""}`}
             >
-              {t(lang, "COMMON_PREV", "Prev")}
+              {t(lang, "COMMON_PREV", "Prec")}
             </button>
 
             <button
@@ -338,7 +338,7 @@ export default function AdminUsersPage(): JSX.Element {
               disabled={ui.page >= ui.totalPages}
               className={`btn-instrument rounded-xl px-3 py-2 text-[12px] font-semibold ${ui.page >= ui.totalPages ? "opacity-50 cursor-not-allowed" : ""}`}
             >
-              {t(lang, "COMMON_NEXT", "Next")}
+              {t(lang, "COMMON_NEXT", "Succ")}
             </button>
           </div>
         </div>

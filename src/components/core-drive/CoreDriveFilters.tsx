@@ -73,7 +73,7 @@ export default function CoreDriveFilters({
           </div>
 
           <button type="button" onClick={reset} className={pill}>
-            Reset
+            Resetta
           </button>
         </div>
 

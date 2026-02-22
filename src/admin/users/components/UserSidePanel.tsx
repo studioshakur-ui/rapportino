@@ -38,7 +38,7 @@ export default function UserSidePanel(props: {
     <div className="rounded-2xl theme-panel overflow-hidden">
       <div className="p-5 border-b theme-border flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="kicker">User</div>
+          <div className="kicker">Utente</div>
           <div className="mt-1 flex items-center gap-3">
             <div
               className={cn(
@@ -75,9 +75,11 @@ export default function UserSidePanel(props: {
             <div className="mt-1 text-[13px] theme-text">{user.app_role || "—"}</div>
           </div>
           <div className="col-span-6">
-            <div className="kicker">Status</div>
+            <div className="kicker">Stato</div>
             <div className="mt-1 text-[13px] theme-text">{status}</div>
-            {disabledAt ? <div className="mt-1 text-[12px] theme-text-muted">Disabled: {formatDateShort(disabledAt)}</div> : null}
+            {disabledAt ? (
+              <div className="mt-1 text-[12px] theme-text-muted">Disabilitato: {formatDateShort(disabledAt)}</div>
+            ) : null}
           </div>
 
           <div className="col-span-12">
@@ -110,7 +112,7 @@ export default function UserSidePanel(props: {
                   : "theme-panel-2 theme-border hover:opacity-95"
               )}
             >
-              Reset password
+              Resetta password
             </button>
 
             <button
@@ -124,7 +126,7 @@ export default function UserSidePanel(props: {
                   : "badge-warning"
               )}
             >
-              Suspend
+              Sospendi
             </button>
 
             <button
@@ -138,13 +140,13 @@ export default function UserSidePanel(props: {
                   : "badge-danger"
               )}
             >
-              Hard delete
+              Elimina definitivamente
             </button>
           </div>
         </div>
 
         <div className="text-[11px] theme-text-muted break-all">
-          User ID: <span className="theme-text-muted">{user.id}</span>
+          ID utente: <span className="theme-text-muted">{user.id}</span>
         </div>
       </div>
     </div>

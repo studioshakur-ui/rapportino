@@ -488,7 +488,7 @@ export default function AppShell(): JSX.Element {
               type="button"
               className="absolute inset-0 bg-black/60"
               onClick={() => setMobileNavOpen(false)}
-              aria-label="Close menu"
+              aria-label="Chiudi menu"
             />
             <div
               className={[
@@ -498,7 +498,7 @@ export default function AppShell(): JSX.Element {
               ].join(" ")}
               role="dialog"
               aria-modal="true"
-              aria-label="Navigation"
+              aria-label="Navigazione"
             >
               <div className="flex items-center justify-between">
                 <div>
@@ -509,8 +509,8 @@ export default function AppShell(): JSX.Element {
                   type="button"
                   onClick={() => setMobileNavOpen(false)}
                   className="rounded-xl border theme-border bg-[var(--panel2)] theme-text px-3 py-2"
-                  aria-label="Close"
-                  title="Close"
+                  aria-label="Chiudi"
+                  title="Chiudi"
                 >
                   ×
                 </button>

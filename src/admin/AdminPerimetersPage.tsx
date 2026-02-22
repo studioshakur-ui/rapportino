@@ -33,7 +33,6 @@ type PerimOperator = {
   display_name: string;
   roles: string[];
   active: boolean;
-  role_tag: string | null;
   created_at?: string | null;
 };
 
@@ -115,7 +114,6 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
   const [ships, setShips] = useState<Ship[]>([]);
   const [selectedShipId, setSelectedShipId] = useState<string>("");
   const [loadingShips, setLoadingShips] = useState(false);
-  const [shipsDebug, setShipsDebug] = useState<string>("");
 
   const [perimOps, setPerimOps] = useState<PerimOperator[]>([]);
   const [loadingPerimOps, setLoadingPerimOps] = useState(false);
@@ -126,7 +124,6 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
   // Add operator UI
   const [opQuery, setOpQuery] = useState<string>("");
   const [selectedOperatorId, setSelectedOperatorId] = useState<string>("");
-  const [roleTag, setRoleTag] = useState<string>("");
   const [busyAdd, setBusyAdd] = useState(false);
 
   // Feedback
@@ -154,7 +151,6 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
   const loadShips = async () => {
     setLoadingShips(true);
     setErr("");
-    setShipsDebug("");
     try {
       // IMPORTANT:
       // Supabase/PostgREST in this deployment rejects some multi-column `order=...` payloads (400).
@@ -185,7 +181,6 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
       });
 
       setShips(list);
-      setShipsDebug(`ships=${list.length}`);
       if (!selectedShipId && list.length > 0) setSelectedShipId(list[0].ship_id);
     } catch (e) {
       const fe = formatSupabaseError(e);
@@ -193,7 +188,6 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
       console.error("[AdminPerimetersPage] loadShips error:", fe.debug);
       setShips([]);
       setErr(`Impossibile caricare elenco navi. ${fe.short}`);
-      setShipsDebug(`ships=0 · error=${fe.short}`);
     } finally {
       setLoadingShips(false);
     }
@@ -247,7 +241,6 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
           `
           operator_id,
           active,
-          role_tag,
           created_at,
           operators:operator_id (
             id,
@@ -270,7 +263,6 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
           display_name: display,
           roles: Array.isArray(o?.roles) ? dedupRoles(o.roles) : [],
           active: r.active !== false,
-          role_tag: r.role_tag ?? null,
           created_at: r.created_at ?? null,
         };
       });
@@ -309,7 +301,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
       title: o.display_name || "—",
       subtitle: o.roles.length ? o.roles.join(", ") : undefined,
       route: "/admin/perimetri",
-      tokens: [o.display_name, o.role_tag, o.roles.join(" ")].filter(Boolean).join(" "),
+      tokens: [o.display_name, o.roles.join(" ")].filter(Boolean).join(" "),
       updatedAt: o.created_at || null,
       badge: o.active ? "ACTIVE" : "OFF",
       badgeTone: o.active ? "emerald" : "amber",
@@ -325,7 +317,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
     return sorted.slice(0, 5).map((o) => ({
       id: o.operator_id,
       title: o.display_name || "—",
-      subtitle: o.role_tag || "Perimetro",
+      subtitle: "Perimetro",
       route: "/admin/perimetri",
       timeLabel: o.created_at || undefined,
     }));
@@ -398,16 +390,12 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
         operator_id: selectedOperatorId,
         active: true,
       };
-      const rt = safeText(roleTag);
-      if (rt) payload.role_tag = rt;
-
       const { error } = await supabase.from("ship_operators").upsert(payload, { onConflict: "ship_id,operator_id" });
       if (error) throw error;
 
       setToastSoft("Perimetro aggiornato.");
       setOpQuery("");
       setSelectedOperatorId("");
-      setRoleTag("");
       await loadPerimeterOperators(selectedShipId);
     } catch (e) {
       const fe = formatSupabaseError(e);
@@ -453,7 +441,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
                 {t(
                   lang,
                   "perimeters.hint",
-                  "Collega operatori (creati in Admin) al perimetro nave. Solo così il Manager les voit dans Assegnazioni."
+                  "Collega operatori (creati in Admin) al perimetro nave. Solo così il Manager li vede in Assegnazioni."
                 )}
               </div>
             </div>
@@ -461,10 +449,6 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
               <div className="text-[10px] uppercase tracking-[0.26em] theme-text-muted">SCOPE</div>
               <div className="mt-1 text-[12px] font-semibold theme-text">{scopeLabel}</div>
             </div>
-          </div>
-
-          <div className="mt-3 rounded-xl border theme-border bg-[var(--panel2)] px-3 py-2 text-[11px] theme-text-muted">
-            DEBUG: role={String(profile?.app_role || "—")} · {shipsDebug || "ships=?"}
           </div>
 
           <div className="mt-4 grid grid-cols-1 lg:grid-cols-12 gap-3">
@@ -514,7 +498,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
                     <span className="theme-text font-semibold">{safeText(selectedShip.commessa) || "—"}</span>
                   </div>
                   <div className="mt-1 text-[12px] theme-text-muted">
-                    Ship: <span className="theme-text font-semibold">{safeText(selectedShip.code) || "—"}</span>
+                    Nave: <span className="theme-text font-semibold">{safeText(selectedShip.code) || "—"}</span>
                   </div>
                   <div className="mt-1 text-[12px] theme-text-muted">
                     Costr: <span className="theme-text font-semibold">{safeText(selectedShip.costr) || "—"}</span>
@@ -527,7 +511,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
             <div className="lg:col-span-8 rounded-2xl border theme-border bg-[var(--panel2)] p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="text-[11px] uppercase tracking-[0.22em] theme-text-muted">Perim add op</div>
+                  <div className="text-[11px] uppercase tracking-[0.22em] theme-text-muted">Aggiunta operatore</div>
                   <div className="mt-1 text-[12px] theme-text-muted">
                     Seleziona un operatore esistente (Admin → Operatori) e collegalo alla nave.
                   </div>
@@ -583,12 +567,12 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
                                 <div className="min-w-0">
                                   <div className="text-[13px] font-semibold theme-text truncate">{o.display_name}</div>
                                   <div className="text-[11px] theme-text-muted truncate">
-                                    Roles: {o.roles.length ? o.roles.join(", ") : "—"}
+                                    Ruoli: {o.roles.length ? o.roles.join(", ") : "—"}
                                   </div>
                                 </div>
                                 <div className="shrink-0">
                                   <span className={pill(o.identity_ok ? "emerald" : "amber")}>
-                                    {o.identity_ok ? "OK" : "IDENTITY KO"}
+                                    {o.identity_ok ? "IDENTITÀ OK" : "IDENTITÀ KO"}
                                   </span>
                                 </div>
                               </div>
@@ -601,24 +585,16 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
                 </div>
 
                 <div className="md:col-span-3">
-                  <div className="text-[11px] uppercase tracking-[0.22em] theme-text-muted">Role tag (opzionale)</div>
-                  <input
-                    value={roleTag}
-                    onChange={(e) => setRoleTag(e.target.value)}
-                    placeholder="Es. ELETTRICISTA"
-                    className={cn(inputClass(), "mt-1")}
-                  />
-
-                  <div className="mt-3 rounded-2xl border theme-border bg-[var(--panel2)] px-3 py-2">
+                  <div className="mt-1 rounded-2xl border theme-border bg-[var(--panel2)] px-3 py-2">
                     <div className="text-[11px] uppercase tracking-[0.22em] theme-text-muted">Selezionato</div>
                     <div className="mt-1 text-[12px] theme-text font-semibold truncate">{selectedOp?.display_name || "—"}</div>
                     <div className="mt-1 text-[11px] theme-text-muted truncate">
-                      Roles: {selectedOp?.roles?.length ? selectedOp.roles.join(", ") : "—"}
+                      Ruoli: {selectedOp?.roles?.length ? selectedOp.roles.join(", ") : "—"}
                     </div>
                     <div className="mt-2">
                       {selectedOp ? (
                         <span className={pill(selectedOp.identity_ok ? "emerald" : "amber")}>
-                          {selectedOp.identity_ok ? "IDENTITY OK" : "IDENTITY KO"}
+                          {selectedOp.identity_ok ? "IDENTITÀ OK" : "IDENTITÀ KO"}
                         </span>
                       ) : (
                         <span className={pill("slate")}>—</span>
@@ -637,7 +613,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
                     onClick={addToPerimeter}
                     title={alreadyInPerimeter ? "Già presente" : "Aggiungi al perimetro"}
                   >
-                    {busyAdd ? "…" : "Perim Add"}
+                    {busyAdd ? "…" : "Aggiungi"}
                   </button>
                 </div>
               </div>
@@ -667,11 +643,11 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
         <div className={cardClass() + " p-4"}>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="text-[10px] uppercase tracking-[0.26em] theme-text-muted">PERIM OPS</div>
+              <div className="text-[10px] uppercase tracking-[0.26em] theme-text-muted">OPERATORI PERIMETRO</div>
               <div className="mt-1 text-[12px] theme-text-muted">Operatori collegati alla nave selezionata.</div>
             </div>
             <div className="text-right">
-              <div className="text-[10px] uppercase tracking-[0.26em] theme-text-muted">Perim status</div>
+              <div className="text-[10px] uppercase tracking-[0.26em] theme-text-muted">Stato perimetro</div>
               <div className="mt-1 text-[12px] theme-text font-semibold">
                 {loadingPerimOps ? "…" : `Elenco · ${perimOps.filter((x) => x.active).length} attivi`}
               </div>
@@ -682,8 +658,8 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
           <div className="grid grid-cols-12 gap-2 px-3 py-2 border-b theme-border bg-[var(--panel2)] text-[11px] theme-text-muted">
               <div className="col-span-5 theme-text">Nome</div>
               <div className="col-span-3 theme-text">Ruoli</div>
-              <div className="col-span-2 theme-text">Perim Status</div>
-              <div className="col-span-2 text-right theme-text">Actions</div>
+              <div className="col-span-2 theme-text">Stato</div>
+              <div className="col-span-2 text-right theme-text">Azioni</div>
             </div>
 
             <div className="divide-y theme-border">
@@ -697,13 +673,13 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
                     <div className="grid grid-cols-12 gap-2 items-center">
                       <div className="col-span-5 min-w-0">
                         <div className="text-[13px] font-semibold theme-text truncate">{o.display_name}</div>
-                        <div className="text-[11px] theme-text-muted truncate">Tag: {safeText(o.role_tag) || "—"}</div>
+                        <div className="text-[11px] theme-text-muted truncate">Tag: —</div>
                       </div>
                       <div className="col-span-3 text-[12px] theme-text-muted truncate">
                         {o.roles.length ? o.roles.join(", ") : "—"}
                       </div>
                       <div className="col-span-2">
-                        <span className={pill(o.active ? "emerald" : "amber")}>{o.active ? "Perim Active" : "Perim OFF"}</span>
+                        <span className={pill(o.active ? "emerald" : "amber")}>{o.active ? "Attivo" : "Disattivo"}</span>
                       </div>
                       <div className="col-span-2 text-right">
                         <button type="button" className={btnGhost()} onClick={() => setActive(o.operator_id, !o.active)}>

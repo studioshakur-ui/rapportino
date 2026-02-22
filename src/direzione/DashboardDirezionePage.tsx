@@ -59,7 +59,7 @@ export default function DashboardDirezionePage({
       rapportini: {
         summaryPairs: [
           { label: t("KPI_RAPPORTINI"), value: km.rapportini, kind: "number", maxFrac: 0 },
-          { label: "Prev", value: km.rapportini_prev, kind: "number", maxFrac: 0 },
+          { label: "Prev.", value: km.rapportini_prev, kind: "number", maxFrac: 0 },
         ],
         rulesText: "Conteggio rapportini nel range filtrato (COSTR/Commessa).",
       },
@@ -111,7 +111,7 @@ export default function DashboardDirezionePage({
         <KpiCard
           label={t("KPI_RAPPORTINI")}
           value={km.rapportini ?? "—"}
-          sub={km.rapportini_prev != null ? `Prev: ${km.rapportini_prev}` : "—"}
+          sub={km.rapportini_prev != null ? `Prev.: ${km.rapportini_prev}` : "—"}
           tone="neutral"
           onClick={() => openModal("rapportini")}
           hint={hint}

@@ -36,7 +36,7 @@ export default function FilterBuilder({
           />
         </div>
       ))}
-      <button onClick={addFilter}>+ Filter</button>
+      <button onClick={addFilter}>+ Filtro</button>
       <button onClick={() => onApply(filters)}>Apply</button>
     </div>
   );

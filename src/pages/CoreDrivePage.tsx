@@ -1,9 +1,10 @@
 // /src/pages/CoreDrivePage.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthProvider";
 import { useShip } from "../context/ShipContext";
+import { useI18n } from "../i18n/I18nProvider";
 
 import Segmented from "../components/core-drive/ui/Segmented";
 import Badge from "../components/core-drive/ui/Badge";
@@ -12,12 +13,15 @@ import CoreDriveDocuments from "../components/core-drive/docs/CoreDriveDocuments
 import CoreDriveRapportiniV1 from "../components/core-drive/rapportini/CoreDriveRapportiniV1";
 import { resolveCoreDriveView } from "../components/core-drive/coreDriveViews";
 
+type CoreDriveTab = { key: string; label: string };
+
 export default function CoreDrivePage() {
   const { profile } = useAuth();
   const location = useLocation();
   const { currentShip } = useShip();
+  const { t } = useI18n();
 
-  const appRole = profile?.app_role || profile?.role || "";
+  const appRole = String(profile?.app_role || (profile as any)?.role || "");
 
   const view = useMemo(() => {
     return resolveCoreDriveView({
@@ -27,13 +31,13 @@ export default function CoreDrivePage() {
     });
   }, [location.pathname, appRole, currentShip]);
 
-  const tabs = useMemo(() => {
-    if (Array.isArray(view?.tabs) && view.tabs.length) return view.tabs;
+  const tabs = useMemo<CoreDriveTab[]>(() => {
+    if (Array.isArray(view?.tabs) && view.tabs.length) return view.tabs as CoreDriveTab[];
     return [
-      { key: "DOCS", label: "Documents" },
-      { key: "RAPPORTINI_V1", label: "Storico Rapportini (v1)" },
+      { key: "DOCS", label: t("CORE_DRIVE_TAB_DOCS") },
+      { key: "RAPPORTINI_V1", label: t("CORE_DRIVE_TAB_RAPPORTINI_V1") },
     ];
-  }, [view]);
+  }, [view, t]);
 
   const tabKey = view?.storage?.tabKey || "coreDrive.tab";
   const tabsKey = useMemo(() => tabs.map((t) => t.key).join("|"), [tabs]);
@@ -68,7 +72,7 @@ export default function CoreDrivePage() {
   if (!profile) {
     return (
       <div className="min-h-screen bg-slate-950 px-4 pb-10 pt-6">
-        <div className="mx-auto w-full max-w-6xl text-sm text-slate-400">Caricamento profilo…</div>
+        <div className="mx-auto w-full max-w-6xl text-sm text-slate-400">{t("CORE_DRIVE_PROFILE_LOADING")}</div>
       </div>
     );
   }
@@ -78,22 +82,24 @@ export default function CoreDrivePage() {
 
   return (
     <div className="min-h-screen bg-slate-950 px-4 pb-10 pt-6">
-      <div className="mx-auto w-full max-w-6xl">
+      <div className="w-full">
         <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
             <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{view?.kicker || "CORE Drive"}</div>
             <h1 className="mt-1 text-2xl sm:text-3xl font-semibold text-slate-100">
-              {view?.title || "Centro documentale e memoria lunga"}
+              {view?.title || t("CORE_DRIVE_TITLE")}
             </h1>
 
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              {(Array.isArray(view?.badges) && view.badges.length ? view.badges : [roleLabel]).map((b) => (
+              {(Array.isArray(view?.badges) && view.badges.length ? (view.badges as string[]) : [roleLabel]).map(
+                (b: string) => (
                 <Badge key={b} tone="neutral">
                   {b}
                 </Badge>
-              ))}
-              {readOnly ? <Badge tone="info">Read-only</Badge> : <Badge tone="ok">Operativo</Badge>}
-              <Badge tone="neutral">Dark · High precision</Badge>
+                )
+              )}
+              {readOnly ? <Badge tone="info">{t("CORE_DRIVE_BADGE_READONLY")}</Badge> : <Badge tone="ok">{t("CORE_DRIVE_BADGE_OPERATIVE")}</Badge>}
+              <Badge tone="neutral">{t("CORE_DRIVE_BADGE_THEME")}</Badge>
             </div>
           </div>
 
@@ -107,7 +113,7 @@ export default function CoreDrivePage() {
         </header>
 
         <div className="mt-5">
-          {tab === "DOCS" ? <CoreDriveDocuments viewConfig={view?.docs || null} /> : <CoreDriveRapportiniV1 />}
+          {tab === "DOCS" ? <CoreDriveDocuments /> : <CoreDriveRapportiniV1 />}
         </div>
       </div>
     </div>

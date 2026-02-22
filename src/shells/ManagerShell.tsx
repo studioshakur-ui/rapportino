@@ -1,13 +1,12 @@
 // src/shells/ManagerShell.tsx
 import { useMemo } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, Outlet } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthProvider";
 import ConnectionIndicator from "../components/ConnectionIndicator";
 import CNCSSidebar from "../components/shell/CNCSSidebar";
 import CNCSTopbar from "../components/shell/CNCSTopbar";
 import LangSwitcher from "../components/shell/LangSwitcher";
-import { KeepAliveOutlet } from "../utils/KeepAliveOutlet";
 import ThemeSwitcher from "../components/ThemeSwitcher";
 
 
@@ -158,11 +157,8 @@ export default function ManagerShell() {
             }
           />
 
-          <div className={isAssignmentsPage ? "pt-4" : "max-w-6xl mx-auto pt-4"}>
-            <div className="border rounded-2xl theme-border bg-[var(--panel)]">
-              <KeepAliveOutlet scopeKey="manager" context={{ lang }} />
-
-            </div>
+          <div className="pt-4">
+            <Outlet context={{ lang }} />
           </div>
         </main>
       </div>

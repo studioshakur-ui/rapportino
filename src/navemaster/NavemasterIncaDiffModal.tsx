@@ -90,7 +90,7 @@ export function NavemasterIncaDiffModal(props: Props): JSX.Element | null {
 
   const title = useMemo(() => {
     const c = ship?.code ?? "—";
-    const n = ship?.name ?? "Ship";
+    const n = ship?.name ?? "Nave";
     return `${c} · ${n}`;
   }, [ship?.code, ship?.name]);
 
@@ -101,10 +101,10 @@ export function NavemasterIncaDiffModal(props: Props): JSX.Element | null {
       <div className="w-full max-w-5xl rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-slate-800 p-5">
           <div>
-            <div className="text-[11px] uppercase tracking-wider text-slate-400">NAVEMASTER · INCA Diff</div>
+            <div className="text-[11px] uppercase tracking-wider text-slate-400">NAVEMASTER · Diff INCA</div>
             <div className="mt-1 text-lg font-semibold text-slate-100">{title}</div>
             <div className="mt-1 text-sm text-slate-400">
-              Differences detected between INCA baseline and CORE proofs.
+              Differenze rilevate tra baseline INCA e prove CORE.
             </div>
           </div>
           <button
@@ -112,29 +112,29 @@ export function NavemasterIncaDiffModal(props: Props): JSX.Element | null {
             onClick={onClose}
             className="inline-flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm text-slate-200 hover:bg-slate-900"
           >
-            <IconX /> Close
+            <IconX /> Chiudi
           </button>
         </div>
 
         <div className="p-5">
           {loading ? (
             <div className="flex items-center gap-2 text-slate-300">
-              <IconClock /> Loading…
+              <IconClock /> Caricamento…
             </div>
           ) : error ? (
             <div className="rounded-xl border border-red-900/40 bg-red-950/40 p-4 text-sm text-red-200">{error}</div>
           ) : rows.length === 0 ? (
             <div className="rounded-xl border border-slate-800 bg-slate-900/20 p-4 text-sm text-slate-300">
-              No diff rows.
+              Nessuna riga diff.
             </div>
           ) : (
             <div className="overflow-x-auto rounded-2xl border border-slate-800">
               <table className="min-w-full text-sm">
                 <thead className="bg-slate-900/40 text-slate-300">
                   <tr>
-                    <th className="px-3 py-2 text-left">Created</th>
+                    <th className="px-3 py-2 text-left">Creato</th>
                     <th className="px-3 py-2 text-left">Codice</th>
-                    <th className="px-3 py-2 text-left">Type</th>
+                    <th className="px-3 py-2 text-left">Tipo</th>
                     <th className="px-3 py-2 text-left">INCA</th>
                     <th className="px-3 py-2 text-left">CORE</th>
                   </tr>

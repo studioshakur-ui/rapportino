@@ -163,7 +163,7 @@ export default function AdminAuditPage(): JSX.Element {
         </div>
 
         <div className="mt-3">
-          <div className="text-[11px] uppercase tracking-[0.22em] theme-text-muted">Search</div>
+          <div className="text-[11px] uppercase tracking-[0.22em] theme-text-muted">Cerca</div>
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}

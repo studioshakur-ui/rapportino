@@ -10,10 +10,11 @@ export const navemasterFR = {
   NM_SHIP_LABEL: "Navire",
   NM_IMPORT_ACTIVE: "Import actif",
   NM_IMPORT_NONE: "Aucun import actif",
-  NM_COMPUTE_RUN: "Compute run",
-  NM_RLS_NOTE: "Ship selection is scoped by RLS.",
+  NM_COMPUTE_RUN: "Calculer run",
+  NM_RLS_NOTE: "La sélection du navire est limitée par la RLS.",
   NM_NO_RUN_TITLE: "NAVEMASTER V2",
-  NM_NO_RUN_BODY: "Aucun run V2 trouvé pour ce navire. Utilisez “Compute run” pour générer le snapshot à partir d’INCA + preuves CORE.",
+  NM_NO_RUN_BODY:
+    "Aucun run V2 trouvé pour ce navire. Utilisez “Calculer run” pour générer le snapshot à partir d’INCA + preuves CORE.",
 
   NM_VIEW_COCKPIT: "Cockpit",
   NM_VIEW_ALERTS: "Alertes",
@@ -53,10 +54,10 @@ export const navemasterFR = {
   NM_ALERTS_SEVERITY: "Sévérité",
   NM_ALERTS_RULE: "Règle",
   NM_ALERTS_CREATED: "Créé",
-  NM_ALERTS_META: "Meta",
+  NM_ALERTS_META: "Métadonnées",
 
   NM_DIFF_TITLE: "Diff INCA",
   NM_DIFF_PREV: "Avant",
   NM_DIFF_NEW: "Après",
-  NM_DIFF_MATCH: "Match",
+  NM_DIFF_MATCH: "Correspondance",
 };

@@ -1,15 +1,14 @@
-// /src/pages/ManagerOperatorKpi.jsx
+// src/features/kpi/pages/ManagerOperatorKPI.tsx
 import { OperatorProductivityKpiPanel } from "../components";
 
-
-export default function ManagerOperatorKpi({ isDark = true }: { isDark?: boolean }) {
+export default function ManagerOperatorKPI({ isDark = true }: { isDark?: boolean }) {
   return (
     <OperatorProductivityKpiPanel
-      scope="MANAGER"
+      scope="Manager"
       isDark={isDark}
-      showCostrCommessaFilters={false}
+      showCostrCommessaFilters={true}
       title="KPI Operatori"
-      kicker="CNCS · Manager"
+      kicker="MANAGER · CNCS / CORE"
     />
   );
 }

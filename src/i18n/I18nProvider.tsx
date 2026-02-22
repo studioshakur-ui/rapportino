@@ -115,7 +115,7 @@ const DICTS: Record<Lang, Dictionary> = {
         },
         actions: {
           back: "Indietro",
-          reset: "Reset",
+          reset: "Resetta",
           close: "Chiudi",
         },
         errors: {

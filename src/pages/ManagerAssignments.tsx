@@ -1073,7 +1073,7 @@ export default function ManagerAssignments({ isDark = true }) {
 
   return (
     <div className={cn("min-h-screen", isDark ? "bg-[#050910] text-slate-50" : "bg-white text-slate-900")}>
-      <div className="mx-auto max-w-7xl px-4 py-6">
+      <div className="w-full px-4 py-6">
         <div className={cardClass() + " p-4"}>
           {sectionTitle(
             "MANAGER · PLANNING",
@@ -1409,7 +1409,7 @@ export default function ManagerAssignments({ isDark = true }) {
                           </NamePill>
                         </div>
                         <div className="text-[11px] text-slate-500 truncate">
-                          Roles: {Array.isArray(o.roles) && o.roles.length ? o.roles.join(", ") : "—"}
+                          Ruoli: {Array.isArray(o.roles) && o.roles.length ? o.roles.join(", ") : "—"}
                         </div>
                       </div>
                     ))
@@ -1539,7 +1539,7 @@ export default function ManagerAssignments({ isDark = true }) {
                           </NamePill>
                         </div>
                         <div className="text-[11px] text-slate-500 truncate">
-                          Roles: {Array.isArray(o.roles) && o.roles.length ? o.roles.join(", ") : "—"}
+                          Ruoli: {Array.isArray(o.roles) && o.roles.length ? o.roles.join(", ") : "—"}
                         </div>
                       </button>
                     ))

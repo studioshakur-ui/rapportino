@@ -66,8 +66,8 @@ export default function NavemasterAlertsPage(props: { shipId: string | null; has
               }}
               className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 outline-none focus:border-slate-600"
             >
-              <option value="ALL">ALL</option>
-              <option value="CRITICAL">CRITICAL</option>
+              <option value="ALL">TUTTI</option>
+              <option value="CRITICAL">CRITICO</option>
               <option value="MAJOR">MAJOR</option>
               <option value="INFO">INFO</option>
             </select>
@@ -83,7 +83,7 @@ export default function NavemasterAlertsPage(props: { shipId: string | null; has
               }}
               className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 outline-none focus:border-slate-600"
             >
-              <option value="ALL">ALL</option>
+              <option value="ALL">TUTTI</option>
               <option value="MISSING_IN_CORE">MISSING_IN_CORE</option>
               <option value="EXTRA_IN_CORE">EXTRA_IN_CORE</option>
               <option value="DUPLICATE_IN_INCA">DUPLICATE_IN_INCA</option>
@@ -109,7 +109,7 @@ export default function NavemasterAlertsPage(props: { shipId: string | null; has
 
         <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
           <div className={loading ? "animate-pulse" : ""}>
-            {loading ? "loading…" : result.total !== null ? `${result.total} alerts` : ""}
+            {loading ? "caricamento…" : result.total !== null ? `${result.total} allarmi` : ""}
             {kpis.alertsBySeverity.CRITICAL != null ? ` · CRIT ${kpis.alertsBySeverity.CRITICAL}` : ""}
             {kpis.alertsBySeverity.MAJOR != null ? ` · MAJOR ${kpis.alertsBySeverity.MAJOR}` : ""}
             {kpis.alertsBySeverity.INFO != null ? ` · INFO ${kpis.alertsBySeverity.INFO}` : ""}
@@ -129,7 +129,7 @@ export default function NavemasterAlertsPage(props: { shipId: string | null; has
                 <option value={50}>50</option>
               </select>
               <span>
-                page {page} / {Math.max(1, Math.ceil(result.total / pageSize))}
+                pagina {page} / {Math.max(1, Math.ceil(result.total / pageSize))}
               </span>
               <button
                 type="button"
@@ -137,7 +137,7 @@ export default function NavemasterAlertsPage(props: { shipId: string | null; has
                 disabled={page <= 1}
                 className="rounded-lg border border-slate-800 bg-slate-950/30 px-2 py-1 text-[11px] text-slate-200 disabled:opacity-50"
               >
-                Prev
+                Prec
               </button>
               <button
                 type="button"
@@ -145,7 +145,7 @@ export default function NavemasterAlertsPage(props: { shipId: string | null; has
                 disabled={!result.hasMore}
                 className="rounded-lg border border-slate-800 bg-slate-950/30 px-2 py-1 text-[11px] text-slate-200 disabled:opacity-50"
               >
-                Next
+                Succ
               </button>
             </div>
           ) : null}

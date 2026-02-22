@@ -45,9 +45,9 @@ function savePersisted(snapshot: Record<string, any>): void {
 }
 
 function normalizeDbError(err: any): string {
-  if (!err) return "Erreur inconnue.";
+  if (!err) return "Errore sconosciuto.";
   const code = err.code ? `(${err.code}) ` : "";
-  const msg = err.message || "Erreur base de données.";
+  const msg = err.message || "Errore database.";
   return `${code}${msg}`;
 }
 
@@ -122,7 +122,7 @@ export default function AdminOperatorsPage(): JSX.Element {
         route: "/admin/operators",
         tokens,
         updatedAt: r.updated_at || r.created_at || null,
-        badge: r.is_identity_incomplete ? "IDENTITY KO" : undefined,
+        badge: r.is_identity_incomplete ? "IDENTITÀ KO" : undefined,
         badgeTone,
       };
     });
@@ -212,7 +212,7 @@ export default function AdminOperatorsPage(): JSX.Element {
       setRows(data || []);
     } catch (e) {
       console.error("[AdminOperatorsPage] loadOperators error:", e);
-      setMsg({ ok: false, text: `Load failed: ${normalizeDbError(e)}` });
+      setMsg({ ok: false, text: `Caricamento fallito: ${normalizeDbError(e)}` });
       // keep existing rows
     } finally {
       setLoading(false);
@@ -310,7 +310,7 @@ export default function AdminOperatorsPage(): JSX.Element {
 
     const roles = parseCsv(rolesCsv);
     if (roles.length === 0) {
-      setMsg({ ok: false, text: "Roles non può essere vuoto (es: OPERAIO)." });
+      setMsg({ ok: false, text: "Ruoli non può essere vuoto (es: OPERAIO)." });
       return;
     }
 
@@ -345,7 +345,7 @@ export default function AdminOperatorsPage(): JSX.Element {
       await loadOperators();
     } catch (e2) {
       console.error("[AdminOperatorsPage] create error:", e2);
-      setMsg({ ok: false, text: `Create failed: ${normalizeDbError(e2)}` });
+      setMsg({ ok: false, text: `Creazione fallita: ${normalizeDbError(e2)}` });
     } finally {
       setCreating(false);
     }
@@ -390,7 +390,7 @@ export default function AdminOperatorsPage(): JSX.Element {
 
     const roles = parseCsv(editDraft.rolesCsv);
     if (roles.length === 0) {
-      setMsg({ ok: false, text: "Roles non può essere vuoto (es: OPERAIO)." });
+      setMsg({ ok: false, text: "Ruoli non può essere vuoto (es: OPERAIO)." });
       return;
     }
 
@@ -416,7 +416,7 @@ export default function AdminOperatorsPage(): JSX.Element {
       closeEdit();
     } catch (e) {
       console.error("[AdminOperatorsPage] save edit error:", e);
-      setMsg({ ok: false, text: `Save failed: ${normalizeDbError(e)}` });
+      setMsg({ ok: false, text: `Salvataggio fallito: ${normalizeDbError(e)}` });
     } finally {
       setSaving(false);
     }
@@ -427,9 +427,9 @@ export default function AdminOperatorsPage(): JSX.Element {
       {/* HEADER */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="kicker">{t(lang, "OPERATORS") || "Operators"}</div>
+          <div className="kicker">{t(lang, "OPERATORS") || "Operatori"}</div>
           <div className="text-xs theme-text-muted mt-1">
-            Admin operai. Identità obbligatoria: <span className="theme-text">cognome, nome, birth_date</span>.
+            Admin operai. Identità obbligatoria: <span className="theme-text">cognome, nome, data_nascita</span>.
             Il trigger blocca insert/update incompleti.
           </div>
         </div>
@@ -441,13 +441,13 @@ export default function AdminOperatorsPage(): JSX.Element {
             className="text-[12px] px-3 py-1.5 rounded-full border theme-border theme-text bg-[var(--panel2)] hover:bg-[var(--panel)]"
             title="Ricarica operatori"
           >
-            Refresh
+            Ricarica
           </button>
           <button
             type="button"
             onClick={hardResetUI}
             className="text-[12px] px-3 py-1.5 rounded-full border theme-border theme-text bg-[var(--panel2)] hover:bg-[var(--panel)]"
-            title="Reset UI + clear sessionStorage snapshot"
+            title="Reset UI + svuota snapshot sessionStorage"
           >
             {t(lang, "RESET") || "Reset"}
           </button>
@@ -467,7 +467,7 @@ export default function AdminOperatorsPage(): JSX.Element {
 
       {/* CREATE */}
       <div className="mt-4 border theme-border rounded-2xl bg-[var(--panel2)] p-4 sm:p-5">
-        <div className="kicker">{t(lang, "CREATE_OPERATOR") || "Create operator"}</div>
+        <div className="kicker">{t(lang, "CREATE_OPERATOR") || "Crea operatore"}</div>
 
         <form onSubmit={onCreate} className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
@@ -504,7 +504,7 @@ export default function AdminOperatorsPage(): JSX.Element {
           </div>
 
           <div>
-            <label className="block text-[12px] mb-1 theme-text-muted">Operator code (opzionale)</label>
+            <label className="block text-[12px] mb-1 theme-text-muted">Codice operatore (opzionale)</label>
             <input
               value={operatorCode}
               onChange={(e) => setOperatorCode(e.target.value)}
@@ -515,7 +515,7 @@ export default function AdminOperatorsPage(): JSX.Element {
           </div>
 
           <div className="md:col-span-2">
-            <label className="block text-[12px] mb-1 theme-text-muted">Roles (CSV) *</label>
+            <label className="block text-[12px] mb-1 theme-text-muted">Ruoli (CSV) *</label>
             <input
               value={rolesCsv}
               onChange={(e) => setRolesCsv(e.target.value)}
@@ -534,7 +534,7 @@ export default function AdminOperatorsPage(): JSX.Element {
               disabled={creating}
               className="text-[12px] px-4 py-2 rounded-full btn-primary disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {creating ? (t(lang, "CREATING") || "Creating…") : (t(lang, "CREATE") || "Create")}
+              {creating ? (t(lang, "CREATING") || "Creazione…") : (t(lang, "CREATE") || "Crea")}
             </button>
           </div>
         </form>
@@ -544,15 +544,15 @@ export default function AdminOperatorsPage(): JSX.Element {
       <div className="mt-4 border theme-border rounded-2xl bg-[var(--panel)] p-4 sm:p-5">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <div className="kicker">{t(lang, "LIST") || "List"}</div>
-            <div className="text-xs theme-text-muted mt-1">{loading ? "Loading…" : `${filtered.length} operatori`}</div>
+            <div className="kicker">{t(lang, "LIST") || "Elenco"}</div>
+            <div className="text-xs theme-text-muted mt-1">{loading ? "Caricamento…" : `${filtered.length} operatori`}</div>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder={t(lang, "SEARCH") || "Search"}
+              placeholder={t(lang, "SEARCH") || "Cerca"}
               className="w-full sm:w-72 rounded-xl px-3 py-2 text-[13px] focus:ring-1 focus:outline-none theme-input focus:ring-[color:var(--accent)]"
             />
 
@@ -571,16 +571,16 @@ export default function AdminOperatorsPage(): JSX.Element {
           <table className="min-w-[1280px] w-full text-[12px]">
             <thead className="theme-table-head sticky top-0 z-10 backdrop-blur">
               <tr className="text-left">
-                <th className="px-4 py-2.5">Display</th>
+                <th className="px-4 py-2.5">Nome</th>
                 <th className="px-4 py-2.5">Cognome</th>
                 <th className="px-4 py-2.5">Nome</th>
-                <th className="px-4 py-2.5">Birth</th>
-                <th className="px-4 py-2.5">Code</th>
-                <th className="px-4 py-2.5">Key</th>
-                <th className="px-4 py-2.5">Roles</th>
-                <th className="px-4 py-2.5">Status</th>
+                <th className="px-4 py-2.5">Nascita</th>
+                <th className="px-4 py-2.5">Codice</th>
+                <th className="px-4 py-2.5">Chiave</th>
+                <th className="px-4 py-2.5">Ruoli</th>
+                <th className="px-4 py-2.5">Stato</th>
                 <th className="px-4 py-2.5">ID</th>
-                <th className="px-4 py-2.5">{t(lang, "ACTIONS") || "Actions"}</th>
+                <th className="px-4 py-2.5">{t(lang, "ACTIONS") || "Azioni"}</th>
               </tr>
             </thead>
 
@@ -588,13 +588,13 @@ export default function AdminOperatorsPage(): JSX.Element {
               {loading ? (
                 <tr>
                   <td className="px-3 py-3 theme-text-muted" colSpan={10}>
-                    Loading…
+                    Caricamento…
                   </td>
                 </tr>
               ) : pageRows.length === 0 ? (
                 <tr>
                   <td className="px-3 py-3 theme-text-muted" colSpan={10}>
-                    {t(lang, "NO_ROWS") || "No rows"}
+                    {t(lang, "NO_ROWS") || "Nessuna riga"}
                   </td>
                 </tr>
               ) : (
@@ -625,7 +625,7 @@ export default function AdminOperatorsPage(): JSX.Element {
                       <td className="px-4 py-2.5">
                         {incomplete ? (
                           <span className="px-2 py-0.5 rounded-full border text-[11px] badge-warning">
-                            IDENTITY KO
+                            IDENTITÀ KO
                           </span>
                         ) : (
                           <span className="px-2 py-0.5 rounded-full border text-[11px] badge-success">
@@ -645,7 +645,7 @@ export default function AdminOperatorsPage(): JSX.Element {
                             onClick={() => openEdit(r)}
                             className="px-2 py-1 rounded-xl border theme-border theme-text bg-[var(--panel2)] hover:bg-[var(--panel)]"
                           >
-                            Edit
+                            Modifica
                           </button>
                           <button
                             type="button"
@@ -659,7 +659,7 @@ export default function AdminOperatorsPage(): JSX.Element {
                             onClick={() => copy(r.display_name || "")}
                             className="px-2 py-1 rounded-xl border theme-border theme-text bg-[var(--panel2)] hover:bg-[var(--panel)]"
                           >
-                            Copy name
+                            Copia nome
                           </button>
                         </div>
                       </td>
@@ -673,7 +673,7 @@ export default function AdminOperatorsPage(): JSX.Element {
 
         <div className="mt-4 flex items-center justify-between">
           <div className="text-[12px] theme-text-muted">
-            {t(lang, "PAGE") || "Page"} {Math.min(Math.max(1, page), totalPages)} / {totalPages}
+            {t(lang, "PAGE") || "Pagina"} {Math.min(Math.max(1, page), totalPages)} / {totalPages}
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -682,7 +682,7 @@ export default function AdminOperatorsPage(): JSX.Element {
               disabled={page <= 1}
               className="text-[12px] px-3 py-1.5 rounded-full border theme-border theme-text bg-[var(--panel2)] hover:bg-[var(--panel)] disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {t(lang, "PREV") || "Prev"}
+              {t(lang, "PREV") || "Prec"}
             </button>
             <button
               type="button"
@@ -690,7 +690,7 @@ export default function AdminOperatorsPage(): JSX.Element {
               disabled={page >= totalPages}
               className="text-[12px] px-3 py-1.5 rounded-full border theme-border theme-text bg-[var(--panel2)] hover:bg-[var(--panel)] disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {t(lang, "NEXT") || "Next"}
+              {t(lang, "NEXT") || "Succ"}
             </button>
           </div>
         </div>
@@ -702,7 +702,7 @@ export default function AdminOperatorsPage(): JSX.Element {
           <div className="w-full max-w-2xl rounded-2xl theme-panel p-4 sm:p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="kicker">Edit operator</div>
+                <div className="kicker">Modifica operatore</div>
                 <div className="text-xs theme-text-muted mt-1">
                   Salvataggio su tabella <span className="theme-text font-mono">operators</span>. Identità obbligatoria.
                 </div>
@@ -712,7 +712,7 @@ export default function AdminOperatorsPage(): JSX.Element {
                 onClick={closeEdit}
                 className="text-[12px] px-3 py-1.5 rounded-full border theme-border theme-text bg-[var(--panel2)] hover:bg-[var(--panel)]"
               >
-                Close
+                Chiudi
               </button>
             </div>
 
@@ -751,7 +751,7 @@ export default function AdminOperatorsPage(): JSX.Element {
               </div>
 
               <div>
-                <label className="block text-[12px] mb-1 theme-text-muted">Operator code (opzionale)</label>
+                <label className="block text-[12px] mb-1 theme-text-muted">Codice operatore (opzionale)</label>
                 <input
                   value={editDraft.operator_code}
                   onChange={(e) => setEditDraft((d) => ({ ...(d || {}), operator_code: e.target.value }))}
@@ -761,7 +761,7 @@ export default function AdminOperatorsPage(): JSX.Element {
               </div>
 
               <div className="md:col-span-2">
-                <label className="block text-[12px] mb-1 theme-text-muted">Roles (CSV) *</label>
+                <label className="block text-[12px] mb-1 theme-text-muted">Ruoli (CSV) *</label>
                 <input
                   value={editDraft.rolesCsv}
                   onChange={(e) => setEditDraft((d) => ({ ...(d || {}), rolesCsv: e.target.value }))}
@@ -771,7 +771,7 @@ export default function AdminOperatorsPage(): JSX.Element {
               </div>
 
               <div className="md:col-span-2">
-                <label className="block text-[12px] mb-1 theme-text-muted">Legacy name (facoltativo)</label>
+                <label className="block text-[12px] mb-1 theme-text-muted">Nome legacy (facoltativo)</label>
                 <input
                   value={editDraft.legacy_name}
                   onChange={(e) => setEditDraft((d) => ({ ...(d || {}), legacy_name: e.target.value }))}
@@ -789,7 +789,7 @@ export default function AdminOperatorsPage(): JSX.Element {
                   onClick={() => copy(editDraft.id)}
                   className="text-[12px] px-3 py-2 rounded-full border theme-border theme-text bg-[var(--panel2)] hover:bg-[var(--panel)]"
                 >
-                  Copy ID
+                  Copia ID
                 </button>
 
                 <button
@@ -798,7 +798,7 @@ export default function AdminOperatorsPage(): JSX.Element {
                   onClick={onSaveEdit}
                   className="text-[12px] px-4 py-2 rounded-full btn-primary disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {saving ? "Saving…" : "Save"}
+                  {saving ? "Salvataggio…" : "Salva"}
                 </button>
               </div>
             </div>

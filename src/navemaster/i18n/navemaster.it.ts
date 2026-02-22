@@ -10,10 +10,10 @@ export const navemasterIT = {
   NM_SHIP_LABEL: "Nave",
   NM_IMPORT_ACTIVE: "Import attivo",
   NM_IMPORT_NONE: "Nessun import attivo",
-  NM_COMPUTE_RUN: "Compute run",
-  NM_RLS_NOTE: "Ship selection is scoped by RLS.",
+  NM_COMPUTE_RUN: "Calcola run",
+  NM_RLS_NOTE: "Selezione nave soggetta a RLS.",
   NM_NO_RUN_TITLE: "NAVEMASTER V2",
-  NM_NO_RUN_BODY: "Nessun run V2 trovato per questa nave. Usa “Compute run” per generare la snapshot da INCA + prove CORE.",
+  NM_NO_RUN_BODY: "Nessun run V2 trovato per questa nave. Usa “Calcola run” per generare la snapshot da INCA + prove CORE.",
 
   NM_VIEW_COCKPIT: "Cockpit",
   NM_VIEW_ALERTS: "Allarmi",
@@ -39,7 +39,7 @@ export const navemasterIT = {
 
   NM_TABLE_MARCA: "MARCA CAVO",
   NM_TABLE_NAV_STATUS: "NAV",
-  NM_TABLE_COVERAGE: "Coverage",
+  NM_TABLE_COVERAGE: "Copertura",
   NM_TABLE_SEZIONE: "Sezione",
   NM_TABLE_ZONA_DA: "Zona da",
   NM_TABLE_ZONA_A: "Zona a",
@@ -53,10 +53,10 @@ export const navemasterIT = {
   NM_ALERTS_SEVERITY: "Severità",
   NM_ALERTS_RULE: "Regola",
   NM_ALERTS_CREATED: "Creato",
-  NM_ALERTS_META: "Meta",
+  NM_ALERTS_META: "Metadati",
 
   NM_DIFF_TITLE: "Diff INCA",
   NM_DIFF_PREV: "Precedente",
   NM_DIFF_NEW: "Nuovo",
-  NM_DIFF_MATCH: "Match",
+  NM_DIFF_MATCH: "Corrispondenza",
 };

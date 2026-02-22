@@ -96,7 +96,7 @@ export default function CoreDriveList({
                 }}
                 className="hidden sm:inline-flex h-8 items-center rounded-lg border border-slate-800 bg-slate-950/60 px-3 text-xs text-slate-200 hover:border-slate-600"
               >
-                Preview
+                Anteprima
               </button>
 
               {onDelete && (

@@ -168,7 +168,7 @@ export default function CoreDrivePreviewDrawer({
               {file.cantiere ? <Badge>{file.cantiere}</Badge> : null}
               {file.categoria ? <Badge>{file.categoria}</Badge> : null}
               {file.origine ? <Badge tone="info">{file.origine}</Badge> : null}
-              {file.is_frozen ? <Badge tone="warn">FROZEN</Badge> : null}
+              {file.is_frozen ? <Badge tone="warn">CONGELATO</Badge> : null}
               {file.is_deleted ? <Badge tone="danger">STORICO</Badge> : null}
               {file.stato_doc ? <Badge tone="ok">{file.stato_doc}</Badge> : null}
               {file.commessa ? <Badge tone="neutral">{file.commessa}</Badge> : null}
@@ -228,7 +228,7 @@ export default function CoreDrivePreviewDrawer({
           {url && showInlinePreview && (
             <div className="h-full overflow-hidden rounded-xl border border-slate-800 bg-white">
               {isPdf ? (
-                <iframe src={url} className="h-full w-full" title="CORE Drive Preview PDF" />
+                <iframe src={url} className="h-full w-full" title="Anteprima PDF CORE Drive" />
               ) : isImage ? (
                 <img src={url} alt={file.filename} className="h-full w-full object-contain" />
               ) : null}
@@ -240,8 +240,8 @@ export default function CoreDrivePreviewDrawer({
               <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Anteprima</div>
               <div className="mt-1 text-sm text-slate-200">
                 {isSpreadsheet
-                  ? "Les fichiers Excel ne sont pas prévisualisables ici."
-                  : "Ce type de fichier n'est pas prévisualisable ici."}
+                  ? "I file Excel non sono visualizzabili qui."
+                  : "Questo tipo di file non è visualizzabile qui."}
               </div>
 
               <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -251,7 +251,7 @@ export default function CoreDrivePreviewDrawer({
                     onClick={openCockpit}
                     className="inline-flex h-10 items-center justify-center rounded-xl border border-emerald-500/40 bg-emerald-950/20 px-4 text-[12px] font-semibold uppercase tracking-[0.14em] text-emerald-200 hover:bg-emerald-900/20"
                   >
-                    Ouvrir Cockpit
+                    Apri Cockpit
                   </button>
                 ) : null}
 
@@ -261,11 +261,11 @@ export default function CoreDrivePreviewDrawer({
                   rel="noreferrer"
                   className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-800 bg-slate-950/40 px-4 text-[12px] uppercase tracking-[0.14em] text-slate-200 hover:border-slate-600"
                 >
-                  Télécharger
+                  Scarica
                 </a>
 
                 <div className="text-[12px] text-slate-400">
-                  {isSpreadsheet && canOpenCockpit ? "Recommandé: Cockpit (données INCA/NAVEMASTER)." : null}
+                  {isSpreadsheet && canOpenCockpit ? "Consigliato: Cockpit (dati INCA/NAVEMASTER)." : null}
                 </div>
               </div>
             </div>
@@ -292,7 +292,7 @@ export default function CoreDrivePreviewDrawer({
           <div className="mt-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
             <div className="flex items-center justify-between">
               <div className="text-xs font-medium text-slate-400">Eventi (registro)</div>
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">append-only</div>
+              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">solo append</div>
             </div>
 
             {eventsLoading ? (

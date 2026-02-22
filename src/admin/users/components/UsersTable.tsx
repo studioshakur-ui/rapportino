@@ -25,11 +25,11 @@ export default function UsersTable(props: {
   return (
     <div className="rounded-2xl theme-table overflow-hidden">
       <div className="px-4 py-3 border-b theme-border flex items-center justify-between">
-        <div className="text-[12px] font-semibold theme-text">Users</div>
+        <div className="text-[12px] font-semibold theme-text">Utenti</div>
         {loading ? (
-          <div className="text-[11px] theme-text-muted">Loading…</div>
+          <div className="text-[11px] theme-text-muted">Caricamento…</div>
         ) : (
-          <div className="text-[11px] theme-text-muted">{rows.length} rows</div>
+          <div className="text-[11px] theme-text-muted">{rows.length} righe</div>
         )}
       </div>
 
@@ -37,10 +37,10 @@ export default function UsersTable(props: {
         <table className="w-full text-left">
           <thead className="theme-table-head sticky top-0 z-10 backdrop-blur">
             <tr className="text-[11px] uppercase tracking-wide">
-              <th className="px-5 py-3 font-semibold">Identity</th>
-              <th className="px-5 py-3 font-semibold">Role</th>
-              <th className="px-5 py-3 font-semibold">Status</th>
-              <th className="px-5 py-3 font-semibold text-right">Actions</th>
+              <th className="px-5 py-3 font-semibold">Identità</th>
+              <th className="px-5 py-3 font-semibold">Ruolo</th>
+              <th className="px-5 py-3 font-semibold">Stato</th>
+              <th className="px-5 py-3 font-semibold text-right">Azioni</th>
             </tr>
           </thead>
 
@@ -48,7 +48,7 @@ export default function UsersTable(props: {
             {rows.length === 0 ? (
               <tr>
                 <td colSpan={4} className="px-4 py-10 text-center text-[12px] theme-text-muted">
-                  {loading ? "Loading…" : "No users"}
+                  {loading ? "Caricamento…" : "Nessun utente"}
                 </td>
               </tr>
             ) : (
@@ -102,19 +102,19 @@ export default function UsersTable(props: {
                           <div className="text-[12px] theme-text-muted truncate">{row.email || "—"}</div>
 
                           <div className="mt-1 flex flex-wrap gap-1.5">
-                            {mustChange ? <span className="chip chip-alert">MUST CHANGE PASSWORD</span> : null}
+                            {mustChange ? <span className="chip chip-alert">CAMBIA PASSWORD</span> : null}
 
                             {hasAuthSignal ? (
                               <>
-                                {neverLoggedIn ? <span className="chip chip-info">NEVER LOGGED IN</span> : null}
+                                {neverLoggedIn ? <span className="chip chip-info">MAI LOGGATO</span> : null}
 
-                                {isInactive ? <span className="chip chip-danger">INACTIVE &gt;30d</span> : null}
+                                {isInactive ? <span className="chip chip-danger">INATTIVO &gt;30g</span> : null}
                               </>
                             ) : (
-                              <span className="chip chip-status">ACTIVITY UNKNOWN</span>
+                              <span className="chip chip-status">ATTIVITÀ SCONOSCIUTA</span>
                             )}
 
-                            {isCritical ? <span className="chip chip-info">CRITICAL ROLE</span> : null}
+                            {isCritical ? <span className="chip chip-info">RUOLO CRITICO</span> : null}
 
                             {isAdmin ? <span className="chip chip-status">ADMIN</span> : null}
                           </div>
@@ -131,15 +131,15 @@ export default function UsersTable(props: {
                     <td className="px-5 py-3">
                       {!canSuspend ? (
                         <span className="chip chip-status" style={{ fontSize: 11, padding: "4px 12px" }}>
-                          UNKNOWN
+                          SCONOSCIUTO
                         </span>
                       ) : isSuspended ? (
                         <span className="chip chip-danger" style={{ fontSize: 11, padding: "4px 12px" }}>
-                          SUSPENDED
+                          SOSPESO
                         </span>
                       ) : (
                         <span className="chip chip-success" style={{ fontSize: 11, padding: "4px 12px" }}>
-                          ACTIVE
+                          ATTIVO
                         </span>
                       )}
                     </td>

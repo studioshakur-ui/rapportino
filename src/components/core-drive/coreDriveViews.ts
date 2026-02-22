@@ -51,7 +51,7 @@ export function resolveCoreDriveView({ pathname, appRole, currentShip }: Resolve
       badges: ["CAPO", cantiere ? `CANTIERE ${cantiere}` : "CANTIERE"],
       storage: { tabKey: "coreDrive.tab.CAPO" },
       tabs: [
-        { key: "DOCS", label: "Documents" },
+        { key: "DOCS", label: "Documenti" },
         { key: "RAPPORTINI_V1", label: "Storico Rapportini (v1)" },
       ],
       docs: {
@@ -83,7 +83,7 @@ export function resolveCoreDriveView({ pathname, appRole, currentShip }: Resolve
       badges: ["ADMIN", "AUDIT"],
       storage: { tabKey: "coreDrive.tab.ADMIN" },
       tabs: [
-        { key: "DOCS", label: "Documents" },
+        { key: "DOCS", label: "Documenti" },
         { key: "RAPPORTINI_V1", label: "Storico Rapportini (v1)" },
       ],
       docs: {
@@ -108,7 +108,7 @@ export function resolveCoreDriveView({ pathname, appRole, currentShip }: Resolve
       badges: ["DIREZIONE", "LETTURA"],
       storage: { tabKey: "coreDrive.tab.DIREZIONE_UFFICIO" },
       tabs: [
-        { key: "DOCS", label: "Documents" },
+        { key: "DOCS", label: "Documenti" },
         { key: "RAPPORTINI_V1", label: "Storico Rapportini (v1)" },
       ],
       docs: {
@@ -137,7 +137,7 @@ export function resolveCoreDriveView({ pathname, appRole, currentShip }: Resolve
       badges: ["DIREZIONE"],
       storage: { tabKey: "coreDrive.tab.DIREZIONE" },
       tabs: [
-        { key: "DOCS", label: "Documents" },
+        { key: "DOCS", label: "Documenti" },
         { key: "RAPPORTINI_V1", label: "Storico Rapportini (v1)" },
       ],
       docs: {
@@ -161,7 +161,7 @@ export function resolveCoreDriveView({ pathname, appRole, currentShip }: Resolve
       badges: ["MANAGER"],
       storage: { tabKey: "coreDrive.tab.MANAGER" },
       tabs: [
-        { key: "DOCS", label: "Documents" },
+        { key: "DOCS", label: "Documenti" },
         { key: "RAPPORTINI_V1", label: "Storico Rapportini (v1)" },
       ],
       docs: {
@@ -191,7 +191,7 @@ export function resolveCoreDriveView({ pathname, appRole, currentShip }: Resolve
       badges: [role || "UFFICIO", isReadOnly ? "LETTURA" : "OPERATIVO"],
       storage: { tabKey: isReadOnly ? "coreDrive.tab.DIREZIONE_IN_UFFICIO" : "coreDrive.tab.UFFICIO" },
       tabs: [
-        { key: "DOCS", label: "Documents" },
+        { key: "DOCS", label: "Documenti" },
         { key: "RAPPORTINI_V1", label: "Storico Rapportini (v1)" },
       ],
       docs: {
@@ -215,7 +215,7 @@ export function resolveCoreDriveView({ pathname, appRole, currentShip }: Resolve
     badges: [role || "STAFF"],
     storage: { tabKey: "coreDrive.tab.DEFAULT" },
     tabs: [
-      { key: "DOCS", label: "Documents" },
+      { key: "DOCS", label: "Documenti" },
       { key: "RAPPORTINI_V1", label: "Storico Rapportini (v1)" },
     ],
     docs: {

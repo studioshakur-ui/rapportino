@@ -27,6 +27,15 @@ const coreDict = {
     APP_KPI_OPERATORI: "KPI Operatori",
     APP_LOADING_PROFILE: "Caricamento profilo…",
 
+    // CORE Drive
+    CORE_DRIVE_TAB_DOCS: "Documenti",
+    CORE_DRIVE_TAB_RAPPORTINI_V1: "Storico Rapportini (v1)",
+    CORE_DRIVE_PROFILE_LOADING: "Caricamento profilo…",
+    CORE_DRIVE_TITLE: "Centro documentale e memoria lunga",
+    CORE_DRIVE_BADGE_READONLY: "Sola lettura",
+    CORE_DRIVE_BADGE_OPERATIVE: "Operativo",
+    CORE_DRIVE_BADGE_THEME: "Scuro · Alta precisione",
+
     // CAPO – Today operators panel
     CAPO_TODAY_TITLE: "Operatori di oggi",
     CAPO_TODAY_SUB: "Assegnati dal Manager · Trascina nelle righe",
@@ -100,7 +109,7 @@ const coreDict = {
     DIR_COSTR: "COSTR",
     DIR_COMMESSA: "Commessa",
     DIR_VERDICT_TITLE: "Verdetto cantiere",
-    DIR_VERDICT_SUB: "Sintesi executive e audit-ready sullo stato del cantiere.",
+    DIR_VERDICT_SUB: "Sintesi executive e audit conforme sullo stato del cantiere.",
     DIR_STATUS_OK: "OK",
     DIR_STATUS_WARN: "Attenzione",
     DIR_STATUS_BLOCK: "Blocco",
@@ -133,7 +142,7 @@ const coreDict = {
     DIR_TIMELINE_EMPTY: "Nessun piano DAY FROZEN o nessun rapporto nella finestra.",
     DIR_TIMELINE_NOTE: "Nota: “Ritardi capi” deriva dal planning (DAY FROZEN) e dalla deadline 08:30 del giorno successivo.",
     DIR_INCA_EMPTY: "Import INCA assente o non filtrabile con COSTR/Commessa.",
-    DIR_INCA_NOTE: "Baseline chantier = Σ metri_ref (max teo/dis). “Dis” è audit. “Posati(ref)” usa situazione='P'.",
+    DIR_INCA_NOTE: "Baseline cantiere = Σ metri_ref (max teo/dis). “Dis” è audit. “Posati(ref)” usa situazione='P'.",
     DIR_TREND_EMPTY: "Nessun dato produttività nella finestra.",
     DIR_PROD_FORMULA_NOTE: "Formula: indice = Σrealizzato_alloc / Σprevisto_alloc (solo unit=MT, rapportini APPROVED_UFFICIO).",
     DIR_TOP_PROD_TITLE: "Top · Produzioni (alloc)",
@@ -148,7 +157,7 @@ const coreDict = {
     KPI_INCA_REAL: "INCA REAL",
     KPI_RITARDI_CAPI: "Ritardi capi",
     KPI_ORE_LAVORO: "Ore lavoro",
-    KPI_PREV: "Prev",
+    KPI_PREV: "Prev.",
     KPI_DELTA: "Δ",
     KPI_HOURS_UNIT: "h",
     KPI_VS_PREV: "vs prev",
@@ -175,8 +184,15 @@ const coreDict = {
 
     // Generic
     SEARCH: "Cerca",
-    RESET: "Reset",
-    CLEAR: "Clear",
+    RESET: "Resetta",
+    CLEAR: "Svuota",
+    ACTIONS: "Azioni",
+    COMMON_PREV: "Prec",
+    COMMON_NEXT: "Succ",
+
+    // Admin · Perimetri
+    "perimeters.title": "Perimetri operatori",
+    "perimeters.hint": "Collega operatori (creati in Admin) al perimetro nave. Solo così il Manager li vede in Assegnazioni.",
 
     // KPI Operatori (Produttività su previsto)
     KPI_OPPROD_TITLE: "KPI Operatori",
@@ -227,6 +243,15 @@ const coreDict = {
     APP_CORE_DRIVE: "CORE Drive",
     APP_KPI_OPERATORI: "KPI Opérateurs",
     APP_LOADING_PROFILE: "Chargement du profil…",
+
+    // CORE Drive
+    CORE_DRIVE_TAB_DOCS: "Documents",
+    CORE_DRIVE_TAB_RAPPORTINI_V1: "Historique Rapportini (v1)",
+    CORE_DRIVE_PROFILE_LOADING: "Chargement du profil…",
+    CORE_DRIVE_TITLE: "Centre documentaire et mémoire longue",
+    CORE_DRIVE_BADGE_READONLY: "Lecture seule",
+    CORE_DRIVE_BADGE_OPERATIVE: "Opérationnel",
+    CORE_DRIVE_BADGE_THEME: "Sombre · Haute précision",
 
     CAPO_TODAY_TITLE: "Opérateurs du jour",
     CAPO_TODAY_SUB: "Affectés par le Manager · Glisser-déposer dans les lignes",
@@ -300,7 +325,7 @@ const coreDict = {
     DIR_COSTR: "COSTR",
     DIR_COMMESSA: "Commessa",
     DIR_VERDICT_TITLE: "Verdict chantier",
-    DIR_VERDICT_SUB: "Synthèse executive et audit-ready de l’état du chantier.",
+    DIR_VERDICT_SUB: "Synthèse executive et audit conforme de l’état du chantier.",
     DIR_STATUS_OK: "OK",
     DIR_STATUS_WARN: "Attention",
     DIR_STATUS_BLOCK: "Blocage",
@@ -352,7 +377,7 @@ const coreDict = {
     KPI_INCA_REAL: "INCA REAL",
     KPI_RITARDI_CAPI: "Retards capi",
     KPI_ORE_LAVORO: "Heures travail",
-    KPI_PREV: "Prev",
+    KPI_PREV: "Prévu",
     KPI_DELTA: "Δ",
     KPI_HOURS_UNIT: "h",
     KPI_VS_PREV: "vs prev",
@@ -376,8 +401,16 @@ const coreDict = {
     MODAL_SECTION_NOTES: "Notes",
 
     SEARCH: "Rechercher",
-    RESET: "Reset",
-    CLEAR: "Clear",
+    RESET: "Réinitialiser",
+    CLEAR: "Effacer",
+    ACTIONS: "Actions",
+    COMMON_PREV: "Préc",
+    COMMON_NEXT: "Suiv",
+
+    // Admin · Perimetri
+    "perimeters.title": "Périmètres opérateurs",
+    "perimeters.hint":
+      "Reliez les opérateurs (créés dans Admin) au périmètre du navire. Ainsi le Manager les voit dans Affectations.",
 
     KPI_OPPROD_TITLE: "KPI Opérateurs",
     KPI_OPPROD_KICKER: "Direzione · CNCS / CORE",
@@ -427,6 +460,15 @@ const coreDict = {
     APP_CORE_DRIVE: "CORE Drive",
     APP_KPI_OPERATORI: "Operator KPIs",
     APP_LOADING_PROFILE: "Loading profile…",
+
+    // CORE Drive
+    CORE_DRIVE_TAB_DOCS: "Documents",
+    CORE_DRIVE_TAB_RAPPORTINI_V1: "Rapportini History (v1)",
+    CORE_DRIVE_PROFILE_LOADING: "Loading profile…",
+    CORE_DRIVE_TITLE: "Document center and long memory",
+    CORE_DRIVE_BADGE_READONLY: "Read-only",
+    CORE_DRIVE_BADGE_OPERATIVE: "Operational",
+    CORE_DRIVE_BADGE_THEME: "Dark · High precision",
 
     CAPO_TODAY_TITLE: "Today’s operators",
     CAPO_TODAY_SUB: "Assigned by Manager · Drag into rows",
@@ -580,6 +622,14 @@ const coreDict = {
     SEARCH: "Search",
     RESET: "Reset",
     CLEAR: "Clear",
+    ACTIONS: "Actions",
+    COMMON_PREV: "Prev",
+    COMMON_NEXT: "Next",
+
+    // Admin · Perimetri
+    "perimeters.title": "Operator perimeters",
+    "perimeters.hint":
+      "Link operators (created in Admin) to the ship perimeter. This is how the Manager sees them in Assignments.",
 
     KPI_OPPROD_TITLE: "Operator KPIs",
     KPI_OPPROD_KICKER: "Direzione · CNCS / CORE",

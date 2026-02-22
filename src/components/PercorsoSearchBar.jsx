@@ -100,8 +100,8 @@ export default function PercorsoSearchBar({
     if (!incaFileId) return "Seleziona un file INCA per attivare Percorso Search.";
     if (disabled) return "Percorso Search disabilitato.";
     if (loading) return "Ricerca percorso in corso…";
-    if (nodes.length > 0) return `Match: ${matchCount ?? 0}`;
-    return "Preview Percorso (CORE 1.0)";
+    if (nodes.length > 0) return `Corrispondenze: ${matchCount ?? 0}`;
+    return "Anteprima Percorso (CORE 1.0)";
   }, [incaFileId, disabled, loading, nodes.length, matchCount]);
 
   return (
@@ -127,7 +127,7 @@ export default function PercorsoSearchBar({
                 className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[12px] text-slate-200 hover:bg-slate-950/80"
                 title="Svuota filtro percorso"
               >
-                Reset
+                Resetta
               </button>
             )}
           </div>

@@ -41,7 +41,7 @@ export default function KpiRapportiniDetails({
                 <tr className="text-[10px] uppercase tracking-[0.16em] text-slate-400">
                   <th className="text-left py-2 pr-3">Data</th>
                   <th className="text-left py-2 pr-3">Capo</th>
-                  <th className="text-left py-2 pr-3">Status</th>
+                  <th className="text-left py-2 pr-3">Stato</th>
                   <th className="text-left py-2 pr-3">COSTR</th>
                   <th className="text-left py-2 pr-3">Commessa</th>
                 </tr>

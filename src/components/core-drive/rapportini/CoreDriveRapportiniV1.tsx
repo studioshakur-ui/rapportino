@@ -85,7 +85,7 @@ function downloadCsv(content: string, filename: string) {
 
 const VIEW_OPTIONS: Array<{ value: ViewMode; label: string }> = [
   { value: "TABLE", label: "Tabella" },
-  { value: "TIMELINE", label: "Timeline" },
+  { value: "TIMELINE", label: "Linea tempo" },
 ];
 
 type TimelineEntry = { date: string; rapportini: number; prodotto: number };
@@ -323,8 +323,8 @@ export default function CoreDriveRapportiniV1(): JSX.Element {
           hint="Periodo"
         />
         <KpiTile label="Totale storico" value={rapportini.length} hint="Caricati (max 2000)" />
-        <KpiTile label="Modalità" value="Read-only" hint="v1 legacy" tone="info" />
-        <KpiTile label="Export" value="CSV" hint="Per audit" />
+        <KpiTile label="Modalità" value="Sola lettura" hint="storico v1" tone="info" />
+        <KpiTile label="Esporta" value="CSV" hint="Per audit" />
       </section>
 
       <section className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
@@ -350,7 +350,7 @@ export default function CoreDriveRapportiniV1(): JSX.Element {
                   : "border-slate-700 text-slate-500 cursor-not-allowed",
               ].join(" ")}
             >
-              Export CSV
+              Esporta CSV
             </button>
             <Segmented value={viewMode} onChange={setViewMode} options={VIEW_OPTIONS} />
           </div>
@@ -420,7 +420,7 @@ export default function CoreDriveRapportiniV1(): JSX.Element {
             onChange={(e) => setFilterStatus(e.target.value)}
             className="rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1.5 text-slate-100"
           >
-            <option value="ALL">Status · tutti</option>
+            <option value="ALL">Stato · tutti</option>
             {facets.status.map((s) => (
               <option key={s} value={s}>
                 {STATUS_LABELS[s] || s}
@@ -539,14 +539,13 @@ function RapportiniVirtualTable({
   const header = (
     <div
       className={`grid ${
-        isCapoView ? "grid-cols-[120px_1fr_110px_160px]" : "grid-cols-[120px_1fr_1fr_110px_160px]"
+        isCapoView ? "grid-cols-[120px_1fr_110px]" : "grid-cols-[120px_1fr_1fr_110px]"
       } gap-2 px-4 py-2 border-b border-slate-800 text-[11px] text-slate-400 bg-slate-950/50`}
     >
       <div>Data</div>
       {!isCapoView ? <div>Capo</div> : null}
       <div>Commessa</div>
       <div>Costr</div>
-      <div className="text-right">Prodotto</div>
     </div>
   );
 
@@ -562,14 +561,13 @@ function RapportiniVirtualTable({
             key={(r.id as string | undefined) || idx}
             onClick={() => onRowClick?.(r)}
             className={`grid ${
-              isCapoView ? "grid-cols-[120px_1fr_110px_160px]" : "grid-cols-[120px_1fr_1fr_110px_160px]"
+              isCapoView ? "grid-cols-[120px_1fr_110px]" : "grid-cols-[120px_1fr_1fr_110px]"
             } gap-2 px-4 py-2 border-b border-slate-800/60 hover:bg-slate-900/40 cursor-pointer text-[12px]`}
           >
             <div className="text-slate-200">{formatDate(r.data)}</div>
             {!isCapoView ? <div className="text-slate-200 truncate">{r.capo_name || "—"}</div> : null}
             <div className="text-slate-200 truncate">{r.commessa || "—"}</div>
             <div className="text-slate-200 truncate">{r.costr || "—"}</div>
-            <div className="text-right text-slate-100 font-mono">{formatNumber(r.totale_prodotto)}</div>
           </div>
         )}
       />
@@ -590,12 +588,14 @@ function TimelineRapportini({
   return (
     <div className="h-72 w-full px-4 py-3 flex flex-col">
       {data.length === 0 ? (
-        <div className="flex h-full items-center justify-center text-[11px] text-slate-500">Nessun dato timeline.</div>
+        <div className="flex h-full items-center justify-center text-[11px] text-slate-500">
+          Nessun dato in linea tempo.
+        </div>
       ) : (
         <>
           <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
-            <span>Timeline</span>
-            <span>Barre = prodotto · Dot = #rapportini</span>
+            <span>Linea tempo</span>
+            <span>Barre = prodotto · Punto = #rapportini</span>
           </div>
           <div className="flex-1 flex items-end gap-[3px] overflow-x-auto border-t border-slate-800 pt-2">
             {data.map((d) => {
@@ -673,7 +673,7 @@ function RapportinoDetailDrawer({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <div className="text-[11px] text-slate-500 uppercase tracking-[0.16em]">Status</div>
+              <div className="text-[11px] text-slate-500 uppercase tracking-[0.16em]">Stato</div>
               <div className="mt-1">
                 <span
                   className={[
@@ -698,11 +698,11 @@ function RapportinoDetailDrawer({
           ) : null}
 
           <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
-            <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Trace</div>
+            <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Traccia</div>
             <div className="mt-2 flex flex-wrap gap-2">
-              <Badge tone="info">Read-only</Badge>
-              <Badge tone="neutral">v1 legacy</Badge>
-              <Badge tone="neutral">Audit-ready</Badge>
+              <Badge tone="info">Sola lettura</Badge>
+              <Badge tone="neutral">storico v1</Badge>
+              <Badge tone="neutral">Audit conforme</Badge>
             </div>
           </div>
         </div>

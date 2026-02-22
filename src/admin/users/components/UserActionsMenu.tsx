@@ -26,15 +26,15 @@ export default function UserActionsMenu(props: {
   }, [open]);
 
   const items: Array<{ label: string; action: UserAction; tone?: "neutral" | "danger" }> = [
-    { label: "Reset password", action: "reset_pwd" },
+    { label: "Resetta password", action: "reset_pwd" },
   ];
 
   if (canSuspend) {
-    if (isSuspended) items.push({ label: "Reactivate", action: "reactivate" });
-    else items.push({ label: "Suspend", action: "suspend", tone: "danger" });
+    if (isSuspended) items.push({ label: "Riattiva", action: "reactivate" });
+    else items.push({ label: "Sospendi", action: "suspend", tone: "danger" });
   }
 
-  items.push({ label: "Hard delete", action: "hard_delete", tone: "danger" });
+  items.push({ label: "Elimina definitivamente", action: "hard_delete", tone: "danger" });
 
   return (
     <>

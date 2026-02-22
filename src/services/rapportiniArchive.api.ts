@@ -75,7 +75,13 @@ function toNumber(v: unknown): number {
 function normalizeRapportinoV1(r: ArchiveRapportinoV1): ArchiveRapportinoV1 {
   // normalize only fields used by UI logic
   const out: ArchiveRapportinoV1 = { ...r };
-  out.totale_prodotto = toNumber(r.totale_prodotto);
+  const fallbackProdotto =
+    (r as any)?.totale_prodotto ??
+    (r as any)?.prodotto_totale ??
+    (r as any)?.prodotto_tot ??
+    (r as any)?.totale_prodotto_calc ??
+    0;
+  out.totale_prodotto = toNumber(fallbackProdotto);
   // keep data as string, UI parses it when needed
   return out;
 }

@@ -243,7 +243,7 @@ export default function AdminAssignmentsPage(): JSX.Element {
 
         <div className="mt-3 grid grid-cols-1 md:grid-cols-12 gap-2">
           <div className="md:col-span-8">
-            <div className="text-[11px] uppercase tracking-[0.22em] theme-text-muted">Search</div>
+            <div className="text-[11px] uppercase tracking-[0.22em] theme-text-muted">Cerca</div>
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}

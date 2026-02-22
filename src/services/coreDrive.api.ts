@@ -37,6 +37,7 @@ export type UploadCoreFileMeta = {
 export type CoreFileRecord = {
   id: string;
   created_at: string;
+  created_by: string | null;
   filename: string;
   mime_type: string | null;
   size_bytes: number | null;
@@ -230,7 +231,7 @@ export async function listCoreFiles({
   let query = supabase
     .from("core_files")
     .select(
-      "id, created_at, filename, mime_type, size_bytes, cantiere, commessa, categoria, origine, stato_doc, storage_path, storage_bucket, note, rapportino_id, inca_file_id, inca_cavo_id, operator_id, frozen_at, deleted_at"
+      "id, created_at, created_by, filename, mime_type, size_bytes, cantiere, commessa, categoria, origine, stato_doc, storage_path, storage_bucket, note, rapportino_id, inca_file_id, inca_cavo_id, operator_id, frozen_at, deleted_at"
     )
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })

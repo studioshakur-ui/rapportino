@@ -125,7 +125,7 @@ export default function DirezioneChartsSection({
       },
       series: [
         {
-          name: "Preview",
+          name: "Anteprima",
           type: "line",
           data: [12, 18, 14, 22],
           smooth: true,
@@ -179,7 +179,7 @@ export default function DirezioneChartsSection({
       {showEChartsPreview ? (
         <div className="mt-3 theme-panel rounded-3xl px-4 py-3">
           <div className="text-[11px] uppercase tracking-[0.18em] theme-text-muted">
-            ECharts Preview
+            Anteprima ECharts
           </div>
           <div className="mt-3">
             <ECharts option={previewOpt} style={{ height: 220, width: "100%" }} isDark={isDark} />

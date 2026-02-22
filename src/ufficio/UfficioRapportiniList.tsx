@@ -862,7 +862,7 @@ export default function UfficioRapportiniList(): JSX.Element {
               ].join(" ")}
               title={showHistory ? "Nascondi versioni storiche" : "Mostra versioni storiche (supersedute)"}
             >
-              {showHistory ? "Storico: ON" : "Storico: OFF"}
+              {showHistory ? "Storico: ATTIVO" : "Storico: DISATTIVO"}
             </button>
           </div>
         </div>

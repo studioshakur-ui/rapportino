@@ -80,7 +80,7 @@ export default function UserDrawer(props: {
                         Boolean(busy) && "opacity-60 cursor-not-allowed"
                       )}
                     >
-                      Reset password
+                      Resetta password
                     </button>
                   ) : null}
 
@@ -95,12 +95,12 @@ export default function UserDrawer(props: {
                             "rounded-xl border px-3 py-2 text-[12px] font-semibold",
                             "border-emerald-500/35 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15",
                             Boolean(busy) && "opacity-60 cursor-not-allowed"
-                          )}
-                        >
-                          Reactivate
-                        </button>
-                      ) : null
-                    ) : onSuspend ? (
+                        )}
+                      >
+                        Riattiva
+                      </button>
+                    ) : null
+                  ) : onSuspend ? (
                       <button
                         type="button"
                         onClick={onSuspend}
@@ -111,7 +111,7 @@ export default function UserDrawer(props: {
                           Boolean(busy) && "opacity-60 cursor-not-allowed"
                         )}
                       >
-                        Suspend
+                        Sospendi
                       </button>
                     ) : null
                   ) : null}
@@ -127,7 +127,7 @@ export default function UserDrawer(props: {
                         Boolean(busy) && "opacity-60 cursor-not-allowed"
                       )}
                     >
-                      Hard delete
+                      Elimina definitivamente
                     </button>
                   ) : null}
                 </div>

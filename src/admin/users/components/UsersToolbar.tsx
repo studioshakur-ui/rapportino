@@ -5,7 +5,7 @@ import { cn } from "./ui";
 import type { RoleFilter } from "../hooks/useAdminUsersUi";
 
 const ROLES: Array<{ id: RoleFilter; label: string }> = [
-  { id: "ALL", label: "ALL" },
+  { id: "ALL", label: "TUTTI" },
   { id: "CAPO", label: "CAPO" },
   { id: "UFFICIO", label: "UFFICIO" },
   { id: "MANAGER", label: "MANAGER" },
@@ -58,7 +58,7 @@ export default function UsersToolbar(props: {
                   "btn-instrument px-3 py-2 text-[12px] font-semibold"
                 )}
               >
-                {loading ? "Aggiorno…" : "Refresh"}
+                {loading ? "Aggiorno…" : "Ricarica"}
               </button>
 
               <button
@@ -79,7 +79,7 @@ export default function UsersToolbar(props: {
                 ref={inputRef}
                 value={q}
                 onChange={(e) => onQ(e.target.value)}
-                placeholder="Search email, name, role, costr, commessa…"
+                placeholder="Cerca email, nome, ruolo, costr, commessa…"
                 className={cn(
                   "w-full rounded-xl px-3 py-2 text-[14px] theme-input",
                   "focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20"
@@ -105,7 +105,7 @@ export default function UsersToolbar(props: {
               </div>
 
               <div className="text-[12px] theme-text-muted">
-                {loading ? "Loading…" : ""}
+                {loading ? "Caricamento…" : ""}
                 <span className="ml-2">Totale: </span>
                 <span className="theme-text font-semibold">{total}</span>
               </div>
