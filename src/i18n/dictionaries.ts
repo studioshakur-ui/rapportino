@@ -1,8 +1,14 @@
-// src/i18n/dictionaries.js
+// src/i18n/dictionaries.ts
 // Single source of truth for UI strings (IT default + FR/EN).
 // Merges legacy dicts and adds CAPO + KPI operator productivity strings.
+// Extends with NAVEMASTER dictionaries (shallow merge).
 
 import { dict as loginDict, type Lang } from "./dict";
+
+// NAVEMASTER dicts (module-specific strings)
+import { navemasterIT } from "../navemaster/i18n/navemaster.it";
+import { navemasterFR } from "../navemaster/i18n/navemaster.fr";
+import { navemasterEN } from "../navemaster/i18n/navemaster.en";
 
 // Legacy core dict (previously in coreI18n.js). Kept here to unify.
 const coreDict = {
@@ -94,7 +100,7 @@ const coreDict = {
     DIR_COSTR: "COSTR",
     DIR_COMMESSA: "Commessa",
     DIR_VERDICT_TITLE: "Verdetto cantiere",
-    DIR_VERDICT_SUB: "Sintesi executive e audit‑ready sullo stato del cantiere.",
+    DIR_VERDICT_SUB: "Sintesi executive e audit-ready sullo stato del cantiere.",
     DIR_STATUS_OK: "OK",
     DIR_STATUS_WARN: "Attenzione",
     DIR_STATUS_BLOCK: "Blocco",
@@ -132,7 +138,7 @@ const coreDict = {
     DIR_PROD_FORMULA_NOTE: "Formula: indice = Σrealizzato_alloc / Σprevisto_alloc (solo unit=MT, rapportini APPROVED_UFFICIO).",
     DIR_TOP_PROD_TITLE: "Top · Produzioni (alloc)",
     DIR_TOP_PROD_SUB: "Somma prodotto_alloc per descrizione (lettura rapida).",
-    DIR_TOP_PROD_NOTE: "Nota: breakdown informativo; il drill‑down “Righe attività” mostra dettagli e ranking completo.",
+    DIR_TOP_PROD_NOTE: "Nota: breakdown informativo; il drill-down “Righe attività” mostra dettagli e ranking completo.",
     DIR_NO_DATA: "Nessun dato.",
 
     KPI_RAPPORTINI: "Rapportini",
@@ -241,7 +247,8 @@ const coreDict = {
       "Aucune affectation n'est prévue pour aujourd'hui. Contactez le Manager.",
     CAPO_SIMPLE_NO_ASSIGNMENTS_HINT: "Note : le navire doit être affecté par le Manager (max 2).",
     CAPO_SIMPLE_SELECT_SHIP_TITLE: "Sélectionnez le navire",
-    CAPO_SIMPLE_SELECT_SHIP_SUB: "Plusieurs navires vous sont affectés aujourd'hui. Choisissez celui où vous travaillez.",
+    CAPO_SIMPLE_SELECT_SHIP_SUB:
+      "Plusieurs navires vous sont affectés aujourd'hui. Choisissez celui où vous travaillez.",
     CAPO_SIMPLE_SHIP_SLOT: "Navire {n}",
 
     CAPO_PRESENCE_GATE_LOADING: "Vérification présence…",
@@ -293,7 +300,7 @@ const coreDict = {
     DIR_COSTR: "COSTR",
     DIR_COMMESSA: "Commessa",
     DIR_VERDICT_TITLE: "Verdict chantier",
-    DIR_VERDICT_SUB: "Synthèse executive et audit‑ready de l’état du chantier.",
+    DIR_VERDICT_SUB: "Synthèse executive et audit-ready de l’état du chantier.",
     DIR_STATUS_OK: "OK",
     DIR_STATUS_WARN: "Attention",
     DIR_STATUS_BLOCK: "Blocage",
@@ -324,14 +331,18 @@ const coreDict = {
     DIR_TIMELINE_SUB: "Barres : retards capi · Ligne : rapportini",
     DIR_TIMELINE_BAR: "Retards capi",
     DIR_TIMELINE_EMPTY: "Aucun planning DAY FROZEN ou aucun rapport dans la fenêtre.",
-    DIR_TIMELINE_NOTE: "Note : “retards capi” vient du planning (DAY FROZEN) et de la deadline 08:30 du lendemain.",
+    DIR_TIMELINE_NOTE:
+      "Note : “retards capi” vient du planning (DAY FROZEN) et de la deadline 08:30 du lendemain.",
     DIR_INCA_EMPTY: "Import INCA absent ou non filtrable avec COSTR/Commessa.",
-    DIR_INCA_NOTE: "Baseline chantier = Σ mètres_ref (max teo/dis). “Dis” est audit. “Posés(ref)” utilise situation='P'.",
+    DIR_INCA_NOTE:
+      "Baseline chantier = Σ mètres_ref (max teo/dis). “Dis” est audit. “Posés(ref)” utilise situation='P'.",
     DIR_TREND_EMPTY: "Aucune donnée de productivité dans la fenêtre.",
-    DIR_PROD_FORMULA_NOTE: "Formule : indice = Σréalisé_alloc / Σprévu_alloc (unit=MT, rapportini APPROVED_UFFICIO).",
+    DIR_PROD_FORMULA_NOTE:
+      "Formule : indice = Σréalisé_alloc / Σprévu_alloc (unit=MT, rapportini APPROVED_UFFICIO).",
     DIR_TOP_PROD_TITLE: "Top · Productions (alloc)",
     DIR_TOP_PROD_SUB: "Somme produit_alloc par description (lecture rapide).",
-    DIR_TOP_PROD_NOTE: "Note : breakdown informatif ; le drill‑down “Lignes activités” montre détails et ranking complet.",
+    DIR_TOP_PROD_NOTE:
+      "Note : breakdown informatif ; le drill-down “Lignes activités” montre détails et ranking complet.",
     DIR_NO_DATA: "Aucune donnée.",
 
     KPI_RAPPORTINI: "Rapportini",
@@ -436,7 +447,8 @@ const coreDict = {
       "You have no ship assigned for today. Please contact your Manager.",
     CAPO_SIMPLE_NO_ASSIGNMENTS_HINT: "Note: the ship must be assigned by the Manager (max 2).",
     CAPO_SIMPLE_SELECT_SHIP_TITLE: "Select ship",
-    CAPO_SIMPLE_SELECT_SHIP_SUB: "You have multiple ships assigned today. Choose the one you work on.",
+    CAPO_SIMPLE_SELECT_SHIP_SUB:
+      "You have multiple ships assigned today. Choose the one you work on.",
     CAPO_SIMPLE_SHIP_SLOT: "Ship {n}",
 
     CAPO_PRESENCE_GATE_LOADING: "Checking presence…",
@@ -488,7 +500,7 @@ const coreDict = {
     DIR_COSTR: "COSTR",
     DIR_COMMESSA: "Commessa",
     DIR_VERDICT_TITLE: "Site verdict",
-    DIR_VERDICT_SUB: "Executive, audit‑ready view of site status.",
+    DIR_VERDICT_SUB: "Executive, audit-ready view of site status.",
     DIR_STATUS_OK: "OK",
     DIR_STATUS_WARN: "Warning",
     DIR_STATUS_BLOCK: "Block",
@@ -496,8 +508,10 @@ const coreDict = {
     DIR_INSIGHTS_TITLE: "Recommended actions",
     DIR_SCORE: "Score",
     DIR_SCORE_FORMULA: "Formula: mean of operator productivity indices.",
-    DIR_SCORE_INCLUSION: "Inclusion: operators with a computable index (planned and realized present).",
-    DIR_SCORE_STATS: "Operators included: {i}/{t} · Median: {m} · Dispersion P10–P90: {p10}–{p90}",
+    DIR_SCORE_INCLUSION:
+      "Inclusion: operators with a computable index (planned and realized present).",
+    DIR_SCORE_STATS:
+      "Operators included: {i}/{t} · Median: {m} · Dispersion P10–P90: {p10}–{p90}",
     DIR_RELIABILITY: "Reliability",
     DIR_RELIABILITY_HIGH: "High",
     DIR_RELIABILITY_MEDIUM: "Medium",
@@ -519,14 +533,18 @@ const coreDict = {
     DIR_TIMELINE_SUB: "Bars: capo delays · Line: rapportini",
     DIR_TIMELINE_BAR: "Capo delays",
     DIR_TIMELINE_EMPTY: "No DAY FROZEN plans or no reports in the window.",
-    DIR_TIMELINE_NOTE: "Note: “capo delays” comes from planning (DAY FROZEN) and the next‑day 08:30 deadline.",
+    DIR_TIMELINE_NOTE:
+      "Note: “capo delays” comes from planning (DAY FROZEN) and the next-day 08:30 deadline.",
     DIR_INCA_EMPTY: "INCA import missing or not filterable by COSTR/Commessa.",
-    DIR_INCA_NOTE: "Chantier baseline = Σ metri_ref (max teo/dis). “Dis” is audit. “Posati(ref)” uses situation='P'.",
+    DIR_INCA_NOTE:
+      "Chantier baseline = Σ metri_ref (max teo/dis). “Dis” is audit. “Posati(ref)” uses situation='P'.",
     DIR_TREND_EMPTY: "No productivity data in the window.",
-    DIR_PROD_FORMULA_NOTE: "Formula: index = Σreal_alloc / Σplanned_alloc (unit=MT, rapportini APPROVED_UFFICIO).",
+    DIR_PROD_FORMULA_NOTE:
+      "Formula: index = Σreal_alloc / Σplanned_alloc (unit=MT, rapportini APPROVED_UFFICIO).",
     DIR_TOP_PROD_TITLE: "Top · Productions (alloc)",
     DIR_TOP_PROD_SUB: "Sum prodotto_alloc by description (quick read).",
-    DIR_TOP_PROD_NOTE: "Note: informative breakdown; “Activity rows” drill‑down shows details and full ranking.",
+    DIR_TOP_PROD_NOTE:
+      "Note: informative breakdown; “Activity rows” drill-down shows details and full ranking.",
     DIR_NO_DATA: "No data.",
 
     KPI_RAPPORTINI: "Rapportini",
@@ -598,17 +616,21 @@ const coreDict = {
     KPI_OPPROD_TOTAL_SELECTION: "Selection total",
     KPI_OPPROD_TOTAL_IN_RANGE: "Window total",
   },
-};
+} as const;
 
 // Merge helper: shallow merge of key -> string
-function mergeLang(a = {}, b = {}) {
-  return { ...a, ...b };
+function mergeLang(
+  a: Record<string, string> = {},
+  b: Record<string, string> = {},
+  c: Record<string, string> = {}
+): Record<string, string> {
+  return { ...a, ...b, ...c };
 }
 
-export const dictionaries = {
-  it: mergeLang(coreDict.it, loginDict.it),
-  fr: mergeLang(coreDict.fr, loginDict.fr),
-  en: mergeLang(coreDict.en, loginDict.en),
+export const dictionaries: Record<Lang, Record<string, string>> = {
+  it: mergeLang(coreDict.it as unknown as Record<string, string>, loginDict.it, navemasterIT),
+  fr: mergeLang(coreDict.fr as unknown as Record<string, string>, loginDict.fr, navemasterFR),
+  en: mergeLang(coreDict.en as unknown as Record<string, string>, loginDict.en, navemasterEN),
 };
 
 void (dictionaries satisfies Record<Lang, Record<string, string>>);

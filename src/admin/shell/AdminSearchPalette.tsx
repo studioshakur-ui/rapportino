@@ -1,6 +1,6 @@
 // src/admin/shell/AdminSearchPalette.tsx
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "./adminUtils";
 import type { AdminSearchItem } from "../AdminConsoleContext";
 

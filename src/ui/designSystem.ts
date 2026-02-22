@@ -87,7 +87,7 @@ export function buttonPrimary(isDark: boolean, extra: string = ""): string {
 //
 // "tone" options : neutral | sky | emerald | amber | rose | violet
 //
-export function corePills(isDark: boolean, tone: PillTone = "neutral", extra: string = ""): string {
+const corePillsFn = (isDark: boolean, tone: PillTone = "neutral", extra: string = ""): string => {
   const base =
     "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-all";
 
@@ -116,7 +116,11 @@ export function corePills(isDark: boolean, tone: PillTone = "neutral", extra: st
   };
 
   return [base, tones[tone] || tones.neutral, extra].join(" ");
-}
+};
+
+export const corePills = Object.assign(corePillsFn, {
+  kicker: "text-[10px] uppercase tracking-[0.26em] theme-text-muted",
+});
 
 // ======================================================================
 // 7. themeIconBg  (⭐ NOUVEAU – bulles pour icônes de thème et de statut)

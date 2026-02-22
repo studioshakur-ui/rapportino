@@ -14,3 +14,8 @@
 
 ## DIREZIONE
 - Accès dashboard KPI
+
+UFFICIO with active scope:
+- can create rapportino for CAPO
+- cannot modify after validation
+- cannot access CAPO outside scope

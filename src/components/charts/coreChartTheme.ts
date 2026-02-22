@@ -94,7 +94,6 @@ export function getCoreChartTheme(isDark: boolean): CoreChartTheme {
   const subtext = cssVar("--textMuted", "#4e4b45");
   const border = cssVar("--border", "rgba(28,24,20,0.10)");
   const borderStrong = cssVar("--borderStrong", "rgba(28,24,20,0.16)");
-  const panel = cssVar("--panel", "#ece9e4");
   const panel2 = cssVar("--panel2", "#f8f6f3");
 
   // Executive light: airy grid, not “dark chart”

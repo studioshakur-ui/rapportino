@@ -1,6 +1,5 @@
 // src/admin/shell/AdminRecentPanel.tsx
 
-import React from "react";
 import type { AdminRecentItem } from "../AdminConsoleContext";
 
 export default function AdminRecentPanel({ items }: { items: AdminRecentItem[] }): JSX.Element | null {

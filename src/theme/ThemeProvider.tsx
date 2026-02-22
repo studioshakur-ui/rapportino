@@ -54,9 +54,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }): JSX.
       return () => mq.removeEventListener("change", onChange);
     }
     // Legacy Safari
-    // @ts-expect-error legacy API
     mq.addListener(onChange);
-    // @ts-expect-error legacy API
     return () => mq.removeListener(onChange);
   }, [state.mode]);
 

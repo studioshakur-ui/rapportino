@@ -1,6 +1,5 @@
 // src/admin/shell/AdminSidebar.tsx
 
-import React from "react";
 import { Link } from "react-router-dom";
 import type { AdminMenuItem } from "./adminNav";
 import { cn } from "./adminUtils";

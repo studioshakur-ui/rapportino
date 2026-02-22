@@ -50,6 +50,9 @@ import UfficioIncaHub from "./ufficio/UfficioIncaHub";
 import UfficioIncaDiffPage from "./ufficio/UfficioIncaDiffPage";
 import UfficioIncaAuditPage from "./ufficio/UfficioIncaAuditPage";
 
+// NAVEMASTER (ABD)
+import NavemasterHub from "./navemaster/NavemasterHub";
+
 // DIREZIONE
 import DirezioneDashboard from "./components/DirezioneDashboard";
 import DirezioneOperatorKPI from "./features/kpi/pages/DirezioneOperatorKPI";
@@ -127,45 +130,60 @@ export default function AppRoutes(): JSX.Element {
           </RequireAuth>
         }
       >
-        <Route index element={<Navigate to="users" replace />} />
+        <Route index element={<AdminUsersPage />} />
         <Route path="users" element={<AdminUsersPage />} />
         <Route path="operators" element={<AdminOperatorsPage />} />
-        <Route path="perimetri" element={<AdminPerimetersPage isDark={true} />} />
         <Route path="catalogo" element={<AdminCatalogoPage />} />
         <Route path="planning" element={<AdminPlanningPage />} />
         <Route path="assignments" element={<AdminAssignmentsPage />} />
         <Route path="audit" element={<AdminAuditPage />} />
-        <Route path="core-drive" element={<ArchivePage />} />
-        <Route path="archive" element={<Navigate to="../core-drive" replace />} />
+        <Route path="perimeters" element={<AdminPerimetersPage />} />
       </Route>
 
-      {/* ===== CAPO ===== */}
+      {/* ===== APP SHELL (generic) ===== */}
       <Route
         path="/app/*"
         element={
           <RequireAuth>
-            <RequireRole allowed={["CAPO"]}>
+            <AppShell />
+          </RequireAuth>
+        }
+      />
+
+      {/* ===== CAPO SIMPLE (canon) ===== */}
+      <Route
+        path="/capo/*"
+        element={
+          <RequireAuth>
+            <RequireRole allowed={["CAPO", "ADMIN", "DIREZIONE"]}>
+              <CapoEntryRouter />
+            </RequireRole>
+          </RequireAuth>
+        }
+      >
+        <Route path="presence" element={<CapoPresencePage />} />
+      </Route>
+
+      {/* ===== LEGACY CAPO (kept) ===== */}
+      <Route
+        path="/capo-legacy/*"
+        element={
+          <RequireAuth>
+            <RequireRole allowed={["CAPO", "ADMIN", "DIREZIONE"]}>
               <AppShell />
             </RequireRole>
           </RequireAuth>
         }
       >
-        <Route index element={<CapoEntryRouter />} />
-        <Route path="ship/:shipId/presence" element={<CapoPresencePage />} />
-
-        <Route path="ship-selector" element={<ShipSelector />} />
-        <Route path="kpi-operatori" element={<CapoOperatorKpi isDark={true} />} />
-        <Route path="ship/:shipId/kpi-stesura" element={<CapoMegaKpiStesura isDark={true} />} />
-        <Route path="ship/:shipId" element={<CapoModuleSelector />} />
-
-        <Route path="ship/:shipId/teams" element={<CapoTeamOrganizerPage />} />
-
-        <Route path="ship/:shipId/rapportino/role" element={<CapoRoleSelector />} />
-        <Route path="ship/:shipId/rapportino" element={<RapportinoPage />} />
-
-        <Route path="ship/:shipId/inca" element={<IncaCapoCockpit />} />
-        <Route path="core-drive" element={<ArchivePage />} />
-        <Route path="archive" element={<Navigate to="../core-drive" replace />} />
+        <Route index element={<ShipSelector />} />
+        <Route path="ship" element={<ShipSelector />} />
+        <Route path="module" element={<CapoModuleSelector />} />
+        <Route path="rapportino" element={<RapportinoPage />} />
+        <Route path="inca" element={<IncaCapoCockpit />} />
+        <Route path="kpi-operatori" element={<CapoOperatorKpi />} />
+        <Route path="kpi-stesura" element={<CapoMegaKpiStesura />} />
+        <Route path="team-organizer" element={<CapoTeamOrganizerPage />} />
+        <Route path="role" element={<CapoRoleSelector />} />
       </Route>
 
       {/* ===== UFFICIO ===== */}
@@ -194,6 +212,9 @@ export default function AppRoutes(): JSX.Element {
         <Route path="inca-diff" element={<UfficioIncaDiffPage />} />
         <Route path="inca-audit" element={<UfficioIncaAuditPage />} />
 
+        {/* NAVEMASTER (ABD) */}
+        <Route path="navemaster" element={<NavemasterHub />} />
+
         {/* CORE DRIVE */}
         <Route path="core-drive" element={<ArchivePage />} />
         <Route path="archive" element={<Navigate to="../core-drive" replace />} />
@@ -214,21 +235,13 @@ export default function AppRoutes(): JSX.Element {
         }
       >
         <Route index element={<DirezioneDashboardRoute />} />
+        <Route path="dashboard" element={<DirezioneDashboardRoute />} />
         <Route path="kpi-operatori" element={<DirezioneOperatorKpiRoute />} />
-        <Route path="presentazione" element={<CorePresentation />} />
-        <Route path="presentazione/capo" element={<CapoPresentation />} />
-        <Route path="evoluzione" element={<Evoluzione />} />
-        <Route path="ufficio-view" element={<UfficioView />}>
-          <Route index element={<UfficioRapportiniList />} />
-          <Route path="rapportini/:id" element={<UfficioRapportinoDetail />} />
-          <Route path="inca" element={<UfficioIncaHub />} />
-          <Route path="core-drive" element={<ArchivePage />} />
-          <Route path="archive" element={<Navigate to="../core-drive" replace />} />
-          <Route path="*" element={<Navigate to="." replace />} />
-        </Route>
-        <Route path="core-drive" element={<ArchivePage />} />
-        <Route path="archive" element={<Navigate to="../core-drive" replace />} />
-        <Route path="*" element={<Navigate to="." replace />} />
+        <Route path="presentation" element={<CorePresentation />} />
+        <Route path="capo-presentation" element={<CapoPresentation />} />
+
+        {/* Direzione Ufficio view (legacy) */}
+        <Route path="ufficio" element={<UfficioView />} />
       </Route>
 
       {/* ===== MANAGER ===== */}
@@ -243,23 +256,22 @@ export default function AppRoutes(): JSX.Element {
         }
       >
         <Route index element={<ManagerDashboard />} />
-
-        {/* Canonical routes */}
+        <Route path="dashboard" element={<ManagerDashboard />} />
         <Route path="assignments" element={<ManagerAssignments />} />
-        <Route path="capi-cantieri" element={<ManagerCapoShipPlanning />} />
-        <Route path="core-drive" element={<ArchivePage />} />
-
-        {/* Aliases */}
-        <Route path="assegnazioni" element={<ManagerAssignments />} />
-        <Route path="drive" element={<ArchivePage />} />
-        <Route path="analytics" element={<Navigate to="." replace />} />
-        <Route path="kpi-operatori" element={<CapoOperatorKpi isDark={true} />} />
-
-        <Route path="archive" element={<Navigate to="../core-drive" replace />} />
+        <Route path="capo-ship-planning" element={<ManagerCapoShipPlanning />} />
       </Route>
 
-      {/* ===== MISC ===== */}
-      <Route path="/evoluzione" element={<Evoluzione />} />
+      {/* ===== EVOLUZIONE ===== */}
+      <Route
+        path="/evoluzione"
+        element={
+          <RequireAuth>
+            <Evoluzione />
+          </RequireAuth>
+        }
+      />
+
+      {/* FALLBACK */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
