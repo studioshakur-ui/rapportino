@@ -11,9 +11,18 @@ type PlanningRow = {
   week_iso?: number | string | null;
   status?: string | null;
   manager_id?: string | null;
+  manager_display_name?: string | null;
+  manager_full_name?: string | null;
+  manager_email?: string | null;
   slot_id?: string | null;
   capo_id?: string | null;
+  capo_display_name?: string | null;
+  capo_full_name?: string | null;
+  capo_email?: string | null;
   operator_id?: string | null;
+  operator_name?: string | null;
+  operator_cognome?: string | null;
+  operator_nome?: string | null;
   operator_position?: number | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -21,12 +30,14 @@ type PlanningRow = {
 
 type SlotMember = {
   operator_id: string;
+  operator_label?: string | null;
   position?: number | null;
 };
 
 type SlotAccum = {
   slot_id: string;
   capo_id?: string | null;
+  capo_label?: string | null;
   members: SlotMember[];
 };
 
@@ -38,6 +49,7 @@ type PlanAccum = {
   week_iso?: number | string | null;
   status?: string | null;
   manager_id?: string | null;
+  manager_label?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
   slots: Map<string, SlotAccum>;
@@ -85,9 +97,9 @@ export default function AdminPlanningPage(): JSX.Element {
     setLoading(true);
     setErr("");
     try {
-      // admin_planning_overview_v1 contains denormalized lines (plan + slot + member)
+      // admin_planning_overview_v2 contains denormalized lines (plan + slot + member) + labels
       let query = supabase
-        .from("admin_planning_overview_v1")
+        .from("admin_planning_overview_v2")
         .select(
           `
           plan_id,
@@ -97,9 +109,18 @@ export default function AdminPlanningPage(): JSX.Element {
           week_iso,
           status,
           manager_id,
+          manager_display_name,
+          manager_full_name,
+          manager_email,
           slot_id,
           capo_id,
+          capo_display_name,
+          capo_full_name,
+          capo_email,
           operator_id,
+          operator_name,
+          operator_cognome,
+          operator_nome,
           operator_position,
           created_at,
           updated_at
@@ -114,7 +135,7 @@ export default function AdminPlanningPage(): JSX.Element {
       setRows(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error("[AdminPlanningPage] load error:", e);
-      setErr("Impossibile caricare admin_planning_overview_v1 (verifica RLS e view).");
+      setErr("Impossibile caricare admin_planning_overview_v2 (verifica RLS e view).");
       setRows([]);
     } finally {
       setLoading(false);
@@ -134,6 +155,12 @@ export default function AdminPlanningPage(): JSX.Element {
       if (!pid) continue;
 
       if (!map.has(pid)) {
+        const managerLabel =
+          r.manager_display_name ||
+          r.manager_full_name ||
+          r.manager_email ||
+          r.manager_id ||
+          null;
         map.set(pid, {
           plan_id: pid,
           period_type: r.period_type || null,
@@ -142,6 +169,7 @@ export default function AdminPlanningPage(): JSX.Element {
           week_iso: r.week_iso ?? null,
           status: r.status || null,
           manager_id: r.manager_id || null,
+          manager_label: managerLabel,
           created_at: r.created_at || null,
           updated_at: r.updated_at || null,
           slots: new Map<string, SlotAccum>(),
@@ -159,17 +187,30 @@ export default function AdminPlanningPage(): JSX.Element {
       const sid = r.slot_id || null;
       if (sid) {
         if (!plan.slots.has(sid)) {
+          const capoLabel =
+            r.capo_display_name ||
+            r.capo_full_name ||
+            r.capo_email ||
+            r.capo_id ||
+            null;
           plan.slots.set(sid, {
             slot_id: sid,
             capo_id: r.capo_id || null,
+            capo_label: capoLabel,
             members: [],
           });
         }
         const slot = plan.slots.get(sid);
         if (!slot) continue;
         if (r.operator_id) {
+          const operatorLabel =
+            r.operator_name ||
+            [r.operator_cognome, r.operator_nome].filter(Boolean).join(" ").trim() ||
+            r.operator_id ||
+            null;
           slot.members.push({
             operator_id: r.operator_id,
+            operator_label: operatorLabel,
             position: r.operator_position ?? null,
           });
         }
@@ -204,9 +245,10 @@ export default function AdminPlanningPage(): JSX.Element {
         p.year_iso,
         p.week_iso,
         p.status,
+        p.manager_label,
         p.manager_id,
-        ...p.slots.map((s: SlotAccum) => s.capo_id),
-        ...p.slots.flatMap((s: SlotAccum) => s.members.map((m: SlotMember) => m.operator_id)),
+        ...p.slots.map((s: SlotAccum) => s.capo_label || s.capo_id),
+        ...p.slots.flatMap((s: SlotAccum) => s.members.map((m: SlotMember) => m.operator_label || m.operator_id)),
       ]
         .filter(Boolean)
         .join(" ")
@@ -221,12 +263,20 @@ export default function AdminPlanningPage(): JSX.Element {
     return filtered;
   }, [rows, periodType, status, q]);
 
+  const statusTone = (s: unknown): "slate" | "sky" | "amber" => {
+    const v = String(s || "").toUpperCase();
+    if (v === "DRAFT") return "slate";
+    if (v === "PUBLISHED") return "sky";
+    if (v === "FROZEN") return "amber";
+    return "slate";
+  };
+
   const searchItems = useMemo(() => {
     return plans.map((p) => ({
       id: String(p.plan_id),
       entity: "Planning",
       title: `Plan ${String(p.plan_id)}`,
-      subtitle: [p.status, p.period_type, p.plan_date ? `Data ${p.plan_date}` : ""].filter(Boolean).join(" · "),
+      subtitle: [p.status, p.period_type, p.plan_date ? `Data ${p.plan_date}` : "", p.manager_label].filter(Boolean).join(" · "),
       route: "/admin/planning",
       tokens: [
         p.plan_id,
@@ -235,9 +285,10 @@ export default function AdminPlanningPage(): JSX.Element {
         p.year_iso,
         p.week_iso,
         p.status,
+        p.manager_label,
         p.manager_id,
-        ...p.slots.map((s: SlotAccum) => s.capo_id),
-        ...p.slots.flatMap((s: SlotAccum) => s.members.map((m: SlotMember) => m.operator_id)),
+        ...p.slots.map((s: SlotAccum) => s.capo_label || s.capo_id),
+        ...p.slots.flatMap((s: SlotAccum) => s.members.map((m: SlotMember) => m.operator_label || m.operator_id)),
       ]
         .filter(Boolean)
         .join(" "),
@@ -275,14 +326,6 @@ export default function AdminPlanningPage(): JSX.Element {
     return () => setRecentItems([]);
   }, [setRecentItems, recent]);
 
-  const statusTone = (s: unknown): "slate" | "sky" | "amber" => {
-    const v = String(s || "").toUpperCase();
-    if (v === "DRAFT") return "slate";
-    if (v === "PUBLISHED") return "sky";
-    if (v === "FROZEN") return "amber";
-    return "slate";
-  };
-
   return (
     <div className="space-y-3">
       <div className="rounded-2xl theme-panel p-4">
@@ -293,7 +336,7 @@ export default function AdminPlanningPage(): JSX.Element {
               Plans (DAY/WEEK) · Slots Capo · Membri
             </div>
             <div className="mt-1 text-[12px] theme-text-muted">
-              Fonte: <span className="theme-text font-semibold">admin_planning_overview_v1</span>
+              Fonte: <span className="theme-text font-semibold">admin_planning_overview_v2</span>
             </div>
           </div>
 
@@ -339,7 +382,7 @@ export default function AdminPlanningPage(): JSX.Element {
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Cerca plan_id, manager_id, capo_id, operator_id, week/date…"
+              placeholder="Cerca plan_id, manager, capo, operatore, week/date…"
               className="mt-1 w-full rounded-xl theme-input px-3 py-2 text-[13px] outline-none"
             />
           </div>
@@ -389,7 +432,7 @@ export default function AdminPlanningPage(): JSX.Element {
                       Plan ID: <span className="theme-text font-semibold">{p.plan_id}</span>
                     </div>
                     <div className="mt-1 text-[12px] theme-text-muted">
-                      Manager: <span className="theme-text">{p.manager_id || "—"}</span> · Updated:{" "}
+                      Manager: <span className="theme-text">{p.manager_label || p.manager_id || "—"}</span> · Updated:{" "}
                       <span className="theme-text">{p.updated_at ? String(p.updated_at) : "—"}</span>
                     </div>
                   </div>
@@ -412,7 +455,7 @@ export default function AdminPlanningPage(): JSX.Element {
                       <div key={s.slot_id} className="rounded-2xl border theme-border bg-[var(--panel2)] p-3">
                         <div className="kicker">Slot Capo</div>
                         <div className="mt-1 text-[12px] theme-text">
-                          Capo: <span className="font-semibold">{s.capo_id || "—"}</span>
+                          Capo: <span className="font-semibold">{s.capo_label || s.capo_id || "—"}</span>
                         </div>
                         <div className="mt-1 text-[12px] theme-text-muted">
                           Slot ID: <span className="theme-text-muted">{s.slot_id}</span>
@@ -430,7 +473,7 @@ export default function AdminPlanningPage(): JSX.Element {
                                   className="flex items-center justify-between rounded-xl border theme-border bg-[var(--panel2)] px-2 py-1.5"
                                 >
                                   <div className="text-[12px] theme-text truncate">
-                                    {m.operator_id}
+                                    {m.operator_label || m.operator_id}
                                   </div>
                                   <div className="text-[12px] theme-text-muted tabular-nums">
                                     #{m.position ?? "—"}

@@ -405,7 +405,7 @@ export default function ImportOperatorsExcel({ shipId, onDone }) {
       </div>
 
       {disabledBecauseNoShip ? (
-        <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+        <div className="mt-3 rounded-xl px-3 py-2 text-xs badge-warning">
           Seleziona prima un cantiere (Ship) per abilitare l’import.
         </div>
       ) : null}
@@ -432,7 +432,7 @@ export default function ImportOperatorsExcel({ shipId, onDone }) {
               disabled={!canRead}
               className={cn(
                 "h-9 px-3 rounded-xl border text-xs font-semibold",
-                "border-slate-700 theme-text hover:opacity-95",
+                "theme-border bg-[var(--panel2)] theme-text hover:opacity-95",
                 "disabled:opacity-50 disabled:cursor-not-allowed"
               )}
             >
@@ -494,7 +494,7 @@ export default function ImportOperatorsExcel({ shipId, onDone }) {
                 onClick={() => setStep(1)}
                 className={cn(
                   "h-9 px-3 rounded-xl border text-xs font-semibold transition",
-                  "border-slate-700 theme-text hover:opacity-95",
+                  "theme-border bg-[var(--panel2)] theme-text hover:opacity-95",
                   busy && "opacity-50 cursor-not-allowed"
                 )}
                 disabled={busy}
@@ -507,8 +507,7 @@ export default function ImportOperatorsExcel({ shipId, onDone }) {
                 onClick={runDry}
                 disabled={!canDryRun}
                 className={cn(
-                  "h-9 px-3 rounded-xl border text-xs font-semibold transition",
-                  "border-[color:var(--accent)] bg-[var(--accent-soft)] text-sky-100 hover:bg-sky-500/15",
+                  "h-9 px-3 rounded-xl text-xs font-semibold transition btn-primary",
                   "disabled:opacity-50 disabled:cursor-not-allowed"
                 )}
               >
@@ -558,7 +557,7 @@ export default function ImportOperatorsExcel({ shipId, onDone }) {
                   onClick={() => setStep(2)}
                   className={cn(
                     "h-9 px-3 rounded-xl border text-xs font-semibold transition",
-                    "border-slate-700 theme-text hover:opacity-95",
+                    "theme-border bg-[var(--panel2)] theme-text hover:opacity-95",
                     busy && "opacity-50 cursor-not-allowed"
                   )}
                   disabled={busy}
@@ -571,8 +570,7 @@ export default function ImportOperatorsExcel({ shipId, onDone }) {
                   onClick={performImport}
                   disabled={!canImport}
                   className={cn(
-                    "h-9 px-3 rounded-xl border text-xs font-semibold transition",
-                    "border-emerald-500/45 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15",
+                    "h-9 px-3 rounded-xl text-xs font-semibold transition btn-primary",
                     "disabled:opacity-50 disabled:cursor-not-allowed"
                   )}
                   title="Scrive operators + link ship_operators"
@@ -606,17 +604,14 @@ export default function ImportOperatorsExcel({ shipId, onDone }) {
             </div>
 
             {Array.isArray(dry?.invalid) && dry.invalid.length > 0 ? (
-              <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2">
-                <div className="text-xs text-amber-100">
+              <div className="mt-3 flex items-center justify-between gap-2 rounded-xl px-3 py-2 badge-warning">
+                <div className="text-xs theme-text">
                   Righe scartate: <span className="font-semibold">{dry.invalid.length}</span>. Puoi scaricare il report.
                 </div>
                 <button
                   type="button"
                   onClick={downloadInvalidReport}
-                  className={cn(
-                    "h-8 px-3 rounded-xl border text-xs font-semibold transition",
-                    "border-amber-500/40 bg-amber-500/10 text-amber-100 hover:bg-amber-500/15"
-                  )}
+                  className={cn("h-8 px-3 rounded-xl text-xs font-semibold transition badge-warning")}
                 >
                   Scarica report CSV
                 </button>
@@ -633,14 +628,14 @@ export default function ImportOperatorsExcel({ shipId, onDone }) {
 
             <div className="max-h-[360px] overflow-auto">
               {Array.isArray(dry?.unique) && dry.unique.length > 0 ? (
-                <div className="divide-y divide-slate-800">
+                <div className="divide-y theme-border">
                   {dry.unique.slice(0, 50).map((u, idx) => (
                     <div key={`${safeLower(u.name)}-${idx}`} className="px-3 py-2 flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="text-sm font-semibold theme-text truncate">{u.name}</div>
                         <div className="text-xs theme-text-muted mt-0.5">{u.role ? `Ruolo: ${u.role}` : "Ruolo: —"}</div>
                       </div>
-                      <div className="text-[11px] text-slate-600">#{idx + 1}</div>
+                      <div className="text-[11px] theme-text-muted">#{idx + 1}</div>
                     </div>
                   ))}
                 </div>
@@ -659,12 +654,12 @@ export default function ImportOperatorsExcel({ shipId, onDone }) {
               </div>
 
               <div className="max-h-[240px] overflow-auto">
-                <div className="divide-y divide-slate-800">
+                <div className="divide-y theme-border">
                   {dry.invalid.slice(0, 20).map((r, idx) => (
                     <div key={`${r.row}-${idx}`} className="px-3 py-2">
                       <div className="text-xs theme-text-muted">
                         Riga <span className="font-semibold theme-text">{r.row}</span> ·{" "}
-                        <span className="text-amber-200 font-semibold">{r.reason}</span>
+                        <span className="badge-warning font-semibold">{r.reason}</span>
                       </div>
                       <div className="text-[11px] theme-text-muted mt-0.5">
                         Nome: {r.name ? r.name : "—"} · Ruolo: {r.role ? r.role : "—"}
@@ -679,7 +674,7 @@ export default function ImportOperatorsExcel({ shipId, onDone }) {
       ) : null}
 
       {error ? (
-        <div className="mt-3 rounded-xl border border-rose-700/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+        <div className="mt-3 rounded-xl px-3 py-2 text-xs badge-danger">
           {error}
         </div>
       ) : null}

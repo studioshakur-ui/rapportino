@@ -9,22 +9,6 @@
 
 begin;
 
--- 0) Ensure nav_status supports 'L' (Libero)
--- Existing baseline enum has P/R/T/B/E/NP. INCA already allows L in situazione.
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM pg_enum e
-    JOIN pg_type t ON t.oid = e.enumtypid
-    JOIN pg_namespace n ON n.oid = t.typnamespace
-    WHERE n.nspname = 'public'
-      AND t.typname = 'nav_status'
-      AND e.enumlabel = 'L'
-  ) THEN
-    ALTER TYPE public.nav_status ADD VALUE 'L';
-  END IF;
-END$$;
 
 -- 1) New enums
 DO $$
@@ -595,19 +579,14 @@ ORDER BY r.ship_id, r.frozen_at DESC, r.created_at DESC;
 -- live rows: latest frozen run + state rows
 CREATE OR REPLACE VIEW public.navemaster_live_v2 AS
 SELECT
-  lr.ship_id,
-  lr.costr,
-  lr.commessa,
-  lr.id AS run_id,
-  lr.inca_file_id,
+  lr.id         AS run_pk,
   lr.created_at AS run_created_at,
-  lr.frozen_at,
-  lr.verdict,
+  lr.frozen_at  AS run_frozen_at,
+  lr.verdict    AS run_verdict,
   s.*
 FROM public.navemaster_latest_run_v2 lr
 JOIN public.navemaster_state_rows s
   ON s.run_id = lr.id;
-
 COMMENT ON VIEW public.navemaster_live_v2 IS 'NAVEMASTER V2 live (latest frozen run per ship).';
 
 -- KPI summary per ship (latest frozen run)

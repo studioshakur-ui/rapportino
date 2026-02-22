@@ -6,7 +6,7 @@ import { supabase } from "../lib/supabaseClient";
  * ADMIN — Planning Overview + Assignments (Manager ↔ Capo) + Audit
  *
  * Uses:
- * - admin_planning_overview_v1 (view) for aggregated rows
+ * - admin_planning_overview_v2 (view) for aggregated rows + labels
  * - manager_capo_assignments to attach capi to a manager (pk capo_id)
  * - planning_audit for audit feed
  * - profiles for managers/capi display labels
@@ -134,7 +134,7 @@ export default function AdminPlanningOverview({ isDark = true }) {
     setErr("");
     try {
       // view columns are not guaranteed, so we fetch '*' and use defensive rendering
-      let qy = supabase.from("admin_planning_overview_v1").select("*");
+      let qy = supabase.from("admin_planning_overview_v2").select("*");
 
       if (statusFilter !== "ALL") qy = qy.eq("status", statusFilter);
       if (periodFilter !== "ALL") qy = qy.eq("period_type", periodFilter);
@@ -257,8 +257,17 @@ export default function AdminPlanningOverview({ isDark = true }) {
       const hay = [
         r?.plan_id,
         r?.manager_id,
+        r?.manager_display_name,
+        r?.manager_full_name,
+        r?.manager_email,
         r?.capo_id,
+        r?.capo_display_name,
+        r?.capo_full_name,
+        r?.capo_email,
         r?.operator_id,
+        r?.operator_name,
+        r?.operator_cognome,
+        r?.operator_nome,
         r?.status,
         r?.period_type,
         r?.plan_date,
@@ -474,14 +483,14 @@ export default function AdminPlanningOverview({ isDark = true }) {
             {/* Overview */}
             <div className="lg:col-span-5 rounded-2xl theme-panel-2 p-3">
               <div className="kicker">Overview</div>
-              <div className="mt-1 text-[14px] font-semibold theme-text">Piani (vista admin_planning_overview_v1)</div>
+              <div className="mt-1 text-[14px] font-semibold theme-text">Piani (vista admin_planning_overview_v2)</div>
 
               <div className="mt-3 grid grid-cols-1 md:grid-cols-12 gap-2">
                 <div className="md:col-span-6">
                   <input
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
-                    placeholder="Cerca plan_id / manager_id / capo_id / operator_id…"
+                    placeholder="Cerca plan_id / manager / capo / operatore…"
                     className={cn(
                       "w-full rounded-2xl border px-3 py-2.5 text-[13px]",
                       "theme-input",
@@ -556,6 +565,11 @@ export default function AdminPlanningOverview({ isDark = true }) {
 
                       const slotsCount = new Set(items.map((x) => safeText(x.slot_id)).filter(Boolean)).size;
                       const membersCount = items.filter((x) => safeText(x.operator_id)).length;
+                      const managerLabel =
+                        safeText(head.manager_display_name) ||
+                        safeText(head.manager_full_name) ||
+                        safeText(head.manager_email) ||
+                        safeText(head.manager_id);
 
                       return (
                         <div key={planId} className="px-3 py-3 border-b theme-border last:border-b-0">
@@ -566,9 +580,9 @@ export default function AdminPlanningOverview({ isDark = true }) {
                               <div className="mt-1 text-[12px] theme-text-muted truncate">
                                 plan_id: <span className="theme-text">{planId}</span>
                               </div>
-                              {head.manager_id ? (
+                              {managerLabel ? (
                                 <div className="mt-1 text-[12px] theme-text-muted truncate">
-                                  manager_id: <span className="theme-text">{safeText(head.manager_id)}</span>
+                                  manager: <span className="theme-text">{managerLabel}</span>
                                 </div>
                               ) : null}
                             </div>
@@ -596,8 +610,19 @@ export default function AdminPlanningOverview({ isDark = true }) {
                             <div className="max-h-[220px] overflow-auto">
                               {items.slice(0, 18).map((r, i) => (
                                 <div key={`${planId}-${i}`} className="grid grid-cols-12 gap-2 px-3 py-2 text-[12px] theme-text">
-                                  <div className="col-span-4 truncate">{safeText(r.capo_id) || "—"}</div>
-                                  <div className="col-span-4 truncate">{safeText(r.operator_id) || "—"}</div>
+                                <div className="col-span-4 truncate">
+                                  {safeText(r.capo_display_name) ||
+                                    safeText(r.capo_full_name) ||
+                                    safeText(r.capo_email) ||
+                                    safeText(r.capo_id) ||
+                                    "—"}
+                                </div>
+                                <div className="col-span-4 truncate">
+                                  {safeText(r.operator_name) ||
+                                    safeText([r.operator_cognome, r.operator_nome].filter(Boolean).join(" ").trim()) ||
+                                    safeText(r.operator_id) ||
+                                    "—"}
+                                </div>
                                   <div className="col-span-2 tabular-nums">{safeText(r.operator_position) || "—"}</div>
                                   <div className="col-span-2 truncate">{safeText(r.slot_id) ? safeText(r.slot_id).slice(0, 8) : "—"}</div>
                                 </div>

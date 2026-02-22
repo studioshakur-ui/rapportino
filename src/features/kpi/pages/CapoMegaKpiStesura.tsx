@@ -271,10 +271,10 @@ export default function CapoMegaKpiStesura({ isDark = true }: { isDark?: boolean
   if (loadingShips && !resolvedShip) {
     return (
       <div className="p-4 sm:p-6">
-        <div className={cn("rounded-2xl border px-4 py-4", isDark ? "border-slate-800 bg-slate-950/60 text-slate-200" : "border-slate-200 bg-white text-slate-800")}>
-          <div className="text-[11px] uppercase tracking-[0.20em] mb-1 text-slate-400">CNCS · Capo</div>
-          <div className="text-lg font-semibold mb-1 text-slate-50">Mega KPI · Posa cavi</div>
-          <div className="text-sm text-slate-400">Caricamento nave…</div>
+        <div className="rounded-2xl theme-panel px-4 py-4">
+          <div className="text-[11px] uppercase tracking-[0.20em] mb-1 theme-text-muted">CNCS · Capo</div>
+          <div className="text-lg font-semibold mb-1 theme-text">Mega KPI · Posa cavi</div>
+          <div className="text-sm theme-text-muted">Caricamento nave…</div>
         </div>
       </div>
     );
@@ -283,14 +283,14 @@ export default function CapoMegaKpiStesura({ isDark = true }: { isDark?: boolean
   if (!resolvedShip) {
     return (
       <div className="p-4 sm:p-6">
-        <div className={cn("rounded-2xl border px-4 py-4", isDark ? "border-slate-800 bg-slate-950/60 text-slate-200" : "border-slate-200 bg-white text-slate-800")}>
-          <div className="text-[11px] uppercase tracking-[0.20em] mb-1 text-slate-400">CNCS · Capo</div>
-          <div className="text-lg font-semibold mb-1 text-slate-50">Mega KPI · Posa cavi</div>
-          <div className="text-sm text-slate-400 mb-3">Nessuna nave disponibile o nave non selezionata.</div>
+        <div className="rounded-2xl theme-panel px-4 py-4">
+          <div className="text-[11px] uppercase tracking-[0.20em] mb-1 theme-text-muted">CNCS · Capo</div>
+          <div className="text-lg font-semibold mb-1 theme-text">Mega KPI · Posa cavi</div>
+          <div className="text-sm theme-text-muted mb-3">Nessuna nave disponibile o nave non selezionata.</div>
           <button
             type="button"
             onClick={() => navigate("/app/ship-selector")}
-            className={cn("rounded-xl px-3 py-2 text-sm font-semibold", isDark ? "bg-slate-800 text-slate-100 hover:bg-slate-700" : "bg-slate-900 text-white")}
+            className="rounded-xl px-3 py-2 text-sm font-semibold btn-primary"
           >
             Seleziona nave
           </button>
@@ -301,30 +301,30 @@ export default function CapoMegaKpiStesura({ isDark = true }: { isDark?: boolean
 
   return (
     <div className="p-4 sm:p-6 space-y-4">
-      <div className={cn("rounded-2xl border px-4 py-4", isDark ? "border-slate-800 bg-slate-950/60 text-slate-200" : "border-slate-200 bg-white text-slate-800")}>
-        <div className="text-[11px] uppercase tracking-[0.20em] mb-1 text-slate-400">CNCS · Capo</div>
+      <div className="rounded-2xl theme-panel px-4 py-4">
+        <div className="text-[11px] uppercase tracking-[0.20em] mb-1 theme-text-muted">CNCS · Capo</div>
 
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
           <div>
-            <div className="text-lg font-semibold text-slate-50">Mega KPI · Posa cavi</div>
-            <div className="text-sm text-slate-400">
+            <div className="text-lg font-semibold theme-text">Mega KPI · Posa cavi</div>
+            <div className="text-sm theme-text-muted">
               Curva cumulata basata su INCA (scope) + rapportini (stesura + ripresa). Fascettatura esclusa.
             </div>
           </div>
 
-          <div className="text-sm text-slate-300">
-            <span className="text-slate-500">Nave:</span>{" "}
-            <span className="font-semibold text-slate-100">{resolvedShip.name || resolvedShip.code || resolvedShip.id}</span>
+          <div className="text-sm theme-text-muted">
+            <span className="theme-text-muted">Nave:</span>{" "}
+            <span className="font-semibold theme-text">{resolvedShip.name || resolvedShip.code || resolvedShip.id}</span>
             {costr ? (
               <>
                 {" "}
-                <span className="text-slate-500">· costr:</span> <span className="font-mono text-slate-200">{String(costr)}</span>
+                <span className="theme-text-muted">· costr:</span> <span className="font-mono theme-text">{String(costr)}</span>
               </>
             ) : null}
             {commessa ? (
               <>
                 {" "}
-                <span className="text-slate-500">· commessa:</span> <span className="font-mono text-slate-200">{String(commessa)}</span>
+                <span className="theme-text-muted">· commessa:</span> <span className="font-mono theme-text">{String(commessa)}</span>
               </>
             ) : null}
           </div>
@@ -358,9 +358,9 @@ export default function CapoMegaKpiStesura({ isDark = true }: { isDark?: boolean
         subtitle="Perimetro: rapportini firmati dal Capo. Toggle rapido: Oggi / 7j / MTD."
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className={cn("text-xs", isDark ? "text-slate-400" : "text-slate-600")}>
-            Range: <span className={cn("font-semibold", isDark ? "text-slate-100" : "text-slate-900")}>{formatDateIt(rangeForMode.from)}</span> →{" "}
-            <span className={cn("font-semibold", isDark ? "text-slate-100" : "text-slate-900")}>{formatDateIt(rangeForMode.to)}</span>
+          <div className="text-xs theme-text-muted">
+            Range: <span className="font-semibold theme-text">{formatDateIt(rangeForMode.from)}</span> →{" "}
+            <span className="font-semibold theme-text">{formatDateIt(rangeForMode.to)}</span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -373,7 +373,7 @@ export default function CapoMegaKpiStesura({ isDark = true }: { isDark?: boolean
                   type="button"
                   className={cn(
                     "rounded-full border px-4 py-2 text-xs font-semibold shadow-soft",
-                    active ? "border-sky-500/30 bg-sky-500/10 text-sky-200" : "border-border/30 bg-white/5 text-foreground hover:bg-white/10",
+                    active ? "accent-soft theme-border theme-text" : "theme-panel-2 theme-border theme-text hover:opacity-95",
                     worktimeQuery.isFetching ? "opacity-70" : ""
                   )}
                   onClick={() => setWorktimeMode(m)}
@@ -386,31 +386,31 @@ export default function CapoMegaKpiStesura({ isDark = true }: { isDark?: boolean
         </div>
 
         <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-3">
-          <div className={cn("rounded-2xl border p-4", isDark ? "border-slate-800/70 bg-slate-950/35" : "border-slate-200 bg-white")}>
-            <div className={cn("text-[11px] uppercase tracking-[0.18em]", isDark ? "text-slate-500" : "text-slate-600")}>Sintesi</div>
+          <div className="rounded-2xl theme-panel-2 p-4">
+            <div className="text-[11px] uppercase tracking-[0.18em] theme-text-muted">Sintesi</div>
             <div className="mt-3 space-y-2">
               <div className="flex items-center justify-between gap-3">
-                <div className={cn("text-xs", isDark ? "text-slate-400" : "text-slate-600")}>Ore</div>
-                <div className={cn("text-sm font-semibold", isDark ? "text-slate-100" : "text-slate-900")}>
+                <div className="text-xs theme-text-muted">Ore</div>
+                <div className="text-sm font-semibold theme-text">
                   {formatCompactNumber(safeNum(worktimeQuery.data?.series?.daily?.reduce((a, r) => a + safeNum(r.hours), 0) ?? 0))} h
                 </div>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <div className={cn("text-xs", isDark ? "text-slate-400" : "text-slate-600")}>Straordinario</div>
-                <div className={cn("text-sm font-semibold", isDark ? "text-slate-100" : "text-slate-900")}>
+                <div className="text-xs theme-text-muted">Straordinario</div>
+                <div className="text-sm font-semibold theme-text">
                   {formatCompactNumber(safeNum(worktimeQuery.data?.series?.daily?.reduce((a, r) => a + safeNum(r.overtime_hours), 0) ?? 0))} h
                 </div>
               </div>
-              <div className="pt-2 border-t border-white/5">
-                <div className={cn("text-[11px]", isDark ? "text-slate-500" : "text-slate-600")}>
+              <div className="pt-2 border-t theme-border">
+                <div className="text-[11px] theme-text-muted">
                   Regola straordinario: max(ore_giorno − 8, 0) (Lun–Ven).
                 </div>
               </div>
             </div>
           </div>
 
-          <div className={cn("rounded-2xl border p-4 lg:col-span-2", isDark ? "border-slate-800/70 bg-slate-950/35" : "border-slate-200 bg-white")}>
-            <div className={cn("text-[11px] uppercase tracking-[0.18em]", isDark ? "text-slate-500" : "text-slate-600")}>Curva ore</div>
+          <div className="rounded-2xl theme-panel-2 p-4 lg:col-span-2">
+            <div className="text-[11px] uppercase tracking-[0.18em] theme-text-muted">Curva ore</div>
             <div className="mt-3">
               <CoreEChart
                 option={worktimeOption as any}
@@ -428,4 +428,5 @@ export default function CapoMegaKpiStesura({ isDark = true }: { isDark?: boolean
     </div>
   );
 }
+
 

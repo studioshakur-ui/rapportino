@@ -1,5 +1,5 @@
 // src/features/kpi/components/MegaKpiCapoStesuraPanel.tsx
-import { useMemo  } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { supabase } from "../../../lib/supabaseClient";
@@ -7,10 +7,6 @@ import { supabase } from "../../../lib/supabaseClient";
 import CoreEChart from "../../../components/charts/CoreEChart";
 import { CORE_CHART_THEME, coreTooltipStyle, formatCompactNumber } from "../../../components/charts/coreChartTheme";
 
-
-function cn(...parts: Array<string | false | null | undefined>): string {
-  return parts.filter(Boolean).join(" ");
-}
 
 function safeNum(v: unknown): number {
   const n = Number(v);
@@ -48,6 +44,9 @@ type CapoMegaKpiStesuraV1 = {
   meta?: {
     scope?: {
       offset_m?: number | string | null;
+      metri_teo_total?: number | string | null;
+      metri_dis_total?: number | string | null;
+      metri_ref_total?: number | string | null;
     };
   };
   headline?: {
@@ -57,6 +56,7 @@ type CapoMegaKpiStesuraV1 = {
     };
     cumulative?: {
       stesura_cum_m?: number | string | null;
+      inca_progress_m?: number | string | null;
       progress_pct?: number | string | null;
     };
   };
@@ -70,9 +70,12 @@ type CapoMegaKpiStesuraV1 = {
 type BuildOptionInput = {
   data: CapoMegaKpiStesuraV1 | null | undefined;
   isDark: boolean;
+  trendLine?: number[];
+  targetLine?: number[];
+  incaLine?: number[];
 };
 
-function buildOption({ data, isDark }: BuildOptionInput): Record<string, unknown> {
+function buildOption({ data, isDark, trendLine, targetLine, incaLine }: BuildOptionInput): Record<string, unknown> {
   void isDark; // theme currently fixed by CORE_CHART_THEME
   const theme = CORE_CHART_THEME;
 
@@ -84,6 +87,7 @@ function buildOption({ data, isDark }: BuildOptionInput): Record<string, unknown
 
   const x = daily.map((r) => String(r.date ?? ""));
   const y = daily.map((r) => safeNum(r.stesura_cum_m));
+  const yDaily = daily.map((r) => safeNum(r.stesura_giorno_m));
 
   const yProj = projection.map((r) => safeNum(r.stesura_cum_proj_m));
   const xProj = projection.map((r) => String(r.date ?? ""));
@@ -157,7 +161,7 @@ function buildOption({ data, isDark }: BuildOptionInput): Record<string, unknown
       );
       s.push(`<div><span style="color:#94a3b8">Ripresa</span>: <b>${formatCompactNumber(ripresa)}</b> m</div>`);
       s.push(
-        `<div><span style="color:#94a3b8">Totale posa (oggi)</span>: <b>${formatCompactNumber(day)}</b> m</div>`
+        `<div><span style="color:#94a3b8">Stesura (oggi)</span>: <b>${formatCompactNumber(day)}</b> m</div>`
       );
 
       if (fasc != null) {
@@ -224,6 +228,52 @@ function buildOption({ data, isDark }: BuildOptionInput): Record<string, unknown
             }
           : undefined,
       },
+      {
+        name: "Stesura giornaliera",
+        type: "line",
+        data: yDaily,
+        smooth: true,
+        showSymbol: false,
+        lineStyle: { width: 1.5, opacity: 0.5 },
+        silent: true,
+      },
+      ...(Array.isArray(trendLine) && trendLine.length
+        ? [
+            {
+              name: "Trend prod (7j)",
+              type: "line",
+              data: trendLine,
+              smooth: true,
+              showSymbol: false,
+              lineStyle: { width: 2, type: "dashed", opacity: 0.7 },
+              silent: true,
+            },
+          ]
+        : []),
+      ...(Array.isArray(targetLine) && targetLine.length
+        ? [
+            {
+              name: "Target",
+              type: "line",
+              data: targetLine,
+              showSymbol: false,
+              lineStyle: { width: 1.5, type: "dashed", opacity: 0.7 },
+              silent: true,
+            },
+          ]
+        : []),
+      ...(Array.isArray(incaLine) && incaLine.length
+        ? [
+            {
+              name: "Totale INCA",
+              type: "line",
+              data: incaLine,
+              showSymbol: false,
+              lineStyle: { width: 1.5, type: "dotted", opacity: 0.7 },
+              silent: true,
+            },
+          ]
+        : []),
       ...(xProj.length
         ? [
             {
@@ -293,102 +343,177 @@ export default function MegaKpiCapoStesuraPanel({
     return daily.length === 0;
   }, [data]);
 
-  const option = useMemo(() => buildOption({ data, isDark }), [data, isDark]);
-
   const headline = data?.headline || {};
   const today = headline?.today || {};
   const cum = headline?.cumulative || {};
   const scope = data?.meta?.scope || {};
   const offset = safeNum(scope?.offset_m);
+  const targetTotal = safeNum(scope?.metri_teo_total);
+  const incaTotal = safeNum(scope?.metri_ref_total || scope?.metri_dis_total);
 
   const stesuraDay = safeNum(today?.stesura_giorno_m);
   const fascDay = today?.fascettatura_m == null ? null : safeNum(today?.fascettatura_m);
 
   const cumM = safeNum(cum?.stesura_cum_m);
+  const incaProgressM = safeNum(cum?.inca_progress_m);
   const pct = safePct(cum?.progress_pct);
 
+  const daily = Array.isArray(data?.series?.daily) ? (data?.series?.daily as DailyRow[]) : [];
+  const lastDate = daily.length ? String(daily[daily.length - 1]?.date || "") : "";
+
+  const trendWindow = 7;
+  const trendDaily = daily
+    .slice(-trendWindow)
+    .map((r) => safeNum(r.stesura_giorno_m))
+    .filter((v) => v > 0);
+  const trendAvg = trendDaily.length ? trendDaily.reduce((a, b) => a + b, 0) / trendDaily.length : 0;
+
+  const trendLine = useMemo(() => {
+    if (daily.length < 2) return [];
+    const n = Math.min(trendWindow, daily.length);
+    const startIdx = daily.length - n;
+    const start = safeNum(daily[startIdx]?.stesura_cum_m);
+    const end = safeNum(daily[daily.length - 1]?.stesura_cum_m);
+    const slope = n > 1 ? (end - start) / (n - 1) : 0;
+    return daily.map((_, i) => {
+      if (i < startIdx) return null;
+      return start + slope * (i - startIdx);
+    }) as number[];
+  }, [daily]);
+
+  const targetLine = useMemo(() => {
+    if (!daily.length || !targetTotal) return [];
+    return daily.map(() => targetTotal);
+  }, [daily, targetTotal]);
+
+  const incaLine = useMemo(() => {
+    if (!daily.length || !incaTotal) return [];
+    return daily.map(() => incaTotal);
+  }, [daily, incaTotal]);
+
+  const option = useMemo(
+    () => buildOption({ data, isDark, trendLine, targetLine, incaLine }),
+    [data, isDark, trendLine, targetLine, incaLine]
+  );
+
+  const finishDateFromTrend = (total: number): string | null => {
+    if (!lastDate || !total || trendAvg <= 0) return null;
+    const remaining = total - cumM;
+    if (remaining <= 0) return lastDate;
+    const days = Math.ceil(remaining / trendAvg);
+    const d = new Date(lastDate);
+    if (Number.isNaN(d.getTime())) return null;
+    d.setDate(d.getDate() + days);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${dd}/${mm}/${yyyy}`;
+  };
+
+  const finishTarget = targetTotal ? finishDateFromTrend(targetTotal) : null;
+  const finishInca = incaTotal ? finishDateFromTrend(incaTotal) : null;
+
+  const [targetDateOverride, setTargetDateOverride] = useState<string>("");
+  const requiredDaily = useMemo(() => {
+    if (!targetDateOverride || !targetTotal || !lastDate) return null;
+    const last = new Date(lastDate);
+    const tgt = new Date(targetDateOverride);
+    if (Number.isNaN(last.getTime()) || Number.isNaN(tgt.getTime())) return null;
+    const diffDays = Math.ceil((tgt.getTime() - last.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays <= 0) return null;
+    const remaining = targetTotal - cumM;
+    if (remaining <= 0) return 0;
+    return remaining / diffDays;
+  }, [targetDateOverride, targetTotal, lastDate, cumM]);
+
   return (
-    <div
-      className={cn(
-        "rounded-2xl border px-4 py-4",
-        isDark ? "border-slate-800 bg-slate-950/60" : "border-slate-200 bg-white"
-      )}
-    >
+    <div className="rounded-2xl theme-panel px-4 py-4">
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3 mb-3">
         <div>
-          <div
-            className={cn(
-              "text-[11px] uppercase tracking-[0.20em] mb-1",
-              isDark ? "text-slate-400" : "text-slate-500"
-            )}
-          >
-            KPI · Capo · Stesura
-          </div>
-          <div className={cn("text-lg font-semibold", isDark ? "text-slate-50" : "text-slate-900")}>
-            Curva di produzione (cumulata)
-          </div>
-          <div className={cn("text-sm", isDark ? "text-slate-400" : "text-slate-600")}>
-            Include <span className={cn("font-semibold", isDark ? "text-slate-200" : "text-slate-800")}>stesura + ripresa</span>.
-            Fascettatura esclusa.
+          <div className="text-[11px] uppercase tracking-[0.20em] mb-1 theme-text-muted">KPI · Capo · Stesura</div>
+          <div className="text-lg font-semibold theme-text">Curva INCA (progress)</div>
+          <div className="text-sm theme-text-muted">
+            Basata su <span className="font-semibold theme-text">situazione P</span> e{" "}
+            <span className="font-semibold theme-text">progress 50/70/100</span>. Rapportini esclusi.
           </div>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <div className={cn("rounded-xl border px-3 py-2", isDark ? "border-slate-800 bg-slate-950/40" : "border-slate-200 bg-white")}>
-            <div className={cn("text-[10px] uppercase tracking-[0.18em]", isDark ? "text-slate-500" : "text-slate-500")}>
-              Stesura oggi
-            </div>
-            <div className={cn("text-base font-semibold", isDark ? "text-slate-50" : "text-slate-900")}>
-              {formatCompactNumber(stesuraDay)} m
+          <div className="rounded-xl theme-panel-2 px-3 py-2">
+            <div className="text-[10px] uppercase tracking-[0.18em] theme-text-muted">Stesura oggi</div>
+            <div className="text-base font-semibold theme-text">{formatCompactNumber(stesuraDay)} m</div>
+          </div>
+
+          <div className="rounded-xl theme-panel-2 px-3 py-2">
+            <div className="text-[10px] uppercase tracking-[0.18em] theme-text-muted">Cumul posa</div>
+            <div className="text-base font-semibold theme-text">{formatCompactNumber(cumM)} m</div>
+          </div>
+
+          <div className="rounded-xl theme-panel-2 px-3 py-2">
+            <div className="text-[10px] uppercase tracking-[0.18em] theme-text-muted">% INCA</div>
+            <div className="text-base font-semibold theme-text">{pct == null ? "—" : `${pct.toFixed(1)}%`}</div>
+            <div className="text-[10px] theme-text-muted mt-1">
+              Metri INCA: <span className="theme-text font-semibold">{formatCompactNumber(incaProgressM)} m</span>
             </div>
           </div>
 
-          <div className={cn("rounded-xl border px-3 py-2", isDark ? "border-slate-800 bg-slate-950/40" : "border-slate-200 bg-white")}>
-            <div className={cn("text-[10px] uppercase tracking-[0.18em]", isDark ? "text-slate-500" : "text-slate-500")}>
-              Cumul posa
-            </div>
-            <div className={cn("text-base font-semibold", isDark ? "text-slate-50" : "text-slate-900")}>
-              {formatCompactNumber(cumM)} m
-            </div>
-          </div>
-
-          <div className={cn("rounded-xl border px-3 py-2", isDark ? "border-slate-800 bg-slate-950/40" : "border-slate-200 bg-white")}>
-            <div className={cn("text-[10px] uppercase tracking-[0.18em]", isDark ? "text-slate-500" : "text-slate-500")}>
-              % INCA
-            </div>
-            <div className={cn("text-base font-semibold", isDark ? "text-slate-50" : "text-slate-900")}>
-              {pct == null ? "—" : `${pct.toFixed(1)}%`}
-            </div>
-          </div>
-
-          <div className={cn("rounded-xl border px-3 py-2", isDark ? "border-slate-800 bg-slate-950/40" : "border-slate-200 bg-white")}>
-            <div className={cn("text-[10px] uppercase tracking-[0.18em]", isDark ? "text-slate-500" : "text-slate-500")}>
-              Offset INCA
-            </div>
-            <div className={cn("text-base font-semibold", isDark ? "text-slate-50" : "text-slate-900")}>
-              {formatCompactNumber(offset)} m
-            </div>
+          <div className="rounded-xl theme-panel-2 px-3 py-2">
+            <div className="text-[10px] uppercase tracking-[0.18em] theme-text-muted">Offset INCA</div>
+            <div className="text-base font-semibold theme-text">{formatCompactNumber(offset)} m</div>
           </div>
         </div>
       </div>
 
+      <div className="mb-2">
+        <div className="flex items-center justify-between text-[10px] theme-text-muted mb-1">
+          <span>Avanzamento INCA</span>
+          <span className="theme-text font-semibold">{pct == null ? "—" : `${pct.toFixed(1)}%`}</span>
+        </div>
+        <div className="h-2 rounded-full theme-panel-2 overflow-hidden">
+          <div
+            className="h-full rounded-full"
+            style={{ width: `${Math.min(100, Math.max(0, pct || 0))}%` }}
+          />
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 text-[12px] theme-text-muted">
+        <div>
+          Trend prod (7j): <span className="theme-text font-semibold">{trendAvg ? `${formatCompactNumber(trendAvg)} m/g` : "—"}</span>
+        </div>
+        <div>
+          Finitura target: <span className="theme-text font-semibold">{finishTarget || "—"}</span>
+        </div>
+        <div>
+          Finitura INCA: <span className="theme-text font-semibold">{finishInca || "—"}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span>Data target</span>
+          <input
+            type="date"
+            value={targetDateOverride}
+            onChange={(e) => setTargetDateOverride(e.target.value)}
+            className="rounded-xl theme-input px-2 py-1 text-[12px]"
+          />
+          <span>
+            Pace richiesta:{" "}
+            <span className="theme-text font-semibold">
+              {requiredDaily == null ? "—" : `${formatCompactNumber(requiredDaily)} m/g`}
+            </span>
+          </span>
+        </div>
+      </div>
+
       {fascDay != null ? (
-        <div className={cn("mb-3 text-xs", isDark ? "text-slate-400" : "text-slate-600")}>
+        <div className="mb-3 text-xs theme-text-muted">
           Fascettatura oggi:{" "}
-          <span className={cn("font-semibold", isDark ? "text-slate-200" : "text-slate-800")}>
-            {formatCompactNumber(fascDay)} m
-          </span>{" "}
-          <span className={cn(isDark ? "text-slate-500" : "text-slate-500")}>(non inclusa nella posa)</span>
+          <span className="font-semibold theme-text">{formatCompactNumber(fascDay)} m</span>{" "}
+          <span className="theme-text-muted">(non inclusa)</span>
         </div>
       ) : null}
 
       {error ? (
-        <div
-          className={cn(
-            "rounded-xl border px-3 py-3 text-sm",
-            isDark ? "border-rose-500/30 bg-rose-500/10 text-rose-100" : "border-rose-200 bg-rose-50 text-rose-800"
-          )}
-        >
+        <div className="rounded-xl px-3 py-3 text-sm badge-danger">
           Errore nel caricamento KPI: {String((error as any)?.message || error)}
         </div>
       ) : (
@@ -403,9 +528,8 @@ export default function MegaKpiCapoStesuraPanel({
         />
       )}
 
-      <div className={cn("mt-3 text-[11px]", isDark ? "text-slate-500" : "text-slate-500")}>
-        Nota: la curva parte dalla data del primo rapportino del Capo e include un offset INCA (cavi già in P). Il back applica la regola:
-        <span className={cn("font-semibold", isDark ? "text-slate-300" : "text-slate-700")}> stesura del giorno = stesura + ripresa</span>.
+      <div className="mt-3 text-[11px] theme-text-muted">
+        Nota: la curva usa solo INCA (situazione + progress_percent) e data posa per giorno. Rapportini esclusi.
       </div>
     </div>
   );

@@ -66,6 +66,7 @@ import ManagerCapoShipPlanning from "./pages/ManagerCapoShipPlanning";
 
 // CORE DRIVE
 import ArchivePage from "./pages/Archive";
+import CoreDrivePage from "./pages/CoreDrivePage";
 
 // EVOLUZIONE
 import Evoluzione from "./data/Evoluzione";
@@ -140,7 +141,7 @@ export default function AppRoutes(): JSX.Element {
         <Route path="perimeters" element={<AdminPerimetersPage />} />
       </Route>
 
-      {/* ===== APP SHELL (generic) ===== */}
+      {/* ===== APP SHELL (CAPO RICH) ===== */}
       <Route
         path="/app/*"
         element={
@@ -148,7 +149,20 @@ export default function AppRoutes(): JSX.Element {
             <AppShell />
           </RequireAuth>
         }
-      />
+      >
+        <Route index element={<Navigate to="ship-selector" replace />} />
+        <Route path="ship" element={<Navigate to="../ship-selector" replace />} />
+        <Route path="ship-selector" element={<ShipSelector />} />
+        <Route path="ship/:shipId" element={<CapoModuleSelector />} />
+        <Route path="ship/:shipId/rapportino/role" element={<CapoRoleSelector />} />
+        <Route path="ship/:shipId/rapportino" element={<RapportinoPage />} />
+        <Route path="ship/:shipId/teams" element={<CapoTeamOrganizerPage />} />
+        <Route path="ship/:shipId/inca" element={<IncaCapoCockpit />} />
+        <Route path="ship/:shipId/kpi-stesura" element={<CapoMegaKpiStesura />} />
+        <Route path="kpi-operatori" element={<CapoOperatorKpi />} />
+        <Route path="core-drive" element={<CoreDrivePage />} />
+        <Route path="archive" element={<Navigate to="../core-drive" replace />} />
+      </Route>
 
       {/* ===== CAPO SIMPLE (canon) ===== */}
       <Route
