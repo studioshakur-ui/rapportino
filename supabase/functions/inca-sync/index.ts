@@ -36,6 +36,16 @@ type ParsedCable = {
   metri_teo: number | null;
   metri_dis: number | null;
 
+  // Dates from INCA XLSX (bureau/system). Kept separate from rapportino proofs.
+  inca_data_taglio: string | null; // date (YYYY-MM-DD)
+  inca_data_posa: string | null; // date (YYYY-MM-DD)
+  inca_data_collegamento: string | null; // date (YYYY-MM-DD)
+  inca_data_richiesta_taglio: string | null; // date (YYYY-MM-DD)
+
+  inca_dataela_ts: string | null; // timestamptz ISO
+  inca_data_instradamento_ts: string | null; // timestamptz ISO
+  inca_data_creazione_instradamento_ts: string | null; // timestamptz ISO
+
   wbs: string | null;
   pagina_pdf: string | null;
 
@@ -78,21 +88,12 @@ function normText(v: unknown): string {
  * Canonicalize cable codes so that joins remain stable across imports.
  * - trim
  * - normalize unicode
- * - collapse any whitespace run to a single space
+ * - collapse whitespace
  */
 function normalizeCodice(v: unknown): string {
-  const s = String(v ?? "")
-    .replace(/\u00A0/g, " ")
-    .normalize("NFKC")
-    .trim();
-  return s.replace(/\s+/g, " ");
-}
-
-function asUuidOrNull(v: unknown): string | null {
   const s = String(v ?? "").trim();
-  if (!s) return null;
-  if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(s)) return null;
-  return s;
+  if (!s) return "";
+  return s.normalize("NFKC").replace(/\s+/g, " ");
 }
 
 function canonKey(header: unknown): string {
@@ -109,81 +110,125 @@ function safeNumber(v: unknown): number | null {
   if (!s) return null;
   const s2 = s.replace(/\./g, "").replace(/,/g, ".");
   const n = Number(s2);
-  if (Number.isNaN(n)) return null;
+  if (!Number.isFinite(n)) return null;
   return n;
 }
 
-function normalizeSituazione(raw: unknown): { value: ParsedCable["situazione"]; raw: string | null } {
-  const s0 = String(raw ?? "").trim().toUpperCase();
-  if (!s0) return { value: null, raw: null };
+type ExcelDateParseKind = "date" | "datetime";
 
-  const s = s0[0];
-
-  // Explicit L means null
-  if (s === "L") return { value: null, raw: s0 };
-
-  if (s === "P" || s === "T" || s === "R" || s === "B" || s === "E") return { value: s, raw: s0 };
-
-  // soft mapping
-  if (s0.includes("POS")) return { value: "P", raw: s0 };
-  if (s0.includes("TAG")) return { value: "T", raw: s0 };
-  if (s0.includes("RIF")) return { value: "R", raw: s0 };
-  if (s0.includes("BLO")) return { value: "B", raw: s0 };
-  if (s0.includes("ELI")) return { value: "E", raw: s0 };
-
-  // Unknown -> null (L)
-  return { value: null, raw: s0 };
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
 }
 
-function normalizeProgressFromStatoCantiere(raw: unknown): {
-  progress: ParsedCable["progress_percent"];
-  situazione: ParsedCable["situazione"];
-  raw: string | null;
-} {
-  const s0 = String(raw ?? "").trim().toUpperCase();
-  if (!s0) return { progress: null, situazione: null, raw: null };
-
-  // Confirmed rule (user):
-  // - Excel shows 5 => progress 50% (situazione must be P)
-  // - Excel shows 7 => progress 70% (situazione must be P)
-  // - Excel shows P => progress 100% (situazione P)
-  // - Otherwise: canonical mapping for T/R/B/E/L
-  if (s0 === "5" || s0.startsWith("5 ") || s0.startsWith("5%")) return { progress: 50, situazione: "P", raw: s0 };
-  if (s0 === "7" || s0.startsWith("7 ") || s0.startsWith("7%")) return { progress: 70, situazione: "P", raw: s0 };
-  if (s0[0] === "P") return { progress: 100, situazione: "P", raw: s0 };
-
-  const { value, raw: r } = normalizeSituazione(s0);
-  return { progress: null, situazione: value, raw: r };
+function toIsoDateUTC(d: Date): string {
+  const y = d.getUTCFullYear();
+  const m = pad2(d.getUTCMonth() + 1);
+  const day = pad2(d.getUTCDate());
+  return `${y}-${m}-${day}`;
 }
 
-function buildGroupKey(costr: string, commessa: string, projectCode: string) {
-  const a = normText(costr).toLowerCase();
-  const b = normText(commessa).toLowerCase();
-  const c = normText(projectCode).toLowerCase();
-  return `${a}|${b}|${c}`;
-}
-
-async function sha256Hex(data: string): Promise<string> {
-  const enc = new TextEncoder();
-  const buf = enc.encode(data);
-  const hash = await crypto.subtle.digest("SHA-256", buf);
-  const b = new Uint8Array(hash);
-  return Array.from(b)
-    .map((x) => x.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-function pickFirst(obj: Record<string, unknown>, keys: string[]): unknown {
-  for (const k of keys) {
-    if (k in obj) return obj[k];
+function excelSerialToDateUTC(serial: number): Date | null {
+  // XLSX stores dates as a floating serial (days since 1899-12-30 in the 1900 date system).
+  // XLSX.SSF.parse_date_code handles the quirks (including fractional days => time).
+  try {
+    const parsed = (XLSX as any).SSF?.parse_date_code?.(serial);
+    if (!parsed || !parsed.y || !parsed.m || !parsed.d) return null;
+    const hh = parsed.H ?? 0;
+    const mm = parsed.M ?? 0;
+    const ss = parsed.S ?? 0;
+    // Use UTC to avoid local timezone shifting KPI cutoffs.
+    return new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d, hh, mm, Math.floor(ss)));
+  } catch {
+    return null;
   }
-  return undefined;
 }
 
-function buildRowCanonical(row: Record<string, unknown>): Record<string, unknown> {
+function parseExcelDateValue(value: unknown, kind: ExcelDateParseKind): { date: string | null; ts: string | null } {
+  if (value === null || value === undefined) return { date: null, ts: null };
+
+  // 1) If XLSX already gave us a Date, normalize to UTC strings.
+  if (value instanceof Date) {
+    const d = value;
+    if (Number.isNaN(d.getTime())) return { date: null, ts: null };
+    const date = toIsoDateUTC(d);
+    const ts = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds())).toISOString();
+    return kind === "date" ? { date, ts: null } : { date, ts };
+  }
+
+  // 2) Excel serial number (most common when raw:true).
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const d = excelSerialToDateUTC(value);
+    if (!d) return { date: null, ts: null };
+    const date = toIsoDateUTC(d);
+    const ts = d.toISOString();
+    return kind === "date" ? { date, ts: null } : { date, ts };
+  }
+
+  // 3) String: attempt ISO / dd/mm/yyyy / dd-mm-yyyy.
+  if (typeof value === "string") {
+    const s = value.trim();
+    if (!s) return { date: null, ts: null };
+
+    // ISO-ish first
+    const d1 = new Date(s);
+    if (!Number.isNaN(d1.getTime())) {
+      const date = toIsoDateUTC(d1);
+      const ts = d1.toISOString();
+      return kind === "date" ? { date, ts: null } : { date, ts };
+    }
+
+    // dd/mm/yyyy or dd-mm-yyyy (optionally with time)
+    const m = s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+    if (m) {
+      const dd = Number(m[1]);
+      const mm = Number(m[2]);
+      const yyyy = Number(m[3]);
+      const hh = m[4] ? Number(m[4]) : 0;
+      const mi = m[5] ? Number(m[5]) : 0;
+      const ss = m[6] ? Number(m[6]) : 0;
+      const d = new Date(Date.UTC(yyyy, mm - 1, dd, hh, mi, ss));
+      if (Number.isNaN(d.getTime())) return { date: null, ts: null };
+      const date = toIsoDateUTC(d);
+      const ts = d.toISOString();
+      return kind === "date" ? { date, ts: null } : { date, ts };
+    }
+  }
+
+  return { date: null, ts: null };
+}
+
+function pickFirst(row: Record<string, unknown>, keys: string[]) {
+  for (const k of keys) {
+    if (k in row) return row[k];
+  }
+  return null;
+}
+
+function buildRowCanonical(row: Record<string, unknown>) {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(row)) out[canonKey(k)] = v;
   return out;
+}
+
+function normalizeProgressFromStatoCantiere(v: unknown) {
+  const raw = String(v ?? "").trim().toUpperCase();
+  if (!raw) return { progress: null as 50 | 70 | 100 | null, situazione: null as ParsedCable["situazione"], raw: null as string | null };
+
+  // Accept numeric progress in Stato Cantiere: 5 => 50%, 7 => 70%
+  if (raw === "5" || raw === "50") return { progress: 50 as const, situazione: "P" as const, raw };
+  if (raw === "7" || raw === "70") return { progress: 70 as const, situazione: "P" as const, raw };
+
+  // P/T/R/B/E are canonical statuses
+  if (raw.startsWith("P")) return { progress: 100 as const, situazione: "P" as const, raw };
+  if (raw.startsWith("T")) return { progress: null, situazione: "T" as const, raw };
+  if (raw.startsWith("R")) return { progress: null, situazione: "R" as const, raw };
+  if (raw.startsWith("B")) return { progress: null, situazione: "B" as const, raw };
+  if (raw.startsWith("E")) return { progress: null, situazione: "E" as const, raw };
+
+  // L is treated as null (NP bucket)
+  if (raw.startsWith("L")) return { progress: null, situazione: null, raw: "L" };
+
+  return { progress: null, situazione: null, raw };
 }
 
 function parseXlsxCables(arrayBuffer: ArrayBuffer) {
@@ -302,6 +347,21 @@ function parseXlsxCables(arrayBuffer: ArrayBuffer) {
     const metriTeo = safeNumber(pickFirst(row, ["LUNGHEZZA_DI_DISEGNO", "LUNGHEZZA_DISEGNO", "METRI_TEO", "METRI_TEORICI"]));
     const metriDis = safeNumber(pickFirst(row, ["LUNGHEZZA_DI_POSA", "LUNGHEZZA_POSA", "METRI_DIS", "METRI_POSATI"]));
 
+    // --- INCA Dates (Excel) ---
+    const incaDataTaglio = parseExcelDateValue(pickFirst(row, ["DATA_DI_TAGLIO"]), "date").date;
+    const incaDataPosa = parseExcelDateValue(pickFirst(row, ["DATA_DI_POSA"]), "date").date;
+    const incaDataCollegamento = parseExcelDateValue(pickFirst(row, ["DATA_COLLEGAMENTO"]), "date").date;
+
+    // Some exports use mixed headers; we support both.
+    const incaDataRichiestaTaglio = parseExcelDateValue(pickFirst(row, ["DATA_RICHIESTA_TAGLIO"]), "date").date;
+
+    const incaDataelaTs = parseExcelDateValue(pickFirst(row, ["DATAELA"]), "datetime").ts;
+    const incaDataInstradamentoTs = parseExcelDateValue(pickFirst(row, ["DATA_INSTRADAMENTO"]), "datetime").ts;
+    const incaDataCreazioneInstradamentoTs = parseExcelDateValue(
+      pickFirst(row, ["DATA_CREAZIONE_INSTRADAMENTO"]),
+      "datetime",
+    ).ts;
+
     const wbs = normText(pickFirst(row, ["WBS"])) || null;
     const paginaPdf = normText(pickFirst(row, ["PAGINA_PDF", "PAGINA", "PAGE", "FOGLIO"])) || null;
 
@@ -325,6 +385,16 @@ function parseXlsxCables(arrayBuffer: ArrayBuffer) {
       descrizione_a: descrA,
       metri_teo: metriTeo,
       metri_dis: metriDis,
+
+      inca_data_taglio: incaDataTaglio,
+      inca_data_posa: incaDataPosa,
+      inca_data_collegamento: incaDataCollegamento,
+      inca_data_richiesta_taglio: incaDataRichiestaTaglio,
+
+      inca_dataela_ts: incaDataelaTs,
+      inca_data_instradamento_ts: incaDataInstradamentoTs,
+      inca_data_creazione_instradamento_ts: incaDataCreazioneInstradamentoTs,
+
       wbs,
       pagina_pdf: paginaPdf,
       situazione,
@@ -390,78 +460,56 @@ function dedupeByCodice(cables: ParsedCable[]) {
     bump(c.apparato_a);
     bump(c.descrizione_da);
     bump(c.descrizione_a);
-    if (c.metri_teo != null) s += 1;
-    if (c.metri_dis != null) s += 1;
+    bump(c.metri_teo);
+    bump(c.metri_dis);
+
+    // dates also increase score
+    bump(c.inca_data_taglio);
+    bump(c.inca_data_posa);
+    bump(c.inca_data_collegamento);
+    bump(c.inca_data_richiesta_taglio);
+    bump(c.inca_dataela_ts);
+    bump(c.inca_data_instradamento_ts);
+    bump(c.inca_data_creazione_instradamento_ts);
+
     bump(c.wbs);
     bump(c.pagina_pdf);
     bump(c.situazione);
-    if (c.progress_percent != null) s += 1;
+    bump(c.progress_percent);
     return s;
   };
 
-  const by = new Map<string, ParsedCable>();
-  const duplicates: string[] = [];
-
-  const keepStr = (a: string | null, b: string | null) => {
-    const as = (a ?? "").trim();
-    if (as) return a;
-    const bs = (b ?? "").trim();
-    if (bs) return b;
-    return null;
-  };
+  const bestBy = new Map<string, ParsedCable>();
+  const duplicates = new Map<string, number>();
 
   for (const c of cables) {
-    const k = c.codice;
-    const prev = by.get(k);
+    const prev = bestBy.get(c.codice);
     if (!prev) {
-      by.set(k, c);
+      bestBy.set(c.codice, c);
       continue;
     }
 
-    duplicates.push(k);
+    duplicates.set(c.codice, (duplicates.get(c.codice) ?? 1) + 1);
 
-    const a = prev;
-    const b = c;
-    const best = score(b) > score(a) ? b : a;
-    const other = best === a ? b : a;
+    const prevScore = score(prev);
+    const nextScore = score(c);
 
-    const merged: ParsedCable = {
-      ...best,
-      codice_inca: keepStr(best.codice_inca, other.codice_inca),
-      marca_cavo: keepStr(best.marca_cavo, other.marca_cavo),
-      descrizione: keepStr(best.descrizione, other.descrizione),
-      tipo: keepStr(best.tipo, other.tipo),
-      sezione: keepStr(best.sezione, other.sezione),
-      livello_disturbo: keepStr(best.livello_disturbo, other.livello_disturbo),
-      stato_tec: keepStr(best.stato_tec, other.stato_tec),
-      stato_cantiere: keepStr(best.stato_cantiere, other.stato_cantiere),
-      impianto: keepStr(best.impianto, other.impianto),
-      zona_da: keepStr(best.zona_da, other.zona_da),
-      zona_a: keepStr(best.zona_a, other.zona_a),
-      apparato_da: keepStr(best.apparato_da, other.apparato_da),
-      apparato_a: keepStr(best.apparato_a, other.apparato_a),
-      descrizione_da: keepStr(best.descrizione_da, other.descrizione_da),
-      descrizione_a: keepStr(best.descrizione_a, other.descrizione_a),
-      wbs: keepStr(best.wbs, other.wbs),
-      pagina_pdf: keepStr(best.pagina_pdf, other.pagina_pdf),
-      metri_teo: best.metri_teo ?? other.metri_teo ?? null,
-      metri_dis: best.metri_dis ?? other.metri_dis ?? null,
-      progress_percent: (Math.max(best.progress_percent ?? 0, other.progress_percent ?? 0) || null) as any,
-    };
+    // keep the "most filled" row; tie-break: keep higher progress.
+    const prevProg = prev.progress_percent ?? -1;
+    const nextProg = c.progress_percent ?? -1;
 
-    if (best.situazione === "P" || other.situazione === "P") merged.situazione = "P";
-    else merged.situazione = best.situazione ?? other.situazione ?? null;
-
-    by.set(k, merged);
+    if (nextScore > prevScore) bestBy.set(c.codice, c);
+    else if (nextScore === prevScore && nextProg > prevProg) bestBy.set(c.codice, c);
   }
 
-  duplicates.sort();
-  const distinct = [...new Set(duplicates)];
+  const unique = [...bestBy.values()].sort((a, b) => a.codice.localeCompare(b.codice));
+
+  const dupList = [...duplicates.entries()].sort((a, b) => b[1] - a[1]);
   return {
-    unique: [...by.values()],
-    duplicateCount: duplicates.length,
-    duplicateDistinct: distinct.length,
-    sampleCodici: distinct.slice(0, 50),
+    unique,
+    duplicateCount: dupList.reduce((acc, [, n]) => acc + (n - 1), 0),
+    duplicateDistinct: dupList.length,
+    sampleCodici: dupList.slice(0, 8).map(([c, n]) => ({ codice: c, occurrences: n })),
   };
 }
 
@@ -482,6 +530,13 @@ function toDbComparable(c: ParsedCable) {
     zona_a: c.zona_a,
     wbs: c.wbs,
     pagina_pdf: c.pagina_pdf,
+    inca_data_taglio: c.inca_data_taglio,
+    inca_data_posa: c.inca_data_posa,
+    inca_data_collegamento: c.inca_data_collegamento,
+    inca_data_richiesta_taglio: c.inca_data_richiesta_taglio,
+    inca_dataela_ts: c.inca_dataela_ts,
+    inca_data_instradamento_ts: c.inca_data_instradamento_ts,
+    inca_data_creazione_instradamento_ts: c.inca_data_creazione_instradamento_ts,
   };
 }
 
@@ -577,153 +632,122 @@ function mergeNonDestructive(prev: any | null, incoming: ParsedCable) {
     metri_teo: keepNum(incoming.metri_teo, prev?.metri_teo),
     metri_dis: keepNum(incoming.metri_dis, prev?.metri_dis),
 
+    inca_data_taglio: keep(incoming.inca_data_taglio, prev?.inca_data_taglio),
+    inca_data_posa: keep(incoming.inca_data_posa, prev?.inca_data_posa),
+    inca_data_collegamento: keep(incoming.inca_data_collegamento, prev?.inca_data_collegamento),
+    inca_data_richiesta_taglio: keep(incoming.inca_data_richiesta_taglio, prev?.inca_data_richiesta_taglio),
+    inca_dataela_ts: keep(incoming.inca_dataela_ts, prev?.inca_dataela_ts),
+    inca_data_instradamento_ts: keep(incoming.inca_data_instradamento_ts, prev?.inca_data_instradamento_ts),
+    inca_data_creazione_instradamento_ts: keep(incoming.inca_data_creazione_instradamento_ts, prev?.inca_data_creazione_instradamento_ts),
+
     wbs: keep(incoming.wbs, prev?.wbs),
     pagina_pdf: keep(incoming.pagina_pdf, prev?.pagina_pdf),
 
     situazione: keepSituazione(incoming.situazione, prev?.situazione),
-
-    // progress: do not overwrite with null.
-    progress_percent: (incoming.progress_percent ?? prev?.progress_percent ?? null) as any,
+    progress_percent: incoming.progress_percent ?? prev?.progress_percent ?? null,
+    progress_side: prev?.progress_side ?? null,
   };
 }
 
-serve(
-  withCors(async (req: Request) => {
-    if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-    if (req.method !== "POST") return json(405, { ok: false, error: "Method not allowed" });
+serve(withCors(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+  try {
     const url = Deno.env.get("SUPABASE_URL");
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!url || !anonKey || !serviceKey) return json(500, { ok: false, error: "Missing Supabase env: SUPABASE_URL/ANON/SERVICE_ROLE" });
+    const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!url || !key) return json(500, { ok: false, error: "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY" });
 
-    const authHeader = req.headers.get("authorization") || req.headers.get("Authorization") || "";
+    const admin = createClient(url, key, { auth: { persistSession: false } });
+
+    // Auth: require user token (for auditing)
+    const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
     if (!authHeader) return json(401, { ok: false, error: "Missing Authorization header" });
 
-    const userClient = createClient(url, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-      auth: { persistSession: false },
-    });
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+    if (!token) return json(401, { ok: false, error: "Missing bearer token" });
 
-    const admin = createClient(url, serviceKey, {
-      global: { headers: { Authorization: `Bearer ${serviceKey}` } },
-      auth: { persistSession: false },
-    });
+    const { data: authData, error: authErr } = await admin.auth.getUser(token);
+    if (authErr || !authData?.user?.id) return json(401, { ok: false, error: "Invalid token", detail: authErr?.message });
 
-    const { data: u, error: uErr } = await userClient.auth.getUser();
-    if (uErr || !u?.user) return json(401, { ok: false, error: "Invalid user session" });
-    const user = u.user;
+    const user = authData.user;
 
-    const form = await req.formData();
+    const contentType = req.headers.get("content-type") || "";
+    if (!contentType.toLowerCase().includes("application/json")) {
+      return json(400, { ok: false, error: "Expected application/json payload" });
+    }
 
-    const costr = normText(form.get("costr"));
-    const commessa = normText(form.get("commessa"));
-    const projectCode = normText(form.get("projectCode"));
-    const note = normText(form.get("note")) || null;
-    const shipIdFromBody = asUuidOrNull(form.get("shipId"));
-    const force = normText(form.get("force")).toLowerCase() === "true";
+    const body = await req.json().catch(() => null) as any;
+    if (!body) return json(400, { ok: false, error: "Invalid JSON body" });
 
-    if (!costr || !commessa) return json(400, { ok: false, error: "costr/commessa mancanti" });
+    const { costr, commessa, fileName, projectCode, note, force, xlsxBase64 } = body as {
+      costr: string;
+      commessa: string;
+      fileName: string;
+      projectCode?: string;
+      note?: string;
+      force?: boolean;
+      xlsxBase64: string;
+    };
 
-    const f = form.get("file");
-    if (!(f instanceof File)) return json(400, { ok: false, error: "file mancante" });
+    const costrN = String(costr ?? "").trim();
+    const commessaN = String(commessa ?? "").trim();
+    const fileNameN = String(fileName ?? "").trim();
+    if (!costrN || !commessaN || !fileNameN) return json(400, { ok: false, error: "Missing costr/commessa/fileName" });
+    if (!xlsxBase64 || typeof xlsxBase64 !== "string") return json(400, { ok: false, error: "Missing xlsxBase64" });
 
-    const fileName = f.name || "inca.xlsx";
-    const ab = await f.arrayBuffer();
+    const groupKey = `${costrN.trim()}|${commessaN.trim()}`.toUpperCase();
 
-    const parsed = parseXlsxCables(ab);
-    if (parsed.cables.length === 0) return json(400, { ok: false, error: "Nessun cavo trovato nel XLSX." });
+    const bin = Uint8Array.from(atob(xlsxBase64), (c) => c.charCodeAt(0));
+    const parsed = parseXlsxCables(bin.buffer);
 
-    // Deduplicate same-codice rows inside the XLSX (safety: avoid insert/upsert conflicts).
+    const counts = computeCounts(parsed.cables);
+    const progressCounts = computeProgressCounts(parsed.cables);
     const dedup = dedupeByCodice(parsed.cables);
     const uniqueCables = dedup.unique;
 
-    const counts = computeCounts(uniqueCables);
-    const progressCounts = computeProgressCounts(uniqueCables);
+    // Content hash for duplicate detection
+    const enc = new TextEncoder();
+    const digest = await crypto.subtle.digest("SHA-256", enc.encode(JSON.stringify(uniqueCables.map((c) => [c.codice, toDbComparable(c)]))));
+    const contentHash = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
 
-    const groupKey = buildGroupKey(costr, commessa, projectCode);
-    const sorted = [...uniqueCables].sort((a, b) => a.codice.localeCompare(b.codice));
-    const canonLines = sorted.map((c) =>
-      [
-        c.codice,
-        c.codice_inca || "",
-        c.metri_teo ?? "",
-        c.metri_dis ?? "",
-        c.situazione ?? "",
-        c.progress_percent ?? "",
-        c.tipo || "",
-        c.sezione || "",
-        c.livello_disturbo || "",
-        c.stato_tec || "",
-        c.stato_cantiere || "",
-        c.apparato_da || "",
-        c.apparato_a || "",
-        c.wbs || "",
-        c.pagina_pdf || "",
-      ].join("|"),
-    );
-    const contentHash = await sha256Hex(canonLines.join("\n"));
+    // Load or create HEAD inca_files record (stable)
+    let head: any | null = null;
 
-    // HEAD STABLE: prefer previous_inca_file_id IS NULL (head).
-    // Fallback rule: if projectCode changed (group_key mismatch), still try to match by costr/commessa.
-    const headRes = await admin
-      .from("inca_files")
-      .select("id,ship_id,content_hash,file_name,uploaded_at,previous_inca_file_id,import_run_id,group_key,costr,commessa,project_code")
-      .eq("file_type", "XLSX")
-      .or(`group_key.eq.${groupKey},and(costr.eq.${costr},commessa.eq.${commessa})`)
-      .order("uploaded_at", { ascending: true })
-      .limit(80);
-
-    if (headRes.error) return json(500, { ok: false, error: "inca_files read failed", detail: headRes.error.message });
-
-    const headCandidates = Array.isArray(headRes.data) ? headRes.data : [];
-    let head = headCandidates.find((r: any) => r.previous_inca_file_id == null) ?? headCandidates[0] ?? null;
-
-    // If no head exists, create it (first import)
-    if (!head) {
-      // ship_id is mandatory. If missing, infer from latest XLSX for same costr/commessa.
-      let shipId: string | null = shipIdFromBody;
-      if (!shipId) {
-        const prevShip = await admin
-          .from("inca_files")
-          .select("ship_id,uploaded_at")
-          .eq("costr", costr)
-          .eq("commessa", commessa)
-          .eq("file_type", "XLSX")
-          .order("uploaded_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (!prevShip.error && prevShip.data?.ship_id) shipId = String(prevShip.data.ship_id);
-      }
-      if (!shipId) {
-        return json(400, {
-          ok: false,
-          error: "shipId mancante: invia shipId nel form-data (UUID) oppure importa prima almeno un file con shipId valido per questa commessa.",
-        });
-      }
-
-      const insHead = await admin
+    {
+      const headRes = await admin
         .from("inca_files")
-        .insert({
-          ship_id: shipId,
-          costr,
-          commessa,
-          project_code: projectCode || null,
-          file_name: fileName,
-          file_type: "XLSX",
-          note,
-          uploaded_by: user.id,
-          file_path: null,
-          group_key: groupKey,
-          content_hash: contentHash,
-          previous_inca_file_id: null,
-          import_run_id: null,
-        })
-        .select("id,ship_id,content_hash,file_name,uploaded_at,previous_inca_file_id,import_run_id")
-        .single();
+        .select("id, ship_id, content_hash, file_name, uploaded_at")
+        .eq("costr", costrN)
+        .eq("commessa", commessaN)
+        .eq("file_type", "XLSX")
+        .order("uploaded_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      if (insHead.error || !insHead.data?.id) return json(500, { ok: false, error: "Insert head inca_files failed", detail: insHead.error?.message });
-      head = insHead.data;
+      if (headRes.error) return json(500, { ok: false, error: "inca_files read failed", detail: headRes.error.message });
+
+      head = headRes.data ?? null;
+      if (!head) {
+        const insHead = await admin
+          .from("inca_files")
+          .insert({
+            ship_id: null,
+            costr: costrN,
+            commessa: commessaN,
+            project_code: projectCode || null,
+            file_name: fileNameN,
+            file_type: "XLSX",
+            note: note || null,
+            uploaded_by: user.id,
+            file_path: null,
+            content_hash: null,
+          })
+          .select("id, ship_id, content_hash, file_name, uploaded_at")
+          .single();
+
+        if (insHead.error || !insHead.data?.id) return json(500, { ok: false, error: "Insert head inca_files failed", detail: insHead.error?.message });
+        head = insHead.data;
+      }
     }
 
     const headId = String((head as any).id);
@@ -749,7 +773,7 @@ serve(
     const prevRowsRes = await admin
       .from("inca_cavi")
       .select(
-        "codice,codice_inca,marca_cavo,descrizione,tipo,sezione,livello_disturbo,stato_tec,stato_cantiere,impianto,zona_da,zona_a,apparato_da,apparato_a,descrizione_da,descrizione_a,metri_teo,metri_dis,wbs,pagina_pdf,situazione,progress_percent",
+        "codice,codice_inca,marca_cavo,descrizione,tipo,sezione,livello_disturbo,stato_tec,stato_cantiere,impianto,zona_da,zona_a,apparato_da,apparato_a,descrizione_da,descrizione_a,metri_teo,metri_dis,inca_data_taglio,inca_data_posa,inca_data_collegamento,inca_data_richiesta_taglio,inca_dataela_ts,inca_data_instradamento_ts,inca_data_creazione_instradamento_ts,wbs,pagina_pdf,situazione,progress_percent",
       )
       .eq("inca_file_id", headId);
 
@@ -767,6 +791,15 @@ serve(
         codice_inca: r.codice_inca ?? null,
         marca_cavo: r.marca_cavo ?? null,
         descrizione: r.descrizione ?? null,
+        metri_teo: r.metri_teo ?? null,
+        metri_dis: r.metri_dis ?? null,
+        inca_data_taglio: r.inca_data_taglio ?? null,
+        inca_data_posa: r.inca_data_posa ?? null,
+        inca_data_collegamento: r.inca_data_collegamento ?? null,
+        inca_data_richiesta_taglio: r.inca_data_richiesta_taglio ?? null,
+        inca_dataela_ts: r.inca_dataela_ts ?? null,
+        inca_data_instradamento_ts: r.inca_data_instradamento_ts ?? null,
+        inca_data_creazione_instradamento_ts: r.inca_data_creazione_instradamento_ts ?? null,
         tipo: r.tipo ?? null,
         sezione: r.sezione ?? null,
         livello_disturbo: r.livello_disturbo ?? null,
@@ -779,8 +812,6 @@ serve(
         apparato_a: r.apparato_a ?? null,
         descrizione_da: r.descrizione_da ?? null,
         descrizione_a: r.descrizione_a ?? null,
-        metri_teo: r.metri_teo == null ? null : Number(r.metri_teo),
-        metri_dis: r.metri_dis == null ? null : Number(r.metri_dis),
         wbs: r.wbs ?? null,
         pagina_pdf: r.pagina_pdf ?? null,
         situazione: (r.situazione === "P" || r.situazione === "T" || r.situazione === "R" || r.situazione === "B" || r.situazione === "E") ? r.situazione : null,
@@ -796,8 +827,8 @@ serve(
       .from("inca_import_runs")
       .insert({
         group_key: groupKey,
-        costr,
-        commessa,
+        costr: costrN,
+        commessa: commessaN,
         project_code: projectCode || null,
         mode: "SYNC",
         created_by: user.id,
@@ -805,7 +836,7 @@ serve(
         new_inca_file_id: headId,
         content_hash: contentHash,
         summary: {
-          fileName,
+          fileName: fileNameN,
           sheetName: parsed.sheetName,
           headerRowIndex0: parsed.headerRowIndex0,
           totalRows: parsed.totalRows,
@@ -821,7 +852,7 @@ serve(
           isDuplicate,
           note,
         },
-        diff: diff,
+        diff,
       })
       .select("id")
       .single();
@@ -850,7 +881,6 @@ serve(
     // We MUST NOT mutate head dataset rows (including missing_in_latest_import).
     // Any missing/changed computation is done via diff vs head.
 
-
     // Prepare UPSERT payload with non-destructive merge
     // 0) Create ARCHIVE snapshot (immutable) so the user can always audit / verify old INCA.
     // HEAD stays stable and is updated in place.
@@ -860,18 +890,17 @@ serve(
       const insArchive = await admin
         .from("inca_files")
         .insert({
-          ship_id: shipId,
-          costr,
-          commessa,
+          ship_id: shipId === "null" ? null : shipId,
+          costr: costrN,
+          commessa: commessaN,
           project_code: projectCode || null,
-          file_name: fileName,
+          file_name: fileNameN,
           file_type: "XLSX",
-          note,
+          note: note || null,
           uploaded_by: user.id,
           file_path: null,
-          group_key: groupKey,
-          content_hash: contentHash,
           previous_inca_file_id: headId,
+          content_hash: contentHash,
           import_run_id: runId,
         })
         .select("id")
@@ -882,8 +911,8 @@ serve(
 
         const archivePayload = uniqueCables.map((c) => ({
           inca_file_id: archiveIncaFileId,
-          costr,
-          commessa,
+          costr: costrN,
+          commessa: commessaN,
           codice: c.codice,
           codice_inca: c.codice_inca,
           marca_cavo: c.marca_cavo,
@@ -902,6 +931,13 @@ serve(
           descrizione_a: c.descrizione_a,
           metri_teo: c.metri_teo,
           metri_dis: c.metri_dis,
+          inca_data_taglio: c.inca_data_taglio,
+          inca_data_posa: c.inca_data_posa,
+          inca_data_collegamento: c.inca_data_collegamento,
+          inca_data_richiesta_taglio: c.inca_data_richiesta_taglio,
+          inca_dataela_ts: c.inca_dataela_ts,
+          inca_data_instradamento_ts: c.inca_data_instradamento_ts,
+          inca_data_creazione_instradamento_ts: c.inca_data_creazione_instradamento_ts,
           wbs: c.wbs,
           pagina_pdf: c.pagina_pdf,
           situazione: c.situazione,
@@ -928,11 +964,6 @@ serve(
         console.warn("inca_files insert archive failed:", insArchive.error?.message);
       }
     }
-
-    // OPTION B (HEAD-ONLY): we do NOT mutate the head dataset.
-    // - Head remains the stable truth shown in cockpit.
-    // - The uploaded dataset is stored as an ARCHIVE file (previous_inca_file_id=headId) + its own inca_cavi.
-    // - We still compute a diff vs head to drive the audit UI.
 
     return json(200, {
       ok: true,
@@ -961,5 +992,8 @@ serve(
         },
       },
     });
-  }),
-);
+  } catch (e) {
+    console.error("inca-sync error:", e);
+    return json(500, { ok: false, error: "Unhandled error", detail: String((e as any)?.message ?? e) });
+  }
+}));

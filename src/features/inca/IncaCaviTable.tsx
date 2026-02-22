@@ -28,6 +28,18 @@ function formatDateIT(value?: string | null) {
   return `${dd}/${mm}/${yyyy}`;
 }
 
+function formatDateTimeIT(value?: string | null) {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
+}
+
 function pillClass() {
   return "chip chip-status px-2 py-0.5 text-xs font-semibold";
 }
@@ -89,29 +101,16 @@ function PosaCapoCell(row: IncaRow) {
 export type IncaCaviTableProps = {
   rows: IncaRow[];
   variant?: IncaTableViewMode;
-  viewMode?: IncaTableViewMode;
-  loading?: boolean;
-  selectedRowId?: string | number | null;
-  onViewModeChange?: (next: IncaTableViewMode) => void;
-  title?: string;
+  viewLabel?: string;
   onRowClick?: (row: IncaRow) => void;
 };
 
-export default function IncaCaviTable(props: IncaCaviTableProps) {
-  const { rows, onRowClick } = props;
-  const variant = props.viewMode ?? props.variant ?? "standard";
-
-  // --- colonnes selon ta spec ---
-  // Standard:
-  // - Codice
-  // - Sit cant. (fusion prog+cantiere)
-  // - m teo
-  // - Posa/Capo (CAPO-style)
-  // - DA → A
-  // - Tipo
-  //
-  // Audit:
-  // - ajoute WBS (audit only) + m dis si présent
+export default function IncaCaviTable({
+  rows,
+  variant = "standard",
+  viewLabel,
+  onRowClick,
+}: IncaCaviTableProps) {
   const baseColumns: Array<Column<IncaRow> | undefined> = [
     {
       key: "codice",
@@ -188,6 +187,46 @@ export default function IncaCaviTable(props: IncaCaviTableProps) {
       align: "center",
       render: (r) => <span className="tabular-nums opacity-80">{r.wbs ?? r.WBS ?? "—"}</span>,
     },
+
+    {
+      key: "inca_data_taglio",
+      header: "Taglio (INCA)",
+      align: "center",
+      render: (r) => <span className="tabular-nums opacity-80">{formatDateIT(r.inca_data_taglio ?? r.DATA_DI_TAGLIO ?? null) ?? "—"}</span>,
+    },
+    {
+      key: "inca_data_posa",
+      header: "Posa (INCA)",
+      align: "center",
+      render: (r) => <span className="tabular-nums opacity-80">{formatDateIT(r.inca_data_posa ?? r.DATA_DI_POSA ?? null) ?? "—"}</span>,
+    },
+    {
+      key: "inca_data_collegamento",
+      header: "Coll. (INCA)",
+      align: "center",
+      render: (r) =>
+        <span className="tabular-nums opacity-80">{formatDateIT(r.inca_data_collegamento ?? r.DATA_COLLEGAMENTO ?? null) ?? "—"}</span>,
+    },
+    {
+      key: "inca_data_instradamento_ts",
+      header: "Instrad. (INCA)",
+      align: "center",
+      render: (r) =>
+        <span className="tabular-nums opacity-80">{formatDateTimeIT(r.inca_data_instradamento_ts ?? r.DATA_INSTRADAMENTO ?? null) ?? "—"}</span>,
+    },
+    {
+      key: "inca_dataela_ts",
+      header: "ELA (INCA)",
+      align: "center",
+      render: (r) => <span className="tabular-nums opacity-80">{formatDateTimeIT(r.inca_dataela_ts ?? r.DATAELA ?? null) ?? "—"}</span>,
+    },
+    {
+      key: "inca_data_creazione_instradamento_ts",
+      header: "Creaz. Instr. (INCA)",
+      align: "center",
+      render: (r) =>
+        <span className="tabular-nums opacity-80">{formatDateTimeIT(r.inca_data_creazione_instradamento_ts ?? r.DATA_CREAZIONE_INSTRADAMENTO ?? null) ?? "—"}</span>,
+    },
   ];
 
   const columns = React.useMemo(() => {
@@ -202,6 +241,10 @@ export default function IncaCaviTable(props: IncaCaviTableProps) {
 
   return (
     <div className="w-full">
+      {viewLabel ? (
+        <div className="mb-2 text-sm font-semibold opacity-80">{viewLabel}</div>
+      ) : null}
+
       <div className="w-full overflow-auto rounded-2xl theme-table">
         <table className="w-full border-separate border-spacing-0">
           <thead className="sticky top-0 z-10 theme-table-head backdrop-blur">
@@ -244,8 +287,8 @@ export default function IncaCaviTable(props: IncaCaviTableProps) {
 
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="px-3 py-10 text-center theme-text-muted">
-                  Nessun cavo visibile
+                <td className="px-3 py-6 text-center opacity-60" colSpan={columns.length}>
+                  Nessun dato.
                 </td>
               </tr>
             ) : null}

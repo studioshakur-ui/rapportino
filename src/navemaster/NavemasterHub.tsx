@@ -1,131 +1,163 @@
 // src/navemaster/NavemasterHub.tsx
-import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useMemo, useState } from "react";
 
-import { useI18n } from "../i18n/coreI18n";
-import { cardSurface, corePills } from "../ui/designSystem";
+type IconProps = { className?: string };
 
-import AccessDenied from "./components/AccessDenied";
-import ShipSelector from "./components/ShipSelector";
-import ImportMetaBar from "./components/ImportMetaBar";
-import KpiBar from "./components/KpiBar";
-
-import NavemasterImportModal from "./NavemasterImportModal";
-import NavemasterCockpitPage from "./pages/NavemasterCockpitPage";
-import NavemasterAlertsPage from "./pages/NavemasterAlertsPage";
-import NavemasterDiffPage from "./pages/NavemasterDiffPage";
-
-import { useNavemasterAccess } from "./hooks/useNavemasterContext";
-import { useNavemasterShips } from "./hooks/useNavemasterShips";
-import { useNavemasterLatestImport } from "./hooks/useNavemasterLatestImport";
-import { useNavemasterKpis } from "./hooks/useNavemasterKpis";
-import type { NavemasterView } from "./contracts/navemaster.query";
-
-function TabButton(props: { active: boolean; label: string; onClick: () => void }): JSX.Element {
+function IconBox({ className = "" }: IconProps) {
   return (
-    <button
-      onClick={props.onClick}
-      className={`rounded-xl border px-3 py-2 text-sm ${
-        props.active
-          ? "border-slate-600 bg-slate-900/40 text-slate-100"
-          : "border-slate-800 bg-slate-950/40 text-slate-300 hover:bg-slate-900/25"
-      }`}
-    >
-      {props.label}
-    </button>
+    <svg className={`h-4 w-4 ${className}`} viewBox="0 0 24 24" fill="none">
+      <path d="M3 7l9-4 9 4v10l-9 4-9-4V7z" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M3 7l9 4 9-4" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
   );
 }
 
+function IconChart({ className = "" }: IconProps) {
+  return (
+    <svg className={`h-4 w-4 ${className}`} viewBox="0 0 24 24" fill="none">
+      <path d="M4 19V5" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M4 19h16" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M8 15v-4M12 15V9M16 15V7" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+function IconDiff({ className = "" }: IconProps) {
+  return (
+    <svg className={`h-4 w-4 ${className}`} viewBox="0 0 24 24" fill="none">
+      <path d="M7 7h10M7 12h10M7 17h10" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M4 7l2-2 2 2M20 17l-2 2-2-2" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+function IconAlert({ className = "" }: IconProps) {
+  return (
+    <svg className={`h-4 w-4 ${className}`} viewBox="0 0 24 24" fill="none">
+      <path d="M12 3l9 16H3l9-16z" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M12 9v5M12 17h.01" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+function IconUpload({ className = "" }: IconProps) {
+  return (
+    <svg className={`h-4 w-4 ${className}`} viewBox="0 0 24 24" fill="none">
+      <path d="M12 16V4" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M8 8l4-4 4 4" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M4 20h16" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+import NavemasterImportModal from "./NavemasterImportModal";
+import ShipSelector from "./components/ShipSelector";
+import { useNavemasterAccess } from "./hooks/useNavemasterContext";
+import { useNavemasterShips } from "./hooks/useNavemasterShips";
+import NavemasterCockpitPage from "./pages/NavemasterCockpitPage";
+import NavemasterDiffPage from "./pages/NavemasterDiffPage";
+import NavemasterAlertsPage from "./pages/NavemasterAlertsPage";
+
+type TabId = "cockpit" | "alerts" | "diff";
+
+const tabs: Array<{ id: TabId; label: string; icon: (p: IconProps) => JSX.Element }> = [
+  { id: "cockpit", label: "Cockpit", icon: IconChart },
+  { id: "alerts", label: "Alerts", icon: IconAlert },
+  { id: "diff", label: "Diff", icon: IconDiff },
+];
+
 export default function NavemasterHub(): JSX.Element {
-  const { t } = useI18n();
   const access = useNavemasterAccess();
-
   const { ships, loading: shipsLoading } = useNavemasterShips();
-  const [params, setParams] = useSearchParams();
 
-  const shipIdParam = params.get("shipId");
-  const viewParam = (params.get("view") || "cockpit") as NavemasterView;
+  const [shipId, setShipId] = useState<string>("");
+  const [tab, setTab] = useState<TabId>("cockpit");
+  const [importOpen, setImportOpen] = useState(false);
 
-  const [shipId, setShipId] = useState<string | null>(shipIdParam);
-  const [view, setView] = useState<NavemasterView>(viewParam);
+  const selectedShip = useMemo(() => ships.find((s) => s.id === shipId) ?? null, [ships, shipId]);
+  const selectedShipId = selectedShip?.id ?? null;
 
-  const [importOpen, setImportOpen] = useState<boolean>(false);
-
-  // keep URL in sync (ABD: deep link stable)
-  useEffect(() => {
-    const next = new URLSearchParams(params);
-    if (shipId) next.set("shipId", shipId);
-    else next.delete("shipId");
-    next.set("view", view);
-    setParams(next, { replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shipId, view]);
-
-  const latest = useNavemasterLatestImport(shipId);
-  const kpis = useNavemasterKpis(shipId);
-
-  const ship = useMemo(() => ships.find((s) => s.id === shipId) ?? null, [ships, shipId]);
-
-  if (!access.canRead) return <AccessDenied />;
+  if (!access.canRead) {
+    return (
+      <div className="mx-auto max-w-7xl px-4 py-8">
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-6">
+          <div className="text-sm text-slate-200">Access denied.</div>
+          <div className="mt-1 text-xs text-slate-400">NAVEMASTER is available for UFFICIO/ADMIN/DIREZIONE/MANAGER and CAPO (read-only).</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-4 sm:p-6 space-y-4">
-      <div className={`rounded-2xl border border-slate-800 bg-[#050910] ${cardSurface(true)} p-5`}>
-        <div className={corePills.kicker}>{t("NM_TITLE")}</div>
-        <div className="mt-1 flex flex-col md:flex-row md:items-end md:justify-between gap-3">
-          <div>
-            <div className="text-xl font-semibold text-slate-100">{t("NM_SUBTITLE")}</div>
-            <div className="text-xs text-slate-500 mt-1">ABD = UFFICIO tool + CNCS module + chantier alerting</div>
+    <div className="mx-auto max-w-7xl px-4 py-8">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-800 bg-slate-950/30">
+              <IconBox className="text-slate-200" />
+            </div>
+            <div>
+              <div className="text-[11px] uppercase tracking-wider text-slate-400">CNCS · NAVEMASTER</div>
+              <div className="text-xl font-semibold text-slate-100">Audit-ready truth layer</div>
+            </div>
           </div>
+          <div className="mt-2 text-sm text-slate-400">
+            INCA baseline + CORE proofs (rapportini approved) + UFFICIO signals — with Excel-grade filters, but index-backed and defensible.
+          </div>
+        </div>
 
+        <div className="flex flex-col items-end gap-2">
           <div className="flex flex-wrap items-end gap-3">
+            {access.isReadOnly ? (
+              <span className="inline-flex items-center rounded-full border border-slate-700 bg-slate-950/50 px-2.5 py-1 text-[11px] text-slate-200">
+                Read-only
+              </span>
+            ) : null}
             <ShipSelector ships={ships} value={shipId} onChange={(id) => setShipId(id)} disabled={shipsLoading} />
-
             <button
-              onClick={() => {
-                void latest.refresh();
-                void kpis.refresh();
-              }}
-              className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200 hover:bg-slate-900/30"
-            >
-              {t("NM_REFRESH")}
-            </button>
-
-            <button
+              type="button"
               onClick={() => setImportOpen(true)}
-              disabled={!access.canImport || !shipId}
-              className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200 hover:bg-slate-900/30 disabled:opacity-50"
+              disabled={!access.canImport || !selectedShipId}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/30 px-4 py-2 text-sm text-slate-100 hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {t("NM_IMPORT")}
+              <IconUpload />
+              Import
             </button>
           </div>
+          <div className="text-xs text-slate-500">Ship selection is scoped by RLS.</div>
         </div>
       </div>
 
-      <ImportMetaBar latest={latest.data} />
-      <KpiBar kpis={kpis.kpis} loading={kpis.loading} />
-
-      <div className="flex flex-wrap gap-2">
-        <TabButton active={view === "cockpit"} label={t("NM_VIEW_COCKPIT")} onClick={() => setView("cockpit")} />
-        <TabButton active={view === "alerts"} label={t("NM_VIEW_ALERTS")} onClick={() => setView("alerts")} />
-        <TabButton active={view === "diff"} label={t("NM_VIEW_DIFF")} onClick={() => setView("diff")} />
+      <div className="mb-4 flex flex-wrap gap-2">
+        {tabs.map((t) => {
+          const Icon = t.icon;
+          const active = tab === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              className={
+                "inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm " +
+                (active
+                  ? "border-slate-700 bg-slate-900 text-slate-100"
+                  : "border-slate-800 bg-slate-950/30 text-slate-300 hover:bg-slate-900/50")
+              }
+            >
+              <Icon />
+              {t.label}
+            </button>
+          );
+        })}
       </div>
 
-      {view === "cockpit" ? <NavemasterCockpitPage shipId={shipId} /> : null}
-      {view === "alerts" ? <NavemasterAlertsPage shipId={shipId} /> : null}
-      {view === "diff" ? <NavemasterDiffPage shipId={shipId} /> : null}
+      <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+        {tab === "cockpit" ? <NavemasterCockpitPage ship={selectedShip} /> : null}
+        {tab === "alerts" ? <NavemasterAlertsPage shipId={selectedShipId} /> : null}
+        {tab === "diff" ? <NavemasterDiffPage ship={selectedShip} /> : null}
+      </div>
 
-      <NavemasterImportModal
-        open={importOpen}
-        onClose={() => setImportOpen(false)}
-        ship={ship}
-        role={access.role}
-        onImported={() => {
-          setImportOpen(false);
-          void latest.refresh();
-          void kpis.refresh();
-        }}
-      />
+      <NavemasterImportModal open={importOpen} onClose={() => setImportOpen(false)} ship={selectedShip} />
     </div>
   );
 }

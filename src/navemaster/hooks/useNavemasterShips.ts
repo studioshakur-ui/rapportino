@@ -1,7 +1,16 @@
 // src/navemaster/hooks/useNavemasterShips.ts
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+
 import { supabase } from "../../lib/supabaseClient";
-import type { ShipLite } from "../contracts/navemaster.types";
+
+export type ShipLite = {
+  id: string;
+  code: string | null;
+  name: string | null;
+  costr: string | null;
+  commessa: string | null;
+  is_active: boolean;
+};
 
 export function useNavemasterShips(): {
   ships: ShipLite[];
@@ -13,39 +22,31 @@ export function useNavemasterShips(): {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  async function load(): Promise<void> {
+  const load = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(null);
 
+    // CNCS rule: do not rely on `ships` visibility.
+    // Use the scoped view so CAPO sees only his perimeter.
     const { data, error } = await supabase
-      .from("ships")
+      .from("navemaster_ships_scope_v1")
       .select("id, code, name, costr, commessa, is_active")
       .order("code", { ascending: true });
 
     if (error) {
-      setError(error.message || "ships load error");
+      setError(error.message);
       setShips([]);
       setLoading(false);
       return;
     }
 
-    const list = (data ?? []) as ShipLite[];
-    // Keep inactive out by default (ABD: avoid noise)
-    setShips(list.filter((s) => s.is_active !== false));
+    setShips((data ?? []) as ShipLite[]);
     setLoading(false);
-  }
+  }, []);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
-  return useMemo(
-    () => ({
-      ships,
-      loading,
-      error,
-      refresh: load,
-    }),
-    [ships, loading, error]
-  );
+  return { ships, loading, error, refresh: load };
 }
