@@ -15,6 +15,7 @@ export default function FiltersBar(props: {
     { value: "P", label: "P" },
     { value: "R", label: "R" },
     { value: "T", label: "T" },
+    { value: "L", label: "L" },
     { value: "B", label: "B" },
     { value: "E", label: "E" },
     { value: "NP", label: "NP" },

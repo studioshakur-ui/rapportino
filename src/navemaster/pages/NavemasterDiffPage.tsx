@@ -7,8 +7,8 @@ import { useI18n } from "../../i18n/coreI18n";
 import { cardSurface, corePills } from "../../ui/designSystem";
 import { formatIt } from "../contracts/navemaster.logic";
 
-export default function NavemasterDiffPage(props: { shipId: string | null }): JSX.Element {
-  const { shipId } = props;
+export default function NavemasterDiffPage(props: { shipId: string | null; hasRun?: boolean | null; refreshKey?: number }): JSX.Element {
+  const { shipId, hasRun, refreshKey } = props;
   const { t } = useI18n();
 
   const [severity, setSeverity] = useState<"ALL" | "CRITICAL" | "MAJOR" | "INFO">("ALL");
@@ -21,11 +21,21 @@ export default function NavemasterDiffPage(props: { shipId: string | null }): JS
       filters: { severity, search },
       paging: { page: 1, pageSize: 80 },
     };
-  }, [shipId, severity, search]);
+  }, [shipId, severity, search, refreshKey]);
 
   const { result, loading } = useNavemasterDiff(q);
 
   if (!shipId) return <EmptyState />;
+  if (hasRun === false) {
+    return (
+      <div className="rounded-2xl border border-slate-800 bg-[#050910] p-6">
+        <div className="text-lg font-semibold text-slate-100">{t("NM_NO_RUN_TITLE")}</div>
+        <div className="mt-2 text-sm text-slate-400">
+          {t("NM_NO_RUN_BODY")}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">

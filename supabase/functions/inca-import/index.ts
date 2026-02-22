@@ -29,6 +29,16 @@ type ParsedCable = {
   // Canon: DB stores L as NULL. Atomic states: P/T/R/B/E + NULL.
   situazione: "P" | "T" | "R" | "B" | "E" | null;
   progress_percent: number | null;
+
+  // INCA dates (from XLSX)
+  inca_data_taglio: string | null; // YYYY-MM-DD
+  inca_data_posa: string | null; // YYYY-MM-DD
+  inca_data_collegamento: string | null; // YYYY-MM-DD
+  inca_data_richiesta_taglio: string | null; // YYYY-MM-DD
+
+  inca_dataela_ts: string | null; // ISO timestamptz
+  inca_data_instradamento_ts: string | null; // ISO timestamptz
+  inca_data_creazione_instradamento_ts: string | null; // ISO timestamptz
 };
 
 function json(status: number, body: unknown) {
@@ -144,6 +154,84 @@ function buildRowCanonical(row: Record<string, unknown>): Record<string, unknown
     out[canonKey(k)] = v;
   }
   return out;
+}
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function toIsoDateUTC(d: Date): string {
+  const y = d.getUTCFullYear();
+  const m = pad2(d.getUTCMonth() + 1);
+  const day = pad2(d.getUTCDate());
+  return `${y}-${m}-${day}`;
+}
+
+function excelSerialToDateUTC(serial: number): Date | null {
+  try {
+    const parsed = (XLSX as any).SSF?.parse_date_code?.(serial);
+    if (!parsed || !parsed.y || !parsed.m || !parsed.d) return null;
+    const hh = parsed.H ?? 0;
+    const mm = parsed.M ?? 0;
+    const ss = parsed.S ?? 0;
+    return new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d, hh, mm, Math.floor(ss)));
+  } catch {
+    return null;
+  }
+}
+
+type ExcelDateParseKind = "date" | "datetime";
+
+function parseExcelDateValue(
+  value: unknown,
+  kind: ExcelDateParseKind,
+): { date: string | null; ts: string | null } {
+  if (value === null || value === undefined) return { date: null, ts: null };
+
+  if (value instanceof Date) {
+    const d = value;
+    if (Number.isNaN(d.getTime())) return { date: null, ts: null };
+    const date = toIsoDateUTC(d);
+    const ts = d.toISOString();
+    return kind === "date" ? { date, ts: null } : { date, ts };
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const d = excelSerialToDateUTC(value);
+    if (!d) return { date: null, ts: null };
+    const date = toIsoDateUTC(d);
+    const ts = d.toISOString();
+    return kind === "date" ? { date, ts: null } : { date, ts };
+  }
+
+  if (typeof value === "string") {
+    const s = value.trim();
+    if (!s) return { date: null, ts: null };
+
+    const d1 = new Date(s);
+    if (!Number.isNaN(d1.getTime())) {
+      const date = toIsoDateUTC(d1);
+      const ts = d1.toISOString();
+      return kind === "date" ? { date, ts: null } : { date, ts };
+    }
+
+    const m = s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+    if (m) {
+      const dd = Number(m[1]);
+      const mm = Number(m[2]);
+      const yyyy = Number(m[3]);
+      const hh = m[4] ? Number(m[4]) : 0;
+      const mi = m[5] ? Number(m[5]) : 0;
+      const ss = m[6] ? Number(m[6]) : 0;
+      const d = new Date(Date.UTC(yyyy, mm - 1, dd, hh, mi, ss));
+      if (Number.isNaN(d.getTime())) return { date: null, ts: null };
+      const date = toIsoDateUTC(d);
+      const ts = d.toISOString();
+      return kind === "date" ? { date, ts: null } : { date, ts };
+    }
+  }
+
+  return { date: null, ts: null };
 }
 
 function parseXlsxCables(arrayBuffer: ArrayBuffer) {
@@ -269,6 +357,18 @@ function parseXlsxCables(arrayBuffer: ArrayBuffer) {
       pickFirst(row, ["LUNGHEZZA_DI_POSA", "LUNGHEZZA_POSA", "LUNGHEZZA_POSATA", "METRI_DIS", "METRI_POSATI"]),
     );
 
+    // Dates INCA (headers canonicalized)
+    const incaDataTaglio = parseExcelDateValue(pickFirst(row, ["DATA_DI_TAGLIO"]), "date").date;
+    const incaDataPosa = parseExcelDateValue(pickFirst(row, ["DATA_DI_POSA"]), "date").date;
+    const incaDataCollegamento = parseExcelDateValue(pickFirst(row, ["DATA_COLLEGAMENTO"]), "date").date;
+    const incaDataRichiestaTaglio = parseExcelDateValue(pickFirst(row, ["DATA_RICHIESTA_TAGLIO"]), "date").date;
+    const incaDataelaTs = parseExcelDateValue(pickFirst(row, ["DATAELA"]), "datetime").ts;
+    const incaDataInstradamentoTs = parseExcelDateValue(pickFirst(row, ["DATA_INSTRADAMENTO"]), "datetime").ts;
+    const incaDataCreazioneInstradamentoTs = parseExcelDateValue(
+      pickFirst(row, ["DATA_CREAZIONE_INSTRADAMENTO"]),
+      "datetime",
+    ).ts;
+
     const statoRaw = pickFirst(row, ["STATO_CANTIERE", "SITUAZIONE", "STATO", "STATO_INCA"]);
     const { value: situazione, progress_percent, nonStandard } = normalizeSituazione(statoRaw);
     if (nonStandard) nonStandardStatuses.add(nonStandard);
@@ -292,6 +392,14 @@ function parseXlsxCables(arrayBuffer: ArrayBuffer) {
       metri_dis: metriDis,
       situazione,
       progress_percent,
+
+      inca_data_taglio: incaDataTaglio,
+      inca_data_posa: incaDataPosa,
+      inca_data_collegamento: incaDataCollegamento,
+      inca_data_richiesta_taglio: incaDataRichiestaTaglio,
+      inca_dataela_ts: incaDataelaTs,
+      inca_data_instradamento_ts: incaDataInstradamentoTs,
+      inca_data_creazione_instradamento_ts: incaDataCreazioneInstradamentoTs,
     });
   }
 
@@ -440,7 +548,22 @@ serve(
     const groupKey = buildGroupKey(costr, commessa, projectCode);
     const sorted = [...parsed.cables].sort((a, b) => a.codice.localeCompare(b.codice));
     const canonLines = sorted.map((c) =>
-      [c.codice, c.codice_inca || "", c.metri_teo ?? "", c.metri_dis ?? "", c.situazione || "", c.tipo || "", c.sezione || ""].join("|"),
+      [
+        c.codice,
+        c.codice_inca || "",
+        c.metri_teo ?? "",
+        c.metri_dis ?? "",
+        c.situazione || "",
+        c.tipo || "",
+        c.sezione || "",
+        c.inca_data_taglio || "",
+        c.inca_data_posa || "",
+        c.inca_data_collegamento || "",
+        c.inca_data_richiesta_taglio || "",
+        c.inca_dataela_ts || "",
+        c.inca_data_instradamento_ts || "",
+        c.inca_data_creazione_instradamento_ts || "",
+      ].join("|"),
     );
     const contentHash = await sha256Hex(canonLines.join("\n"));
 
@@ -488,7 +611,7 @@ serve(
       const { data: prevRows, error: prevErr } = await admin
         .from("inca_cavi")
         .select(
-          "codice,codice_inca,marca_cavo,descrizione,tipo,sezione,impianto,zona_da,zona_a,apparato_da,apparato_a,descrizione_da,descrizione_a,metri_teo,metri_dis,situazione",
+          "codice,codice_inca,marca_cavo,descrizione,tipo,sezione,impianto,zona_da,zona_a,apparato_da,apparato_a,descrizione_da,descrizione_a,metri_teo,metri_dis,situazione,inca_data_taglio,inca_data_posa,inca_data_collegamento,inca_data_richiesta_taglio,inca_dataela_ts,inca_data_instradamento_ts,inca_data_creazione_instradamento_ts",
         )
         .eq("inca_file_id", previousFileId);
 
@@ -511,6 +634,13 @@ serve(
           metri_teo: r.metri_teo == null ? null : Number(r.metri_teo),
           metri_dis: r.metri_dis == null ? null : Number(r.metri_dis),
           situazione: r.situazione ?? null,
+          inca_data_taglio: r.inca_data_taglio ?? null,
+          inca_data_posa: r.inca_data_posa ?? null,
+          inca_data_collegamento: r.inca_data_collegamento ?? null,
+          inca_data_richiesta_taglio: r.inca_data_richiesta_taglio ?? null,
+          inca_dataela_ts: r.inca_dataela_ts ?? null,
+          inca_data_instradamento_ts: r.inca_data_instradamento_ts ?? null,
+          inca_data_creazione_instradamento_ts: r.inca_data_creazione_instradamento_ts ?? null,
         }));
       }
     }
@@ -652,11 +782,11 @@ serve(
     const incaFileId = String(fileRow.id);
 
     // Insert cables
-    const payload = parsed.cables.map((c) => ({
-      inca_file_id: incaFileId,
-      costr,
-      commessa,
-      codice: c.codice,
+      const payload = parsed.cables.map((c) => ({
+        inca_file_id: incaFileId,
+        costr,
+        commessa,
+        codice: c.codice,
       raw: c.raw,
       codice_inca: c.codice_inca,
       marca_cavo: c.marca_cavo,
@@ -670,11 +800,18 @@ serve(
       apparato_a: c.apparato_a,
       descrizione_da: c.descrizione_da,
       descrizione_a: c.descrizione_a,
-      metri_teo: c.metri_teo,
-      metri_dis: c.metri_dis,
-      situazione: c.situazione,
-      progress_percent: c.progress_percent,
-    }));
+        metri_teo: c.metri_teo,
+        metri_dis: c.metri_dis,
+        situazione: c.situazione,
+        progress_percent: c.progress_percent,
+        inca_data_taglio: c.inca_data_taglio,
+        inca_data_posa: c.inca_data_posa,
+        inca_data_collegamento: c.inca_data_collegamento,
+        inca_data_richiesta_taglio: c.inca_data_richiesta_taglio,
+        inca_dataela_ts: c.inca_dataela_ts,
+        inca_data_instradamento_ts: c.inca_data_instradamento_ts,
+        inca_data_creazione_instradamento_ts: c.inca_data_creazione_instradamento_ts,
+      }));
 
     for (let i = 0; i < payload.length; i += 1000) {
       const chunk = payload.slice(i, i + 1000);

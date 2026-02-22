@@ -66,7 +66,7 @@ export default function AdminShell(): JSX.Element {
 
       if (pathname.startsWith("/admin/users")) return true;
       if (pathname.startsWith("/admin/operators")) return true;
-      if (pathname.startsWith("/admin/perimetri")) return true;
+      if (pathname.startsWith("/admin/perimetri")) return false;
       if (pathname.startsWith("/admin/catalogo")) return true;
       if (pathname.startsWith("/admin/assignments")) return true;
 

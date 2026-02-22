@@ -1,6 +1,6 @@
 // src/navemaster/components/CockpitTable.tsx
 import { useMemo } from "react";
-import type { NavemasterLiveRowV1 } from "../contracts/navemaster.types";
+import type { NavemasterLiveRowV2 } from "../contracts/navemaster.types";
 import { useI18n } from "../../i18n/coreI18n";
 import { cardSurface } from "../../ui/designSystem";
 import { formatIt } from "../contracts/navemaster.logic";
@@ -22,7 +22,7 @@ function pill(status: string | null): JSX.Element {
 }
 
 export default function CockpitTable(props: {
-  rows: NavemasterLiveRowV1[];
+  rows: NavemasterLiveRowV2[];
   selectedRowId: string | null;
   onSelect: (rowId: string) => void;
 }): JSX.Element {
@@ -33,7 +33,8 @@ export default function CockpitTable(props: {
     () => [
       t("NM_TABLE_MARCA"),
       t("NM_TABLE_NAV_STATUS"),
-      t("NM_TABLE_INCA_STATUS"),
+      t("NM_TABLE_COVERAGE"),
+      "Δ",
       t("NM_TABLE_SEZIONE"),
       t("NM_TABLE_ZONA_DA"),
       t("NM_TABLE_ZONA_A"),
@@ -57,28 +58,34 @@ export default function CockpitTable(props: {
           </thead>
           <tbody>
             {rows.map((r) => {
-              const active = selectedRowId === r.navemaster_row_id;
+              const active = selectedRowId === r.id;
               return (
                 <tr
-                  key={r.navemaster_row_id}
-                  onClick={() => onSelect(r.navemaster_row_id)}
+                  key={r.id}
+                  onClick={() => onSelect(r.id)}
                   className={`border-b border-slate-900/60 cursor-pointer ${
                     active ? "bg-slate-900/40" : "hover:bg-slate-900/25"
                   }`}
                 >
-                  <td className="px-3 py-3 text-slate-100 font-medium whitespace-nowrap">{r.marcacavo}</td>
-                  <td className="px-3 py-3">{pill(r.stato_cavo)}</td>
-                  <td className="px-3 py-3">{pill(r.situazione_inca)}</td>
+                  <td className="px-3 py-3 text-slate-100 font-medium whitespace-nowrap">
+                    {r.is_modified ? <span className="text-amber-200 mr-1">*</span> : null}
+                    {r.codice}
+                  </td>
+                  <td className="px-3 py-3">{pill(r.stato_nav)}</td>
+                  <td className="px-3 py-3 text-slate-300 whitespace-nowrap">{r.coverage ?? "—"}</td>
+                  <td className="px-3 py-3 text-slate-300 whitespace-nowrap">
+                    {r.delta_metri != null ? new Intl.NumberFormat().format(r.delta_metri) : "—"}
+                  </td>
                   <td className="px-3 py-3 text-slate-200 whitespace-nowrap">{r.sezione ?? "—"}</td>
                   <td className="px-3 py-3 text-slate-300 whitespace-nowrap">{r.zona_da ?? "—"}</td>
                   <td className="px-3 py-3 text-slate-300 whitespace-nowrap">{r.zona_a ?? "—"}</td>
-                  <td className="px-3 py-3 text-slate-400 whitespace-nowrap">{formatIt(r.inca_updated_at)}</td>
+                  <td className="px-3 py-3 text-slate-400 whitespace-nowrap">{formatIt(r.last_proof_at ?? r.run_frozen_at ?? r.created_at)}</td>
                 </tr>
               );
             })}
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-3 py-10 text-center text-slate-500">
+                <td colSpan={8} className="px-3 py-10 text-center text-slate-500">
                   —
                 </td>
               </tr>

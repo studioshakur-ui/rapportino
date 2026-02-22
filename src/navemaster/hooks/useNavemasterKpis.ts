@@ -11,7 +11,7 @@ async function countQuery(q: ReturnType<typeof supabase.from>): Promise<CountRes
   return { count: count ?? null };
 }
 
-export function useNavemasterKpis(shipId: string | null): {
+export function useNavemasterKpis(shipId: string | null, refreshKey?: number): {
   kpis: KpiCounters;
   loading: boolean;
   error: string | null;
@@ -23,7 +23,7 @@ export function useNavemasterKpis(shipId: string | null): {
   const empty: KpiCounters = useMemo(
     () => ({
       totalRows: null,
-      byNavStatus: { P: null, R: null, T: null, B: null, E: null, NP: null },
+      byNavStatus: { P: null, R: null, T: null, B: null, E: null, NP: null, L: null },
       alertsBySeverity: { CRITICAL: null, MAJOR: null, INFO: null },
       diffBySeverity: { CRITICAL: null, MAJOR: null, INFO: null },
     }),
@@ -43,18 +43,33 @@ export function useNavemasterKpis(shipId: string | null): {
     setLoading(true);
     setError(null);
 
-    const statuses: NavStatus[] = ["P", "R", "T", "B", "E", "NP"];
+    const statuses: NavStatus[] = ["P", "R", "T", "B", "E", "NP", "L"];
     const severities: NavSeverity[] = ["CRITICAL", "MAJOR", "INFO"];
 
+    const { data: latest, error: latestErr } = await supabase
+      .from("navemaster_latest_run_v2")
+      .select("id")
+      .eq("ship_id", shipId)
+      .maybeSingle();
+
+    if (latestErr) {
+      setError(latestErr.message || "latest run error");
+      setKpis(empty);
+      setLoading(false);
+      return;
+    }
+
+    const runId = (latest as { id?: string } | null)?.id ?? null;
+
     // Cockpit rows total + by stato_cavo
-    const totalP = countQuery((supabase.from("navemaster_live_v1") as any).eq("ship_id", shipId));
+    const totalP = countQuery((supabase.from("navemaster_live_v2") as any).eq("ship_id", shipId));
     const byStatusP = Promise.all(
       statuses.map((s) =>
         countQuery(
           (supabase
-            .from("navemaster_live_v1") as any)
+            .from("navemaster_live_v2") as any)
             .eq("ship_id", shipId)
-            .eq("stato_cavo", s)
+            .eq("stato_nav", s)
         ).then((r) => ({ s, r }))
       )
     );
@@ -64,8 +79,8 @@ export function useNavemasterKpis(shipId: string | null): {
       severities.map((sev) =>
         countQuery(
           (supabase
-            .from("navemaster_inca_alerts") as any)
-            .eq("ship_id", shipId)
+            .from("navemaster_alerts") as any)
+            .eq("run_id", runId ?? "00000000-0000-0000-0000-000000000000")
             .eq("severity", sev)
         ).then((r) => ({ sev, r }))
       )
@@ -87,7 +102,7 @@ export function useNavemasterKpis(shipId: string | null): {
 
     const next: KpiCounters = {
       totalRows: totalRes.count,
-      byNavStatus: { P: null, R: null, T: null, B: null, E: null, NP: null },
+      byNavStatus: { P: null, R: null, T: null, B: null, E: null, NP: null, L: null },
       alertsBySeverity: { CRITICAL: null, MAJOR: null, INFO: null },
       diffBySeverity: { CRITICAL: null, MAJOR: null, INFO: null },
     };
@@ -103,7 +118,7 @@ export function useNavemasterKpis(shipId: string | null): {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shipId]);
+  }, [shipId, refreshKey]);
 
   return useMemo(() => ({ kpis, loading, error, refresh: load }), [kpis, loading, error]);
 }

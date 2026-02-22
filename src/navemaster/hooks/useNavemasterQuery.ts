@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import type { CockpitQuery } from "../contracts/navemaster.query";
-import type { NavemasterLiveRowV1, PageResult } from "../contracts/navemaster.types";
+import type { NavemasterLiveRowV2, PageResult } from "../contracts/navemaster.types";
 import { ilikePattern } from "../contracts/navemaster.logic";
 
 function clamp(n: number, min: number, max: number): number {
@@ -10,7 +10,7 @@ function clamp(n: number, min: number, max: number): number {
 }
 
 export function useNavemasterQuery(q: CockpitQuery | null): {
-  result: PageResult<NavemasterLiveRowV1>;
+  result: PageResult<NavemasterLiveRowV2>;
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
@@ -18,11 +18,11 @@ export function useNavemasterQuery(q: CockpitQuery | null): {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const empty: PageResult<NavemasterLiveRowV1> = useMemo(
+  const empty: PageResult<NavemasterLiveRowV2> = useMemo(
     () => ({ rows: [], page: 1, pageSize: 100, total: null, hasMore: false }),
     []
   );
-  const [result, setResult] = useState<PageResult<NavemasterLiveRowV1>>(empty);
+  const [result, setResult] = useState<PageResult<NavemasterLiveRowV2>>(empty);
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -46,31 +46,37 @@ export function useNavemasterQuery(q: CockpitQuery | null): {
     const to = from + pageSize - 1;
 
     let query = supabase
-      .from("navemaster_live_v1")
+      .from("navemaster_live_v2")
       .select(
         [
+          "id",
+          "run_id",
           "ship_id",
-          "navemaster_import_id",
-          "navemaster_imported_at",
-          "navemaster_row_id",
-          "marcacavo",
+          "inca_file_id",
+          "codice",
+          "codice_norm",
+          "is_modified",
+          "stato_nav",
+          "metri_ref",
+          "metri_posati_ref",
+          "delta_metri",
           "descrizione",
-          "stato_cavo",
-          "situazione_cavo_conit",
-          "livello",
+          "impianto",
+          "tipo",
           "sezione",
-          "tipologia",
+          "livello",
           "zona_da",
           "zona_a",
           "apparato_da",
           "apparato_a",
-          "impianto",
-          "inca_cavo_id",
-          "inca_file_id",
-          "situazione_inca",
-          "metri_teo_inca",
-          "metri_dis_inca",
-          "inca_updated_at",
+          "descrizione_da",
+          "descrizione_a",
+          "wbs",
+          "last_proof_at",
+          "coverage",
+          "created_at",
+          "run_frozen_at",
+          "run_verdict",
         ].join(", "),
         { count: "exact" }
       )
@@ -79,10 +85,10 @@ export function useNavemasterQuery(q: CockpitQuery | null): {
     const f = q.filters;
 
     if (f.search && f.search.trim()) {
-      query = query.ilike("marcacavo", ilikePattern(f.search));
+      query = query.ilike("codice", ilikePattern(f.search));
     }
     if (f.navStatus && f.navStatus !== "ALL") {
-      query = query.eq("stato_cavo", f.navStatus);
+      query = query.eq("stato_nav", f.navStatus);
     }
     if (f.zona && f.zona !== "ALL") {
       // match either side
@@ -92,7 +98,13 @@ export function useNavemasterQuery(q: CockpitQuery | null): {
       query = query.eq("sezione", f.sezione);
     }
     if (f.onlyWithInca) {
-      query = query.not("inca_cavo_id", "is", null);
+      query = query.eq("coverage", "BOTH");
+    }
+    if (f.onlyModified) {
+      query = query.eq("is_modified", true);
+    }
+    if (f.onlyNoProof) {
+      query = query.eq("metri_posati_ref", 0);
     }
 
     // sorting (safe keys only)
@@ -107,7 +119,7 @@ export function useNavemasterQuery(q: CockpitQuery | null): {
       return;
     }
 
-    const rows = ((data ?? []) as unknown as NavemasterLiveRowV1[]).map((r) => r);
+    const rows = ((data ?? []) as unknown as NavemasterLiveRowV2[]).map((r) => r);
     const total = typeof count === "number" ? count : null;
     const hasMore = total === null ? rows.length === pageSize : from + rows.length < total;
 

@@ -18,6 +18,11 @@ function fmt(n: number | null): string {
   return String(n);
 }
 
+function fmtZero(n: number | null): string {
+  if (typeof n !== "number") return "0";
+  return String(n);
+}
+
 export default function KpiBar(props: { kpis: KpiCounters; loading?: boolean }): JSX.Element {
   const { kpis } = props;
   const { t } = useI18n();
@@ -29,9 +34,13 @@ export default function KpiBar(props: { kpis: KpiCounters; loading?: boolean }):
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-      <Tile label={t("NM_KPI_TOTAL")} value={total} hint={`${t("NM_KPI_NAV_STATUS")}: P ${fmt(nav.P)} · R ${fmt(nav.R)} · T ${fmt(nav.T)} · B ${fmt(nav.B)} · E ${fmt(nav.E)} · NP ${fmt(nav.NP)}`} />
-      <Tile label={t("NM_KPI_ALERTS")} value={`CRIT ${fmt(alerts.CRITICAL)}`} hint={`MAJOR ${fmt(alerts.MAJOR)} · INFO ${fmt(alerts.INFO)}`} />
-      <Tile label={t("NM_KPI_DIFF")} value={`CRIT ${fmt(diff.CRITICAL)}`} hint={`MAJOR ${fmt(diff.MAJOR)} · INFO ${fmt(diff.INFO)}`} />
+      <Tile
+        label={t("NM_KPI_TOTAL")}
+        value={total}
+        hint={`${t("NM_KPI_NAV_STATUS")}: P ${fmt(nav.P)} · R ${fmt(nav.R)} · T ${fmt(nav.T)} · B ${fmt(nav.B)} · E ${fmt(nav.E)} · L ${fmt(nav.L)} · NP ${fmt(nav.NP)}`}
+      />
+      <Tile label={t("NM_KPI_ALERTS")} value={`CRIT ${fmtZero(alerts.CRITICAL)}`} hint={`MAJOR ${fmtZero(alerts.MAJOR)} · INFO ${fmtZero(alerts.INFO)}`} />
+      <Tile label={t("NM_KPI_DIFF")} value={`CRIT ${fmtZero(diff.CRITICAL)}`} hint={`MAJOR ${fmtZero(diff.MAJOR)} · INFO ${fmtZero(diff.INFO)}`} />
       <Tile label="INCA" value="—" hint="(join live: situazione/metri/date)" />
     </div>
   );

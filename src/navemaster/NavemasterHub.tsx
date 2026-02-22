@@ -1,5 +1,7 @@
 // src/navemaster/NavemasterHub.tsx
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "../lib/supabaseClient";
+import { useI18n } from "../i18n/coreI18n";
 
 type IconProps = { className?: string };
 
@@ -18,15 +20,6 @@ function IconChart({ className = "" }: IconProps) {
       <path d="M4 19V5" stroke="currentColor" strokeWidth="1.5" />
       <path d="M4 19h16" stroke="currentColor" strokeWidth="1.5" />
       <path d="M8 15v-4M12 15V9M16 15V7" stroke="currentColor" strokeWidth="1.5" />
-    </svg>
-  );
-}
-
-function IconDiff({ className = "" }: IconProps) {
-  return (
-    <svg className={`h-4 w-4 ${className}`} viewBox="0 0 24 24" fill="none">
-      <path d="M7 7h10M7 12h10M7 17h10" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M4 7l2-2 2 2M20 17l-2 2-2-2" stroke="currentColor" strokeWidth="1.5" />
     </svg>
   );
 }
@@ -55,27 +48,92 @@ import ShipSelector from "./components/ShipSelector";
 import { useNavemasterAccess } from "./hooks/useNavemasterContext";
 import { useNavemasterShips } from "./hooks/useNavemasterShips";
 import NavemasterCockpitPage from "./pages/NavemasterCockpitPage";
-import NavemasterDiffPage from "./pages/NavemasterDiffPage";
 import NavemasterAlertsPage from "./pages/NavemasterAlertsPage";
 
-type TabId = "cockpit" | "alerts" | "diff";
+type TabId = "cockpit" | "alerts";
 
 const tabs: Array<{ id: TabId; label: string; icon: (p: IconProps) => JSX.Element }> = [
   { id: "cockpit", label: "Cockpit", icon: IconChart },
   { id: "alerts", label: "Alerts", icon: IconAlert },
-  { id: "diff", label: "Diff", icon: IconDiff },
 ];
 
 export default function NavemasterHub(): JSX.Element {
+  const { t } = useI18n();
   const access = useNavemasterAccess();
   const { ships, loading: shipsLoading } = useNavemasterShips();
 
   const [shipId, setShipId] = useState<string>("");
   const [tab, setTab] = useState<TabId>("cockpit");
   const [importOpen, setImportOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [hasRun, setHasRun] = useState<boolean | null>(null);
+  const [runMeta, setRunMeta] = useState<{ frozen_at: string | null } | null>(null);
+  const [runLoading, setRunLoading] = useState(false);
+  const [runError, setRunError] = useState<string | null>(null);
 
   const selectedShip = useMemo(() => ships.find((s) => s.id === shipId) ?? null, [ships, shipId]);
   const selectedShipId = selectedShip?.id ?? null;
+
+  useEffect(() => {
+    let mounted = true;
+    if (!selectedShipId) {
+      setHasRun(null);
+      setRunMeta(null);
+      setRunError(null);
+      return;
+    }
+    setRunLoading(true);
+    setRunError(null);
+    supabase
+      .from("navemaster_latest_run_v2")
+      .select("id, frozen_at")
+      .eq("ship_id", selectedShipId)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (!mounted) return;
+        if (error) {
+          setRunError(error.message || "run lookup error");
+          setHasRun(false);
+          setRunMeta(null);
+          return;
+        }
+        if (!data) {
+          setHasRun(false);
+          setRunMeta(null);
+          return;
+        }
+        setHasRun(true);
+        setRunMeta({ frozen_at: (data as any).frozen_at ?? null });
+      })
+      .finally(() => {
+        if (!mounted) return;
+        setRunLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [selectedShipId, refreshKey]);
+
+  async function computeRun(): Promise<void> {
+    if (!selectedShipId || !access.canImport) return;
+    setRunLoading(true);
+    setRunError(null);
+    const { error } = await supabase.rpc("navemaster_compute_run_v2", {
+      p_ship_id: selectedShipId,
+      p_inca_file_id: null,
+      p_approved_from: null,
+      p_approved_to: null,
+      p_freeze: true,
+    });
+    if (error) {
+      setRunError(error.message || "compute run failed");
+      setRunLoading(false);
+      return;
+    }
+    setRefreshKey((x) => x + 1);
+    setRunLoading(false);
+  }
 
   if (!access.canRead) {
     return (
@@ -89,7 +147,7 @@ export default function NavemasterHub(): JSX.Element {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
+    <div className="w-full px-8 py-8">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -116,6 +174,15 @@ export default function NavemasterHub(): JSX.Element {
             <ShipSelector ships={ships} value={shipId} onChange={(id) => setShipId(id)} disabled={shipsLoading} />
             <button
               type="button"
+              onClick={computeRun}
+              disabled={!access.canImport || !selectedShipId || runLoading}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/30 px-4 py-2 text-sm text-slate-100 hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+              title={t("NM_COMPUTE_RUN")}
+            >
+              {t("NM_COMPUTE_RUN")}
+            </button>
+            <button
+              type="button"
               onClick={() => setImportOpen(true)}
               disabled={!access.canImport || !selectedShipId}
               className="inline-flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/30 px-4 py-2 text-sm text-slate-100 hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
@@ -124,7 +191,12 @@ export default function NavemasterHub(): JSX.Element {
               Import
             </button>
           </div>
-          <div className="text-xs text-slate-500">Ship selection is scoped by RLS.</div>
+          <div className="text-xs text-slate-500">
+            {t("NM_RLS_NOTE")}
+            {runLoading ? " · checking run…" : null}
+            {hasRun === true && runMeta?.frozen_at ? ` · last run: ${new Date(runMeta.frozen_at).toLocaleString()}` : null}
+          </div>
+          {runError ? <div className="text-xs text-rose-300">{runError}</div> : null}
         </div>
       </div>
 
@@ -152,12 +224,20 @@ export default function NavemasterHub(): JSX.Element {
       </div>
 
       <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
-        {tab === "cockpit" ? <NavemasterCockpitPage ship={selectedShip} /> : null}
-        {tab === "alerts" ? <NavemasterAlertsPage shipId={selectedShipId} /> : null}
-        {tab === "diff" ? <NavemasterDiffPage ship={selectedShip} /> : null}
+        {tab === "cockpit" ? <NavemasterCockpitPage shipId={selectedShipId} hasRun={hasRun} refreshKey={refreshKey} /> : null}
+        {tab === "alerts" ? <NavemasterAlertsPage shipId={selectedShipId} hasRun={hasRun} refreshKey={refreshKey} /> : null}
       </div>
 
-      <NavemasterImportModal open={importOpen} onClose={() => setImportOpen(false)} ship={selectedShip} />
+      <NavemasterImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        ship={selectedShip}
+        onImported={() => {
+          setRefreshKey((x) => x + 1);
+          void computeRun();
+        }}
+        role={access.role}
+      />
     </div>
   );
 }

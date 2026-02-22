@@ -10,6 +10,10 @@ export const navemasterFR = {
   NM_SHIP_LABEL: "Navire",
   NM_IMPORT_ACTIVE: "Import actif",
   NM_IMPORT_NONE: "Aucun import actif",
+  NM_COMPUTE_RUN: "Compute run",
+  NM_RLS_NOTE: "Ship selection is scoped by RLS.",
+  NM_NO_RUN_TITLE: "NAVEMASTER V2",
+  NM_NO_RUN_BODY: "Aucun run V2 trouvé pour ce navire. Utilisez “Compute run” pour générer le snapshot à partir d’INCA + preuves CORE.",
 
   NM_VIEW_COCKPIT: "Cockpit",
   NM_VIEW_ALERTS: "Alertes",
@@ -28,18 +32,18 @@ export const navemasterFR = {
   NM_FILTER_STATUS: "Statut",
   NM_FILTER_ZONA: "Zone",
   NM_FILTER_SEZIONE: "Section",
-  NM_FILTER_ONLY_WITH_INCA: "Seulement avec INCA",
+  NM_FILTER_ONLY_WITH_INCA: "Seulement avec preuves CORE",
 
   NM_EMPTY_TITLE: "Aucune donnée",
   NM_EMPTY_BODY: "Sélectionne un navire et importe un fichier NAVEMASTER, ou change les filtres.",
 
   NM_TABLE_MARCA: "MARCA CAVO",
   NM_TABLE_NAV_STATUS: "NAV",
-  NM_TABLE_INCA_STATUS: "INCA",
+  NM_TABLE_COVERAGE: "Couverture",
   NM_TABLE_SEZIONE: "Section",
   NM_TABLE_ZONA_DA: "Zone départ",
   NM_TABLE_ZONA_A: "Zone arrivée",
-  NM_TABLE_UPDATED: "Maj INCA",
+  NM_TABLE_UPDATED: "Dernière preuve",
 
   NM_DETAILS_TITLE: "Détail",
   NM_DETAILS_META: "Métadonnées",

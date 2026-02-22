@@ -108,14 +108,19 @@ export function useAdminUsersData() {
       if (supportsAdminRpcRef.current !== false) {
         const rpc = await supabase.rpc("admin_list_users_v1", { p_q: null, p_role: null });
         if (!rpc.error) {
-          supportsAdminRpcRef.current = true;
-          // If RPC works, we can trust disabled_at presence (it is selected in the function).
-          supportsDisabledAtRef.current = true;
-          setRows((rpc.data as unknown as ProfileRow[]) || []);
-          setLoading(false);
-          return;
+          const rpcRows = (rpc.data as unknown as ProfileRow[]) || [];
+          if (rpcRows.length > 0) {
+            supportsAdminRpcRef.current = true;
+            // If RPC works, we can trust disabled_at presence (it is selected in the function).
+            supportsDisabledAtRef.current = true;
+            setRows(rpcRows);
+            setLoading(false);
+            return;
+          }
+          // RPC ok but empty -> fallback to profiles to avoid false empty state
+        } else {
+          supportsAdminRpcRef.current = false;
         }
-        supportsAdminRpcRef.current = false;
       }
 
       const preferWith = supportsDisabledAtRef.current !== false;

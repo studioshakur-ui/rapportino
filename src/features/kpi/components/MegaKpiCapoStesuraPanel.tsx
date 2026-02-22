@@ -62,6 +62,7 @@ type CapoMegaKpiStesuraV1 = {
   };
   series?: {
     daily?: DailyRow[];
+    total?: DailyRow[];
     events?: EventRow[];
     projection_7d?: ProjectionRow[];
   };
@@ -181,19 +182,34 @@ function buildOption({ data, isDark, trendLine, targetLine, incaLine }: BuildOpt
     animation: true,
     animationDuration: 1100,
     animationEasing: "cubicOut",
-    grid: { left: 10, right: 10, top: 18, bottom: 34, containLabel: true },
+    grid: { left: 12, right: 12, top: 26, bottom: 36, containLabel: true },
     tooltip,
+    legend: {
+      top: 0,
+      left: 0,
+      textStyle: { color: theme.subtext, fontSize: 12 },
+      itemWidth: 14,
+      itemHeight: 6,
+      itemGap: 16,
+      data: [
+        "Cumul posa (finestra)",
+        "Cumul INCA (totale)",
+        "Stesura giornaliera",
+        "Trend prod (7j)",
+        "Target",
+      ],
+    },
     xAxis: {
       type: "category",
       data: x,
       boundaryGap: false,
-      axisLabel: { color: theme.subtext, fontSize: 11 },
+      axisLabel: { color: theme.subtext, fontSize: 12 },
       axisLine: { lineStyle: { color: theme.axisLine } },
       axisTick: { show: false },
     },
     yAxis: {
       type: "value",
-      axisLabel: { color: theme.subtext, fontSize: 11 },
+      axisLabel: { color: theme.subtext, fontSize: 12 },
       splitLine: { lineStyle: { color: theme.gridLine } },
     },
     dataZoom: [
@@ -212,14 +228,14 @@ function buildOption({ data, isDark, trendLine, targetLine, incaLine }: BuildOpt
     ],
     series: [
       {
-        name: "Cumul posa",
+        name: "Cumul posa (finestra)",
         type: "line",
         data: y,
         smooth: true,
         showSymbol: false,
-        lineStyle: { width: 3 },
-        areaStyle: { opacity: 0.12 },
-        emphasis: { focus: "series" },
+        lineStyle: { width: 3.5, color: theme.accent },
+        areaStyle: { opacity: 0.16, color: theme.accent },
+        emphasis: { focus: "series", lineStyle: { width: 4 } },
         markLine: milestoneLines.length
           ? {
               symbol: ["none", "none"],
@@ -234,9 +250,21 @@ function buildOption({ data, isDark, trendLine, targetLine, incaLine }: BuildOpt
         data: yDaily,
         smooth: true,
         showSymbol: false,
-        lineStyle: { width: 1.5, opacity: 0.5 },
+        lineStyle: { width: 1.5, opacity: 0.4, color: theme.subtext },
         silent: true,
       },
+      ...(Array.isArray(incaLine) && incaLine.length
+        ? [
+            {
+              name: "Cumul INCA (totale)",
+              type: "line",
+              data: incaLine,
+              showSymbol: false,
+              lineStyle: { width: 2, type: "dotted", opacity: 0.8, color: theme.text },
+              silent: true,
+            },
+          ]
+        : []),
       ...(Array.isArray(trendLine) && trendLine.length
         ? [
             {
@@ -245,7 +273,7 @@ function buildOption({ data, isDark, trendLine, targetLine, incaLine }: BuildOpt
               data: trendLine,
               smooth: true,
               showSymbol: false,
-              lineStyle: { width: 2, type: "dashed", opacity: 0.7 },
+              lineStyle: { width: 2, type: "dashed", opacity: 0.7, color: theme.subtext },
               silent: true,
             },
           ]
@@ -257,19 +285,7 @@ function buildOption({ data, isDark, trendLine, targetLine, incaLine }: BuildOpt
               type: "line",
               data: targetLine,
               showSymbol: false,
-              lineStyle: { width: 1.5, type: "dashed", opacity: 0.7 },
-              silent: true,
-            },
-          ]
-        : []),
-      ...(Array.isArray(incaLine) && incaLine.length
-        ? [
-            {
-              name: "Totale INCA",
-              type: "line",
-              data: incaLine,
-              showSymbol: false,
-              lineStyle: { width: 1.5, type: "dotted", opacity: 0.7 },
+              lineStyle: { width: 1.5, type: "dashed", opacity: 0.7, color: theme.warning },
               silent: true,
             },
           ]
@@ -359,6 +375,7 @@ export default function MegaKpiCapoStesuraPanel({
   const pct = safePct(cum?.progress_pct);
 
   const daily = Array.isArray(data?.series?.daily) ? (data?.series?.daily as DailyRow[]) : [];
+  const totalDaily = Array.isArray(data?.series?.total) ? (data?.series?.total as DailyRow[]) : [];
   const lastDate = daily.length ? String(daily[daily.length - 1]?.date || "") : "";
 
   const trendWindow = 7;
@@ -391,10 +408,78 @@ export default function MegaKpiCapoStesuraPanel({
     return daily.map(() => incaTotal);
   }, [daily, incaTotal]);
 
-  const option = useMemo(
-    () => buildOption({ data, isDark, trendLine, targetLine, incaLine }),
-    [data, isDark, trendLine, targetLine, incaLine]
+  const incaProgressLine = useMemo(() => {
+    if (!daily.length || !incaProgressM) return [];
+    return daily.map(() => incaProgressM);
+  }, [daily, incaProgressM]);
+
+  const optionFull = useMemo(
+    () => buildOption({ data, isDark, trendLine, targetLine, incaLine: incaProgressLine }),
+    [data, isDark, trendLine, targetLine, incaProgressLine]
   );
+
+  const optionWindow = useMemo(() => {
+    const opt = { ...(optionFull as any) };
+    const keep = new Set(["Cumul posa (finestra)", "Stesura giornaliera", "Trend prod (7j)", "Target"]);
+    opt.series = (opt.series || []).filter((s: any) => keep.has(String(s?.name || "")));
+    opt.legend = { ...(opt.legend || {}), data: [...keep] };
+    return opt;
+  }, [optionFull]);
+
+  const optionTotal = useMemo(() => {
+    if (!totalDaily.length) {
+      const opt = { ...(optionFull as any) };
+      const keep = new Set(["Cumul INCA (totale)"]);
+      opt.series = (opt.series || []).filter((s: any) => keep.has(String(s?.name || "")));
+      if (opt.series?.[0]) opt.series[0].lineStyle = { ...(opt.series[0].lineStyle || {}), width: 3 };
+      opt.legend = { ...(opt.legend || {}), data: [...keep] };
+      return opt;
+    }
+
+    const x = totalDaily.map((r) => String(r.date ?? ""));
+    const y = totalDaily.map((r) => safeNum(r.stesura_cum_m));
+    return {
+      backgroundColor: "transparent",
+      animation: true,
+      animationDuration: 1100,
+      animationEasing: "cubicOut",
+      grid: { left: 12, right: 12, top: 26, bottom: 36, containLabel: true },
+      tooltip: (optionFull as any).tooltip,
+      legend: {
+        top: 0,
+        left: 0,
+        textStyle: { color: CORE_CHART_THEME.subtext, fontSize: 12 },
+        itemWidth: 14,
+        itemHeight: 6,
+        itemGap: 16,
+        data: ["Cumul INCA (totale)"],
+      },
+      xAxis: {
+        type: "category",
+        data: x,
+        boundaryGap: false,
+        axisLabel: { color: CORE_CHART_THEME.subtext, fontSize: 12 },
+        axisLine: { lineStyle: { color: CORE_CHART_THEME.axisLine } },
+        axisTick: { show: false },
+      },
+      yAxis: {
+        type: "value",
+        axisLabel: { color: CORE_CHART_THEME.subtext, fontSize: 12 },
+        splitLine: { lineStyle: { color: CORE_CHART_THEME.gridLine } },
+      },
+      series: [
+        {
+          name: "Cumul INCA (totale)",
+          type: "line",
+          data: y,
+          smooth: true,
+          showSymbol: false,
+          lineStyle: { width: 3, color: CORE_CHART_THEME.text },
+          emphasis: { focus: "series", lineStyle: { width: 3.5 } },
+        },
+      ],
+    } as Record<string, unknown>;
+  }, [optionFull, totalDaily]);
 
   const finishDateFromTrend = (total: number): string | null => {
     if (!lastDate || !total || trendAvg <= 0) return null;
@@ -445,7 +530,7 @@ export default function MegaKpiCapoStesuraPanel({
           </div>
 
           <div className="rounded-xl theme-panel-2 px-3 py-2">
-            <div className="text-[10px] uppercase tracking-[0.18em] theme-text-muted">Cumul posa</div>
+            <div className="text-[10px] uppercase tracking-[0.18em] theme-text-muted">Cumul posa (finestra)</div>
             <div className="text-base font-semibold theme-text">{formatCompactNumber(cumM)} m</div>
           </div>
 
@@ -517,19 +602,71 @@ export default function MegaKpiCapoStesuraPanel({
           Errore nel caricamento KPI: {String((error as any)?.message || error)}
         </div>
       ) : (
-        <CoreEChart
-          option={option}
-          height={360}
-          loading={isLoading}
-          empty={empty}
-          emptyLabel="Nessun dato per la posa"
-          emptyHint="Verifica di avere rapportini con stesura/ripresa (fascettatura esclusa)."
-          isDark={isDark}
-        />
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="rounded-2xl theme-panel-2 px-4 py-4">
+            <div className="text-[12px] font-semibold theme-text mb-2">Cumul posa (finestra)</div>
+            <CoreEChart
+              option={optionWindow}
+              height={280}
+              loading={isLoading}
+              empty={empty}
+              emptyLabel="Nessun dato per la posa"
+              emptyHint="Verifica di avere posa INCA nel range."
+              isDark={isDark}
+            />
+            <div className="mt-3 flex flex-wrap gap-3 text-[11px] theme-text-muted">
+              <span>
+                Cumul: <span className="theme-text font-semibold">{formatCompactNumber(cumM)} m</span>
+              </span>
+              <span>
+                Media 7j: <span className="theme-text font-semibold">{trendAvg ? `${formatCompactNumber(trendAvg)} m/g` : "—"}</span>
+              </span>
+              <span>
+                Ultima data: <span className="theme-text font-semibold">{lastDate || "—"}</span>
+              </span>
+            </div>
+          </div>
+
+          <div className="rounded-2xl theme-panel-2 px-4 py-4">
+            <div className="text-[12px] font-semibold theme-text mb-2">Cumul INCA (totale)</div>
+            <CoreEChart
+              option={optionTotal}
+              height={280}
+              loading={isLoading}
+              empty={empty}
+              emptyLabel="Nessun dato INCA"
+              emptyHint="Verifica baseline INCA e progress."
+              isDark={isDark}
+            />
+            <div className="mt-3 flex flex-wrap gap-3 text-[11px] theme-text-muted">
+              <span>
+                Metri INCA: <span className="theme-text font-semibold">{formatCompactNumber(incaProgressM)} m</span>
+              </span>
+              <span>
+                Metri ref: <span className="theme-text font-semibold">{formatCompactNumber(incaTotal)} m</span>
+              </span>
+              <span>
+                % INCA: <span className="theme-text font-semibold">{pct == null ? "—" : `${pct.toFixed(1)}%`}</span>
+              </span>
+            </div>
+          </div>
+        </div>
       )}
 
+      <div className="mt-3 text-[11px] theme-text-muted flex flex-wrap gap-3">
+        <span>
+          <span className="font-semibold theme-text">Cumul posa (finestra)</span>: INCA con data posa nel range.
+        </span>
+        <span>
+          <span className="font-semibold theme-text">Cumul INCA (totale)</span>: tutti i cavi con progress/situazione.
+        </span>
+        <span>
+          <span className="font-semibold theme-text">Stesura giornaliera</span>: posa del giorno (INCA).
+        </span>
+      </div>
+
       <div className="mt-3 text-[11px] theme-text-muted">
-        Nota: la curva usa solo INCA (situazione + progress_percent) e data posa per giorno. Rapportini esclusi.
+        Nota: la curva usa solo INCA (situazione + progress_percent) con data posa INCA. Rapportini esclusi.
       </div>
     </div>
   );

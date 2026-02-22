@@ -115,6 +115,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
   const [ships, setShips] = useState<Ship[]>([]);
   const [selectedShipId, setSelectedShipId] = useState<string>("");
   const [loadingShips, setLoadingShips] = useState(false);
+  const [shipsDebug, setShipsDebug] = useState<string>("");
 
   const [perimOps, setPerimOps] = useState<PerimOperator[]>([]);
   const [loadingPerimOps, setLoadingPerimOps] = useState(false);
@@ -153,6 +154,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
   const loadShips = async () => {
     setLoadingShips(true);
     setErr("");
+    setShipsDebug("");
     try {
       // IMPORTANT:
       // Supabase/PostgREST in this deployment rejects some multi-column `order=...` payloads (400).
@@ -183,6 +185,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
       });
 
       setShips(list);
+      setShipsDebug(`ships=${list.length}`);
       if (!selectedShipId && list.length > 0) setSelectedShipId(list[0].ship_id);
     } catch (e) {
       const fe = formatSupabaseError(e);
@@ -190,6 +193,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
       console.error("[AdminPerimetersPage] loadShips error:", fe.debug);
       setShips([]);
       setErr(`Impossibile caricare elenco navi. ${fe.short}`);
+      setShipsDebug(`ships=0 · error=${fe.short}`);
     } finally {
       setLoadingShips(false);
     }
@@ -459,6 +463,10 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
             </div>
           </div>
 
+          <div className="mt-3 rounded-xl border theme-border bg-[var(--panel2)] px-3 py-2 text-[11px] theme-text-muted">
+            DEBUG: role={String(profile?.app_role || "—")} · {shipsDebug || "ships=?"}
+          </div>
+
           <div className="mt-4 grid grid-cols-1 lg:grid-cols-12 gap-3">
             {/* Left: ship selector */}
             <div className="lg:col-span-4 rounded-2xl border theme-border bg-[var(--panel2)] p-3">
@@ -470,6 +478,7 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
                 className={cn(inputClass(), "mt-2")}
                 disabled={loadingShips}
               >
+                {ships.length === 0 ? <option value="">Nessuna nave visibile</option> : null}
                 {ships.map((s) => (
                   <option key={s.ship_id} value={s.ship_id}>
                     {safeText(s.commessa)} · {safeText(s.code)}
@@ -478,6 +487,11 @@ export default function AdminPerimetersPage({ isDark = true }: { isDark?: boolea
                 ))}
               </select>
 
+              {!loadingShips && ships.length === 0 ? (
+                <div className="mt-3 rounded-xl px-3 py-2 text-[12px] badge-warning">
+                  Nessuna nave visibile per questo account. Verifica RLS / profilo ADMIN.
+                </div>
+              ) : null}
               <div className="mt-3 flex items-center gap-2">
                 <button type="button" className={btnGhost()} disabled={loadingShips} onClick={loadShips}>
                   {loadingShips ? "Carico…" : "Ricarica navi"}

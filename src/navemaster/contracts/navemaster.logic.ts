@@ -8,6 +8,7 @@ export const NAV_STATUS: Readonly<Record<NavStatus, NavStatus>> = {
   B: "B",
   E: "E",
   NP: "NP",
+  L: "L",
 };
 
 export const NAV_SEVERITY: Readonly<Record<NavSeverity, NavSeverity>> = {
@@ -23,6 +24,7 @@ export function navStatusFromText(x: unknown): NavStatus {
   if (v === "T") return "T";
   if (v === "B") return "B";
   if (v === "E") return "E";
+  if (v === "L") return "L";
   if (v === "NP") return "NP";
   return "NP";
 }

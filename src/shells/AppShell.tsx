@@ -86,6 +86,7 @@ export default function AppShell(): JSX.Element {
 
   const isCoreDrive = pathname.startsWith("/app/core-drive") || pathname.startsWith("/app/archive");
   const isKpiOperatori = pathname.startsWith("/app/kpi-operatori");
+  const isNavemaster = pathname.startsWith("/app/navemaster");
   const isMegaKpi = pathname.includes("/kpi-stesura");
   const isInca = pathname.includes("/inca");
 
@@ -294,7 +295,7 @@ export default function AppShell(): JSX.Element {
     );
   }
 
-  const contentWrapClass = "w-full md:max-w-[1480px] md:mx-auto space-y-4";
+  const contentWrapClass = isNavemaster ? "w-full" : "w-full space-y-4";
 
   const navItems = [
     {
@@ -315,6 +316,12 @@ export default function AppShell(): JSX.Element {
       label: "INCA · Cockpit",
       icon: "inca" as const,
       colorClass: "text-amber-400",
+    },
+    {
+      to: "/app/navemaster",
+      label: "NAVEMASTER",
+      icon: "dashboard" as const,
+      colorClass: "text-sky-400",
     },
     {
       to: "/app/core-drive",
@@ -455,7 +462,10 @@ export default function AppShell(): JSX.Element {
             </div>
 
             <div className="flex-1 min-h-0 overflow-auto">
-              <div className={`${contentWrapClass} px-3 sm:px-4 pb-6 relative`} style={{ touchAction: "manipulation" }}>
+              <div
+                className={`${contentWrapClass} ${isNavemaster ? "px-0" : "px-3 sm:px-4"} pb-6 relative`}
+                style={{ touchAction: "manipulation" }}
+              >
                 {tapHardlock ? (
                   <div className="absolute inset-0 z-[999] bg-transparent" aria-hidden="true" />
                 ) : null}

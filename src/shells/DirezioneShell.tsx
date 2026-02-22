@@ -299,7 +299,7 @@ export default function DirezioneShell(): JSX.Element {
             </div>
           ) : null}
 
-          <div className="max-w-6xl mx-auto space-y-4 pt-4">
+          <div className="w-full space-y-4 pt-4">
             <Outlet context={{ isDark }} />
           </div>
 

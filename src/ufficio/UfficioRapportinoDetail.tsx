@@ -1,4 +1,5 @@
-// src/ufficio/UfficioRapportinoDetail.jsx
+// src/ufficio/UfficioRapportinoDetail.tsx
+// @ts-nocheck
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
@@ -30,6 +31,24 @@ function bestNameFromProfile(p) {
   const f = (p?.full_name || "").trim();
   const e = (p?.email || "").trim();
   return d || f || e || null;
+}
+
+function isUnknownCapoLabel(value) {
+  const v = String(value || "").trim();
+  if (!v) return true;
+  const upper = v.toUpperCase();
+  return upper.includes("SCONOSCIUTO");
+}
+
+function resolveCapoLabel({ capoId, capoDisplayName, capoName }) {
+  const capoIdStr = String(capoId || "").trim();
+  const display = String(capoDisplayName || "").trim();
+  const name = String(capoName || "").trim();
+
+  if (display && !isUnknownCapoLabel(display)) return display;
+  if (name && !isUnknownCapoLabel(name)) return name;
+  if (capoIdStr) return `CAPO ${capoIdStr.slice(0, 8)}`;
+  return "—";
 }
 
 function safeMultilineText(v) {
@@ -284,10 +303,11 @@ export default function UfficioRapportinoDetail() {
   const statusLabel = header ? STATUS_LABELS[header.status] || header.status : "—";
   const tone = statusTone(header?.status);
 
-  const capoResolved =
-    capoDisplayName ||
-    (header?.capo_name && header.capo_name !== "CAPO SCONOSCIUTO" ? header.capo_name : null) ||
-    (header?.capo_id ? `CAPO ${String(header.capo_id).slice(0, 8)}` : "—");
+  const capoResolved = resolveCapoLabel({
+    capoId: header?.capo_id,
+    capoDisplayName: capoDisplayName,
+    capoName: header?.capo_name,
+  });
 
   // NAV: option B -> show both when DIREZIONE
   const handleBackList = () => navigate("/ufficio");
@@ -369,27 +389,27 @@ export default function UfficioRapportinoDetail() {
     setError(null);
     setFeedback("");
 
-    const now = new Date().toISOString();
+    try {
+      const { error: rpcErr } = await supabase.rpc("ufficio_return_rapportino", {
+        p_rapportino_id: header.id,
+        p_note: returnNote || null,
+      });
 
-    const updatePayload = {
-      status: "RETURNED",
-      returned_by_ufficio: profile.id,
-      returned_by_ufficio_at: now,
-      ufficio_note: returnNote,
-      note_ufficio: returnNote,
-    };
+      if (rpcErr) {
+        console.error("[UFFICIO DETAIL] RPC return error:", rpcErr);
+        setError("Errore durante il rinvio del rapportino.");
+        setSaving(false);
+        return;
+      }
 
-    const { error: updateErr } = await supabase.from("rapportini").update(updatePayload).eq("id", header.id);
-
-    if (updateErr) {
-      console.error("[UFFICIO DETAIL] Errore rimandando il rapportino:", updateErr);
-      setError("Errore durante il rinvio del rapportino.");
-    } else {
-      setHeader((prev) => (prev ? { ...prev, ...updatePayload } : prev));
+      await reloadAfterMutation();
       setFeedback("Documento rimandato al Capo.");
+    } catch (e) {
+      console.error("[UFFICIO DETAIL] return exception:", e);
+      setError("Errore durante il rinvio del rapportino.");
+    } finally {
+      setSaving(false);
     }
-
-    setSaving(false);
   };
 
   // Naval-grade: Create correction (rettifica) via RPC

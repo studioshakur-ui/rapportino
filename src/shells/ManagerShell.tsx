@@ -49,6 +49,8 @@ export default function ManagerShell() {
   };
 
   const pathname = location.pathname || "";
+  const isAssignmentsPage =
+    pathname.startsWith("/manager/assegnazioni") || pathname.startsWith("/manager/assignments");
   const pageTitle = pathname.startsWith("/manager/assegnazioni")
     ? t("NAV_ASSIGNMENTS")
     : pathname.startsWith("/manager/capi-cantieri")
@@ -156,7 +158,7 @@ export default function ManagerShell() {
             }
           />
 
-          <div className="max-w-6xl mx-auto pt-4">
+          <div className={isAssignmentsPage ? "pt-4" : "max-w-6xl mx-auto pt-4"}>
             <div className="border rounded-2xl theme-border bg-[var(--panel)]">
               <KeepAliveOutlet scopeKey="manager" context={{ lang }} />
 

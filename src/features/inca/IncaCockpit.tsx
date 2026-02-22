@@ -213,7 +213,7 @@ export default function IncaCockpit(props: IncaCockpitProps) {
   const [apparatoA, setApparatoA] = useState<string>("");
 
   // Table view
-  const [viewMode, setViewMode] = useState<IncaTableViewMode>("standard");
+  const [viewMode, setViewMode] = useState<IncaTableViewMode>(mode === "modal" ? "audit" : "standard");
 
   // Data
   const [cavi, setCavi] = useState<IncaCavoRow[]>([]);
@@ -365,6 +365,13 @@ export default function IncaCockpit(props: IncaCockpitProps) {
                 "livello",
                 "wbs",
                 "pagina_pdf",
+                "inca_data_taglio",
+                "inca_data_posa",
+                "inca_data_collegamento",
+                "inca_data_richiesta_taglio",
+                "inca_dataela_ts",
+                "inca_data_instradamento_ts",
+                "inca_data_creazione_instradamento_ts",
                 "raw",
                 "data_posa",
                 "capo_label",
@@ -631,7 +638,7 @@ export default function IncaCockpit(props: IncaCockpitProps) {
       {/* Controls + Pills */}
       <div className="mt-3 grid grid-cols-1 lg:grid-cols-12 gap-3">
         {/* Controls */}
-        <div className="lg:col-span-4 theme-panel rounded-2xl p-3">
+        <div className={mode === "modal" ? "lg:col-span-12 theme-panel rounded-2xl p-3" : "lg:col-span-4 theme-panel rounded-2xl p-3"}>
           <div className="text-[11px] theme-text-muted uppercase tracking-wide mb-2">Controlli</div>
 
           <div className="space-y-3">
@@ -725,7 +732,7 @@ export default function IncaCockpit(props: IncaCockpitProps) {
         </div>
 
         {/* Pills + Table */}
-        <div className="lg:col-span-8 space-y-3">
+        <div className={mode === "modal" ? "lg:col-span-12 space-y-3" : "lg:col-span-8 space-y-3"}>
           <div className="rounded-2xl theme-panel p-3">
             <div className="text-[11px] theme-text-muted uppercase tracking-wide mb-2">Pills (Quick filters)</div>
             <div className="flex flex-wrap gap-2">
@@ -755,9 +762,7 @@ export default function IncaCockpit(props: IncaCockpitProps) {
             ) : (
               <IncaCaviTable
                 rows={filteredCavi}
-                viewMode={viewMode}
-                onViewModeChange={setViewMode}
-                selectedRowId={selectedCable?.id || null}
+                variant={viewMode}
                 onRowClick={(r) => setSelectedCable(r)}
               />
             )}

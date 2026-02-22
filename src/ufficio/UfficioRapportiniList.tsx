@@ -1,6 +1,6 @@
 // src/ufficio/UfficioRapportiniList.tsx
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
 
@@ -53,6 +53,38 @@ function normalizeKey(s: any): string {
   return (s ?? "").toString().trim().toUpperCase();
 }
 
+function bestNameFromProfile(p: any): string | null {
+  const d = (p?.display_name || "").trim();
+  const f = (p?.full_name || "").trim();
+  const e = (p?.email || "").trim();
+  return d || f || e || null;
+}
+
+function isUnknownCapoLabel(value: any): boolean {
+  const v = String(value || "").trim();
+  if (!v) return true;
+  const upper = v.toUpperCase();
+  return upper.includes("SCONOSCIUTO");
+}
+
+function resolveCapoLabel(args: {
+  capoId?: any;
+  scopedLabel?: any;
+  capoDisplayName?: any;
+  capoName?: any;
+}): string {
+  const capoId = String(args.capoId || "").trim();
+  const scopedLabel = String(args.scopedLabel || "").trim();
+  const capoDisplayName = String(args.capoDisplayName || "").trim();
+  const capoName = String(args.capoName || "").trim();
+
+  if (scopedLabel && !isUnknownCapoLabel(scopedLabel)) return scopedLabel;
+  if (capoDisplayName && !isUnknownCapoLabel(capoDisplayName)) return capoDisplayName;
+  if (capoName && !isUnknownCapoLabel(capoName)) return capoName;
+  if (capoId) return `CAPO ${capoId.slice(0, 8)}`;
+  return "—";
+}
+
 /**
  * KPI rule (naval-grade):
  * - For ELETTRICISTA, KPI production excludes informational lines.
@@ -81,6 +113,27 @@ function isCorrection(row: any): boolean {
   return !!row?.supersedes_rapportino_id;
 }
 
+type UfficioMode = "VALIDAZIONE" | "DELEGA";
+
+type ScopeRow = {
+  id: string;
+  ufficio_id: string;
+  capo_id: string;
+  costr: string;
+  active: boolean;
+  created_at: string;
+  revoked_at: string | null;
+  note: string | null;
+};
+
+function isDelegated(row: any): boolean {
+  // CNCS: delegated input is explicitly marked
+  if (row?.acting_for_capo_id) return true;
+  const createdBy = row?.created_by;
+  const capoId = row?.capo_id;
+  return !!createdBy && !!capoId && String(createdBy) !== String(capoId);
+}
+
 /**
  * Canonique métier:
  * - On n'affiche pas "Prodotto total" unique.
@@ -92,6 +145,7 @@ function isCorrection(row: any): boolean {
  * - Badges: SOSTITUITO / RETTIFICA
  */
 export default function UfficioRapportiniList(): JSX.Element {
+  const navigate = useNavigate();
   const { profile, loading: authLoading } = useAuth();
 
   const [rapportini, setRapportini] = useState<any[]>([]);
@@ -104,6 +158,16 @@ export default function UfficioRapportiniList(): JSX.Element {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [capoFilter, setCapoFilter] = useState("");
   const [roleFilter, setRoleFilter] = useState("ALL");
+
+  // NEW: UFFICIO modes
+  const [mode, setMode] = useState<UfficioMode>("VALIDAZIONE");
+
+  // NEW: S2 scopes (CAPO + COSTR)
+  const [scopes, setScopes] = useState<ScopeRow[]>([]);
+  const [scopeCapos, setScopeCapos] = useState<Record<string, { id: string; label: string }>>({});
+  const [selectedCapoId, setSelectedCapoId] = useState<string>("");
+  const [selectedCostr, setSelectedCostr] = useState<string>("");
+  const [creating, setCreating] = useState<boolean>(false);
 
   // NEW: show/hide historique (supersedés)
   const [showHistory, setShowHistory] = useState(false);
@@ -124,9 +188,218 @@ export default function UfficioRapportiniList(): JSX.Element {
       return;
     }
 
+    const fetchScopesS2 = async (): Promise<{
+      scopes: ScopeRow[];
+      capoLabels: Record<string, { id: string; label: string }>;
+    }> => {
+      const { data: sData, error: sErr } = await supabase
+        .from("ufficio_capo_scopes")
+        .select("id,ufficio_id,capo_id,costr,active,created_at,revoked_at,note")
+        .eq("ufficio_id", profile.id)
+        .eq("active", true)
+        .order("created_at", { ascending: false });
+
+      if (sErr) {
+        console.warn("[UFFICIO LIST] scopes load failed:", sErr);
+        return { scopes: [], capoLabels: {} };
+      }
+
+      const scopesList = (sData || []) as ScopeRow[];
+      const capoIds = Array.from(new Set(scopesList.map((s) => s.capo_id).filter(Boolean)));
+      if (!capoIds.length) return { scopes: scopesList, capoLabels: {} };
+
+      const { data: pData, error: pErr } = await supabase
+        .from("profiles")
+        .select("id,display_name,full_name,email")
+        .in("id", capoIds);
+
+      if (pErr) {
+        console.warn("[UFFICIO LIST] capos labels load failed:", pErr);
+        return { scopes: scopesList, capoLabels: {} };
+      }
+
+      const labels: Record<string, { id: string; label: string }> = {};
+      (pData || []).forEach((p: any) => {
+        const label = String(p?.display_name || p?.full_name || p?.email || p?.id || "—").trim();
+        labels[String(p.id)] = { id: String(p.id), label };
+      });
+
+      return { scopes: scopesList, capoLabels: labels };
+    };
+
     const fetchRapportini = async () => {
       setLoading(true);
       setError(null);
+
+      // Pre-load scopes so the UI can expose delegation mode when configured.
+      const { scopes: scopesList, capoLabels } = await fetchScopesS2();
+      setScopes(scopesList);
+      setScopeCapos(capoLabels);
+
+      const fetchProfileLabels = async (capoIds: string[]): Promise<Record<string, string>> => {
+        if (!capoIds.length) return {};
+        const { data: profs, error: rpcErr } = await supabase.rpc("core_profiles_public_by_ids", {
+          p_ids: capoIds,
+        });
+        if (rpcErr) {
+          console.warn("[UFFICIO LIST] RPC profiles_public failed:", rpcErr);
+          return {};
+        }
+        const out: Record<string, string> = {};
+        (profs || []).forEach((p: any) => {
+          const label = bestNameFromProfile(p);
+          if (label) out[String(p.id)] = label;
+        });
+        return out;
+      };
+
+      // Default selection (first scope) if empty.
+      if (!selectedCapoId && scopesList.length) {
+        const first = scopesList[0];
+        setSelectedCapoId(first.capo_id);
+        setSelectedCostr(String(first.costr || "").trim().toUpperCase());
+      }
+
+      // DELEGA mode: load directly from public.rapportini (RLS-scoped)
+      if (mode === "DELEGA") {
+        const capoId = String(selectedCapoId || "").trim();
+        const costr = String(selectedCostr || "").trim().toUpperCase();
+
+        if (!capoId || !costr) {
+          setRapportini([]);
+          setRowsAggByRap({});
+          setLoading(false);
+          return;
+        }
+
+        const res = await supabase
+          .from("rapportini")
+          .select(
+            [
+              "id",
+              "report_date",
+              "status",
+              "capo_id",
+              "capo_name",
+              "crew_role",
+              "commessa",
+              "costr",
+              "created_at",
+              "updated_at",
+              "created_by",
+              "acting_for_capo_id",
+              "supersedes_rapportino_id",
+              "superseded_by_rapportino_id",
+              "correction_reason",
+              "correction_created_by",
+              "correction_created_at",
+            ].join(",")
+          )
+          .eq("capo_id", capoId)
+          .eq("costr", costr)
+          .order("report_date", { ascending: false })
+          .limit(500);
+
+        if (res.error) {
+          console.error("[UFFICIO LIST] Errore caricando i rapportini (DELEGA):", res.error);
+          setError("Errore durante il caricamento dei rapportini (Delega). Controlla scope/RLS.");
+          setRapportini([]);
+          setRowsAggByRap({});
+          setLoading(false);
+          return;
+        }
+
+        const rawList = res.data || [];
+        const capoIds = Array.from(new Set(rawList.map((r: any) => String(r?.capo_id || "").trim()).filter(Boolean)));
+        const profileLabels = await fetchProfileLabels(capoIds);
+        const list = rawList.map((r: any) => {
+          const capoId = String(r?.capo_id || "").trim();
+          const scopedLabel = capoId ? scopeCapos[capoId]?.label : null;
+          const capoDisplay = resolveCapoLabel({
+            capoId,
+            scopedLabel,
+            capoDisplayName: profileLabels[capoId] || r?.capo_display_name,
+            capoName: r?.capo_name,
+          });
+          return { ...r, capo_display_name: capoDisplay };
+        });
+
+        setRapportini(list);
+
+        const crewRoleByRapId = new Map<string, string>();
+        (list || []).forEach((r: any) => {
+          if (r?.id) crewRoleByRapId.set(String(r.id), r?.crew_role || "");
+        });
+
+        const ids = list.map((r: any) => r.id).filter(Boolean);
+        if (!ids.length) {
+          setRowsAggByRap({});
+          setLoading(false);
+          return;
+        }
+
+        const { data: aggRows, error: aggErr } = await supabase
+          .from("rapportino_rows")
+          .select("rapportino_id, descrizione, prodotto")
+          .in("rapportino_id", ids);
+
+        if (aggErr) {
+          console.warn("[UFFICIO LIST] Impossibile caricare breakdown righe (DELEGA):", aggErr);
+          setRowsAggByRap({});
+          setLoading(false);
+          return;
+        }
+
+        const map = new Map<string, any>();
+        (aggRows || []).forEach((r: any) => {
+          const rid = r?.rapportino_id;
+          if (!rid) return;
+
+          const rapCrewRole = crewRoleByRapId.get(String(rid)) || "";
+          const kpiFiltered = isElectricistaRole(rapCrewRole);
+
+          const obj =
+            map.get(String(rid)) || {
+              descrMapKpi: new Map<string, number>(),
+              descrMapAll: new Map<string, number>(),
+              sommaKpi: 0,
+              sommaAll: 0,
+              isKpiFiltered: kpiFiltered,
+            };
+
+          const key = (r?.descrizione ?? "—").toString().trim() || "—";
+
+          obj.descrMapAll.set(key, (obj.descrMapAll.get(key) || 0) + safeNum(r?.prodotto));
+          obj.sommaAll += safeNum(r?.prodotto);
+
+          const isKpi = !kpiFiltered || isKpiDescrizione(key);
+          if (isKpi) {
+            obj.descrMapKpi.set(key, (obj.descrMapKpi.get(key) || 0) + safeNum(r?.prodotto));
+            obj.sommaKpi += safeNum(r?.prodotto);
+          }
+
+          map.set(String(rid), obj);
+        });
+
+        const out: Record<string, any> = {};
+        map.forEach((v, rid) => {
+          const activeMap: Map<string, number> = v.isKpiFiltered ? v.descrMapKpi : v.descrMapAll;
+          const items = Array.from(activeMap.entries()).map(([descrizione, prodotto_sum]) => ({ descrizione, prodotto_sum }));
+          items.sort((a, b) => b.prodotto_sum - a.prodotto_sum);
+
+          out[rid] = {
+            descrizioniCount: items.length,
+            top: items.slice(0, 2),
+            sommaKpi: v.sommaKpi,
+            sommaAll: v.sommaAll,
+            isKpiFiltered: v.isKpiFiltered,
+          };
+        });
+
+        setRowsAggByRap(out);
+        setLoading(false);
+        return;
+      }
 
       /**
        * Canon sources (ordre de préférence):
@@ -190,11 +463,7 @@ export default function UfficioRapportiniList(): JSX.Element {
       let usedTable: string | null = null;
 
       for (const c of candidates) {
-        const res = await supabase
-          .from(c.table)
-          .select(c.select)
-          .order("report_date", { ascending: false })
-          .limit(500);
+        const res = await supabase.from(c.table).select(c.select).order("report_date", { ascending: false }).limit(500);
 
         if (!res.error) {
           data = res.data;
@@ -215,9 +484,16 @@ export default function UfficioRapportiniList(): JSX.Element {
         return;
       }
 
-      const list = (data || []).map((r) => {
+      const rawList = data || [];
+      const capoIds = Array.from(new Set(rawList.map((r: any) => String(r?.capo_id || "").trim()).filter(Boolean)));
+      const profileLabels = await fetchProfileLabels(capoIds);
+      const list = rawList.map((r) => {
         // Normalisation (legacy safety)
-        const capoDisplay = r?.capo_display_name ?? r?.capo_name ?? null;
+        const capoDisplay = resolveCapoLabel({
+          capoId: r?.capo_id,
+          capoDisplayName: profileLabels[String(r?.capo_id || "").trim()] || r?.capo_display_name,
+          capoName: r?.capo_name,
+        });
         return { ...r, capo_display_name: capoDisplay };
       });
 
@@ -263,8 +539,7 @@ export default function UfficioRapportiniList(): JSX.Element {
         const kpiFiltered = isElectricistaRole(rapCrewRole);
 
         const obj =
-          map.get(String(rid)) ||
-          {
+          map.get(String(rid)) || {
             descrMapKpi: new Map<string, number>(),
             descrMapAll: new Map<string, number>(),
             sommaKpi: 0,
@@ -309,7 +584,83 @@ export default function UfficioRapportiniList(): JSX.Element {
     };
 
     fetchRapportini();
-  }, [authLoading, profile]);
+  }, [authLoading, profile, mode, selectedCapoId, selectedCostr]);
+
+  const availableScopeCapoOptions = useMemo(() => {
+    const byCapo = new Map<string, { capo_id: string; capo_label: string; costrs: string[] }>();
+    (scopes || []).forEach((s) => {
+      if (!s?.active) return;
+      const capo_id = String(s.capo_id || "").trim();
+      const costr = String(s.costr || "").trim().toUpperCase();
+      if (!capo_id || !costr) return;
+      const capo_label = scopeCapos[capo_id]?.label || capo_id;
+      const cur = byCapo.get(capo_id) || { capo_id, capo_label, costrs: [] };
+      if (!cur.costrs.includes(costr)) cur.costrs.push(costr);
+      cur.costrs.sort();
+      byCapo.set(capo_id, cur);
+    });
+
+    const out = Array.from(byCapo.values());
+    out.sort((a, b) => a.capo_label.localeCompare(b.capo_label));
+    return out;
+  }, [scopes, scopeCapos]);
+
+  const availableCostrOptions = useMemo(() => {
+    const capoId = String(selectedCapoId || "").trim();
+    const found = availableScopeCapoOptions.find((x) => x.capo_id === capoId);
+    return found?.costrs || [];
+  }, [availableScopeCapoOptions, selectedCapoId]);
+
+  useEffect(() => {
+    if (mode !== "DELEGA") return;
+    const opts = availableCostrOptions;
+    if (!opts.length) return;
+    const cur = String(selectedCostr || "").trim().toUpperCase();
+    if (!cur || !opts.includes(cur)) setSelectedCostr(opts[0]);
+  }, [mode, availableCostrOptions, selectedCostr]);
+
+  const createDelegatedDraft = async (): Promise<void> => {
+    if (!profile) return;
+    const capoId = String(selectedCapoId || "").trim();
+    const costr = String(selectedCostr || "").trim().toUpperCase();
+    if (!capoId || !costr) return;
+
+    setCreating(true);
+    setError(null);
+    try {
+      const capoLabel = resolveCapoLabel({
+        capoId,
+        scopedLabel: scopeCapos[capoId]?.label,
+      });
+      const today = new Date();
+      const isoDate = today.toISOString().slice(0, 10);
+
+      const insertPayload: any = {
+        data: isoDate,
+        report_date: isoDate,
+        capo_id: capoId,
+        capo_name: capoLabel,
+        status: "DRAFT",
+        costr,
+        commessa: null,
+        totale_prodotto: 0,
+        created_by: profile.id,
+        user_id: profile.id,
+        acting_for_capo_id: capoId,
+        note_ufficio: "DELEGA UFFICIO (S2)",
+      };
+
+      const res = await supabase.from("rapportini").insert(insertPayload).select("id").single();
+      if (res.error) throw res.error;
+      const id = res.data?.id;
+      if (id) navigate(`/ufficio/rapportini/${id}`);
+    } catch (e: any) {
+      console.error("[UFFICIO LIST] create delegated draft error:", e);
+      setError("Creazione bozza fallita. Verifica scope/RLS e campi obbligatori.");
+    } finally {
+      setCreating(false);
+    }
+  };
 
   const filteredRapportini = useMemo(() => {
     const q = capoFilter.trim().toLowerCase();
@@ -361,6 +712,111 @@ export default function UfficioRapportiniList(): JSX.Element {
 
   return (
     <div className="p-4 space-y-4">
+      <div className="rounded-2xl border theme-border bg-[var(--panel2)] p-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.22em] theme-text-muted">UFFICIO · CNCS</div>
+            <div className="mt-1 text-[14px] font-semibold theme-text">
+              {mode === "VALIDAZIONE" ? "Validazione rapportini" : "Delega CAPO (S2: CAPO + COSTR)"}
+            </div>
+            <div className="mt-1 text-[12px] theme-text-muted">
+              {mode === "VALIDAZIONE"
+                ? "Flusso standard: verifica, ritorno, approvazione."
+                : "Flusso delegato: creazione/modifica solo BOZZE (DRAFT) entro scope assegnato."}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setMode("VALIDAZIONE")}
+              className={[
+                "px-3 py-1.5 rounded-xl border text-xs font-semibold transition",
+                mode === "VALIDAZIONE"
+                  ? "theme-border theme-text bg-[var(--panel)]"
+                  : "theme-border theme-text-muted bg-[var(--panel2)] hover:bg-[var(--panel)]",
+              ].join(" ")}
+            >
+              VALIDAZIONE
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("DELEGA")}
+              className={[
+                "px-3 py-1.5 rounded-xl border text-xs font-semibold transition",
+                mode === "DELEGA"
+                  ? "theme-border theme-text bg-[var(--panel)]"
+                  : "theme-border theme-text-muted bg-[var(--panel2)] hover:bg-[var(--panel)]",
+              ].join(" ")}
+              title={availableScopeCapoOptions.length ? "Delega attiva se scope presente" : "Nessuno scope configurato"}
+            >
+              DELEGA CAPO
+            </button>
+          </div>
+        </div>
+
+        {mode === "DELEGA" ? (
+          <div className="mt-4 grid grid-cols-12 gap-3">
+            <div className="col-span-12 md:col-span-5">
+              <label className="mb-1 block text-[10px] uppercase tracking-[0.22em] theme-text-muted">CAPO (scope)</label>
+              <select
+                className="w-full rounded-xl px-3 py-2 text-xs theme-input focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
+                value={selectedCapoId}
+                onChange={(e) => setSelectedCapoId(e.target.value)}
+                disabled={!availableScopeCapoOptions.length}
+              >
+                <option value="">Seleziona CAPO…</option>
+                {availableScopeCapoOptions.map((c) => (
+                  <option key={c.capo_id} value={c.capo_id}>
+                    {c.capo_label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-span-12 md:col-span-3">
+              <label className="mb-1 block text-[10px] uppercase tracking-[0.22em] theme-text-muted">COSTR</label>
+              <select
+                className="w-full rounded-xl px-3 py-2 text-xs theme-input focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
+                value={selectedCostr}
+                onChange={(e) => setSelectedCostr(e.target.value)}
+                disabled={!availableCostrOptions.length}
+              >
+                <option value="">COSTR…</option>
+                {availableCostrOptions.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-span-12 md:col-span-4 flex items-end gap-2">
+              <button
+                type="button"
+                onClick={() => void createDelegatedDraft()}
+                disabled={!selectedCapoId || !selectedCostr || creating}
+                className={[
+                  "w-full rounded-xl border px-3 py-2 text-xs font-semibold transition",
+                  !selectedCapoId || !selectedCostr || creating
+                    ? "theme-border theme-text-muted bg-[var(--panel2)] opacity-60 cursor-not-allowed"
+                    : "border-emerald-500/35 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15",
+                ].join(" ")}
+                title="Crea una bozza DRAFT per il CAPO selezionato (acting-for)"
+              >
+                {creating ? "Creazione…" : "Nuovo rapportino (BOZZA)"}
+              </button>
+            </div>
+
+            {!availableScopeCapoOptions.length ? (
+              <div className="col-span-12 text-[12px] text-amber-100">
+                Nessuno scope configurato per questo account UFFICIO. Chiedi ad ADMIN di assegnare uno scope (CAPO + COSTR).
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+
       <div className="flex flex-wrap items-end gap-4">
         <div className="flex flex-col text-xs min-w-[160px]">
           <label className="mb-1 font-medium theme-text-muted">Stato</label>
@@ -424,16 +880,16 @@ export default function UfficioRapportiniList(): JSX.Element {
       </div>
 
       <div className="overflow-x-auto rounded-xl theme-table">
-        <table className="min-w-full text-xs">
+        <table className="min-w-full text-sm">
           <thead className="theme-table-head">
             <tr>
-              <th className="px-3 py-2 text-left font-medium">Data</th>
-              <th className="px-3 py-2 text-left font-medium">Capo</th>
-              <th className="px-3 py-2 text-left font-medium">Squadra</th>
-              <th className="px-3 py-2 text-left font-medium">Commessa</th>
-              <th className="px-3 py-2 text-left font-medium">Produzioni</th>
-              <th className="px-3 py-2 text-left font-medium">Stato</th>
-              <th className="px-3 py-2 text-right font-medium">Apri</th>
+              <th className="px-3 py-3 text-left font-medium">Data</th>
+              <th className="px-3 py-3 text-left font-medium">Capo</th>
+              <th className="px-3 py-3 text-left font-medium">Squadra</th>
+              <th className="px-3 py-3 text-left font-medium">Commessa</th>
+              <th className="px-3 py-3 text-left font-medium">Produzioni</th>
+              <th className="px-3 py-3 text-left font-medium">Stato</th>
+              <th className="px-3 py-3 text-right font-medium">Apri</th>
             </tr>
           </thead>
 
@@ -450,11 +906,16 @@ export default function UfficioRapportiniList(): JSX.Element {
               const statusLabel = STATUS_LABELS[r.status] || r.status;
               const badgeClass = STATUS_BADGE_CLASS[r.status] || "bg-slate-700/80 text-slate-200";
 
-              const capoResolved = r?.capo_display_name ?? (r?.capo_id ? "Profil mancante" : "—");
+              const capoResolved = resolveCapoLabel({
+                capoId: r?.capo_id,
+                capoDisplayName: r?.capo_display_name,
+                capoName: r?.capo_name,
+              });
               const isArchived = r.status === "APPROVED_UFFICIO";
 
               const superseded = isSuperseded(r);
               const correction = isCorrection(r);
+              const delegated = isDelegated(r);
 
               const agg = rowsAggByRap[r.id] || null;
               const descrCount = agg?.descrizioniCount ?? 0;
@@ -482,11 +943,17 @@ export default function UfficioRapportiniList(): JSX.Element {
                   className={["border-b theme-border transition-colors", rowTone].join(" ")}
                   title={superseded ? "Versione superseduta (sostituita da rettifica)" : ""}
                 >
-                  <td className="px-3 py-2 whitespace-nowrap theme-text">{formatDate(r.report_date)}</td>
+                  <td className="px-3 py-3 whitespace-nowrap theme-text">{formatDate(r.report_date)}</td>
 
-                  <td className="px-3 py-2 whitespace-nowrap theme-text">
+                  <td className="px-3 py-3 whitespace-nowrap theme-text">
                     <div className="flex items-center gap-2">
                       <span>{capoResolved}</span>
+
+                      {delegated && (
+                        <span className="px-2 py-0.5 rounded-full border text-[10px] uppercase tracking-[0.14em] badge-warning">
+                          DELEGA
+                        </span>
+                      )}
 
                       {correction && (
                         <span className="px-2 py-0.5 rounded-full border text-[10px] uppercase tracking-[0.14em] badge-info">
@@ -502,29 +969,29 @@ export default function UfficioRapportiniList(): JSX.Element {
                     </div>
                   </td>
 
-                  <td className="px-3 py-2 whitespace-nowrap theme-text">{r.crew_role || "—"}</td>
-                  <td className="px-3 py-2 whitespace-nowrap theme-text">{r.commessa || "—"}</td>
+                  <td className="px-3 py-3 whitespace-nowrap theme-text">{r.crew_role || "—"}</td>
+                  <td className="px-3 py-3 whitespace-nowrap theme-text">{r.commessa || "—"}</td>
 
-                  <td className="px-3 py-2 theme-text">
+                  <td className="px-3 py-3 theme-text">
                     <div className="flex flex-col">
-                      <div className="theme-text">
-                        <span className="inline-flex items-center gap-2">
+                      <div className="theme-text leading-snug">
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className="px-2 py-0.5 rounded-full border text-[11px] uppercase tracking-[0.12em] badge-neutral">
                             {descrCount || 0} descr.
                           </span>
-                          <span className="text-[11px] theme-text-muted">
+                          <span className="text-[12px] theme-text-muted">
                             somma KPI: <span className="theme-text">{formatNumberIt(sommaKpi)}</span>
                           </span>
-                          <span className="text-[11px] theme-text-muted">somma righe: {formatNumberIt(sommaAll)}</span>
-                        </span>
+                          <span className="text-[12px] theme-text-muted">· somma righe: {formatNumberIt(sommaAll)}</span>
+                        </div>
                       </div>
 
-                      <div className="mt-1 text-[11px] theme-text-muted">
+                      <div className="mt-1 text-[12px] theme-text-muted leading-snug">
                         {topLine}
                         {moreCount > 0 ? <span className="theme-text-muted"> · +{moreCount}</span> : null}
                       </div>
 
-                      <div className="mt-1 text-[10px] theme-text-muted">
+                      <div className="mt-1 text-[11px] theme-text leading-snug">
                         {isKpiFiltered
                           ? "ELETTRICISTA: KPI = STESURA + RIPRESA (FASCETTATURA esclusa)."
                           : "Produzione mostrata per descrizione (no KPI totale unico)."}
@@ -532,7 +999,7 @@ export default function UfficioRapportiniList(): JSX.Element {
                     </div>
                   </td>
 
-                  <td className="px-3 py-2 whitespace-nowrap">
+                  <td className="px-3 py-3 whitespace-nowrap">
                     <span
                       className={[
                         "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] uppercase tracking-[0.14em] font-medium",
@@ -540,13 +1007,11 @@ export default function UfficioRapportiniList(): JSX.Element {
                       ].join(" ")}
                     >
                       {statusLabel}
-                      {isArchived && (
-                        <span className="ml-1.5 text-[10px] tracking-[0.14em]">· BLOCCATO</span>
-                      )}
+                      {isArchived && <span className="ml-1.5 text-[10px] tracking-[0.14em]"> · BLOCCATO</span>}
                     </span>
                   </td>
 
-                  <td className="px-3 py-2 whitespace-nowrap text-right">
+                  <td className="px-3 py-3 whitespace-nowrap text-right">
                     <Link
                       to={`/ufficio/rapportini/${r.id}`}
                       className="text-xs text-[color:var(--accent-ink)] hover:text-[color:var(--accent)] hover:underline"

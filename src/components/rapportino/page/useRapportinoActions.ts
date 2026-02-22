@@ -393,6 +393,9 @@ export async function saveRapportino({
     commessa: safeStr(commessa),
     status: nextStatus,
     prodotto_totale: safeNumOrNull(prodottoTotale) ?? 0,
+    created_by: profileId,
+    acting_for_capo_id: null,
+    last_edited_by: profileId,
   };
 
   if (!rid) {
@@ -416,6 +419,7 @@ export async function saveRapportino({
         commessa: safeStr(commessa),
         status: nextStatus,
         prodotto_totale: safeNumOrNull(prodottoTotale) ?? 0,
+        last_edited_by: profileId,
       })
       .eq("id", rid)
       .select("id, crew_role, status")

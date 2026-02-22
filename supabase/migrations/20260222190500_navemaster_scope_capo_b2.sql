@@ -44,7 +44,7 @@ as $$
       from public.ship_capos sc
       where sc.ship_id = p_ship_id
         and sc.capo_id = auth.uid()
-        and sc.is_active = true
+        -- baseline: ship_capos has no is_active flag; presence of the row is the scope
     )
     OR
     -- CAPO scope (today's assignment)

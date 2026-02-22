@@ -3,7 +3,7 @@ import type { NavSeverity, NavStatus } from "./navemaster.types";
 
 export type NavemasterView = "cockpit" | "alerts" | "diff";
 
-export type CockpitSortKey = "marcacavo" | "stato_cavo" | "sezione" | "zona_da" | "zona_a" | "inca_updated_at";
+export type CockpitSortKey = "codice" | "stato_nav" | "sezione" | "zona_da" | "zona_a" | "last_proof_at";
 export type SortDir = "asc" | "desc";
 
 export type CockpitFilters = {
@@ -12,6 +12,8 @@ export type CockpitFilters = {
   zona?: string | "ALL";
   sezione?: string | "ALL";
   onlyWithInca?: boolean;
+  onlyModified?: boolean;
+  onlyNoProof?: boolean;
 };
 
 export type AlertsFilters = {

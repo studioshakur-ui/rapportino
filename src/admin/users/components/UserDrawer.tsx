@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { cn } from "./ui";
+import UfficioScopePanel from "./UfficioScopePanel";
 
 export default function UserDrawer(props: {
   open: boolean;
@@ -40,8 +41,8 @@ export default function UserDrawer(props: {
         <div className={cn("relative z-[60] h-full border-l", "theme-modal theme-border")} onClick={(e) => e.stopPropagation()}>
           <div className="p-5 border-b theme-border flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <div className="kicker">CNCS · Admin</div>
-              <div className="mt-1 text-[16px] font-semibold theme-text truncate">{title}</div>
+              <div className="text-[10px] uppercase tracking-[0.26em] text-slate-500">CNCS · Admin</div>
+              <div className="mt-1 text-[16px] font-semibold text-slate-50 truncate">{title}</div>
             </div>
             <button type="button" onClick={onClose} className={cn("rounded-xl border px-3 py-2 text-[12px] font-semibold", "theme-panel-2 theme-border hover:opacity-95")}>
               Chiudi
@@ -54,12 +55,12 @@ export default function UserDrawer(props: {
             ) : user ? (
               <div className="space-y-4">
                 <div>
-                  <div className="kicker">Utente</div>
-                  <div className="mt-1 text-[15px] font-semibold theme-text">
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">Utente</div>
+                  <div className="mt-1 text-[15px] font-semibold text-slate-100">
                     {user.display_name || user.full_name || user.email || "—"}
                   </div>
-                  <div className="mt-1 text-[12px] theme-text-muted">{user.email || "—"}</div>
-                  <div className="mt-1 text-[12px] theme-text-muted">Ruolo: {user.app_role || "—"}</div>
+                  <div className="mt-1 text-[12px] text-slate-400">{user.email || "—"}</div>
+                  <div className="mt-1 text-[12px] text-slate-400">Ruolo: {user.app_role || "—"}</div>
                 </div>
 
                 <div className="rounded-xl border theme-border bg-[var(--panel2)] p-3 text-[12px] theme-text">
@@ -91,7 +92,8 @@ export default function UserDrawer(props: {
                           onClick={() => void onReactivate()}
                           disabled={Boolean(busy)}
                           className={cn(
-                            "rounded-xl px-3 py-2 text-[12px] font-semibold badge-success",
+                            "rounded-xl border px-3 py-2 text-[12px] font-semibold",
+                            "border-emerald-500/35 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15",
                             Boolean(busy) && "opacity-60 cursor-not-allowed"
                           )}
                         >
@@ -104,7 +106,8 @@ export default function UserDrawer(props: {
                         onClick={onSuspend}
                         disabled={Boolean(busy)}
                         className={cn(
-                          "rounded-xl px-3 py-2 text-[12px] font-semibold badge-warning",
+                          "rounded-xl border px-3 py-2 text-[12px] font-semibold",
+                          "border-amber-500/35 bg-amber-500/10 text-amber-100 hover:bg-amber-500/15",
                           Boolean(busy) && "opacity-60 cursor-not-allowed"
                         )}
                       >
@@ -119,7 +122,8 @@ export default function UserDrawer(props: {
                       onClick={onHardDelete}
                       disabled={Boolean(busy)}
                       className={cn(
-                        "rounded-xl px-3 py-2 text-[12px] font-semibold badge-danger",
+                        "rounded-xl border px-3 py-2 text-[12px] font-semibold",
+                        "border-rose-500/35 bg-rose-500/10 text-rose-100 hover:bg-rose-500/15",
                         Boolean(busy) && "opacity-60 cursor-not-allowed"
                       )}
                     >
@@ -127,6 +131,10 @@ export default function UserDrawer(props: {
                     </button>
                   ) : null}
                 </div>
+
+                {String(user?.app_role || "").toUpperCase() === "UFFICIO" ? (
+                  <UfficioScopePanel ufficioUserId={String(user.id)} ufficioAllowedCantieri={user.allowed_cantieri || null} />
+                ) : null}
               </div>
             ) : null}
           </div>

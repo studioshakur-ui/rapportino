@@ -54,6 +54,7 @@ export default function UfficioShell(): JSX.Element {
 
   const pathname = location.pathname || "";
   const isNavemaster = pathname.startsWith("/ufficio/navemaster");
+  const isRapportini = pathname === "/ufficio" || pathname.startsWith("/ufficio/rapportini");
   const isInca = pathname.startsWith("/ufficio/inca") || pathname.startsWith("/ufficio/inca-hub");
   const isEvoluzione = pathname.startsWith("/ufficio/evoluzione");
   const isCoreDrive =
@@ -147,10 +148,14 @@ export default function UfficioShell(): JSX.Element {
             }
           />
 
-          <div className="max-w-6xl mx-auto space-y-4 pt-4">
-            <div className="border rounded-2xl overflow-hidden theme-border bg-[var(--panel)]">
+          <div className={`${isNavemaster || isRapportini ? "w-full pt-4" : "max-w-6xl mx-auto space-y-4 pt-4"}`}>
+            {isNavemaster || isRapportini ? (
               <KeepAliveOutlet scopeKey="ufficio" />
-            </div>
+            ) : (
+              <div className="border rounded-2xl overflow-hidden theme-border bg-[var(--panel)]">
+                <KeepAliveOutlet scopeKey="ufficio" />
+              </div>
+            )}
           </div>
         </main>
       </div>

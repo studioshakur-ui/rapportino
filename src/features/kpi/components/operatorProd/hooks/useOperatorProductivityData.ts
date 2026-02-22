@@ -105,7 +105,10 @@ export function useOperatorProductivityData({
           .abortSignal(ac.signal);
 
         if (scope === "MANAGER") q = q.eq("manager_id", profileId);
-        if (scope === "CAPO" && isV3) q = q.eq("capo_id", profileId);
+        if (scope === "CAPO") {
+          if (!isV3) return [];
+          q = q.eq("capo_id", profileId);
+        }
 
         if (showCostrCommessaFilters) {
           if (costrFilter) q = q.eq("costr", costrFilter);
@@ -139,7 +142,10 @@ export function useOperatorProductivityData({
         .abortSignal(ac.signal);
 
       if (scope === "MANAGER") q = q.eq("manager_id", profileId);
-      if (scope === "CAPO" && isV3) q = q.eq("capo_id", profileId);
+      if (scope === "CAPO") {
+        if (!isV3) return [];
+        q = q.eq("capo_id", profileId);
+      }
 
       if (showCostrCommessaFilters) {
         if (costrFilter) q = q.eq("costr", costrFilter);
@@ -197,6 +203,13 @@ export function useOperatorProductivityData({
         setGlobalRows(Array.isArray(gRes.rows) ? gRes.rows : []);
         setFamilyRows(Array.isArray(fRes.rows) ? fRes.rows : []);
       } catch (e) {
+        const msg = String((e as { message?: unknown } | null | undefined)?.message || "");
+        const hint = String((e as { hint?: unknown } | null | undefined)?.hint || "");
+        const isAbort =
+          msg.includes("AbortError") ||
+          msg.toLowerCase().includes("aborted") ||
+          hint.toLowerCase().includes("aborted");
+        if (isAbort) return;
         console.error("[useOperatorProductivityData] load error:", e);
         if (!alive) return;
         setError(
