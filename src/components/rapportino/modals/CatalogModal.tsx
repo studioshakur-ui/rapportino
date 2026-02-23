@@ -120,32 +120,11 @@ export default function CatalogModal({
           return;
         }
 
-        // Read scoped rows + join global catalog
-        // NOTE: This requires table public.catalogo_ship_commessa_attivita (or a view with same name/cols).
-        // Columns used: ship_id, commessa, activity_id, is_active, previsto_value, unit_override, note
         const query = supabase
-          .from("catalogo_ship_commessa_attivita")
-          .select(
-            `
-            activity_id,
-            is_active,
-            previsto_value,
-            unit_override,
-            note,
-            catalogo_attivita:activity_id (
-              id,
-              categoria,
-              descrizione,
-              activity_type,
-              unit,
-              previsto_value,
-              synonyms,
-              is_active
-            )
-          `
-          )
+          .from("catalogo_scope_effective_v2")
+          .select("activity_id,categoria,descrizione,activity_type,unit_effective,previsto_value,is_active,note,role_keys")
           .eq("ship_id", String(shipId))
-          .eq("commessa", safeText(commessa));
+          .eq("commessa", safeText(commessa).toUpperCase());
 
         if (onlyActive) query.eq("is_active", true);
 
@@ -157,33 +136,29 @@ export default function CatalogModal({
 
         const rows = Array.isArray(data)
           ? (data as unknown as Array<{
-              catalogo_attivita?: Record<string, unknown> | null;
-              unit_override?: unknown;
+              activity_id?: unknown;
+              categoria?: unknown;
+              descrizione?: unknown;
+              activity_type?: unknown;
+              unit_effective?: unknown;
               previsto_value?: unknown;
               is_active?: unknown;
               note?: unknown;
+              role_keys?: unknown;
             }>)
           : [];
         const mapped: Array<CatalogItem | null> = rows.map((r) => {
-          const a = r?.catalogo_attivita;
-          if (!a || !("id" in a)) return null;
-          const id = (a as { id?: unknown }).id;
+          const id = r?.activity_id;
           if (typeof id !== "string" && typeof id !== "number") return null;
-
-          const effectiveUnit = safeText(r?.unit_override) ? safeText(r.unit_override) : safeText(a.unit);
-          const effectivePrev =
-            r?.previsto_value !== null && r?.previsto_value !== undefined
-              ? r.previsto_value
-              : a?.previsto_value;
 
           return {
             id,
-            categoria: a.categoria,
-            descrizione: a.descrizione,
-            activity_type: a.activity_type,
-            unit: effectiveUnit || "NONE",
-            previsto_value: effectivePrev,
-            synonyms: Array.isArray(a.synonyms) ? a.synonyms : [],
+            categoria: r?.categoria,
+            descrizione: r?.descrizione,
+            activity_type: r?.activity_type,
+            unit: safeText(r?.unit_effective) || "NONE",
+            previsto_value: r?.previsto_value ?? null,
+            synonyms: Array.isArray(r?.role_keys) ? (r.role_keys as unknown[]) : [],
             // scoped metadata (optional, useful later)
             _scope: {
               is_active: !!r?.is_active,

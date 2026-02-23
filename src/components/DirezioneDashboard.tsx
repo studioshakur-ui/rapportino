@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import { useAuth } from "../auth/AuthProvider";
 import { useCoreI18n } from "../i18n/coreI18n";
-import { formatNumberByLang } from "../ui/format";
+import { formatNumberByLang, formatNumberIT, safeText } from "../ui/format";
 import DirezioneHeader from "../features/direzione/dashboard/components/DirezioneHeader";
 import DirezioneFilters from "../features/direzione/dashboard/components/DirezioneFilters";
 import DirezioneVerdict, {
@@ -24,22 +24,16 @@ import {
 } from "../features/direzione/dashboard/selectors";
 import { toISODate } from "../features/direzione/dashboard/utils";
 import { useOperatorProductivityData } from "../features/kpi/components/operatorProd/hooks/useOperatorProductivityData";
+import CoreEChart from "../components/charts/CoreEChart";
+import { coreLayout } from "../ui/coreLayout";
+import type { DirezioneAiFilters, DirezioneAiProjectionPoint } from "../features/direzione/dashboard/aiTypes";
+import { useDirezioneAiDashboardData } from "../features/direzione/dashboard/useDirezioneAiDashboardData";
 
 export type DirezioneDashboardProps = {
   isDark?: boolean;
-  kpiModel?: unknown;
-  verdictModel?: unknown;
-  costr?: string;
-  commessa?: string;
-  windowFrom?: string;
-  windowTo?: string;
-  onResetFilters?: () => void;
-  onChangeCostr?: (v: string) => void;
-  onChangeCommessa?: (v: string) => void;
-  onChangeWindowFrom?: (v: string) => void;
-  onChangeWindowTo?: (v: string) => void;
-  headerRight?: unknown;
 };
+
+const STABILITY_FORMULA = "Score = 100 - 5*C - 3*M - 2*B - 1*A - 1*MM";
 
 function getDefaultWindow(): { dateFrom: string; dateTo: string } {
   const today = new Date();
@@ -66,6 +60,70 @@ function percentile(sorted: number[], p: number): number | null {
   return sorted[lo] + (sorted[hi] - sorted[lo]) * w;
 }
 
+function toScopeLabel(filters: DirezioneAiFilters): string {
+  const costr = filters.costr.trim();
+  const commessa = filters.commessa.trim();
+  if (costr && commessa) return `COSTR ${costr} · Commessa ${commessa}`;
+  if (costr) return `COSTR ${costr}`;
+  return "Globale";
+}
+
+function buildRadarOption(values: number[], labels: string[], isDark: boolean): Record<string, unknown> {
+  const maxValue = Math.max(1, ...values);
+  return {
+    radar: {
+      radius: "62%",
+      splitNumber: 4,
+      indicator: labels.map((name) => ({ name, max: maxValue })),
+      axisName: {
+        color: isDark ? "#e2e8f0" : "#1f2937",
+        fontSize: 11,
+      },
+    },
+    series: [
+      {
+        type: "radar",
+        data: [
+          {
+            value: values,
+            areaStyle: { opacity: 0.2 },
+            lineStyle: { width: 2 },
+          },
+        ],
+      },
+    ],
+  };
+}
+
+function buildProjectionOption(points: DirezioneAiProjectionPoint[]): Record<string, unknown> {
+  const labels = points.map((p) => p.forecast_date);
+  const values = points.map((p) => p.forecast_risk_index ?? 0);
+  return {
+    grid: { left: 6, right: 6, top: 16, bottom: 24, containLabel: true },
+    xAxis: {
+      type: "category",
+      data: labels,
+      axisLabel: { fontSize: 10 },
+    },
+    yAxis: {
+      type: "value",
+      min: 0,
+      axisLabel: { fontSize: 10 },
+      splitLine: { lineStyle: { opacity: 0.15 } },
+    },
+    series: [
+      {
+        type: "line",
+        data: values,
+        smooth: true,
+        symbol: "circle",
+        symbolSize: 6,
+        areaStyle: { opacity: 0.18 },
+      },
+    ],
+  };
+}
+
 export default function DirezioneDashboard({ isDark = true }: DirezioneDashboardProps) {
   const { profile } = useAuth();
   const { t, lang } = useCoreI18n();
@@ -81,6 +139,7 @@ export default function DirezioneDashboard({ isDark = true }: DirezioneDashboard
     const { dateFrom, dateTo } = getDefaultWindow();
     return { dateFrom, dateTo, costr: "", commessa: "" };
   });
+  const [showAi, setShowAi] = useState<boolean>(false);
 
   const { loading, dataset } = useDirezioneDashboardData({
     profilePresent: !!profile,
@@ -102,7 +161,10 @@ export default function DirezioneDashboard({ isDark = true }: DirezioneDashboard
   const summary = useMemo(() => selectKpiSummary(dataset), [dataset]);
   const timelineData = useMemo(() => selectTimeline(dataset), [dataset]);
   const prodTrend = useMemo(() => selectProdTrend(dataset), [dataset]);
-  const topProduzioni = useMemo(() => selectTopProduzioni(dataset.produzioniAggCurrent || [], 10), [dataset]);
+  const topProduzioni = useMemo(
+    () => selectTopProduzioni(dataset.produzioniAggCurrent || [], 10),
+    [dataset]
+  );
 
   const incaOption = useMemo(() => buildIncaOption(dataset.incaChantier || []), [dataset.incaChantier]);
   const hasIncaData = (dataset.incaChantier || []).length > 0;
@@ -324,6 +386,52 @@ export default function DirezioneDashboard({ isDark = true }: DirezioneDashboard
     [tf]
   );
 
+  const aiFilters: DirezioneAiFilters = useMemo(
+    () => ({ costr: filters.costr, commessa: filters.commessa }),
+    [filters.costr, filters.commessa]
+  );
+
+  const {
+    loading: aiLoading,
+    error: aiError,
+    radar,
+    stability,
+    projection,
+    anomalies,
+    anomaliesTotal,
+    topPerformance,
+    bottomPerformance,
+  } = useDirezioneAiDashboardData({
+    profilePresent: !!profile,
+    filters: aiFilters,
+  });
+
+  const scopeLabel = useMemo(() => toScopeLabel(aiFilters), [aiFilters]);
+
+  const radarValues = useMemo(() => {
+    return [
+      radar?.alerts_open_critical ?? 0,
+      radar?.alerts_open_major ?? 0,
+      radar?.blocks_open ?? 0,
+      radar?.anomalies_open ?? 0,
+      radar?.alerts_open_metri_mismatch ?? 0,
+    ].map((v) => Number(v) || 0);
+  }, [radar]);
+
+  const radarLabels = ["Critici", "Major", "Blocchi", "Anomalie", "Metri"];
+
+  const radarOption = useMemo(() => buildRadarOption(radarValues, radarLabels, isDark), [radarValues, isDark]);
+
+  const projectionOption = useMemo(() => buildProjectionOption(projection), [projection]);
+
+  const score = stability?.stability_score ?? null;
+  const scoreLabel = score == null ? "—" : formatNumberIT(score, 0);
+
+  const anomaliesTotalLabel =
+    anomaliesTotal?.open_count != null ? formatNumberIT(anomaliesTotal.open_count, 0) : "—";
+
+  const riskIndexNow = radarValues.reduce((a, b) => a + b, 0);
+
   return (
     <div className="space-y-4">
       <DirezioneHeader
@@ -360,6 +468,152 @@ export default function DirezioneDashboard({ isDark = true }: DirezioneDashboard
         prodTrend={prodTrend}
         topProduzioni={topProduzioni}
       />
+
+      <section className="space-y-3 pt-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-xs uppercase tracking-[0.22em] theme-text-muted">Direzione AI</div>
+          <button
+            type="button"
+            onClick={() => setShowAi((prev) => !prev)}
+            className="btn-instrument px-3 py-1.5 rounded-full text-[11px] uppercase tracking-[0.18em] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20"
+          >
+            {showAi ? "Nascondi" : "Mostra"}
+          </button>
+        </div>
+
+        {showAi ? (
+          <>
+            <section className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-3">
+          <div className="theme-panel theme-border rounded-2xl p-4">
+            <div className="flex items-center justify-between">
+              <div className="text-xs uppercase tracking-[0.18em] theme-text-muted">Radar Giornaliero</div>
+              <div className="text-xs theme-text-muted">{scopeLabel}</div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-4 mt-3">
+              <CoreEChart
+                isDark={isDark}
+                option={radarOption}
+                height={220}
+                loading={aiLoading}
+                empty={!aiLoading && !radar}
+                emptyLabel="Nessun dato"
+              />
+              <div className="grid grid-cols-2 gap-2">
+                {radarLabels.map((label, idx) => (
+                  <div key={label} className="theme-panel-2 theme-border rounded-xl px-3 py-2">
+                    <div className="text-[11px] uppercase tracking-[0.16em] theme-text-muted">{label}</div>
+                    <div className="text-lg font-semibold theme-text">{formatNumberIT(radarValues[idx], 0)}</div>
+                  </div>
+                ))}
+                <div className="theme-panel-2 theme-border rounded-xl px-3 py-2 col-span-2">
+                  <div className="text-[11px] uppercase tracking-[0.16em] theme-text-muted">Indice Rischio Oggi</div>
+                  <div className="text-xl font-semibold theme-text">{formatNumberIT(riskIndexNow, 0)}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-rows-2 gap-3">
+            <div className={coreLayout.kpiCard(isDark, "amber")}>
+              <div className="text-[11px] uppercase tracking-[0.18em] theme-text-muted">CNCS Stability Score</div>
+              <div className="text-3xl font-semibold">{scoreLabel}</div>
+              <div className="text-[11px] theme-text-muted">{STABILITY_FORMULA}</div>
+            </div>
+
+            <div className={coreLayout.kpiCard(isDark, "rose")}>
+              <div className="text-[11px] uppercase tracking-[0.18em] theme-text-muted">Anomalie Strutturali</div>
+              <div className="text-3xl font-semibold">{anomaliesTotalLabel}</div>
+              <div className="text-[11px] theme-text-muted">Open</div>
+            </div>
+          </div>
+        </section>
+
+            <section className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-3">
+          <div className="theme-panel theme-border rounded-2xl p-4">
+            <div className="flex items-center justify-between">
+              <div className="text-xs uppercase tracking-[0.18em] theme-text-muted">Proiezione 7 Giorni</div>
+              <div className="text-xs theme-text-muted">Trend lineare</div>
+            </div>
+            <div className="mt-3">
+              <CoreEChart
+                isDark={isDark}
+                option={projectionOption}
+                height={260}
+                loading={aiLoading}
+                empty={!aiLoading && projection.length === 0}
+                emptyLabel="Nessun dato"
+              />
+            </div>
+          </div>
+
+          <div className="theme-panel theme-border rounded-2xl p-4">
+            <div className="text-xs uppercase tracking-[0.18em] theme-text-muted">Ranking Performance</div>
+            <div className="mt-3 grid grid-cols-1 gap-3">
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.16em] theme-text-muted">Top</div>
+                <div className="mt-2 space-y-2">
+                  {topPerformance.length === 0 ? (
+                    <div className="text-sm theme-text-muted">Nessun dato</div>
+                  ) : (
+                    topPerformance.map((row, idx) => (
+                      <div
+                        key={row.ship_id ?? row.ship_code ?? row.ship_name ?? `top-${idx}`}
+                        className="flex items-center justify-between"
+                      >
+                        <div className="text-sm theme-text">{safeText(row.ship_name || row.ship_code || row.ship_id)}</div>
+                        <div className="text-sm font-semibold">{formatNumberIT(row.performance_ratio, 2)}</div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.16em] theme-text-muted">Bottom</div>
+                <div className="mt-2 space-y-2">
+                  {bottomPerformance.length === 0 ? (
+                    <div className="text-sm theme-text-muted">Nessun dato</div>
+                  ) : (
+                    bottomPerformance.map((row, idx) => (
+                      <div
+                        key={row.ship_id ?? row.ship_code ?? row.ship_name ?? `bottom-${idx}`}
+                        className="flex items-center justify-between"
+                      >
+                        <div className="text-sm theme-text">{safeText(row.ship_name || row.ship_code || row.ship_id)}</div>
+                        <div className="text-sm font-semibold">{formatNumberIT(row.performance_ratio, 2)}</div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+            <section className="theme-panel theme-border rounded-2xl p-4">
+          <div className="flex items-center justify-between">
+            <div className="text-xs uppercase tracking-[0.18em] theme-text-muted">Anomalie Strutturali</div>
+            <div className="text-xs theme-text-muted">Breakdown</div>
+          </div>
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {anomalies.length === 0 ? (
+              <div className="text-sm theme-text-muted">Nessun dato</div>
+            ) : (
+              anomalies.map((row) => (
+                <div key={row.anomaly_type} className="theme-panel-2 theme-border rounded-xl px-3 py-2">
+                  <div className="text-[11px] uppercase tracking-[0.16em] theme-text-muted">
+                    {row.anomaly_type.replace("NAV_", "")}
+                  </div>
+                  <div className="text-lg font-semibold theme-text">{formatNumberIT(row.open_count, 0)}</div>
+                </div>
+              ))
+            )}
+          </div>
+          {aiError ? <div className="text-xs text-rose-300 mt-2">{aiError}</div> : null}
+            </section>
+          </>
+        ) : null}
+      </section>
 
       <DirezioneKpiModal
         isOpen={!!activeKpi}

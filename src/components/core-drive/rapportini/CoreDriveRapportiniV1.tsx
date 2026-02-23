@@ -1,6 +1,7 @@
 // /src/components/core-drive/rapportini/CoreDriveRapportiniV1.tsx
 import { useEffect, useMemo, useState  } from "react";
 import { useAuth } from "../../../auth/AuthProvider";
+import { supabase } from "../../../lib/supabaseClient";
 
 import Badge from "../ui/Badge";
 import KpiTile from "../ui/KpiTile";
@@ -14,6 +15,10 @@ type ViewMode = "TABLE" | "TIMELINE";
 type FilterStatus = "ALL" | string;
 type ComparisonMode = "CAPO" | "COMMESSA";
 type ComparisonRange = "ALL" | "90" | "365";
+
+function safeText(v: unknown): string {
+  return (v == null ? "" : String(v)).trim();
+}
 
 function formatDate(value: unknown): string {
   if (!value) return "";
@@ -127,7 +132,61 @@ export default function CoreDriveRapportiniV1(): JSX.Element {
       setError(null);
       try {
         const data = await loadRapportiniArchiveV1({ capoId: isCapoView ? capoId : null, limit: 2000 });
-        setRapportini(data || []);
+        const raw = Array.isArray(data) ? data : [];
+
+        if (!isCapoView) {
+          const capoIds = Array.from(
+            new Set(
+              raw
+                .map((r) => safeText(r?.capo_id))
+                .filter(Boolean),
+            ),
+          );
+
+          let labelsById: Record<string, string> = {};
+          if (capoIds.length > 0) {
+            // Prefer RPC (used elsewhere in app), fallback to direct profiles query.
+            const rpcRes = await supabase.rpc("get_profiles_by_ids", { p_ids: capoIds });
+            let profileRows: Array<Record<string, unknown>> = [];
+            if (!rpcRes.error && Array.isArray(rpcRes.data)) {
+              profileRows = rpcRes.data as Array<Record<string, unknown>>;
+            } else {
+              const fallback = await supabase
+                .from("profiles")
+                .select("id,display_name,full_name,email")
+                .in("id", capoIds);
+              if (!fallback.error && Array.isArray(fallback.data)) {
+                profileRows = fallback.data as Array<Record<string, unknown>>;
+              }
+            }
+
+            labelsById = profileRows.reduce<Record<string, string>>((acc, p) => {
+              const id = safeText(p?.id);
+              if (!id) return acc;
+              const label =
+                safeText(p?.display_name) ||
+                safeText(p?.full_name) ||
+                safeText(p?.email) ||
+                id;
+              acc[id] = label;
+              return acc;
+            }, {});
+          }
+
+          const mapped = raw.map((r) => {
+            const cid = safeText(r?.capo_id);
+            const current = safeText(r?.capo_name);
+            const fallbackLabel = labelsById[cid] || current || "";
+            const nextCapoName =
+              !current || current.toUpperCase() === "CAPO SCONOSCIUTO"
+                ? fallbackLabel || "CAPO SCONOSCIUTO"
+                : current;
+            return { ...r, capo_name: safeText(nextCapoName).toUpperCase() };
+          });
+          setRapportini(mapped);
+        } else {
+          setRapportini(raw);
+        }
       } catch (e) {
         // eslint-disable-next-line no-console
         console.error(e);

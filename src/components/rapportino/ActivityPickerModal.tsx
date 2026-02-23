@@ -115,28 +115,10 @@ export default function ActivityPickerModal({
         }
 
         const query = supabase
-          .from("catalogo_ship_commessa_attivita")
-          .select(
-            `
-            activity_id,
-            is_active,
-            previsto_value,
-            unit_override,
-            note,
-            catalogo_attivita:activity_id (
-              id,
-              categoria,
-              descrizione,
-              activity_type,
-              unit,
-              previsto_value,
-              synonyms,
-              is_active
-            )
-          `
-          )
+          .from("catalogo_scope_effective_v2")
+          .select("activity_id,categoria,descrizione,activity_type,unit_effective,previsto_value,is_active,role_keys")
           .eq("ship_id", String(shipId))
-          .eq("commessa", safeText(commessa));
+          .eq("commessa", safeText(commessa).toUpperCase());
 
         if (onlyActive) query.eq("is_active", true);
 
@@ -147,32 +129,29 @@ export default function ActivityPickerModal({
 
         const rows = Array.isArray(data)
           ? (data as unknown as Array<{
-              catalogo_attivita?: Record<string, unknown> | null;
-              unit_override?: unknown;
+              activity_id?: unknown;
+              categoria?: unknown;
+              descrizione?: unknown;
+              activity_type?: unknown;
+              unit_effective?: unknown;
               previsto_value?: unknown;
               is_active?: unknown;
+              role_keys?: unknown;
             }>)
           : [];
         const mapped: Array<ActivityItem | null> = rows.map((r) => {
-          const a = r?.catalogo_attivita as Record<string, unknown> | null | undefined;
-          const id = a?.id as string | number | null | undefined;
+          const id = r?.activity_id as string | number | null | undefined;
           if (id === null || id === undefined || id === "") return null;
-
-          const effectiveUnit = safeText(r?.unit_override) ? safeText(r.unit_override) : safeText(a?.unit);
-          const effectivePrev =
-            r?.previsto_value !== null && r?.previsto_value !== undefined
-              ? r.previsto_value
-              : a?.previsto_value;
 
           return {
             id,
-            categoria: a?.categoria,
-            descrizione: a?.descrizione,
-            activity_type: a?.activity_type,
-            unit: effectiveUnit || "NONE",
-            previsto_value: effectivePrev,
+            categoria: r?.categoria,
+            descrizione: r?.descrizione,
+            activity_type: r?.activity_type,
+            unit: safeText(r?.unit_effective) || "NONE",
+            previsto_value: r?.previsto_value ?? null,
             is_active: !!r?.is_active,
-            synonyms: Array.isArray(a?.synonyms) ? a.synonyms : [],
+            synonyms: Array.isArray(r?.role_keys) ? (r.role_keys as unknown[]) : [],
           };
         });
         const normalized = mapped.filter((x): x is ActivityItem => isActivityItem(x));

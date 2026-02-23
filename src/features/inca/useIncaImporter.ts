@@ -30,12 +30,28 @@ function isXlsxFile(file: File | null | undefined): boolean {
 
 function normalizeEdgeError(err: unknown): Error {
   if (!err) return new Error("Errore sconosciuto.");
-  if (err instanceof Error) return err;
+  if (err instanceof Error) return new Error(prettifyImportErrorMessage(err.message));
   try {
-    return new Error(typeof err === "string" ? err : JSON.stringify(err));
+    const raw = typeof err === "string" ? err : JSON.stringify(err);
+    return new Error(prettifyImportErrorMessage(raw));
   } catch {
     return new Error("Errore sconosciuto.");
   }
+}
+
+function prettifyImportErrorMessage(message: string): string {
+  const src = String(message || "");
+  const up = src.toUpperCase();
+  if (
+    up.includes("WORKER_LIMIT") ||
+    up.includes("CPU TIME EXCEEDED") ||
+    up.includes("HTTP 546") ||
+    up.includes("INCA_FILE_TOO_LARGE_EDGE") ||
+    up.includes("INCA_DRY_RUN_TOO_MANY_ROWS")
+  ) {
+    return "Analyse trop lourde pour la limite Edge. Réduis le fichier/scope ou passe directement à Sync.";
+  }
+  return src;
 }
 
 async function buildFunctionsErrorMessage(error: any): Promise<string> {
@@ -61,7 +77,7 @@ async function buildFunctionsErrorMessage(error: any): Promise<string> {
 
   const parts = [`HTTP ${status || "?"}`, base];
   if (bodyMsg && bodyMsg !== base) parts.push(bodyMsg);
-  return parts.filter(Boolean).join(" · ");
+  return prettifyImportErrorMessage(parts.filter(Boolean).join(" · "));
 }
 
 async function invokeFunction(

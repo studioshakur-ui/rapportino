@@ -212,7 +212,7 @@ export default function AdminShell(): JSX.Element {
               <div
                 className={cn(
                   "cncs-container grid grid-cols-1 gap-4 min-h-0",
-                  config.rightDrawer || recentItems.length ? "xl:grid-cols-[minmax(0,1fr)_320px]" : ""
+                  config.rightDrawer ? "xl:grid-cols-[minmax(0,1fr)_320px]" : ""
                 )}
               >
                 <div className="min-h-0 min-w-0">
@@ -226,14 +226,16 @@ export default function AdminShell(): JSX.Element {
                       />
                     </div>
                   </div>
+
+                  {!config.rightDrawer && recentItems.length ? (
+                    <div className="mt-4">
+                      <AdminRecentPanel items={recentItems} />
+                    </div>
+                  ) : null}
                 </div>
 
                 {config.rightDrawer ? (
                   <aside className="min-h-0">{config.rightDrawer}</aside>
-                ) : recentItems.length ? (
-                  <aside className="min-h-0">
-                    <AdminRecentPanel items={recentItems} />
-                  </aside>
                 ) : null}
               </div>
             </div>

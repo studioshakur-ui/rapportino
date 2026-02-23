@@ -31,6 +31,8 @@ type DryRunErrorSample = {
 };
 
 const LEGACY_MAX_BYTES = 2 * 1024 * 1024;
+const STORAGE_DRY_RUN_MAX_BYTES = 3_500_000;
+const MAX_DRY_RUN_ROWS = 10_000;
 const MAX_ERROR_SAMPLES = 50;
 
 function json(status: number, body: unknown) {
@@ -123,6 +125,11 @@ async function readInput(req: Request, admin: any): Promise<DryInput> {
     const { data, error } = await admin.storage.from(storageBucket).download(storagePath);
     if (error || !data) throw new Error(`Storage download failed: ${error?.message || "unknown error"}`);
     const bytes = await data.arrayBuffer();
+    if (bytes.byteLength > STORAGE_DRY_RUN_MAX_BYTES) {
+      throw new Error(
+        `INCA_FILE_TOO_LARGE_EDGE: ${bytes.byteLength} bytes (max ${STORAGE_DRY_RUN_MAX_BYTES}). Reduce file size or run Sync directly.`
+      );
+    }
     const fileName = normText(body.file_name) || inferFileNameFromPath(storagePath);
 
     return {
@@ -192,7 +199,15 @@ function dryRunAnalyzeXlsx(bytes: ArrayBuffer): {
   errors: DryRunErrorSample[];
 } {
   const u8 = new Uint8Array(bytes);
-  const wb = XLSX.read(u8, { type: "array" });
+  const wb = XLSX.read(u8, {
+    type: "array",
+    dense: true,
+    cellFormula: false,
+    cellHTML: false,
+    cellStyles: false,
+    cellNF: false,
+    cellText: false,
+  });
   const sheetNames = wb.SheetNames || [];
   if (!sheetNames.length) throw new Error("XLSX: nessun foglio trovato.");
 
@@ -242,6 +257,13 @@ function dryRunAnalyzeXlsx(bytes: ArrayBuffer): {
     const k = canonKey(h);
     return k ? k : `COL_${idx + 1}`;
   });
+
+  const approxRows = Math.max(0, aoa.length - (bestIdx + 1));
+  if (approxRows > MAX_DRY_RUN_ROWS) {
+    throw new Error(
+      `INCA_DRY_RUN_TOO_MANY_ROWS: ${approxRows} rows (max ${MAX_DRY_RUN_ROWS}). Reduce file size/scope or run Sync directly.`
+    );
+  }
 
   const counts: Record<string, number> = { L: 0, R: 0, T: 0, B: 0, P: 0, E: 0, NP: 0 };
   const progressCounts: Record<string, number> = { p50: 0, p70: 0, p100: 0, pNull: 0 };
@@ -392,7 +414,7 @@ serve(
     } catch (e) {
       const msg = String((e as Error)?.message || e || "Unhandled error");
       const status =
-        msg.includes("too large") ? 413 :
+        msg.includes("INCA_FILE_TOO_LARGE_EDGE") || msg.includes("INCA_DRY_RUN_TOO_MANY_ROWS") || msg.includes("too large") ? 413 :
         msg.includes("mancanti") || msg.includes("Invalid mode") || msg.includes("Unsupported content-type") ? 400 :
         500;
       return json(status, { ok: false, error: msg });

@@ -28,6 +28,9 @@ Previous implementation could hit memory/CPU limits because it:
 - Storage-first transport for both analysis and sync.
 - `inca-import` (DRY_RUN-only):
   - rejects non-DRY modes
+  - hard limits to avoid CPU kill:
+    - storage payload max: `3_500_000` bytes
+    - rows max (approx): `10_000`
   - lightweight summary response only (small counts/samples)
   - max 50 error samples
 - `inca-sync`:
@@ -56,6 +59,17 @@ Previous implementation could hit memory/CPU limits because it:
 Expected behavior. Use storage-first call with:
 - `storage_bucket`
 - `storage_path`
+
+### Error: `INCA_FILE_TOO_LARGE_EDGE` or `INCA_DRY_RUN_TOO_MANY_ROWS`
+
+Expected behavior after hardening.
+
+- `INCA_FILE_TOO_LARGE_EDGE`: file exceeds DRY_RUN edge limit.
+- `INCA_DRY_RUN_TOO_MANY_ROWS`: workbook row volume too high for safe DRY_RUN.
+
+Action:
+- Reduce XLSX scope/size and retry `Analizza`, or
+- run `Sync` directly if business flow allows it.
 
 ### Error: `shipId mancante`
 
