@@ -219,8 +219,8 @@ export default function IncaImportModal({
             </div>
 
             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-              <Input label="COSTR" value={costr} onChange={setCostr} placeholder="es. SDC" />
-              <Input label="COMMESSA" value={commessa} onChange={setCommessa} placeholder="es. 006368" />
+              <Input label="COSTR" value={costr} onChange={setCostr} placeholder="es. COMM-001" />
+              <Input label="COMMESSA" value={commessa} onChange={setCommessa} placeholder="es. 1234" />
               <Input label="Project code" value={projectCode} onChange={setProjectCode} placeholder="opzionale" />
               <Input label="Note" value={note} onChange={setNote} placeholder="opzionale" />
             </div>

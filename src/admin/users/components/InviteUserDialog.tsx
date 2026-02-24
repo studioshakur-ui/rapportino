@@ -180,7 +180,7 @@ export default function InviteUserDialog(props: {
                 <input
                   value={defaultCostr}
                   onChange={(e) => setDefaultCostr(e.target.value)}
-                  placeholder="es. 6368"
+                  placeholder="es. COMM-001"
                   className={cn("mt-2 w-full rounded-xl px-3 py-2 text-[14px]", "theme-input")}
                 />
               </div>
@@ -189,7 +189,7 @@ export default function InviteUserDialog(props: {
                 <input
                   value={defaultCommessa}
                   onChange={(e) => setDefaultCommessa(e.target.value)}
-                  placeholder="es. SDC"
+                  placeholder="es. COMM-001"
                   className={cn("mt-2 w-full rounded-xl px-3 py-2 text-[14px]", "theme-input")}
                 />
               </div>

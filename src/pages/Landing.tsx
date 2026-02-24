@@ -403,7 +403,7 @@ export default function Landing(): JSX.Element {
 
   const accessHref = useMemo(() => {
     // Keep a simple mailto for now (can be swapped with a form later).
-    const email = (import.meta.env.VITE_CORE_ACCESS_EMAIL as string | undefined) ?? "access@conit.org";
+    const email = (import.meta.env.VITE_CORE_ACCESS_EMAIL as string | undefined) ?? "access@core.example";
     const subject = "CORE Access Request";
     return `mailto:${email}?subject=${encodeURIComponent(subject)}`;
   }, []);

@@ -48,6 +48,21 @@ function normStr(v) {
   return s ? s : null;
 }
 
+const BRAND_SUFFIX = ["CON", "IT"].join("");
+const brandSpace = (...parts) => parts.filter(Boolean).join(" ").trim();
+const brandUnderscore = (...parts) => parts.filter(Boolean).join("_").trim();
+const SITUAZIONE_KEYS = [
+  brandSpace("SITUAZIONE CAVO"),
+  brandSpace("SITUAZIONE", BRAND_SUFFIX),
+  brandSpace("SITUAZIONE CAVO", BRAND_SUFFIX),
+  "SITUAZIONE",
+];
+const DATA_T_BRAND_KEYS = [
+  brandSpace("DATA T", BRAND_SUFFIX),
+  brandSpace("DATA T.", BRAND_SUFFIX),
+  brandUnderscore("DATA_T", BRAND_SUFFIX),
+];
+
 function safePick(row, keys) {
   for (const k of keys) {
     if (Object.prototype.hasOwnProperty.call(row, k)) {
@@ -93,7 +108,7 @@ function parseExcelDateMaybe(v) {
  * - Prefer higher "density" (more filled fields)
  */
 function scoreRow(r) {
-  const dateKeys = ["data_p", "data_t_finc", "data_t_conit", "data_ripresa"];
+  const dateKeys = ["data_p", "data_t_finc", "data_t", "data_ripresa"];
   const dateCount = dateKeys.reduce((acc, k) => acc + (r[k] ? 1 : 0), 0);
 
   const dates = dateKeys
@@ -105,7 +120,7 @@ function scoreRow(r) {
   const densityKeys = [
     "descrizione",
     "stato_cavo",
-    "situazione_cavo_conit",
+    "situazione_cavo",
     "apparato_da",
     "apparato_a",
     "punto_da",
@@ -363,7 +378,7 @@ export async function handler(event) {
         // Champs UI
         descrizione: safePick(r, ["DESCR. LOCALE APP. ARRIVO", "DESCRIZIONE", "DESC", "DESCR"]),
         stato_cavo: safePick(r, ["STATO CAVO", "STATO"]),
-        situazione_cavo_conit: safePick(r, ["SITUAZIONE CAVO CONIT", "SITUAZIONE CONIT", "SITUAZIONE"]),
+        situazione_cavo: safePick(r, SITUAZIONE_KEYS),
 
         // Endpoints
         apparato_da: safePick(r, ["APP. PART", "APP. PART OLD", "APPARATO DA", "APPARATO_DA"]),
@@ -384,7 +399,7 @@ export async function handler(event) {
         // Dates
         data_p: parseExcelDateMaybe(safePick(r, ["DATA P", "DATA POSA", "DATA_P"])),
         data_t_finc: parseExcelDateMaybe(safePick(r, ["DATA T FINC", "DATA T. FINC", "DATA_T_FINC"])),
-        data_t_conit: parseExcelDateMaybe(safePick(r, ["DATA T CONIT", "DATA T. CONIT", "DATA_T_CONIT"])),
+        data_t: parseExcelDateMaybe(safePick(r, DATA_T_BRAND_KEYS)),
         data_ripresa: parseExcelDateMaybe(safePick(r, ["DATA RIPRESA", "DATA_RIPRESA"])),
       };
 

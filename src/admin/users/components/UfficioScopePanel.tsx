@@ -245,7 +245,7 @@ export default function UfficioScopePanel(props: {
             disabled={busy || loading}
           >
             <option value="">COSTR…</option>
-            {(cantieriOptions.length ? cantieriOptions : ["SDC"]).map((c) => (
+            {(cantieriOptions.length ? cantieriOptions : ["COMM-001"]).map((c) => (
               <option key={c} value={c}>
                 {String(c).toUpperCase()}
               </option>

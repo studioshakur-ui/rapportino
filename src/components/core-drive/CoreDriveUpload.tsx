@@ -128,7 +128,7 @@ export default function CoreDriveUpload({
                   <input
                     value={cantiere}
                     onChange={(e) => setCantiere(e.target.value)}
-                    placeholder="es. 6368"
+                    placeholder="es. 1234"
                     className="h-9 w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 text-sm text-slate-100 outline-none focus:ring-2 focus:ring-slate-500/40"
                   />
                 </div>

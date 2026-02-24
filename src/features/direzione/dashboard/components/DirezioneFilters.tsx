@@ -44,7 +44,7 @@ export default function DirezioneFilters({ filters, onChange, onReset, labels }:
             type="text"
             value={filters.costr}
             onChange={(e) => onChange({ costr: e.target.value })}
-            placeholder="es. 6368"
+            placeholder="es. 1234"
             className="theme-input flex-1 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20"
           />
         </div>
@@ -55,7 +55,7 @@ export default function DirezioneFilters({ filters, onChange, onReset, labels }:
             type="text"
             value={filters.commessa}
             onChange={(e) => onChange({ commessa: e.target.value })}
-            placeholder="es. SDC"
+            placeholder="es. COMM-001"
             className="theme-input flex-1 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20"
           />
         </div>

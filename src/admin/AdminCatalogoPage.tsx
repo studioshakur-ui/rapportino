@@ -434,7 +434,7 @@ export default function AdminCatalogoPage(): JSX.Element {
             <input
               value={commessa}
               onChange={(e) => setCommessa(e.target.value)}
-              placeholder="Es: SDC"
+              placeholder="Es: COMM-001"
               className={cn(
                 "w-full rounded-2xl border theme-border bg-[var(--panel2)]",
                 "px-3 py-3 text-[13px] theme-text",
@@ -442,7 +442,7 @@ export default function AdminCatalogoPage(): JSX.Element {
               )}
             />
             <div className="mt-2 text-[11px] theme-text-muted">
-              Commessa è un contesto operativo del rapportino (es: SDC). Non dipende dal campo ships.commessa.
+              Commessa è un contesto operativo del rapportino (es: COMM-001). Non dipende dal campo ships.commessa.
             </div>
           </div>
 

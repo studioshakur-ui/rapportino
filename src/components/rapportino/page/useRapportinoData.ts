@@ -30,6 +30,19 @@ type CanonItem = {
   tempo_hours?: unknown;
   line_index?: unknown;
 };
+type RapportinoHeader = {
+  id?: string | null;
+  crew_role?: string | null;
+  updated_at?: string | null;
+  created_by?: string | null;
+  acting_for_capo_id?: string | null;
+  capo_id?: string | null;
+  capo_name?: string | null;
+  report_date?: string | null;
+  costr?: string | null;
+  commessa?: string | null;
+  status?: string | null;
+};
 
 function safeStr(v: unknown): string {
   return String(v ?? "").trim();
@@ -73,7 +86,7 @@ export function useRapportinoData({
   profileId,
   crewRole,
   reportDate,
-  rapportinoId,
+  rapportinoId: initialRapportinoId,
 }: {
   profileId: unknown;
   crewRole: unknown;
@@ -131,7 +144,7 @@ export function useRapportinoData({
       setError("");
       setErrorDetails("");
 
-      if (!profileId || (!reportDate && !rapportinoId)) {
+      if (!profileId || (!reportDate && !initialRapportinoId && !rapportinoId)) {
         setInitialLoading(false);
         setLoading(false);
 
@@ -157,7 +170,7 @@ export function useRapportinoData({
 
       try {
         // 1) Find rapportino header (by ID if provided, else by capo+crew_role+report_date)
-        const targetId = safeStr(rapportinoId);
+        const targetId = safeStr(initialRapportinoId || rapportinoId);
         const baseSelect = [
           "id",
           "crew_role",
@@ -193,7 +206,9 @@ export function useRapportinoData({
         if (rErr) throw rErr;
 
         // No rapportino yet => init empty UI state
-        if (!rData?.id) {
+        const header = (rData as unknown) as RapportinoHeader | null;
+
+        if (!header?.id) {
           if (targetId) {
             setShowError(true);
             setError("Rapportino non trovato.");
@@ -221,7 +236,7 @@ export function useRapportinoData({
           return;
         }
 
-        const rid = String(rData.id);
+          const rid = String(header.id);
 
         // 2) Load rows
         const rowsQuery = supabase
@@ -346,19 +361,20 @@ export function useRapportinoData({
 
         // 7) Commit state
         setRapportinoId(rid);
-        setRapportinoCrewRole((rData.crew_role || crewRole) as string | null);
-        setRapportinoUpdatedAt(rData.updated_at || null);
-        setRapportinoMeta({
-          createdBy: safeStr(rData.created_by) || null,
-          actingForCapoId: safeStr(rData.acting_for_capo_id) || null,
-          capoId: safeStr(rData.capo_id) || null,
-          capoName: safeStr(rData.capo_name) || null,
-          reportDate: safeStr(rData.report_date) || null,
-        });
 
-        setCostr(rData.costr || "");
-        setCommessa(rData.commessa || "");
-        setStatus(normalizeStatus(rData.status));
+          setRapportinoCrewRole((header.crew_role || crewRole) as string | null);
+          setRapportinoUpdatedAt(header.updated_at || null);
+          setRapportinoMeta({
+            createdBy: safeStr(header.created_by) || null,
+            actingForCapoId: safeStr(header.acting_for_capo_id) || null,
+            capoId: safeStr(header.capo_id) || null,
+            capoName: safeStr(header.capo_name) || null,
+            reportDate: safeStr(header.report_date) || null,
+          });
+
+          setCostr(header.costr || "");
+          setCommessa(header.commessa || "");
+          setStatus(normalizeStatus(header.status));
         setRows(hydrated);
 
         setInitialLoading(false);
@@ -380,7 +396,7 @@ export function useRapportinoData({
 
     run();
     return () => ac.abort();
-  }, [profileId, crewRole, reportDate, rapportinoId]);
+  }, [profileId, crewRole, reportDate, initialRapportinoId, rapportinoId]);
 
   return {
     rapportinoId,

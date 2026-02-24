@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 /**
  * Parser XLSX INCA robuste.
  *
- * IMPORTANT (ton Excel 6368 SDC) :
+ * IMPORTANT (ton Excel INCA standard) :
  * - "MARCA CAVO" est l'identifiant réellement unique par câble (ex: 1-1 N AH163)
  * - "CODICE CAVO" peut être très court (ex: NB) et NON unique
  * - "STATO CANTIERE" contient souvent P/B/T/R... même si "SITUAZIONE CAVO" est vide

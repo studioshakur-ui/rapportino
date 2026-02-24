@@ -4983,15 +4983,15 @@ COMMENT ON TABLE "public"."inca_files" IS 'Fichiers INCA importés (PDF/Excel/ph
 
 
 
-COMMENT ON COLUMN "public"."inca_files"."costr" IS 'Costruttore / nave (ex: 6368).';
+COMMENT ON COLUMN "public"."inca_files"."costr" IS 'Costruttore / nave (ex: 1234).';
 
 
 
-COMMENT ON COLUMN "public"."inca_files"."commessa" IS 'Commessa (ex: SDC).';
+COMMENT ON COLUMN "public"."inca_files"."commessa" IS 'Commessa (ex: COMM-001).';
 
 
 
-COMMENT ON COLUMN "public"."inca_files"."file_name" IS 'Nom du fichier original (ex: 6368_20251124_INSTRADAMENTO_SDC.pdf)';
+COMMENT ON COLUMN "public"."inca_files"."file_name" IS 'Nom du fichier original (ex: rapportino_20251124.pdf)';
 
 
 

@@ -422,7 +422,7 @@ export default function AdminCatalogoAttivitaPage() {
             <input
               value={commessa}
               onChange={(e) => setCommessa(e.target.value)}
-              placeholder="Es: SDC / 12345"
+              placeholder="Es: COMM-001 / 12345"
               className="w-full rounded-2xl border theme-border bg-[var(--panel2)] px-3 py-3 text-[13px] theme-text  outline-none focus:ring-2 focus:ring-[color:var(--accent)]"
             />
           </Field>
