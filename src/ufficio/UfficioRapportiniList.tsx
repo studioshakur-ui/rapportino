@@ -85,6 +85,15 @@ function resolveCapoLabel(args: {
   return "—";
 }
 
+function buildDelegatedEditUrl(args: { id: string; capoId: string; costr: string; capoLabel?: string | null }): string {
+  const params = new URLSearchParams();
+  params.set("actingAsCapoId", String(args.capoId || "").trim());
+  params.set("actingCostr", String(args.costr || "").trim().toUpperCase());
+  if (args.capoLabel) params.set("actingCapoName", String(args.capoLabel).trim());
+  const qs = params.toString();
+  return `/ufficio/delega/rapportino/${encodeURIComponent(String(args.id))}${qs ? `?${qs}` : ""}`;
+}
+
 /**
  * KPI rule (naval-grade):
  * - For ELETTRICISTA, KPI production excludes informational lines.
@@ -653,7 +662,15 @@ export default function UfficioRapportiniList(): JSX.Element {
       const res = await supabase.from("rapportini").insert(insertPayload).select("id").single();
       if (res.error) throw res.error;
       const id = res.data?.id;
-      if (id) navigate(`/ufficio/rapportini/${id}`);
+      if (id)
+        navigate(
+          buildDelegatedEditUrl({
+            id,
+            capoId,
+            costr,
+            capoLabel,
+          })
+        );
     } catch (e: any) {
       console.error("[UFFICIO LIST] create delegated draft error:", e);
       setError("Creazione bozza fallita. Verifica scope/RLS e campi obbligatori.");
@@ -937,6 +954,17 @@ export default function UfficioRapportiniList(): JSX.Element {
               const moreCount = Math.max(0, descrCount - top.length);
               const rowTone = superseded ? "opacity-50" : isArchived ? "opacity-70" : "hover:bg-[var(--panel2)]";
 
+              const delegatedEditUrl = delegated
+                ? buildDelegatedEditUrl({
+                    id: String(r.id),
+                    capoId: String(r?.capo_id || ""),
+                    costr: String(r?.costr || "").trim().toUpperCase(),
+                    capoLabel: capoResolved,
+                  })
+                : null;
+
+              const openUrl = mode === "DELEGA" && delegated && delegatedEditUrl ? delegatedEditUrl : `/ufficio/rapportini/${r.id}`;
+
               return (
                 <tr
                   key={r.id}
@@ -1013,7 +1041,7 @@ export default function UfficioRapportiniList(): JSX.Element {
 
                   <td className="px-3 py-3 whitespace-nowrap text-right">
                     <Link
-                      to={`/ufficio/rapportini/${r.id}`}
+                      to={openUrl}
                       className="text-xs text-[color:var(--accent-ink)] hover:text-[color:var(--accent)] hover:underline"
                     >
                       Apri

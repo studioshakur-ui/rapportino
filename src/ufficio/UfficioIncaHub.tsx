@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState  } from "react";
 import { Link } from "react-router-dom";
+import * as XLSX from "xlsx";
 import { supabase } from "../lib/supabaseClient";
 
 import LoadingScreen from "../components/LoadingScreen";
@@ -123,6 +124,8 @@ export default function UfficioIncaHub(): JSX.Element {
   const [loadingFiles, setLoadingFiles] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState<boolean>(false);
 
   // Map any uploaded inca_file_id -> HEAD id (stable dataset id)
   const uploadToHeadIdRef = useRef<Record<string, string>>({});
@@ -249,6 +252,119 @@ export default function UfficioIncaHub(): JSX.Element {
   const headerCostr = (selectedFile?.costr || "").trim();
   const headerCommessa = (selectedFile?.commessa || "").trim();
 
+  const handleExportInca = useCallback(async (): Promise<void> => {
+    if (!selectedFileId || exporting) return;
+    setExporting(true);
+    setExportError(null);
+
+    const exportColumns = [
+      "id",
+      "inca_file_id",
+      "codice",
+      "marca_cavo",
+      "tipo",
+      "sezione",
+      "livello_disturbo",
+      "impianto",
+      "situazione",
+      "progress_percent",
+      "stato_cantiere",
+      "stato_tec",
+      "zona_da",
+      "zona_a",
+      "apparato_da",
+      "apparato_a",
+      "descrizione_da",
+      "descrizione_a",
+      "metri_teo",
+      "metri_dis",
+      "metri_totali",
+      "livello",
+      "wbs",
+      "pagina_pdf",
+      "inca_data_taglio",
+      "inca_data_posa",
+      "inca_data_collegamento",
+      "inca_data_richiesta_taglio",
+      "inca_dataela_ts",
+      "inca_data_instradamento_ts",
+      "inca_data_creazione_instradamento_ts",
+      "raw",
+      "data_posa",
+      "capo_label",
+    ];
+
+    const normalizeCell = (value: unknown) => {
+      if (value == null) return "";
+      return typeof value === "object" ? JSON.stringify(value) : String(value);
+    };
+
+    const downloadXlsx = (rows: unknown[][], filename: string) => {
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "INCA");
+      const buffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.setAttribute("download", filename);
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    };
+
+    try {
+      const pageSize = 1000;
+      const maxPages = 200;
+      const allRows: Array<Record<string, unknown>> = [];
+
+      for (let page = 0; page < maxPages; page += 1) {
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+
+        const { data, error: e } = await supabase
+          .from("inca_cavi_with_last_posa_and_capo_v2")
+          .select(exportColumns.join(","))
+          .eq("inca_file_id", selectedFileId)
+          .order("codice", { ascending: true })
+          .range(from, to);
+
+        if (e) throw e;
+        const chunk: Array<Record<string, unknown>> = Array.isArray(data)
+          ? ((data as unknown) as Array<Record<string, unknown>>)
+          : [];
+        allRows.push(...chunk);
+
+        if (chunk.length === 0) break;
+        if (chunk.length < pageSize) break;
+      }
+
+      if (!allRows.length) {
+        setExportError("Nessun dato INCA da esportare per il dataset selezionato.");
+        return;
+      }
+
+      const rows = [
+        exportColumns,
+        ...allRows.map((row) => exportColumns.map((col) => normalizeCell(row[col]))),
+      ];
+
+      const stamp = new Date().toISOString().slice(0, 10);
+      const safeCostr = headerCostr ? headerCostr.replace(/[^a-z0-9]+/gi, "_") : "costr";
+      const safeCommessa = headerCommessa ? headerCommessa.replace(/[^a-z0-9]+/gi, "_") : "commessa";
+      const filename = `inca_export_${safeCostr}_${safeCommessa}_${stamp}.xlsx`;
+      downloadXlsx(rows, filename);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("[UfficioIncaHub] export error:", err);
+      setExportError("Errore durante l'esportazione INCA. Riprova.");
+    } finally {
+      setExporting(false);
+    }
+  }, [selectedFileId, exporting, headerCostr, headerCommessa]);
+
   if (loadingFiles) {
     return <LoadingScreen message="Caricamento modulo INCA…" />;
   }
@@ -280,6 +396,21 @@ export default function UfficioIncaHub(): JSX.Element {
 
           <button
             type="button"
+            onClick={handleExportInca}
+            disabled={!selectedFileId || exporting}
+            className={[
+              "inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-[13px] font-semibold transition",
+              selectedFileId && !exporting
+                ? "border-emerald-500/70 bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/20"
+                : "border-slate-800 bg-slate-950/40 text-slate-500 cursor-not-allowed",
+            ].join(" ")}
+            title={selectedFileId ? "Esporta dataset INCA (CSV)" : "Seleziona un file INCA"}
+          >
+            {exporting ? "Esportazione…" : "Esporta INCA"}
+          </button>
+
+          <button
+            type="button"
             onClick={() => setCockpitOpen(true)}
             disabled={!selectedFileId}
             className={[
@@ -299,6 +430,11 @@ export default function UfficioIncaHub(): JSX.Element {
       {error && (
         <div className="mb-3 rounded-xl border border-amber-700 bg-amber-900/30 px-3 py-2 text-[12px] text-amber-200">
           {error}
+        </div>
+      )}
+      {exportError && (
+        <div className="mb-3 rounded-xl border border-amber-700 bg-amber-900/30 px-3 py-2 text-[12px] text-amber-200">
+          {exportError}
         </div>
       )}
 

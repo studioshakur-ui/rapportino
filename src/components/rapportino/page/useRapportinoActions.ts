@@ -342,7 +342,9 @@ export function toggleOperatorInRow(
  * - rapportino_row_operators: has rapportino_row_id (uuid) + operator_id (uuid)
  */
 export async function saveRapportino({
-  profileId,
+  actorId,
+  effectiveCapoId,
+  actingForCapoId,
   crewRole,
   reportDate,
   status,
@@ -358,7 +360,9 @@ export async function saveRapportino({
   loadReturnedInbox,
   setSuccessMessage,
 }: {
-  profileId: unknown;
+  actorId: unknown;
+  effectiveCapoId: unknown;
+  actingForCapoId?: unknown;
   crewRole: unknown;
   reportDate: unknown;
   status?: unknown;
@@ -374,7 +378,8 @@ export async function saveRapportino({
   loadReturnedInbox?: () => Promise<unknown> | void;
   setSuccessMessage?: (message: string) => void;
 }): Promise<{ rapportinoId: string | null; status: string }> {
-  if (!profileId) throw new Error("Missing profileId");
+  if (!actorId) throw new Error("Missing actorId");
+  if (!effectiveCapoId) throw new Error("Missing effectiveCapoId");
   if (!crewRole) throw new Error("Missing crewRole");
   if (!reportDate) throw new Error("Missing reportDate");
 
@@ -384,7 +389,7 @@ export async function saveRapportino({
   let rid = rapportinoId ? String(rapportinoId) : null;
 
   const headerPayload = {
-    capo_id: profileId,
+    capo_id: effectiveCapoId,
     crew_role: crewRole,
     // IMPORTANT: DB has BOTH `data` and `report_date` -> `data` is NOT NULL
     data: reportDate,
@@ -393,9 +398,9 @@ export async function saveRapportino({
     commessa: safeStr(commessa),
     status: nextStatus,
     prodotto_totale: safeNumOrNull(prodottoTotale) ?? 0,
-    created_by: profileId,
-    acting_for_capo_id: null,
-    last_edited_by: profileId,
+    created_by: actorId,
+    acting_for_capo_id: actingForCapoId ?? null,
+    last_edited_by: actorId,
   };
 
   if (!rid) {
@@ -419,7 +424,7 @@ export async function saveRapportino({
         commessa: safeStr(commessa),
         status: nextStatus,
         prodotto_totale: safeNumOrNull(prodottoTotale) ?? 0,
-        last_edited_by: profileId,
+        last_edited_by: actorId,
       })
       .eq("id", rid)
       .select("id, crew_role, status")

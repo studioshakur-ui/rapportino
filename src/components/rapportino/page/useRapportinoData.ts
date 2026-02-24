@@ -73,14 +73,29 @@ export function useRapportinoData({
   profileId,
   crewRole,
   reportDate,
+  rapportinoId,
 }: {
   profileId: unknown;
   crewRole: unknown;
   reportDate: unknown;
+  rapportinoId?: unknown;
 }) {
   const [rapportinoId, setRapportinoId] = useState<string | null>(null);
   const [rapportinoCrewRole, setRapportinoCrewRole] = useState<string | null>(null);
   const [rapportinoUpdatedAt, setRapportinoUpdatedAt] = useState<string | null>(null);
+  const [rapportinoMeta, setRapportinoMeta] = useState<{
+    createdBy: string | null;
+    actingForCapoId: string | null;
+    capoId: string | null;
+    capoName: string | null;
+    reportDate: string | null;
+  }>({
+    createdBy: null,
+    actingForCapoId: null,
+    capoId: null,
+    capoName: null,
+    reportDate: null,
+  });
 
   const [costr, setCostr] = useState("");
   const [commessa, setCommessa] = useState("");
@@ -116,13 +131,20 @@ export function useRapportinoData({
       setError("");
       setErrorDetails("");
 
-      if (!profileId || !reportDate) {
+      if (!profileId || (!reportDate && !rapportinoId)) {
         setInitialLoading(false);
         setLoading(false);
 
         setRapportinoId(null);
         setRapportinoCrewRole(null);
         setRapportinoUpdatedAt(null);
+        setRapportinoMeta({
+          createdBy: null,
+          actingForCapoId: null,
+          capoId: null,
+          capoName: null,
+          reportDate: null,
+        });
 
         setCostr("");
         setCommessa("");
@@ -134,16 +156,36 @@ export function useRapportinoData({
       setLoading(true);
 
       try {
-        // 1) Find rapportino header (CAPO + crew_role + report_date)
-        const headerQuery = supabase
-          .from("rapportini")
-          .select("id, crew_role, report_date, data, costr, commessa, status, prodotto_totale, created_at, updated_at")
-          .eq("capo_id", profileId)
-          .eq("crew_role", crewRole)
-          .eq("report_date", reportDate)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        // 1) Find rapportino header (by ID if provided, else by capo+crew_role+report_date)
+        const targetId = safeStr(rapportinoId);
+        const baseSelect = [
+          "id",
+          "crew_role",
+          "report_date",
+          "data",
+          "costr",
+          "commessa",
+          "status",
+          "prodotto_totale",
+          "created_at",
+          "updated_at",
+          "created_by",
+          "acting_for_capo_id",
+          "capo_id",
+          "capo_name",
+        ].join(",");
+
+        const headerQuery = targetId
+          ? supabase.from("rapportini").select(baseSelect).eq("id", targetId).maybeSingle()
+          : supabase
+              .from("rapportini")
+              .select(baseSelect)
+              .eq("capo_id", profileId)
+              .eq("crew_role", crewRole)
+              .eq("report_date", reportDate)
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
         const { data: rData, error: rErr } = await (
           headerQuery as unknown as { abortSignal: (signal: AbortSignal) => typeof headerQuery }
         ).abortSignal(ac.signal);
@@ -152,9 +194,24 @@ export function useRapportinoData({
 
         // No rapportino yet => init empty UI state
         if (!rData?.id) {
+          if (targetId) {
+            setShowError(true);
+            setError("Rapportino non trovato.");
+            setErrorDetails("ID non valido o accesso non consentito.");
+            setInitialLoading(false);
+            return;
+          }
+
           setRapportinoId(null);
-        setRapportinoCrewRole(crewRole as string | null);
+          setRapportinoCrewRole(crewRole as string | null);
           setRapportinoUpdatedAt(null);
+          setRapportinoMeta({
+            createdBy: null,
+            actingForCapoId: null,
+            capoId: null,
+            capoName: null,
+            reportDate: null,
+          });
 
           setCostr("");
           setCommessa("");
@@ -291,6 +348,13 @@ export function useRapportinoData({
         setRapportinoId(rid);
         setRapportinoCrewRole((rData.crew_role || crewRole) as string | null);
         setRapportinoUpdatedAt(rData.updated_at || null);
+        setRapportinoMeta({
+          createdBy: safeStr(rData.created_by) || null,
+          actingForCapoId: safeStr(rData.acting_for_capo_id) || null,
+          capoId: safeStr(rData.capo_id) || null,
+          capoName: safeStr(rData.capo_name) || null,
+          reportDate: safeStr(rData.report_date) || null,
+        });
 
         setCostr(rData.costr || "");
         setCommessa(rData.commessa || "");
@@ -316,7 +380,7 @@ export function useRapportinoData({
 
     run();
     return () => ac.abort();
-  }, [profileId, crewRole, reportDate]);
+  }, [profileId, crewRole, reportDate, rapportinoId]);
 
   return {
     rapportinoId,
@@ -325,6 +389,7 @@ export function useRapportinoData({
     setRapportinoCrewRole,
     rapportinoUpdatedAt,
     setRapportinoUpdatedAt,
+    rapportinoMeta,
 
     costr,
     setCostr,

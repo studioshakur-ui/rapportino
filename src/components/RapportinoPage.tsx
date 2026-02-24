@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useOutletContext, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { formatDisplayName } from "../utils/formatHuman";
+import { supabase } from "../lib/supabaseClient";
 
 import LoadingScreen from "./LoadingScreen";
 import RapportinoHeader from "./rapportino/RapportinoHeader";
@@ -310,11 +311,27 @@ function openPdfUrl(url: string, preOpened: Window | null) {
 }
 
 export default function RapportinoPage() {
-  const { shipId } = useParams();
+  const { shipId, rapportinoId: rapportinoIdParam } = useParams();
   const { profile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   useOutletContext() || {};
+
+  const actingContext = useMemo(() => {
+    const sp = new URLSearchParams(String(location.search || ""));
+    const actingAsCapoId = String(sp.get("actingAsCapoId") || "").trim();
+    const actingCostr = String(sp.get("actingCostr") || "").trim().toUpperCase();
+    const actingCapoName = String(sp.get("actingCapoName") || "").trim();
+    return {
+      actingAsCapoId,
+      actingCostr,
+      actingCapoName,
+    };
+  }, [location.search]);
+
+  const isDelegatedUfficio = profile?.app_role === "UFFICIO" && !!actingContext.actingAsCapoId;
+  const effectiveCapoId = isDelegatedUfficio ? actingContext.actingAsCapoId : profile?.id;
+  const actingForCapoId = isDelegatedUfficio ? actingContext.actingAsCapoId : null;
 
   const [crewRole, setCrewRole] = useState(() => readRoleFromLocalStorage());
   const normalizedCrewRole = normalizeCrewRole(crewRole);
@@ -350,7 +367,12 @@ export default function RapportinoPage() {
     );
   };
 
-  const capoName = useMemo(() => formatDisplayName(profile, "Capo Squadra"), [profile]);
+  const capoName = useMemo(() => {
+    if (isDelegatedUfficio) {
+      return actingContext.actingCapoName || "CAPO";
+    }
+    return formatDisplayName(profile, "Capo Squadra");
+  }, [actingContext.actingCapoName, isDelegatedUfficio, profile]);
 
   const {
     rapportinoId,
@@ -370,14 +392,23 @@ export default function RapportinoPage() {
     errorDetails,
     showError,
     effectiveCrewRoleForInca,
+    rapportinoMeta,
   } = useRapportinoData({
-    profileId: profile?.id,
+    profileId: effectiveCapoId,
     crewRole: normalizedCrewRole,
     reportDate,
+    rapportinoId: rapportinoIdParam,
   });
 
-  const canEdit = status === "DRAFT" || status === "RETURNED";
+  const isDelegatedRapportino =
+    !!rapportinoMeta?.actingForCapoId &&
+    rapportinoMeta?.actingForCapoId === rapportinoMeta?.capoId &&
+    rapportinoMeta?.createdBy === profile?.id;
+
+  const canEdit = isDelegatedUfficio ? status === "DRAFT" && isDelegatedRapportino : status === "DRAFT" || status === "RETURNED";
   const canEditInca = !!rapportinoId && canEdit;
+  const canDelegatedApprove =
+    isDelegatedUfficio && isDelegatedRapportino && status === "DRAFT" && !!rapportinoId && !saving;
 
   const showIncaBlock = effectiveCrewRoleForInca === "ELETTRICISTA";
   const [incaOpen, setIncaOpen] = useState(false);
@@ -411,7 +442,7 @@ export default function RapportinoPage() {
   // Read-only: indice di produttività (per operatore, per attività) via KPI views.
   // Aucun recalcul local: la DB est la source de vérité.
   const productivityIndexMap = useProductivityIndexMap({
-    profileId: profile?.id,
+    profileId: effectiveCapoId ? String(effectiveCapoId) : undefined,
     reportDate,
     costr,
     commessa,
@@ -422,7 +453,7 @@ export default function RapportinoPage() {
   const statusLabel = STATUS_LABELS[status] || status;
 
   const { returnedCount, latestReturned, returnedLoading, loadReturnedInbox } = useReturnedInbox({
-    profileId: profile?.id,
+    profileId: isDelegatedUfficio ? null : effectiveCapoId,
     crewRole: normalizedCrewRole,
   });
 
@@ -604,7 +635,9 @@ export default function RapportinoPage() {
 
     try {
       await saveRapportino({
-        profileId: profile.id,
+        actorId: profile.id,
+        effectiveCapoId,
+        actingForCapoId,
         crewRole: normalizedCrewRole,
         reportDate,
         status,
@@ -643,6 +676,47 @@ export default function RapportinoPage() {
 
   const handleValidate = async () => {
     await handleSave("VALIDATED_CAPO");
+  };
+
+  const handleDelegatedApprove = async () => {
+    if (!canDelegatedApprove) return;
+
+    setUiError(null);
+    setUiErrorDetails(null);
+    setShowUiErrorDetails(false);
+
+    try {
+      const okId = await handleSave(status);
+      if (!okId) return;
+
+      const { error: rpcErr } = await supabase.rpc("ufficio_delegated_approve_rapportino", {
+        p_rapportino_id: okId,
+      });
+
+      if (rpcErr) {
+        console.error("[Rapportino] delegated approve error:", rpcErr);
+        setUiError("Errore durante l'approvazione delegata.");
+        setUiErrorDetails(rpcErr.message || String(rpcErr));
+        pushToast({
+          type: "error",
+          message: "Errore durante l'approvazione delegata.",
+          detail: rpcErr.message || String(rpcErr),
+        });
+        return;
+      }
+
+      setStatus("APPROVED_UFFICIO");
+      pushToast({ type: "success", message: "Documento approvato (DELEGA UFFICIO)." });
+    } catch (err) {
+      console.error("[Rapportino] delegated approve exception:", err);
+      setUiError("Errore durante l'approvazione delegata.");
+      setUiErrorDetails(err?.message || String(err));
+      pushToast({
+        type: "error",
+        message: "Errore durante l'approvazione delegata.",
+        detail: err?.message || String(err),
+      });
+    }
   };
 
   // Export PDF (Option A): Edge Function generates the PDF and returns a signed URL.
@@ -708,7 +782,7 @@ export default function RapportinoPage() {
   const autoSaveSig = useMemo(() => {
     // We autosave what the user is effectively working on (visibleRows)
     return buildAutoSaveSignature({
-      profileId: profile?.id,
+      profileId: effectiveCapoId,
       crewRole: normalizedCrewRole,
       reportDate,
       costr,
@@ -716,7 +790,7 @@ export default function RapportinoPage() {
       rows: visibleRows,
       status,
     });
-  }, [profile?.id, normalizedCrewRole, reportDate, costr, commessa, visibleRows, status]);
+  }, [effectiveCapoId, normalizedCrewRole, reportDate, costr, commessa, visibleRows, status]);
 
   useEffect(() => {
     if (!autoSaveEnabled) return;
@@ -774,6 +848,22 @@ export default function RapportinoPage() {
     commessa,
     visibleRows,
   ]);
+
+  useEffect(() => {
+    if (!rapportinoIdParam) return;
+    const headerDate = String(rapportinoMeta?.reportDate || "").trim();
+    if (!headerDate) return;
+    if (String(reportDate) === headerDate) return;
+    setReportDateAndUrl(headerDate);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rapportinoIdParam, rapportinoMeta?.reportDate]);
+
+  useEffect(() => {
+    if (!isDelegatedUfficio) return;
+    if (!actingContext.actingCostr) return;
+    if (String(costr || "").trim()) return;
+    setCostr(actingContext.actingCostr);
+  }, [actingContext.actingCostr, costr, isDelegatedUfficio, setCostr]);
 
   // When manual save succeeds, mark current signature as saved (avoid immediate autosave loop)
   useEffect(() => {
@@ -860,8 +950,28 @@ export default function RapportinoPage() {
       <ToastOverlay toast={toast} onClose={() => setToast(null)} />
 
       <main className="flex-1 px-2 md:px-4 py-4 md:py-6">
+        {isDelegatedUfficio && (
+          <div className="no-print w-full px-0 mb-4">
+            <div className="rounded-2xl border border-emerald-400/40 bg-gradient-to-r from-emerald-500/15 via-slate-900/60 to-slate-900/60 p-3 md:p-3.5">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-200">
+                    DELEGA UFFICIO · CAPO {capoName || "—"} · COSTR {actingContext.actingCostr || costr || "—"}
+                  </div>
+                  <div className="mt-1 text-[11px] text-slate-300">
+                    Modalità delegata: modifica bozza CAPO entro lo scope assegnato.
+                  </div>
+                </div>
+                <div className="text-[11px] text-slate-300">
+                  Stato: <span className="text-slate-100 font-semibold">{statusLabel}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Banner RETURNED */}
-        {latestReturned && returnedCount > 0 && (
+        {!isDelegatedUfficio && latestReturned && returnedCount > 0 && (
           <div className="no-print w-full px-0 mb-4">
             <div className="rounded-2xl border border-amber-400/40 bg-gradient-to-r from-amber-500/15 via-slate-900/60 to-slate-900/60 p-3 md:p-3.5">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -1002,14 +1112,25 @@ export default function RapportinoPage() {
                     {saving ? "Salvataggio…" : "Salva"}
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={handleValidate}
-                    className="px-3 py-2 rounded-xl border border-emerald-700 bg-emerald-600/90 text-white hover:bg-emerald-700"
-                    disabled={!canEdit}
-                  >
-                    Valida giornata
-                  </button>
+                  {isDelegatedUfficio ? (
+                    <button
+                      type="button"
+                      onClick={handleDelegatedApprove}
+                      className="px-3 py-2 rounded-xl border border-emerald-700 bg-emerald-600/90 text-white hover:bg-emerald-700"
+                      disabled={!canDelegatedApprove}
+                    >
+                      Approva
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleValidate}
+                      className="px-3 py-2 rounded-xl border border-emerald-700 bg-emerald-600/90 text-white hover:bg-emerald-700"
+                      disabled={!canEdit}
+                    >
+                      Valida giornata
+                    </button>
+                  )}
 
                   <button
                     type="button"

@@ -188,6 +188,9 @@ export default function AppRoutes(): JSX.Element {
         {/* Alias legacy: singulier */}
         <Route path="rapportino/:id" element={<UfficioRapportinoDetail />} />
 
+        {/* Delega CAPO editor (same component as CAPO) */}
+        <Route path="delega/rapportino/:rapportinoId" element={<RapportinoPage />} />
+
         {/* INCA (canon + alias) */}
         <Route path="inca" element={<UfficioIncaHub />} />
         <Route path="inca-hub" element={<UfficioIncaHub />} />
