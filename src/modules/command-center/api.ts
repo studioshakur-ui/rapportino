@@ -18,6 +18,19 @@ function todayRange(): { start: string; end: string; day: string } {
   return { start: start.toISOString(), end: end.toISOString(), day };
 }
 
+export function todayKey(): string {
+  return todayRange().day;
+}
+
+/** Définit l'objectif de mètres du jour (upsert sur production_daily_kpis). */
+export async function setDailyTarget(meters: number): Promise<void> {
+  const day = todayRange().day;
+  const { error } = await supabase
+    .from("production_daily_kpis")
+    .upsert({ day, meters_target: meters, computed_at: new Date().toISOString() }, { onConflict: "day" });
+  if (error) throw error;
+}
+
 export async function fetchTodayProduction(): Promise<TodayProduction> {
   const { start, end, day } = todayRange();
 

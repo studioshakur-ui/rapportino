@@ -1,18 +1,30 @@
 // src/modules/command-center/CommandCenterPage.tsx
 // Module 1 — Command Center : production aujourd'hui, câbles posés, mètres,
 // opérateurs actifs, production vs objectif, avancement global.
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { PageHeader, StatCard, Card, Empty, Badge, useSurface } from "../_ui/kit";
-import { fetchTodayProduction, fetchGlobalProgress } from "./api";
+import { fetchTodayProduction, fetchGlobalProgress, setDailyTarget } from "./api";
+import QuickAddEvent from "./QuickAddEvent";
 
 function fmt(n: number): string {
   return new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(n);
 }
 
 export default function CommandCenterPage(): JSX.Element {
-  const { subtle, isDark } = useSurface();
+  const { subtle, isDark, input, btn } = useSurface();
+  const qc = useQueryClient();
+  const [targetDraft, setTargetDraft] = useState("");
   const today = useQuery({ queryKey: ["production_kpi", "today"], queryFn: fetchTodayProduction });
   const global = useQuery({ queryKey: ["production_kpi", "global"], queryFn: fetchGlobalProgress });
+
+  const saveTarget = useMutation({
+    mutationFn: (m: number) => setDailyTarget(m),
+    onSuccess: () => {
+      setTargetDraft("");
+      void qc.invalidateQueries({ queryKey: ["production_kpi"] });
+    },
+  });
 
   const t = today.data;
   const g = global.data;
@@ -27,6 +39,11 @@ export default function CommandCenterPage(): JSX.Element {
       />
 
       {today.isError && <Empty>Erreur de chargement de la production.</Empty>}
+
+      {/* Saisie rapide */}
+      <div className="mb-4">
+        <QuickAddEvent />
+      </div>
 
       {/* Production du jour */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -59,6 +76,35 @@ export default function CommandCenterPage(): JSX.Element {
           </div>
         </Card>
       )}
+
+      {/* Réglage de l'objectif du jour */}
+      <Card className="mt-4 flex flex-wrap items-center gap-2 p-4">
+        <span className={`text-sm ${subtle}`}>
+          {t?.metersTarget != null ? "Modifier l'objectif du jour" : "Définir l'objectif du jour"} (m) :
+        </span>
+        <input
+          className={`${input} w-32`}
+          placeholder={t?.metersTarget != null ? String(t.metersTarget) : "ex: 500"}
+          inputMode="numeric"
+          value={targetDraft}
+          onChange={(e) => setTargetDraft(e.target.value)}
+          onKeyDown={(e) => {
+            const n = Number(targetDraft.replace(",", "."));
+            if (e.key === "Enter" && Number.isFinite(n) && n > 0) saveTarget.mutate(n);
+          }}
+        />
+        <button
+          type="button"
+          className={btn}
+          disabled={saveTarget.isPending}
+          onClick={() => {
+            const n = Number(targetDraft.replace(",", "."));
+            if (Number.isFinite(n) && n > 0) saveTarget.mutate(n);
+          }}
+        >
+          {saveTarget.isPending ? "…" : "Enregistrer"}
+        </button>
+      </Card>
 
       {/* Avancement global */}
       <h2 className="mb-2 mt-6 text-sm font-semibold uppercase tracking-wide">Avancement global (INCA)</h2>
