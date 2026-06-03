@@ -95,9 +95,3 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/inca-import/deno.json"
 entrypoint = "./functions/inca-import/index.ts"
-
-[functions.admin-create-user]
-enabled = true
-verify_jwt = true
-import_map = "./functions/admin-create-user/deno.json"
-entrypoint = "./functions/admin-create-user/index.ts"
