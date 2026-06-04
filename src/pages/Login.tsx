@@ -44,7 +44,7 @@ export default function Login(): JSX.Element {
     if (r === "UFFICIO") return "/ufficio";
     if (r === "DIREZIONE") return "/direzione";
     if (r === "MANAGER") return "/manager";
-    return "/app";
+    return "/command/center";
   }, [profile]);
 
   useEffect(() => {

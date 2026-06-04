@@ -67,6 +67,15 @@ import ManagerAnalyticsPage from "./pages/ManagerAnalyticsPage";
 import ArchivePage from "./pages/Archive";
 import CoreDrivePage from "./pages/CoreDrivePage";
 
+// CORE COMMAND
+import CommandShell from "./shells/CommandShell";
+import CommandCenterPage from "./features/core-command/command-center/CommandCenterPage";
+import TimelinePage from "./features/core-command/timeline/TimelinePage";
+import PrioritiesPage from "./features/core-command/priorities/PrioritiesPage";
+import WhatsAppIntakePage from "./features/core-command/intake/WhatsAppIntakePage";
+import IncaImportPage from "./features/core-command/inca/IncaImportPage";
+import CableStoryPage from "./modules/cable-story/CableStoryPage";
+
 // EVOLUZIONE
 import Evoluzione from "./data/Evoluzione";
 
@@ -275,6 +284,24 @@ export default function AppRoutes(): JSX.Element {
           </RequireAuth>
         }
       />
+
+      {/* ===== CORE COMMAND ===== */}
+      <Route
+        path="/command/*"
+        element={
+          <RequireAuth>
+            <CommandShell />
+          </RequireAuth>
+        }
+      >
+        <Route index element={<Navigate to="center" replace />} />
+        <Route path="center"     element={<CommandCenterPage />} />
+        <Route path="timeline"   element={<TimelinePage />} />
+        <Route path="priorities" element={<PrioritiesPage />} />
+        <Route path="intake"     element={<WhatsAppIntakePage />} />
+        <Route path="inca"       element={<IncaImportPage />} />
+        <Route path="cable/:code" element={<CableStoryPage />} />
+      </Route>
 
       {/* FALLBACK */}
       <Route path="*" element={<Navigate to="/" replace />} />
