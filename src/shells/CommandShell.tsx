@@ -3,7 +3,6 @@
 import { type FormEvent, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
-import IdleSessionManager from "../auth/IdleSessionManager";
 
 const NAV = [
   { to: "/command/center",     label: "Command Center" },
@@ -29,8 +28,6 @@ export default function CommandShell() {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex flex-col">
-      <IdleSessionManager />
-
       {/* Topbar */}
       <header className="sticky top-0 z-30 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 px-4 py-2">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">

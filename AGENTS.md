@@ -1,35 +1,32 @@
-# AGENTS.md
+# AGENTS.md — CORE COMMAND
 
-## Project rules (CORE / CNCS)
-- TypeScript only (.ts/.tsx). Do not edit .js/.jsx except to migrate to TS if required.
-- Minimal diff. No styling refactors unless explicitly requested.
-- Keep routing as single source of truth (src/routes.tsx). Shells must use <Outlet />.
-- Do not remove data-loading fixes (default window, stable hooks).
-- Provide full updated files in the final answer (no snippets).
-- Always run: npm run typecheck, npm run build.
+CORE COMMAND est un **cockpit chantier personnel** (mono-utilisateur : Hamidou),
+mobile-first + desktop premium. Ce n'est plus une plateforme entreprise multi-rôles.
 
-## Setup
-- Install: npm install
-- Dev: npm run dev
-- Checks: npm run typecheck, npm run build
+## Règles non négociables
+- **TypeScript only** (.ts / .tsx). Aucun nouveau .js / .jsx.
+- **Pas de rôles** (CAPO / UFFICIO / MANAGER / DIREZIONE / ADMIN). Routing plat.
+- **Règle métier absolue** : tout devient événement.
+  - Une entrée (WhatsApp, agent) ne modifie JAMAIS INCA directement.
+  - Elle crée un `core_event` `pending` → Hamidou valide → CORE met à jour l'état perso.
+  - Toute mutation d'état passe par `src/core/events/eventBus.ts`.
+- **INCA en lecture seule** côté cockpit. La persistance INCA reste à l'edge function
+  `inca-import` (DRY_RUN). Ne jamais écrire `inca_cavi` depuis le client.
+- Aucun token client (CONIT, Fincantieri, …) — voir `scripts/check-no-conit.js`.
+- Minimal diff. Pas de refactor de style non demandé.
 
-# AGENTS.md — CORE / CNCS Admin Console Rules
+## Architecture
+- `src/core/` : supabase, db/types (modèle 7 tables), events/ (moteur événementiel).
+- `src/modules/` : command-center, priorities, inca, whatsapp, timeline, agents.
+- `src/shell/` : CommandShell unique (mobile bottom-nav + desktop sidebar).
+- `src/routes.tsx` : source unique de vérité, routing plat, RequireAuth seulement.
 
-## Non-negotiables
-- TypeScript only (.ts/.tsx).
-- Minimal diff. No stylistic refactors.
-- Admin must be full-width console (NO max-width / mx-auto constraints) but ONLY for Admin routes.
-- Reuse one AdminConsoleLayout for all Admin pages:
-  Utenti, Operatori, Perimetri, Catalogo, Planning, Manager↔Capo, Audit planning, CORE Drive.
-- Keep existing functionality and routes intact.
-- Remove any temporary dev logs.
-- Always run: npm run typecheck, npm run build.
+## Modèle de données (migration 20260603000000)
+core_events · whatsapp_imports · whatsapp_messages · cable_events ·
+cable_priorities · production_daily_kpis · agent_findings.
+(RLS désactivée en dev — à durcir en single-owner avant prod.)
 
-## Output rules
-- Provide full updated files (no snippets).
-- Explain the exact root cause of centered layout (which wrapper/class).
-
-## Commands
-- npm install
-- npm run typecheck
-- npm run build
+## Setup & checks
+- Install : `npm install`
+- Dev : `npm run dev`
+- Toujours : `npm run typecheck` && `npm run build`

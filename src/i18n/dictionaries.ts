@@ -5,11 +5,6 @@
 
 import { dict as loginDict, type Lang } from "./dict";
 
-// NAVEMASTER dicts (module-specific strings)
-import { navemasterIT } from "../navemaster/i18n/navemaster.it";
-import { navemasterFR } from "../navemaster/i18n/navemaster.fr";
-import { navemasterEN } from "../navemaster/i18n/navemaster.en";
-
 // Legacy core dict (previously in coreI18n.js). Kept here to unify.
 const coreDict = {
   it: {
@@ -678,9 +673,9 @@ function mergeLang(
 }
 
 export const dictionaries: Record<Lang, Record<string, string>> = {
-  it: mergeLang(coreDict.it as unknown as Record<string, string>, loginDict.it, navemasterIT),
-  fr: mergeLang(coreDict.fr as unknown as Record<string, string>, loginDict.fr, navemasterFR),
-  en: mergeLang(coreDict.en as unknown as Record<string, string>, loginDict.en, navemasterEN),
+  it: mergeLang(coreDict.it as unknown as Record<string, string>, loginDict.it),
+  fr: mergeLang(coreDict.fr as unknown as Record<string, string>, loginDict.fr),
+  en: mergeLang(coreDict.en as unknown as Record<string, string>, loginDict.en),
 };
 
 void (dictionaries satisfies Record<Lang, Record<string, string>>);
