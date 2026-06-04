@@ -4,14 +4,14 @@ import { Routes, Route, Navigate } from "react-router-dom";
 
 import RequireAuth from "./auth/RequireAuth";
 import Login from "./pages/Login";
-import CommandShell from "./shell/CommandShell";
+import CommandShell from "./shells/CommandShell";
 
-import CommandCenterPage from "./modules/command-center/CommandCenterPage";
-import PrioritiesPage from "./modules/priorities/PrioritiesPage";
-import IncaCenterPage from "./modules/inca/IncaCenterPage";
-import WhatsAppIntakePage from "./modules/whatsapp/WhatsAppIntakePage";
-import TimelinePage from "./modules/timeline/TimelinePage";
-import AgentConsolePage from "./modules/agents/AgentConsolePage";
+import CommandCenterPage from "./features/core-command/command-center/CommandCenterPage";
+import TimelinePage from "./features/core-command/timeline/TimelinePage";
+import PrioritiesPage from "./features/core-command/priorities/PrioritiesPage";
+import WhatsAppIntakePage from "./features/core-command/intake/WhatsAppIntakePage";
+import IncaImportPage from "./features/core-command/inca/IncaImportPage";
+import CableDetailPage from "./features/core-command/cable/CableDetailPage";
 
 export default function AppRoutes(): JSX.Element {
   return (
@@ -19,22 +19,24 @@ export default function AppRoutes(): JSX.Element {
       <Route path="/login" element={<Login />} />
 
       <Route
-        path="/"
+        path="/command"
         element={
           <RequireAuth>
             <CommandShell />
           </RequireAuth>
         }
       >
-        <Route index element={<CommandCenterPage />} />
-        <Route path="priorities" element={<PrioritiesPage />} />
-        <Route path="inca" element={<IncaCenterPage />} />
-        <Route path="whatsapp" element={<WhatsAppIntakePage />} />
+        <Route index element={<Navigate to="center" replace />} />
+        <Route path="center" element={<CommandCenterPage />} />
         <Route path="timeline" element={<TimelinePage />} />
-        <Route path="agents" element={<AgentConsolePage />} />
+        <Route path="priorities" element={<PrioritiesPage />} />
+        <Route path="intake" element={<WhatsAppIntakePage />} />
+        <Route path="inca" element={<IncaImportPage />} />
+        <Route path="cable/:code" element={<CableDetailPage />} />
       </Route>
 
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="/" element={<Navigate to="/command/center" replace />} />
+      <Route path="*" element={<Navigate to="/command/center" replace />} />
     </Routes>
   );
 }

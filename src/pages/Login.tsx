@@ -28,7 +28,7 @@ function normalizeError(err: unknown): string | null {
 export default function Login(): JSX.Element {
   const navigate = useNavigate();
 
-  const { session, authReady, error: authError, signOut, status } = useAuth();
+  const { session, profile, authReady, error: authError, signOut, status } = useAuth();
   const isDark = true;
 
   const [email, setEmail] = useState<string>("");
@@ -38,8 +38,14 @@ export default function Login(): JSX.Element {
   const [localError, setLocalError] = useState<string | null>(null);
   const [bootstrapStuck, setBootstrapStuck] = useState<boolean>(false);
 
-  // CORE COMMAND : cockpit mono-utilisateur, une seule destination.
-  const roleHome = "/";
+  const roleHome = useMemo(() => {
+    const r = String(profile?.app_role || "").toUpperCase();
+    if (r === "ADMIN") return "/admin";
+    if (r === "UFFICIO") return "/ufficio";
+    if (r === "DIREZIONE") return "/direzione";
+    if (r === "MANAGER") return "/manager";
+    return "/command/center";
+  }, [profile]);
 
   useEffect(() => {
     // Safety: if bootstrap takes too long, allow user to proceed and/or reset.
@@ -50,12 +56,13 @@ export default function Login(): JSX.Element {
   }, [authReady]);
 
   useEffect(() => {
-    // If already authenticated, redirect to the cockpit (profile not required).
+    // If already authenticated and profile loaded, redirect
     if (!authReady) return;
     if (!session) return;
+    if (!profile) return;
 
     navigate(roleHome, { replace: true });
-  }, [authReady, session, roleHome, navigate]);
+  }, [authReady, session, profile, roleHome, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

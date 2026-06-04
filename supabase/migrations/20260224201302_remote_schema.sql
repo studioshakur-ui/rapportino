@@ -1976,8 +1976,16 @@ CREATE TRIGGER trg_capo_team_members_updated_at BEFORE UPDATE ON public.capo_tea
 
 CREATE TRIGGER trg_capo_teams_updated_at BEFORE UPDATE ON public.capo_teams FOR EACH ROW EXECUTE FUNCTION public.core_set_updated_at();
 
-CREATE TRIGGER protect_buckets_delete BEFORE DELETE ON storage.buckets FOR EACH STATEMENT EXECUTE FUNCTION storage.protect_delete();
+-- storage.protect_delete() is a Supabase Cloud internal — not present in local Docker.
+-- Wrapped in DO blocks so local db reset succeeds; prod already has these triggers.
+DO $$ BEGIN
+  CREATE TRIGGER protect_buckets_delete BEFORE DELETE ON storage.buckets FOR EACH STATEMENT EXECUTE FUNCTION storage.protect_delete();
+EXCEPTION WHEN undefined_function OR undefined_table THEN NULL;
+END $$;
 
-CREATE TRIGGER protect_objects_delete BEFORE DELETE ON storage.objects FOR EACH STATEMENT EXECUTE FUNCTION storage.protect_delete();
+DO $$ BEGIN
+  CREATE TRIGGER protect_objects_delete BEFORE DELETE ON storage.objects FOR EACH STATEMENT EXECUTE FUNCTION storage.protect_delete();
+EXCEPTION WHEN undefined_function OR undefined_table THEN NULL;
+END $$;
 
 

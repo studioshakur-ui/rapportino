@@ -33,6 +33,9 @@
   "include": [
     "src"
   ],
+  "exclude": [
+    "src/commander"
+  ],
   "references": [
     {
       "path": "./tsconfig.node.json"
