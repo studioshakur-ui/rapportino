@@ -8,9 +8,9 @@ function main(): void {
   const cfg = loadConfig();
   const app = createServer();
 
-  app.listen(cfg.COMMANDER_PORT, () => {
+  app.listen(cfg.port, () => {
     logger.info("COMMANDER listening", {
-      port: cfg.COMMANDER_PORT,
+      port: cfg.port,
       env: cfg.NODE_ENV,
       sink: cfg.supabaseEnabled ? "supabase" : "audit-file",
       incomingTable: cfg.COMMANDER_INCOMING_TABLE,

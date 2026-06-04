@@ -4,6 +4,8 @@ import "dotenv/config";
 import { z } from "zod";
 
 const Schema = z.object({
+  // Railway (and most PaaS) inject PORT; it takes precedence over COMMANDER_PORT.
+  PORT: z.coerce.number().int().positive().optional(),
   COMMANDER_PORT: z.coerce.number().int().positive().default(8787),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
 
@@ -24,6 +26,8 @@ const Schema = z.object({
 
 export type CommanderConfig = z.infer<typeof Schema> & {
   supabaseEnabled: boolean;
+  // Effective bind port: PORT (Railway) wins, else COMMANDER_PORT.
+  port: number;
 };
 
 let cached: CommanderConfig | null = null;
@@ -38,7 +42,8 @@ export function loadConfig(): CommanderConfig {
   }
 
   const supabaseEnabled = Boolean(parsed.data.SUPABASE_URL && parsed.data.SUPABASE_SERVICE_ROLE_KEY);
+  const port = parsed.data.PORT ?? parsed.data.COMMANDER_PORT;
 
-  cached = { ...parsed.data, supabaseEnabled };
+  cached = { ...parsed.data, supabaseEnabled, port };
   return cached;
 }

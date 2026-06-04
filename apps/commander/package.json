@@ -9,7 +9,8 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsup",
     "start": "node dist/index.cjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test src/__tests__/*.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.90.1",
