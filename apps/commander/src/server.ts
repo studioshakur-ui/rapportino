@@ -68,8 +68,14 @@ export function createServer() {
     }
 
     void Promise.allSettled(messages.map((m) => ingestMessage(m, body))).then((results) => {
-      const failed = results.filter((r) => r.status === "rejected").length;
-      if (failed > 0) logger.error("some messages failed ingestion", { failed, total: messages.length });
+      const failures = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+      if (failures.length > 0) {
+        for (const f of failures) {
+          const reason = f.reason instanceof Error ? f.reason.message + "\n" + (f.reason.stack ?? "") : String(f.reason);
+          logger.error(`ingestion rejected: ${reason}`);
+        }
+        logger.error(`some messages failed ingestion: ${failures.length}/${results.length}`);
+      }
     });
   });
 

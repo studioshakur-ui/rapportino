@@ -72,14 +72,17 @@ export async function persistIncoming(record: IncomingRecord): Promise<PersistRe
 
     if (!error) return { sink: "supabase", ok: true };
 
-    // Table missing (not migrated yet) → fall back to audit file, warn once.
-    logger.warn("CORE Memory insert failed, falling back to audit file", {
-      table: cfg.COMMANDER_INCOMING_TABLE,
-      code: (error as { code?: string }).code ?? null,
-      message: error.message,
-    });
+    // Log full error in the message string so it's visible in Railway logs.
+    const errCode = (error as { code?: string }).code ?? "?";
+    logger.warn(`CORE Memory insert failed [${errCode}]: ${error.message} — table=${cfg.COMMANDER_INCOMING_TABLE}, falling back to audit file`);
   }
 
-  await writeAudit(record);
+  try {
+    await writeAudit(record);
+  } catch (auditErr) {
+    const msg = auditErr instanceof Error ? auditErr.message : String(auditErr);
+    logger.error(`audit file write failed: ${msg} — path=${cfg.COMMANDER_AUDIT_FILE}`);
+    throw auditErr;
+  }
   return { sink: "audit", ok: true };
 }
