@@ -11,7 +11,7 @@
 # -----------------------------------------------------------------------------
 
 # ---- Build stage ------------------------------------------------------------
-FROM node:20-slim AS build
+FROM node:22-slim AS build
 WORKDIR /app/apps/commander
 
 # Install deps from lockfile (deterministic).
@@ -27,7 +27,7 @@ COPY src/features/core-command/agents/classifier.agent.ts /app/src/features/core
 RUN npm run build
 
 # ---- Runtime stage ----------------------------------------------------------
-FROM node:20-slim AS runtime
+FROM node:22-slim AS runtime
 ENV NODE_ENV=production
 WORKDIR /app/apps/commander
 
