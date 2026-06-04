@@ -18,9 +18,20 @@ function main(): void {
   });
 }
 
+process.on("uncaughtException", (err) => {
+  process.stderr.write("COMMANDER uncaughtException: " + String(err) + "\n" + (err.stack ?? "") + "\n");
+  process.exit(1);
+});
+process.on("unhandledRejection", (reason) => {
+  process.stderr.write("COMMANDER unhandledRejection: " + String(reason) + "\n");
+  process.exit(1);
+});
+
 try {
   main();
 } catch (err) {
+  const msg = err instanceof Error ? err.message + "\n" + (err.stack ?? "") : String(err);
+  process.stderr.write("COMMANDER failed to start: " + msg + "\n");
   logger.error("COMMANDER failed to start", { error: err instanceof Error ? err.message : String(err) });
   process.exit(1);
 }
