@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS public.core_operators (
   updated_at      timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TRIGGER trg_core_operators_updated_at
+CREATE OR REPLACE TRIGGER trg_core_operators_updated_at
   BEFORE UPDATE ON public.core_operators
   FOR EACH ROW EXECUTE FUNCTION public.cc_set_updated_at();
 
@@ -213,7 +213,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_prod_kpis_day_null_commessa
   ON public.production_daily_kpis (day)
   WHERE commessa IS NULL;
 
-CREATE TRIGGER trg_production_daily_kpis_updated_at
+CREATE OR REPLACE TRIGGER trg_production_daily_kpis_updated_at
   BEFORE UPDATE ON public.production_daily_kpis
   FOR EACH ROW EXECUTE FUNCTION public.cc_set_updated_at();
 
