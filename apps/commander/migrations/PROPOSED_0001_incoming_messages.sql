@@ -1,5 +1,9 @@
 -- ============================================================================
--- PROPOSED — NOT APPLIED.
+-- SUPERSEDED — APPLIED as supabase/migrations/20260604120000_commander_incoming_messages.sql
+-- (which additionally enables RLS hardened for the service_role backend).
+-- Kept for historical reference only. Do NOT run this file directly.
+--
+-- Original note (PROPOSED — NOT APPLIED):
 -- Live Meta webhook ingestion buffer for COMMANDER (passive sensor).
 --
 -- This is a PROPOSAL. Do NOT run automatically. Review, then apply via the

@@ -1,0 +1,7 @@
+# Build context is the repo root; keep it lean and never ship secrets/artifacts.
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+**/*.jsonl
+**/.git
