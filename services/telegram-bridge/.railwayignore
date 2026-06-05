@@ -1,0 +1,7 @@
+.env
+.wwebjs_auth
+.wwebjs_cache
+node_modules
+dist
+*.bat
+ecosystem.config.cjs

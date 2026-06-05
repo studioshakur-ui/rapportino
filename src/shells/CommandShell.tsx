@@ -1,95 +1,133 @@
-// src/shells/CommandShell.tsx
-// CORE COMMAND cockpit shell — single-user, mobile-first.
-import { type FormEvent, useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+// src/shells/CommandShell.tsx — V3 Silent
+import { type FormEvent, useState, useRef, useEffect } from "react";
+import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 
-const NAV = [
-  { to: "/command/center",     label: "Command Center" },
-  { to: "/command/timeline",   label: "Timeline" },
-  { to: "/command/priorities", label: "Priorités" },
-  { to: "/command/intake",     label: "WhatsApp Intake" },
-  { to: "/command/inca",       label: "INCA" },
+const MAIN_NAV = [
+  { to: "/command/center",      label: "Aujourd'hui" },
+  { to: "/command/daily-lists", label: "Listes"      },
+  { to: "/command/cables",      label: "Câbles"      },
+  { to: "/command/commander",   label: "Commander"   },
+] as const;
+
+const ADMIN_NAV = [
+  { to: "/command/problems", label: "Problèmes ouverts" },
+  { to: "/command/timeline", label: "Journal chantier"  },
+  { to: "/command/inca",     label: "Import INCA"       },
+  { to: "/command/intake",   label: "Intake messages"   },
 ] as const;
 
 export default function CommandShell() {
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
+  const location  = useLocation();
   const { signOut } = useAuth() as { signOut: (a: { reason: string }) => Promise<void> };
-  const [cableQuery, setCableQuery] = useState("");
+  const [query,     setQuery]     = useState("");
+  const [adminOpen, setAdminOpen] = useState(false);
+  const adminRef = useRef<HTMLDivElement>(null);
 
-  function handleCableSearch(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (adminRef.current && !adminRef.current.contains(e.target as Node)) {
+        setAdminOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
-    const nextCode = cableQuery.trim();
-    if (!nextCode) return;
-
-    navigate(`/command/cable/${encodeURIComponent(nextCode)}?source=shell-search`);
+  function search(e: FormEvent) {
+    e.preventDefault();
+    const code = query.trim();
+    if (!code) return;
+    navigate(`/command/cable/${encodeURIComponent(code)}`);
+    setQuery("");
   }
 
-  return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex flex-col">
-      {/* Topbar */}
-      <header className="sticky top-0 z-30 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 px-4 py-2">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center justify-between gap-4">
-            <span className="font-bold tracking-tight text-sm">CORE COMMAND</span>
-            <button
-              onClick={() => signOut({ reason: "manual" })}
-              className="text-xs text-zinc-400 hover:text-zinc-600 shrink-0 lg:hidden"
-            >
-              Déco
-            </button>
-          </div>
+  const adminActive = ADMIN_NAV.some((n) => location.pathname.startsWith(n.to));
 
-          <form
-            onSubmit={handleCableSearch}
-            className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-2 py-1 dark:border-zinc-700 dark:bg-zinc-950/60 lg:min-w-[320px]"
-          >
+  return (
+    <div className="min-h-screen bg-zinc-950 flex flex-col text-zinc-100">
+
+      {/* Header */}
+      <header className="sticky top-0 z-30 border-b border-zinc-800/50 bg-zinc-950/95 backdrop-blur-sm">
+        <div className="max-w-6xl mx-auto px-6 h-12 flex items-center justify-between gap-6">
+
+          {/* Logo */}
+          <span className="text-xs font-semibold tracking-[0.2em] text-zinc-400 uppercase shrink-0">
+            Core Command
+          </span>
+
+          {/* Search */}
+          <form onSubmit={search} className="flex-1 flex items-center gap-2">
             <input
               type="text"
-              value={cableQuery}
-              onChange={(event) => setCableQuery(event.target.value)}
-              placeholder="Chercher un câble (ex: N AH 173)"
-              className="w-full bg-transparent px-2 py-1 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Rechercher un câble…"
+              className="w-full bg-transparent text-sm text-zinc-300 placeholder:text-zinc-700 outline-none"
             />
-            <button
-              type="submit"
-              className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-500"
-            >
-              Ouvrir
-            </button>
           </form>
+
+          {/* Admin */}
+          <div ref={adminRef} className="relative shrink-0">
+            <button
+              onClick={() => setAdminOpen((v) => !v)}
+              className={`text-sm transition-colors ${
+                adminActive ? "text-white" : "text-zinc-600 hover:text-zinc-400"
+              }`}
+            >
+              ⚙
+            </button>
+            {adminOpen && (
+              <div className="absolute right-0 top-full mt-2 w-48 rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl shadow-black/50 py-2 z-50">
+                {ADMIN_NAV.map(({ to, label }) => (
+                  <NavLink
+                    key={to}
+                    to={to}
+                    onClick={() => setAdminOpen(false)}
+                    className={({ isActive }) =>
+                      `block px-4 py-2 text-sm transition-colors ${
+                        isActive ? "text-white" : "text-zinc-500 hover:text-zinc-200"
+                      }`
+                    }
+                  >
+                    {label}
+                  </NavLink>
+                ))}
+                <div className="my-1 border-t border-zinc-800" />
+                <button
+                  onClick={() => signOut({ reason: "manual" })}
+                  className="w-full text-left px-4 py-2 text-sm text-zinc-600 hover:text-red-400 transition-colors"
+                >
+                  Déconnexion
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="mt-3 flex items-center justify-between gap-4">
-          <nav className="flex items-center gap-1 overflow-x-auto">
-          {NAV.map(({ to, label }) => (
+        {/* Nav */}
+        <div className="max-w-6xl mx-auto px-6 flex items-center gap-1 pb-0">
+          {MAIN_NAV.map(({ to, label }) => (
             <NavLink
               key={to}
               to={to}
               className={({ isActive }) =>
-                `px-3 py-1.5 rounded text-xs font-medium whitespace-nowrap transition-colors ${
+                `px-0 py-2 mr-6 text-sm border-b-2 transition-colors ${
                   isActive
-                    ? "bg-blue-600 text-white"
-                    : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    ? "text-white border-white"
+                    : "text-zinc-600 border-transparent hover:text-zinc-400 hover:border-zinc-700"
                 }`
               }
             >
               {label}
             </NavLink>
           ))}
-          </nav>
-          <button
-            onClick={() => signOut({ reason: "manual" })}
-            className="hidden shrink-0 text-xs text-zinc-400 hover:text-zinc-600 lg:inline"
-          >
-            Déco
-          </button>
         </div>
       </header>
 
       {/* Content */}
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1">
         <Outlet />
       </main>
     </div>

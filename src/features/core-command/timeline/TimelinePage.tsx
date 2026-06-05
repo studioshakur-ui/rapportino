@@ -1,190 +1,181 @@
-// src/features/core-command/timeline/TimelinePage.tsx — V2
+// src/features/core-command/timeline/TimelinePage.tsx — V2 (post-audit)
+// Journal de chantier groupé par jour. Zéro "confidence", zéro "CORE MEM", zéro snake_case.
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { useCoreEvents } from "../hooks/useCoreEvents";
+import { useNavigate } from "react-router-dom";
 import { useCableEvents } from "../hooks/useCableEvents";
-import type { CoreEventFilters } from "../api/coreEvents.api";
-import type { ValidationStatus } from "../types";
 
-const STATUS_LABELS: Record<string, string> = {
-  pending:   "En attente",
-  validated: "Validé",
-  rejected:  "Rejeté",
-  promoted:  "Promu",
-};
+// Traduction event_kind → phrase chantier
+function humanizeKind(kind: string): { label: string; color: string } {
+  const map: Record<string, { label: string; color: string }> = {
+    CABLE_POSATO:          { label: "Câble posé",         color: "text-emerald-400" },
+    CABLE_SFILATO:         { label: "Câble retiré",       color: "text-sky-400"     },
+    CABLE_LASATO:          { label: "Câble lâché",        color: "text-teal-400"    },
+    CABLE_CORTO:           { label: "Câble trop court",   color: "text-orange-400"  },
+    CABLE_MANCANTE:        { label: "Câble manquant",     color: "text-red-400"     },
+    CABLE_DA_CONTROLLARE:  { label: "À vérifier",         color: "text-yellow-400"  },
+    GENERAL_MESSAGE:       { label: "Signal terrain",     color: "text-zinc-400"    },
+    MATERIAL_REQUEST:      { label: "Demande matériel",   color: "text-purple-400"  },
+    ATTENDANCE_ABSENCE:    { label: "Absence",            color: "text-zinc-500"    },
+    PHOTO_EVENT:           { label: "Photo",              color: "text-indigo-400"  },
+    CABLE_MENTION:         { label: "Mention",            color: "text-zinc-500"    },
+  };
+  return map[kind] ?? { label: kind.replace(/_/g, " "), color: "text-zinc-400" };
+}
 
-const STATUS_DOT: Record<string, string> = {
-  pending:   "bg-amber-400",
-  validated: "bg-blue-500",
-  rejected:  "bg-red-500",
-  promoted:  "bg-green-500",
-};
+// Grouper par date
+function groupByDay<T extends { occurred_at: string }>(items: T[]): Map<string, T[]> {
+  const map = new Map<string, T[]>();
+  for (const item of items) {
+    const day = item.occurred_at.slice(0, 10);
+    const arr = map.get(day) ?? [];
+    arr.push(item);
+    map.set(day, arr);
+  }
+  return map;
+}
 
-const KIND_BADGE: Record<string, string> = {
-  CABLE_POSATO:          "bg-green-100 text-green-800",
-  CABLE_SFILATO:         "bg-sky-100 text-sky-800",
-  CABLE_LASATO:          "bg-teal-100 text-teal-800",
-  CABLE_CORTO:           "bg-orange-100 text-orange-800",
-  CABLE_MANCANTE:        "bg-red-100 text-red-800",
-  CABLE_DA_CONTROLLARE:  "bg-yellow-100 text-yellow-800",
-  MATERIAL_REQUEST:      "bg-purple-100 text-purple-800",
-  ATTENDANCE_ABSENCE:    "bg-zinc-100 text-zinc-600",
-  PHOTO_EVENT:           "bg-indigo-100 text-indigo-700",
-  AUDIO_EVENT:           "bg-indigo-100 text-indigo-700",
-  CABLE_MENTION:         "bg-zinc-100 text-zinc-600",
-  GENERAL_MESSAGE:       "bg-zinc-100 text-zinc-400",
-};
-
-type Entry = {
-  id: string;
-  occurred_at: string;
-  cable_code: string;
-  kind: string;
-  author: string;
-  raw_text: string;
-  validation_status: string;
-  confidence: number;
-  source: "core_event" | "cable_event";
-};
+function formatDay(iso: string): string {
+  const d = new Date(iso + "T12:00:00");
+  const today = new Date().toISOString().slice(0, 10);
+  const yest  = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  if (iso === today) return "Aujourd'hui";
+  if (iso === yest)  return "Hier";
+  return d.toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "long" });
+}
 
 export default function TimelinePage() {
-  const [cableFilter,  setCableFilter]  = useState("");
-  const [statusFilter, setStatusFilter] = useState<ValidationStatus | "">("");
-  const [dateFrom,     setDateFrom]     = useState("");
-  const [dateTo,       setDateTo]       = useState("");
+  const navigate = useNavigate();
+  const [search, setSearch] = useState("");
 
-  const coreFilters: CoreEventFilters = {
-    cable_code:        cableFilter.trim() || undefined,
-    validation_status: statusFilter       || undefined,
-    date_from:         dateFrom           || undefined,
-    date_to:           dateTo             || undefined,
-    limit:             200,
-  };
-
-  const { data: coreEvents,  isLoading: loadC } = useCoreEvents(coreFilters);
-  const { data: cableEvents, isLoading: loadE } = useCableEvents({
-    cable_code: cableFilter.trim() || undefined,
-    date_from:  dateFrom           || undefined,
-    date_to:    dateTo             || undefined,
-    limit: 200,
+  const { data: events, isLoading } = useCableEvents({
+    cable_code: search.trim() || undefined,
+    limit: 400,
   });
 
-  const isLoading = loadC || loadE;
-
-  const entries: Entry[] = [
-    ...(coreEvents ?? []).map((e) => ({
-      id:                e.id,
-      occurred_at:       e.occurred_at,
-      cable_code:        e.cable_code_normalized ?? e.cable_code_raw ?? "—",
-      kind:              e.event_type,
-      author:            (e.payload as Record<string, unknown>)?.["author"] as string ?? "—",
-      raw_text:          e.raw_text ?? "",
-      validation_status: e.validation_status ?? "pending",
-      confidence:        e.confidence,
-      source:            "core_event" as const,
-    })),
-    ...(cableEvents ?? []).map((e) => ({
-      id:                `ce-${e.id}`,
-      occurred_at:       e.occurred_at,
-      cable_code:        e.cable_code,
-      kind:              e.event_kind,
-      author:            "—",
-      raw_text:          e.note ?? "",
-      validation_status: "promoted",
-      confidence:        e.confidence,
-      source:            "cable_event" as const,
-    })),
-  ].sort((a, b) => b.occurred_at.localeCompare(a.occurred_at));
+  const grouped = groupByDay(events ?? []);
+  const days    = [...grouped.keys()].sort((a, b) => b.localeCompare(a));
 
   return (
-    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-4">
-      <h1 className="text-xl font-bold">Timeline chantier</h1>
+    <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-2">
-        <input type="text" placeholder="Code câble (ex: TCC, CCS 574…)"
-          value={cableFilter} onChange={(e) => setCableFilter(e.target.value)}
-          className="border border-zinc-300 dark:border-zinc-600 rounded px-3 py-1.5 text-sm bg-transparent w-52" />
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as ValidationStatus | "")}
-          className="border border-zinc-300 dark:border-zinc-600 rounded px-3 py-1.5 text-sm bg-transparent">
-          <option value="">Tous statuts</option>
-          {Object.entries(STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-        </select>
-        <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-          className="border border-zinc-300 dark:border-zinc-600 rounded px-3 py-1.5 text-sm bg-transparent" />
-        <span className="self-center text-xs text-zinc-400">→</span>
-        <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-          className="border border-zinc-300 dark:border-zinc-600 rounded px-3 py-1.5 text-sm bg-transparent" />
-        <span className="self-center text-xs text-zinc-500 ml-1">{entries.length} événements</span>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h1 className="text-xl font-bold text-white">Journal chantier</h1>
+        <input
+          type="text"
+          placeholder="Filtrer par câble…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="rounded-lg border border-zinc-700 bg-zinc-900 text-white px-3 py-1.5 text-sm placeholder:text-zinc-500 outline-none focus:border-zinc-500 w-44"
+        />
       </div>
 
-      {/* Timeline */}
-      {isLoading ? (
-        <p className="text-sm text-zinc-400">Chargement…</p>
-      ) : entries.length === 0 ? (
-        <p className="text-sm text-zinc-400">Aucun événement pour ces filtres.</p>
-      ) : (
-        <ol className="relative border-l-2 border-zinc-200 dark:border-zinc-700 space-y-0 ml-3">
-          {entries.map((e) => (
-            <li key={e.id} className="ml-5 py-3 pr-1">
-              {/* Dot */}
-              <span className={`absolute -left-[9px] mt-2 h-3.5 w-3.5 rounded-full border-2 border-white dark:border-zinc-900 ${STATUS_DOT[e.validation_status] ?? "bg-zinc-400"}`} />
-
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1">
-                {/* Left */}
-                <div className="min-w-0 space-y-0.5">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {/* Cable code */}
-                    <Link
-                      to={`/command/cable/${encodeURIComponent(e.cable_code)}?source=search${e.source === "core_event" ? `&focus=${e.id}` : ""}`}
-                      className="font-mono text-sm font-bold text-sky-300 hover:text-sky-200"
-                    >
-                      {e.cable_code}
-                    </Link>
-                    {/* Kind badge */}
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${KIND_BADGE[e.kind] ?? "bg-zinc-100 text-zinc-500"}`}>
-                      {e.kind.replace(/_/g, " ")}
-                    </span>
-                    {/* Source */}
-                    {e.source === "cable_event" && (
-                      <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-600 text-white font-semibold">CORE MEM</span>
-                    )}
-                  </div>
-                  {/* Author */}
-                  <p className="text-xs text-zinc-500">
-                    <span className="font-medium">{e.author}</span>
-                    {" · "}conf. {(e.confidence * 100).toFixed(0)}%
-                  </p>
-                  {/* Raw text */}
-                  {e.raw_text && (
-                    <p className="text-xs text-zinc-600 dark:text-zinc-400 line-clamp-2 italic mt-0.5">
-                      {e.raw_text.slice(0, 140)}
-                    </p>
-                  )}
-                </div>
-
-                {/* Right */}
-                <div className="shrink-0 text-right space-y-0.5">
-                  <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
-                    e.validation_status === "promoted" ? "bg-green-100 text-green-700"
-                    : e.validation_status === "validated" ? "bg-blue-100 text-blue-700"
-                    : e.validation_status === "rejected"  ? "bg-red-100 text-red-700"
-                    : "bg-amber-100 text-amber-700"
-                  }`}>
-                    {STATUS_LABELS[e.validation_status] ?? e.validation_status}
-                  </span>
-                  <p className="text-[11px] text-zinc-400">
-                    {new Date(e.occurred_at).toLocaleString("fr-FR", {
-                      day: "2-digit", month: "2-digit", year: "2-digit",
-                      hour: "2-digit", minute: "2-digit",
-                    })}
-                  </p>
-                </div>
-              </div>
-            </li>
+      {isLoading && (
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-20 bg-zinc-900 rounded-2xl border border-zinc-800 animate-pulse" />
           ))}
-        </ol>
+        </div>
       )}
+
+      {!isLoading && days.length === 0 && (
+        <p className="text-zinc-500 text-sm">Aucun événement trouvé.</p>
+      )}
+
+      {days.map((day) => {
+        const dayEvents = grouped.get(day)!;
+
+        // Grouper les câbles posés (CABLE_POSATO) pour affichage compact
+        const posato = dayEvents.filter((e) => e.event_kind === "CABLE_POSATO");
+        const autres  = dayEvents.filter((e) => e.event_kind !== "CABLE_POSATO");
+
+        // Acteurs du jour
+        const actors: Map<string, string[]> = new Map();
+        for (const e of posato) {
+          // note contient l'auteur WhatsApp extrait
+          const author = (e.note ?? "").match(/^([^:]+):/)?.[1]?.trim() ?? "Équipe";
+          const arr = actors.get(author) ?? [];
+          arr.push(e.cable_code);
+          actors.set(author, arr);
+        }
+
+        return (
+          <div key={day} className="space-y-2">
+            {/* Entête du jour */}
+            <div className="flex items-center gap-3">
+              <p className="text-sm font-bold text-white capitalize">{formatDay(day)}</p>
+              <div className="flex-1 h-px bg-zinc-800" />
+              <p className="text-xs text-zinc-600">{dayEvents.length} événements</p>
+            </div>
+
+            {/* Câbles posés — résumé compact */}
+            {posato.length > 0 && (
+              <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 space-y-3">
+                <p className="text-xs text-zinc-500 uppercase tracking-wider">
+                  {posato.length} câble{posato.length > 1 ? "s" : ""} posé{posato.length > 1 ? "s" : ""}
+                </p>
+                {actors.size > 0 ? (
+                  [...actors.entries()].map(([actor, cables]) => (
+                    <div key={actor}>
+                      <p className="text-sm font-medium text-zinc-300">{actor}</p>
+                      <div className="flex flex-wrap gap-1.5 mt-1">
+                        {cables.map((code) => (
+                          <button
+                            key={code}
+                            onClick={() => navigate(`/command/cable/${encodeURIComponent(code)}`)}
+                            className="font-mono text-xs bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded hover:bg-emerald-500/20 transition"
+                          >
+                            {code}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {posato.map((e) => (
+                      <button
+                        key={e.id}
+                        onClick={() => navigate(`/command/cable/${encodeURIComponent(e.cable_code)}`)}
+                        className="font-mono text-xs bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded hover:bg-emerald-500/20 transition"
+                      >
+                        {e.cable_code}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Autres événements */}
+            {autres.map((e) => {
+              const { label, color } = humanizeKind(e.event_kind);
+              if (e.event_kind === "GENERAL_MESSAGE" && !e.note) return null;
+              return (
+                <button
+                  key={e.id}
+                  onClick={() => navigate(`/command/cable/${encodeURIComponent(e.cable_code)}`)}
+                  className="w-full text-left bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 hover:bg-zinc-800/60 transition"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={`text-xs font-medium ${color}`}>{label}</span>
+                      <span className="font-mono text-sm text-white truncate">{e.cable_code}</span>
+                    </div>
+                    <span className="text-xs text-zinc-600 shrink-0">
+                      {new Date(e.occurred_at).toLocaleTimeString("fr-FR", {
+                        hour: "2-digit", minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
+                  {e.note && e.event_kind === "GENERAL_MESSAGE" && (
+                    <p className="text-xs text-zinc-500 mt-1 line-clamp-1 italic">{e.note.slice(0, 100)}</p>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        );
+      })}
     </div>
   );
 }

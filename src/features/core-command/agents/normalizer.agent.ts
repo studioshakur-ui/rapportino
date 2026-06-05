@@ -51,14 +51,52 @@ function stripSectionPrefix(s: string): string {
 // Normalise un code câble brut vers le format canonique "LETTERS DIGITS[SUFFIX]"
 // ---------------------------------------------------------------------------
 export function normalizeCableCode(raw: string): string {
-  const cleaned = stripNoise(raw).replace(/[\s.]+/g, " ").trim().toUpperCase();
-  // Sépare lettres et chiffres
-  const m = cleaned.match(/^([A-Z](?:\s*[A-Z]){1,4})\s*([\d]{2,5})\s*([A-Z]?)$/);
-  if (!m) return cleaned;
+  // Strip section prefix "1-7 " etc.
+  let s = stripSectionPrefix(stripNoise(raw));
+  // Collapse separators (spaces, dots, dashes between letters)
+  s = s.replace(/[\s.\-]+/g, " ").trim().toUpperCase();
+  // Match: 1-5 letters (possibly spaced) + digits + optional suffix
+  const m = s.match(/^([A-Z](?:\s*[A-Z]){1,4})\s*([\d]{2,5})\s*([A-Z]?)$/);
+  if (!m) {
+    // Fallback: try without spaces at all e.g. "WTI036" or "wti036"
+    const m2 = s.replace(/\s+/g, "").match(/^([A-Z]{2,5})([\d]{2,5})([A-Z]?)$/i);
+    if (m2) {
+      const letters = m2[1].toUpperCase();
+      const digits  = m2[2];
+      const suffix  = m2[3].toUpperCase();
+      return suffix ? `${letters} ${digits} ${suffix}` : `${letters} ${digits}`;
+    }
+    return s;
+  }
   const letters = m[1].replace(/\s+/g, "");
   const digits  = m[2];
   const suffix  = m[3];
   return suffix ? `${letters} ${digits} ${suffix}` : `${letters} ${digits}`;
+}
+
+/**
+ * Convert normalized code "WTI 036" → INCA spaced format "W TI 036"
+ * INCA stores: [ship_letter] [family_code] [number]
+ * Normalized:  [ship_letter][family_code] [number]
+ */
+export function normalizedToIncaCode(normalized: string): string {
+  const m = normalized.match(/^([A-Z])([A-Z]{1,4})\s+([\d]{2,5}.*)$/);
+  if (m) return `${m[1]} ${m[2]} ${m[3]}`;
+  return normalized;
+}
+
+/**
+ * All search variants for a cable code (for fuzzy DB lookups).
+ * Given "WTI 036" returns: ["WTI 036", "W TI 036", "WTI036"]
+ */
+export function cableCodeVariants(normalized: string): string[] {
+  const variants = new Set<string>();
+  variants.add(normalized);
+  variants.add(normalizedToIncaCode(normalized));                // "W TI 036"
+  variants.add(normalized.replace(/\s+/g, ""));                 // "WTI036"
+  variants.add(normalized.toLowerCase());                        // "wti 036"
+  variants.add(normalizedToIncaCode(normalized).toLowerCase());  // "w ti 036"
+  return [...variants].filter((v) => v.length >= 4);
 }
 
 // ---------------------------------------------------------------------------

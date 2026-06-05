@@ -1,0 +1,25 @@
+{
+  "name": "core-command-telegram-bridge",
+  "version": "1.0.0",
+  "description": "CORE COMMAND — Telegram bot → Supabase. No Meta. No QR. Just a token.",
+  "private": true,
+  "scripts": {
+    "dev":   "tsx watch src/main.ts",
+    "build": "esbuild src/main.ts --bundle --platform=node --outfile=dist/main.js --external:@supabase/supabase-js --external:grammy --external:dotenv",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.90.1",
+    "dotenv": "^16.4.5",
+    "grammy": "^1.30.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "esbuild": "^0.28.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.9.3"
+  }
+}

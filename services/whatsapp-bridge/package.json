@@ -1,0 +1,23 @@
+{
+  "name": "core-command-whatsapp-bridge",
+  "version": "1.0.0",
+  "description": "CORE COMMAND — WhatsApp bridge (whatsapp-web.js → Supabase). No Meta API.",
+  "private": true,
+  "scripts": {
+    "dev":   "tsx watch src/main.ts",
+    "start": "tsx src/main.ts",
+    "build": "tsc --outDir dist",
+    "clean": "rm -rf dist .wwebjs_auth .wwebjs_cache"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.90.1",
+    "qrcode-terminal":       "^0.12.0",
+    "whatsapp-web.js":       "^1.26.0"
+  },
+  "devDependencies": {
+    "@types/node":            "^20.14.10",
+    "@types/qrcode-terminal": "^0.12.2",
+    "tsx":                   "^4.19.2",
+    "typescript":            "^5.9.3"
+  }
+}
