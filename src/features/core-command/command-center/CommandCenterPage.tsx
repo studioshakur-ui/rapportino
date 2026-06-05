@@ -152,7 +152,7 @@ export default function CommandCenterPage() {
         ) : (
           <ul className="space-y-2">
             {pending?.map((ev) => (
-              <li key={ev.id} className={`border rounded-xl px-4 py-3 flex items-start justify-between gap-3 ${STATUS_COLORS[ev.validation_status as ValidationStatus]}`}>
+              <li key={ev.id} className={`border rounded-xl px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between ${STATUS_COLORS[ev.validation_status as ValidationStatus]}`}>
                 <div className="min-w-0 space-y-0.5">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-mono font-bold text-sm">
@@ -172,23 +172,33 @@ export default function CommandCenterPage() {
                     })}
                   </p>
                 </div>
-                <div className="shrink-0 flex flex-col gap-1.5">
+                {(() => {
+                  // État de chargement par carte : ne fige que l'événement en cours de mutation.
+                  const busy =
+                    (validate.isPending && validate.variables?.id === ev.id) ||
+                    (promote.isPending  && promote.variables?.id  === ev.id) ||
+                    (reject.isPending   && reject.variables?.id   === ev.id);
+                  // Actions — mobile: rangée pleine largeur (cibles tactiles ≥40px) ; desktop: colonne compacte à droite
+                  return (
+                <div className="flex items-stretch gap-2 sm:shrink-0 sm:flex-col sm:gap-1.5 sm:w-28">
                   <button onClick={() => validate.mutate({ id: ev.id, uid })}
-                    disabled={validate.isPending}
-                    className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 disabled:opacity-50">
+                    disabled={busy}
+                    className="flex-1 sm:flex-none min-h-[40px] sm:min-h-0 text-sm sm:text-xs font-medium bg-blue-600 text-white px-3 py-2 sm:py-1 rounded-lg sm:rounded hover:bg-blue-700 active:scale-[0.98] transition disabled:opacity-50">
                     Valider
                   </button>
                   <button onClick={() => promote.mutate({ id: ev.id, uid })}
-                    disabled={promote.isPending}
-                    className="text-xs bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 disabled:opacity-50">
+                    disabled={busy}
+                    className="flex-1 sm:flex-none min-h-[40px] sm:min-h-0 text-sm sm:text-xs font-medium bg-green-600 text-white px-3 py-2 sm:py-1 rounded-lg sm:rounded hover:bg-green-700 active:scale-[0.98] transition disabled:opacity-50">
                     Promouvoir
                   </button>
                   <button onClick={() => reject.mutate({ id: ev.id, uid })}
-                    disabled={reject.isPending}
-                    className="text-xs text-red-600 underline hover:no-underline disabled:opacity-50">
+                    disabled={busy}
+                    className="flex-1 sm:flex-none min-h-[40px] sm:min-h-0 text-sm sm:text-xs font-medium text-red-600 border border-red-300 dark:border-red-500/40 px-3 py-2 sm:py-1 rounded-lg sm:rounded hover:bg-red-50 dark:hover:bg-red-900/20 active:scale-[0.98] transition disabled:opacity-50">
                     Rejeter
                   </button>
                 </div>
+                  );
+                })()}
               </li>
             ))}
           </ul>
