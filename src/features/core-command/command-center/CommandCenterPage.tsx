@@ -1,4 +1,5 @@
 // src/features/core-command/command-center/CommandCenterPage.tsx — V2
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { usePendingEvents, useValidateEvent, useRejectEvent, usePromoteEvent } from "../hooks/useCoreEvents";
 import { useAgentFindings } from "../hooks/useAgentFindings";
@@ -15,16 +16,33 @@ const STATUS_COLORS: Record<ValidationStatus, string> = {
   promoted:  "border-green-200 bg-green-50 dark:bg-green-900/10",
 };
 
-function KpiCard({ label, value, sub, accent = false }: {
-  label: string; value: string | number; sub?: string; accent?: boolean;
+function KpiCard({ label, value, sub, accent = false, hero = false, onClick }: {
+  label: string; value: string | number; sub?: string;
+  accent?: boolean; hero?: boolean; onClick?: () => void;
 }) {
+  const Tag: React.ElementType = onClick ? "button" : "div";
   return (
-    <div className={`rounded-xl p-4 border ${accent
-      ? "border-blue-200 bg-blue-50 dark:bg-blue-900/20"
-      : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700"}`}>
+    <Tag
+      {...(onClick ? { type: "button", onClick } : {})}
+      className={`rounded-xl border text-left w-full ${hero ? "p-5" : "p-4"} ${accent
+        ? "border-blue-200 bg-blue-50 dark:bg-blue-900/20"
+        : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700"} ${
+        onClick ? "cursor-pointer hover:border-blue-300 active:scale-[0.99] transition" : ""}`}
+    >
       <p className="text-xs text-zinc-500 font-medium uppercase tracking-wide">{label}</p>
-      <p className="text-3xl font-bold mt-1">{value}</p>
+      <p className={`font-bold mt-1 ${hero ? "text-4xl sm:text-5xl" : "text-3xl"}`}>{value}</p>
       {sub && <p className="text-xs text-zinc-400 mt-1">{sub}</p>}
+    </Tag>
+  );
+}
+
+// État vide soigné : icône + message + action optionnelle (mobile-first).
+function EmptyState({ icon, text, hint }: { icon: string; text: string; hint?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center text-center gap-1 rounded-xl border border-dashed border-zinc-200 dark:border-zinc-700 px-4 py-6">
+      <span className="text-2xl opacity-60" aria-hidden>{icon}</span>
+      <p className="text-sm text-zinc-500">{text}</p>
+      {hint && <p className="text-xs text-zinc-400">{hint}</p>}
     </div>
   );
 }
@@ -61,6 +79,17 @@ export default function CommandCenterPage() {
   const reject   = useRejectEvent();
   const promote  = usePromoteEvent();
 
+  // Toast local éphémère (feedback de validation). Pas de lib externe.
+  const [toast, setToast] = useState<{ msg: string; tone: "ok" | "warn" } | null>(null);
+  function flash(msg: string, tone: "ok" | "warn" = "ok") {
+    setToast({ msg, tone });
+    window.setTimeout(() => setToast(null), 2200);
+  }
+
+  function scrollToPending() {
+    document.getElementById("pending-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   const todayStr  = new Date().toISOString().slice(0, 10);
   const todayKpi  = kpis?.find((k) => k.day === todayStr);
 
@@ -68,16 +97,21 @@ export default function CommandCenterPage() {
     <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-8">
       <h1 className="text-xl font-bold">Command Center</h1>
 
-      {/* KPI Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <KpiCard label="Messages importés"   value={stats?.msg_count          ?? "—"} />
-        <KpiCard label="Câbles uniques"       value={stats?.unique_cables      ?? "—"} sub="dans CORE Memory" accent />
-        <KpiCard label="Cable events"         value={stats?.cable_events_count ?? "—"} sub="promus" />
-        <KpiCard label="En attente"           value={stats?.pending_events     ?? "—"} sub="à valider" />
-        <KpiCard label="Core events total"    value={stats?.events_count       ?? "—"} />
-        <KpiCard label="Findings ouverts"     value={stats?.findings_count     ?? "—"} />
-        <KpiCard label="Priorités ouvertes"   value={stats?.priorities_count   ?? "—"} />
-        <KpiCard label="Câbles posés (J)"     value={todayKpi?.cables_count    ?? "—"} sub="aujourd'hui" />
+      {/* KPI — hero (les 2 chiffres actionnables) + grille compacte */}
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <KpiCard label="En attente" value={stats?.pending_events ?? "—"} sub="à valider — toucher pour voir"
+                   accent hero onClick={scrollToPending} />
+          <KpiCard label="Câbles posés (J)" value={todayKpi?.cables_count ?? "—"} sub="aujourd'hui" hero />
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <KpiCard label="Câbles uniques"     value={stats?.unique_cables      ?? "—"} sub="dans CORE Memory" />
+          <KpiCard label="Cable events"       value={stats?.cable_events_count ?? "—"} sub="promus" />
+          <KpiCard label="Messages importés"  value={stats?.msg_count          ?? "—"} />
+          <KpiCard label="Core events total"  value={stats?.events_count       ?? "—"} />
+          <KpiCard label="Findings ouverts"   value={stats?.findings_count     ?? "—"} />
+          <KpiCard label="Priorités ouvertes" value={stats?.priorities_count   ?? "—"} />
+        </div>
       </div>
 
       {/* Top 5 câbles + Top 5 priorités */}
@@ -86,7 +120,7 @@ export default function CommandCenterPage() {
         <section>
           <h2 className="text-sm font-semibold text-zinc-500 mb-2">Top câbles CORE Memory</h2>
           {(topCables?.length ?? 0) === 0 ? (
-            <p className="text-sm text-zinc-400">Aucun câble. Lancer le Memory Engine.</p>
+            <EmptyState icon="🧵" text="Aucun câble en mémoire" hint="Lancer le Memory Engine pour extraire les câbles." />
           ) : (
             <ul className="space-y-1">
               {topCables?.map((c, i) => (
@@ -106,7 +140,7 @@ export default function CommandCenterPage() {
         <section>
           <h2 className="text-sm font-semibold text-zinc-500 mb-2">Priorités critiques</h2>
           {(openPriorities?.length ?? 0) === 0 ? (
-            <p className="text-sm text-zinc-400">Aucune priorité ouverte.</p>
+            <EmptyState icon="✅" text="Aucune priorité ouverte" hint="Rien d'urgent côté câbles." />
           ) : (
             <ul className="space-y-1">
               {openPriorities?.map((p) => (
@@ -141,14 +175,14 @@ export default function CommandCenterPage() {
       )}
 
       {/* Pending events */}
-      <section>
+      <section id="pending-section" className="scroll-mt-20">
         <h2 className="text-sm font-semibold text-zinc-500 mb-3">
           Événements en attente ({pending?.length ?? 0}{(stats?.pending_events ?? 0) > 30 ? ` / ${stats?.pending_events} total` : ""})
         </h2>
         {loadPending ? (
           <p className="text-sm text-zinc-400">Chargement…</p>
         ) : (pending?.length ?? 0) === 0 ? (
-          <p className="text-sm text-zinc-400">Aucun événement en attente. ✓</p>
+          <EmptyState icon="🎉" text="Aucun événement en attente" hint="Tout est validé — file vide." />
         ) : (
           <ul className="space-y-2">
             {pending?.map((ev) => (
@@ -181,17 +215,17 @@ export default function CommandCenterPage() {
                   // Actions — mobile: rangée pleine largeur (cibles tactiles ≥40px) ; desktop: colonne compacte à droite
                   return (
                 <div className="flex items-stretch gap-2 sm:shrink-0 sm:flex-col sm:gap-1.5 sm:w-28">
-                  <button onClick={() => validate.mutate({ id: ev.id, uid })}
+                  <button onClick={() => validate.mutate({ id: ev.id, uid }, { onSuccess: () => flash("Événement validé") })}
                     disabled={busy}
                     className="flex-1 sm:flex-none min-h-[40px] sm:min-h-0 text-sm sm:text-xs font-medium bg-blue-600 text-white px-3 py-2 sm:py-1 rounded-lg sm:rounded hover:bg-blue-700 active:scale-[0.98] transition disabled:opacity-50">
                     Valider
                   </button>
-                  <button onClick={() => promote.mutate({ id: ev.id, uid })}
+                  <button onClick={() => promote.mutate({ id: ev.id, uid }, { onSuccess: () => flash("Événement promu") })}
                     disabled={busy}
                     className="flex-1 sm:flex-none min-h-[40px] sm:min-h-0 text-sm sm:text-xs font-medium bg-green-600 text-white px-3 py-2 sm:py-1 rounded-lg sm:rounded hover:bg-green-700 active:scale-[0.98] transition disabled:opacity-50">
                     Promouvoir
                   </button>
-                  <button onClick={() => reject.mutate({ id: ev.id, uid })}
+                  <button onClick={() => reject.mutate({ id: ev.id, uid }, { onSuccess: () => flash("Événement rejeté", "warn") })}
                     disabled={busy}
                     className="flex-1 sm:flex-none min-h-[40px] sm:min-h-0 text-sm sm:text-xs font-medium text-red-600 border border-red-300 dark:border-red-500/40 px-3 py-2 sm:py-1 rounded-lg sm:rounded hover:bg-red-50 dark:hover:bg-red-900/20 active:scale-[0.98] transition disabled:opacity-50">
                     Rejeter
@@ -209,7 +243,9 @@ export default function CommandCenterPage() {
       {(kpis?.length ?? 0) > 0 && (
         <section>
           <h2 className="text-sm font-semibold text-zinc-500 mb-3">Production 7 derniers jours</h2>
-          <div className="overflow-x-auto">
+
+          {/* Desktop : table */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="text-left text-xs text-zinc-500 border-b border-zinc-200 dark:border-zinc-700">
@@ -233,7 +269,33 @@ export default function CommandCenterPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile : cartes empilées (pas de scroll horizontal) */}
+          <ul className="sm:hidden space-y-2">
+            {kpis?.map((k) => (
+              <li key={k.id} className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-3">
+                <p className="font-medium text-sm mb-2">{k.day}</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                  <span className="text-zinc-500">Câbles</span><span className="text-right font-semibold">{k.cables_count}</span>
+                  <span className="text-zinc-500">Mètres</span><span className="text-right font-semibold">{k.meters_done}</span>
+                  <span className="text-zinc-500">Opérateurs</span><span className="text-right font-semibold">{k.active_operators_count}</span>
+                  <span className="text-zinc-500">Priorités</span><span className="text-right font-semibold">{k.open_priorities_count}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
         </section>
+      )}
+
+      {/* Toast feedback (fixe, auto-dismiss) */}
+      {toast && (
+        <div
+          role="status"
+          className={`fixed inset-x-0 bottom-4 z-50 mx-auto w-fit max-w-[90vw] rounded-full px-4 py-2 text-sm font-medium text-white shadow-lg ${
+            toast.tone === "warn" ? "bg-zinc-700" : "bg-green-600"}`}
+        >
+          {toast.tone === "warn" ? "↩ " : "✓ "}{toast.msg}
+        </div>
       )}
     </div>
   );
