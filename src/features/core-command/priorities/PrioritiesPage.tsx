@@ -93,14 +93,14 @@ export default function PrioritiesPage() {
           placeholder="Rechercher câble, anomalie, priorité…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="min-h-12 w-full rounded-2xl border border-zinc-800 bg-zinc-900 px-4 text-base text-white outline-none transition placeholder:text-zinc-600 focus:border-zinc-600 focus:bg-zinc-900/90"
+          className="min-h-12 w-full rounded-2xl border border-gray-200 bg-white px-4 text-base text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
         />
       </label>
 
       {isLoading && (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-28 animate-pulse rounded-3xl border border-zinc-800 bg-zinc-900" />
+            <div key={i} className="h-28 animate-pulse rounded-xl border border-gray-200 bg-gray-100" />
           ))}
         </div>
       )}
@@ -119,22 +119,22 @@ export default function PrioritiesPage() {
             {filteredPriorities.map((p) => (
               <article
                 key={p.id}
-                className={`rounded-3xl border p-4 ${
+                className={`rounded-xl border p-4 ${
                   p.priority === "critical" || p.priority === "high"
-                    ? "border-red-500/20 bg-red-500/10"
-                    : "border-zinc-800 bg-zinc-900/80"
+                    ? "border-red-200 bg-red-50"
+                    : "border-gray-200 bg-white"
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1 space-y-2">
                     <button
                       onClick={() => navigate(`/command/cable/${encodeURIComponent(p.cable_code)}`)}
-                      className="font-mono text-lg font-bold text-white transition hover:text-sky-300"
+                      className="font-mono text-lg font-bold text-gray-900 transition hover:text-blue-600"
                     >
                       {formatCableDisplay(p.cable_code)}
                     </button>
-                    {p.reason ? <p className="text-sm leading-6 text-zinc-300">{p.reason}</p> : null}
-                    <p className="text-xs text-zinc-500">
+                    {p.reason ? <p className="text-sm leading-6 text-gray-700">{p.reason}</p> : null}
+                    <p className="text-xs text-gray-500">
                       Signalé le {new Date(p.created_at).toLocaleDateString("fr-FR", {
                         day: "2-digit", month: "long",
                       })}
@@ -146,7 +146,7 @@ export default function PrioritiesPage() {
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                   <button
                     onClick={() => navigate(`/command/cable/${encodeURIComponent(p.cable_code)}`)}
-                    className="min-h-10 rounded-xl bg-sky-500/10 px-3 text-sm font-medium text-sky-300 transition hover:bg-sky-500/20"
+                    className="min-h-10 rounded-xl bg-blue-50 px-3 text-sm font-medium text-blue-600 transition hover:text-blue-600"
                   >
                     Voir le câble →
                   </button>
@@ -155,13 +155,13 @@ export default function PrioritiesPage() {
                       <button
                         onClick={() => { closeMut.mutate(p.id); setConfirmId(null); }}
                         disabled={closeMut.isPending}
-                        className="min-h-10 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 text-sm font-medium text-emerald-300 transition hover:bg-emerald-500/20 disabled:opacity-50"
+                        className="min-h-10 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
                       >
                         Confirmer ✓
                       </button>
                       <button
                         onClick={() => setConfirmId(null)}
-                        className="min-h-10 rounded-xl border border-zinc-800 px-3 text-sm font-medium text-zinc-500 transition hover:text-zinc-300"
+                        className="min-h-10 rounded-xl border border-gray-200 px-3 text-sm font-medium text-gray-500 transition hover:text-gray-700"
                       >
                         Annuler
                       </button>
@@ -169,7 +169,7 @@ export default function PrioritiesPage() {
                   ) : (
                     <button
                       onClick={() => setConfirmId(p.id)}
-                      className="min-h-10 rounded-xl border border-zinc-800 px-3 text-sm font-medium text-zinc-400 transition hover:border-zinc-700 hover:text-zinc-200"
+                      className="min-h-10 rounded-xl border border-gray-200 px-3 text-sm font-medium text-gray-500 transition hover:border-gray-300 hover:text-gray-700"
                     >
                       Marquer résolu
                     </button>
@@ -190,13 +190,13 @@ export default function PrioritiesPage() {
               return (
                 <article
                   key={f.id}
-                  className={`rounded-3xl border p-4 ${
-                    isBlock ? "border-red-500/20 bg-red-500/10" : "border-amber-500/20 bg-amber-500/10"
+                  className={`rounded-xl border p-4 ${
+                    isBlock ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"
                   }`}
                 >
                   <div className="flex items-start gap-3">
                     <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border text-lg ${
-                      isBlock ? "border-red-500/20 bg-red-500/10 text-red-300" : "border-amber-500/20 bg-amber-500/10 text-amber-300"
+                      isBlock ? "border-red-200 bg-red-50 text-red-700" : "border-amber-200 bg-amber-50 text-amber-700"
                     }`}>
                       {icon}
                     </span>
@@ -206,14 +206,14 @@ export default function PrioritiesPage() {
                         {f.entity_id ? (
                           <button
                             onClick={() => navigate(`/command/cable/${encodeURIComponent(f.entity_id ?? "")}`)}
-                            className="font-mono text-sm font-bold text-white transition hover:text-sky-300"
+                            className="font-mono text-sm font-bold text-gray-900 transition hover:text-blue-600"
                           >
                             {formatCableDisplay(f.entity_id)}
                           </button>
                         ) : null}
                       </div>
-                      <p className="text-sm leading-6 text-zinc-300">{f.message}</p>
-                      {f.recommendation ? <p className="text-xs leading-5 text-zinc-500">→ {f.recommendation}</p> : null}
+                      <p className="text-sm leading-6 text-gray-700">{f.message}</p>
+                      {f.recommendation ? <p className="text-xs leading-5 text-gray-500">→ {f.recommendation}</p> : null}
                     </div>
                   </div>
                 </article>

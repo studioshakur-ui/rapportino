@@ -10,11 +10,15 @@ import TimelinePage       from "./features/core-command/timeline/TimelinePage";
 import PrioritiesPage     from "./features/core-command/priorities/PrioritiesPage";
 import WhatsAppIntakePage from "./features/core-command/intake/WhatsAppIntakePage";
 import TelegramAIPage     from "./features/core-command/intake/TelegramAIPage";
+import AICockpitPage      from "./features/core-command/ai/AICockpitPage";
 import IncaImportPage     from "./features/core-command/inca/IncaImportPage";
 import CableDetailPage    from "./features/core-command/cable/CableDetailPage";
 import DailyListsPage     from "./modules/daily-lists/DailyListsPage";
 import DailyListDetailPage from "./modules/daily-lists/DailyListDetailPage";
 import CommanderHarnessPage from "./features/commander/CommanderHarnessPage";
+import EquipmentStoryPage  from "./modules/equipment/EquipmentStoryPage";
+import ApparatiPage        from "./modules/apparati/ApparatiPage";
+import TerrainImagesPage   from "./features/core-command/terrain-images/TerrainImagesPage";
 
 function CablesHint(): JSX.Element {
   return (
@@ -45,11 +49,15 @@ export default function AppRoutes(): JSX.Element {
         <Route path="daily-lists"  element={<DailyListsPage />} />
         <Route path="daily-lists/:importId" element={<DailyListDetailPage />} />
         <Route path="cable/:code"  element={<CableDetailPage />} />
+        <Route path="apparati"     element={<ApparatiPage />} />
+        <Route path="equipment/:code" element={<EquipmentStoryPage />} />
+        <Route path="terrain-images"  element={<TerrainImagesPage />} />
         {/* Admin / ⚙ */}
         <Route path="problems"     element={<PrioritiesPage />} />
         <Route path="timeline"     element={<TimelinePage />} />
         <Route path="inca"         element={<IncaImportPage />} />
         <Route path="intake"       element={<WhatsAppIntakePage />} />
+        <Route path="ai"            element={<AICockpitPage />} />
         <Route path="ai-intake"    element={<TelegramAIPage />} />
         {/* Compat ancien routing */}
         <Route path="priorities"   element={<Navigate to="/command/problems" replace />} />

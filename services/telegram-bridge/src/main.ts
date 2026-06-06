@@ -22,6 +22,8 @@ const WATCH_IDS: Set<number> = new Set(
     .filter((n) => !isNaN(n))
 );
 
+const IMAGE_BUCKET = process.env.TERRAIN_IMAGE_BUCKET ?? "terrain-images";
+
 if (!BOT_TOKEN)    { console.error("❌ BOT_TOKEN manquant dans .env"); process.exit(1); }
 if (!SUPABASE_URL) { console.error("❌ SUPABASE_URL manquant dans .env"); process.exit(1); }
 if (!SUPABASE_KEY) { console.error("❌ SUPABASE_SERVICE_KEY manquant dans .env"); process.exit(1); }
@@ -217,6 +219,40 @@ async function recordFieldEvents(params: {
   }
 }
 
+// ── Image terrain: télécharge la photo Telegram + upload vers Supabase Storage ─
+// Les captures de liste (couleur verte = posé, rose = priorité) sont la
+// meilleure source terrain. On stocke le binaire pour analyse vision (GPT-4o).
+async function downloadAndStoreImage(
+  ctx: Context,
+  fileId: string,
+  chatId: number,
+  messageId: number,
+): Promise<string | null> {
+  try {
+    const file = await ctx.api.getFile(fileId);
+    if (!file.file_path) return null;
+
+    const url  = `https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`;
+    const resp = await fetch(url);
+    if (!resp.ok) { console.warn(`⚠  download image ${resp.status}`); return null; }
+
+    const buf  = Buffer.from(await resp.arrayBuffer());
+    const ext  = (file.file_path.split(".").pop() ?? "jpg").toLowerCase();
+    const path = `telegram/${chatId}/${messageId}.${ext}`;
+
+    const { error } = await supabase.storage
+      .from(IMAGE_BUCKET)
+      .upload(path, buf, { contentType: `image/${ext === "jpg" ? "jpeg" : ext}`, upsert: true });
+
+    if (error) { console.warn("⚠  upload image:", error.message); return null; }
+    console.log(`   ↳ 🖼  Image stockée: ${path} (${Math.round(buf.length / 1024)} Ko)`);
+    return path;
+  } catch (err) {
+    console.warn("⚠  downloadAndStoreImage:", (err as Error).message);
+    return null;
+  }
+}
+
 // ── Statut bridge ─────────────────────────────────────────────────────────
 let stats = {
   status:          "starting" as "starting"|"connected"|"error",
@@ -303,6 +339,14 @@ bot.on("message", async (ctx: Context) => {
     return;
   }
 
+  // ── Télécharger l'image (la meilleure source terrain) ──────────────────
+  let imagePath: string | null = null;
+  if (msg.photo && msg.photo.length > 0) {
+    // msg.photo est trié du plus petit au plus grand → on prend la pleine résolution
+    const largest = msg.photo[msg.photo.length - 1];
+    imagePath = await downloadAndStoreImage(ctx, largest.file_id, chatId, msg.message_id);
+  }
+
   // ── Insert incoming_messages ───────────────────────────────────────────
   await supabase.from("incoming_messages").insert({
     source:       "telegram",
@@ -315,6 +359,8 @@ bot.on("message", async (ctx: Context) => {
     cable_refs:   cableRefs,
     classification: { chat_id: chatId, chat_name: chatName, progress },
     raw_payload:  { message_id: msg.message_id, chat_id: chatId },
+    image_path:       imagePath,
+    vision_processed: false,
     processed:    false,
   }).then(({ error }) => {
     if (error) console.warn("⚠  incoming_messages (non-fatal):", error.message);
