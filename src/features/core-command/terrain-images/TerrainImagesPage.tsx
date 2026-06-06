@@ -1,6 +1,6 @@
 // src/features/core-command/terrain-images/TerrainImagesPage.tsx
 // Images terrain — captures de liste reçues sur Telegram, analysées par GPT-4o Vision.
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../../../lib/supabaseClient";
 import { AppBar, Screen, Pill, EmptyState, StatCard } from "../../../components/command-ui";
@@ -94,8 +94,10 @@ function ThumbImage({ path }: { path: string }) {
 
 export default function TerrainImagesPage(): JSX.Element {
   const [running, setRunning] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<ParseResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: images, isLoading, refetch } = useQuery({
     queryKey: ["terrain_images"],
@@ -105,6 +107,40 @@ export default function TerrainImagesPage(): JSX.Element {
 
   const all = images ?? [];
   const unparsed = all.filter((i) => !i.vision_processed).length;
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setUploading(true);
+    setError(null);
+    try {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const path = `manual/${Date.now()}_${safeName}`;
+      const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, file, { contentType: file.type });
+      if (upErr) throw upErr;
+
+      const { data: rec, error: insErr } = await supabase
+        .from("incoming_messages")
+        .insert({
+          source: "manual-upload",
+          sender_name: "Import manuel",
+          message_ts: new Date().toISOString(),
+          message_type: "media",
+          image_path: path,
+        })
+        .select("id")
+        .single();
+      if (insErr) throw insErr;
+
+      void refetch();
+      await run(false, rec.id);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function run(dryRun: boolean, messageId?: string) {
     setRunning(true); setError(null); setResult(null);
@@ -136,17 +172,32 @@ export default function TerrainImagesPage(): JSX.Element {
       <div className="flex flex-wrap gap-3">
         <button
           onClick={() => run(false)}
-          disabled={running || unparsed === 0}
+          disabled={running || uploading || unparsed === 0}
           className="min-h-11 rounded-lg bg-blue-600 px-5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-40"
         >
           {running ? "Analyse en cours…" : `Analyser ${unparsed} image${unparsed > 1 ? "s" : ""} avec Vision`}
         </button>
         <button
           onClick={() => run(true)}
-          disabled={running || unparsed === 0}
+          disabled={running || uploading || unparsed === 0}
           className="min-h-11 rounded-lg border border-gray-300 bg-white px-5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-40"
         >
           Aperçu (dry run)
+        </button>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleUpload}
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={running || uploading}
+          className="min-h-11 rounded-lg border border-blue-300 bg-blue-50 px-5 text-sm font-medium text-blue-700 transition hover:bg-blue-100 disabled:opacity-40"
+        >
+          {uploading ? "Importation…" : "Importer une image"}
         </button>
       </div>
 
