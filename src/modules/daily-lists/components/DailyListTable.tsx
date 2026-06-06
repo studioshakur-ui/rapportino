@@ -1,9 +1,10 @@
-// src/modules/daily-lists/components/DailyListTable.tsx — V2 (post-audit)
-// 5 colonnes max. Zéro confiance, zéro APP codes, zéro snake_case.
-import { useState, useMemo } from "react";
+// src/modules/daily-lists/components/DailyListTable.tsx — V3 mobile shell
+// Statut métier inchangé. Câbles via formatCableDisplay(), APP cliquables.
+import { useState, useMemo, type MouseEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import type { DailyListItemVM, DailyItemStatus } from "../dailyLists.types";
 import { STATUS_META } from "../dailyLists.types";
+import { EmptyState, Pill } from "../../../components/command-ui";
 import { formatCableDisplay } from "../../../core/cable/cableDisplay";
 
 interface Props { items: DailyListItemVM[] }
@@ -13,7 +14,17 @@ const STATUS_ORDER: DailyItemStatus[] = [
   "likely_laid", "confirmed_field", "outside_inca",
 ];
 
-export default function DailyListTable({ items }: Props) {
+const STATUS_TONE: Record<DailyItemStatus, "neutral" | "emerald" | "amber" | "red" | "sky" | "violet"> = {
+  confirmed_field: "emerald",
+  likely_laid: "sky",
+  to_verify: "amber",
+  no_evidence: "neutral",
+  missing: "red",
+  blocked: "red",
+  outside_inca: "violet",
+};
+
+export default function DailyListTable({ items }: Props): JSX.Element {
   const navigate = useNavigate();
   const [filter,    setFilter]    = useState<DailyItemStatus | "all">("all");
   const [perimeter, setPerimeter] = useState<string>("all");
@@ -34,6 +45,8 @@ export default function DailyListTable({ items }: Props) {
         (i) =>
           i.cable_code_normalized.includes(q) ||
           i.cable_code_raw.toUpperCase().includes(q) ||
+          (i.app_partenza ?? "").toUpperCase().includes(q) ||
+          (i.app_arrivo ?? "").toUpperCase().includes(q) ||
           (i.note ?? "").toUpperCase().includes(q) ||
           (i.last_actor ?? "").toUpperCase().includes(q)
       );
@@ -49,131 +62,159 @@ export default function DailyListTable({ items }: Props) {
     return m;
   }, [items]);
 
+  function openCable(code: string) {
+    navigate(`/command/cable/${encodeURIComponent(code)}`);
+  }
+
+  function openEquipment(event: MouseEvent, code: string | null) {
+    event.stopPropagation();
+    const clean = code?.trim();
+    if (!clean) return;
+    navigate(`/command/equipment/${encodeURIComponent(clean)}`);
+  }
+
   return (
-    <div className="space-y-3">
-      {/* ── Filtres ── */}
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          type="text"
-          placeholder="Câble, zone, responsable…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="rounded-lg border border-zinc-700 bg-zinc-900 text-white px-3 py-1.5 text-sm placeholder:text-zinc-500 outline-none focus:border-zinc-500 w-52"
-        />
+    <div className="space-y-4">
+      <div className="space-y-3 rounded-3xl border border-zinc-800 bg-zinc-900/70 p-3">
+        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_220px]">
+          <input
+            type="search"
+            placeholder="Câble, zone, APP, responsable…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="min-h-11 w-full rounded-2xl border border-zinc-800 bg-zinc-950 px-4 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-zinc-600"
+          />
 
-        <select
-          value={perimeter}
-          onChange={(e) => setPerimeter(e.target.value)}
-          className="rounded-lg border border-zinc-700 bg-zinc-900 text-white px-3 py-1.5 text-sm outline-none"
-        >
-          <option value="all">Toutes les zones</option>
-          {perimeters.map((p) => <option key={p} value={p}>{p}</option>)}
-        </select>
+          <select
+            value={perimeter}
+            onChange={(e) => setPerimeter(e.target.value)}
+            className="min-h-11 w-full rounded-2xl border border-zinc-800 bg-zinc-950 px-4 text-sm text-white outline-none focus:border-zinc-600"
+          >
+            <option value="all">Toutes les zones</option>
+            {perimeters.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+        </div>
 
-        <div className="flex flex-wrap gap-1">
+        <div className="flex gap-2 overflow-x-auto pb-1">
           <button
             onClick={() => setFilter("all")}
-            className={`px-3 py-1 rounded text-xs font-medium transition ${
-              filter === "all"
-                ? "bg-white text-zinc-900"
-                : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white"
+            className={`shrink-0 rounded-full border px-3 py-2 text-xs font-semibold transition ${
+              filter === "all" ? "border-white bg-white text-zinc-950" : "border-zinc-700 bg-zinc-800/80 text-zinc-300"
             }`}
           >
             Tous ({items.length})
           </button>
-          {STATUS_ORDER.map((s) => {
-            const cnt = statusCounts.get(s) ?? 0;
-            if (cnt === 0) return null;
-            const meta = STATUS_META[s];
+          {STATUS_ORDER.map((status) => {
+            const count = statusCounts.get(status) ?? 0;
+            if (count === 0) return null;
+            const meta = STATUS_META[status];
             return (
               <button
-                key={s}
-                onClick={() => setFilter(s)}
-                className={`px-3 py-1 rounded text-xs font-medium transition ${
-                  filter === s
-                    ? `${meta.color} ${meta.textColor} ring-1 ring-current`
-                    : `${meta.color} ${meta.textColor} opacity-70 hover:opacity-100`
+                key={status}
+                onClick={() => setFilter(status)}
+                className={`shrink-0 rounded-full border px-3 py-2 text-xs font-semibold transition ${
+                  filter === status ? "border-white bg-white text-zinc-950" : "border-zinc-700 bg-zinc-800/80 text-zinc-300"
                 }`}
               >
-                {meta.icon} {cnt}
+                {meta.icon} {count}
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* ── Table — 5 colonnes ── */}
-      <div className="overflow-x-auto rounded-xl border border-zinc-800">
-        <table className="w-full text-sm border-collapse">
+      {filtered.length === 0 ? (
+        <EmptyState title="Aucun câble pour ce filtre" description="Modifier la recherche ou afficher tous les statuts." icon="⌕" />
+      ) : null}
+
+      <div className="space-y-3 md:hidden">
+        {filtered.map((item) => {
+          const meta = STATUS_META[item.computed_status];
+          const ev   = item.evidence[0];
+          return (
+            <article key={item.id} className="rounded-3xl border border-zinc-800 bg-zinc-900/80 p-4">
+              <button onClick={() => openCable(item.cable_code_normalized)} className="w-full text-left">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-mono text-lg font-semibold text-white">{formatCableDisplay(item.cable_code_normalized)}</p>
+                    <p className="mt-1 text-xs text-zinc-500">{item.perimetro ?? "—"}</p>
+                  </div>
+                  <Pill tone={STATUS_TONE[item.computed_status]}>{meta.icon} {meta.label}</Pill>
+                </div>
+                {item.progress_percent !== null && item.progress_percent < 100 ? (
+                  <p className="mt-2 text-xs font-semibold text-amber-300">Progression terrain {item.progress_percent}%</p>
+                ) : null}
+                {ev ? (
+                  <p className="mt-3 text-xs leading-5 text-zinc-400">
+                    {ev.actor_label ? <span className="font-medium text-zinc-200">{ev.actor_label}</span> : null}
+                    {ev.actor_label ? " · " : ""}
+                    {new Date(ev.occurred_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })}
+                  </p>
+                ) : null}
+                {item.note ? <p className="mt-2 line-clamp-2 text-xs leading-5 text-zinc-500">{item.note}</p> : null}
+              </button>
+
+              {(item.app_partenza || item.app_arrivo) ? (
+                <div className="mt-3 flex flex-wrap gap-2 border-t border-zinc-800 pt-3">
+                  <EquipmentButton label="APP-P" code={item.app_partenza} onClick={openEquipment} />
+                  <EquipmentButton label="APP-A" code={item.app_arrivo} onClick={openEquipment} />
+                </div>
+              ) : null}
+            </article>
+          );
+        })}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-2xl border border-zinc-800 md:block">
+        <table className="w-full min-w-[920px] border-collapse text-sm">
           <thead>
-            <tr className="text-left text-[11px] text-zinc-500 uppercase tracking-wider bg-zinc-900/80">
-              <th className="px-4 py-2.5 font-medium">Câble</th>
-              <th className="px-4 py-2.5 font-medium">Statut</th>
-              <th className="px-4 py-2.5 font-medium">Zone</th>
-              <th className="px-4 py-2.5 font-medium">Terrain</th>
-              <th className="px-4 py-2.5 font-medium">Note</th>
+            <tr className="bg-zinc-900/80 text-left text-[11px] uppercase tracking-wider text-zinc-500">
+              <th className="px-4 py-3 font-medium">Câble</th>
+              <th className="px-4 py-3 font-medium">Statut</th>
+              <th className="px-4 py-3 font-medium">Zone</th>
+              <th className="px-4 py-3 font-medium">APP</th>
+              <th className="px-4 py-3 font-medium">Terrain</th>
+              <th className="px-4 py-3 font-medium">Note</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-zinc-600 text-sm">
-                  Aucun câble pour ce filtre.
-                </td>
-              </tr>
-            )}
             {filtered.map((item) => {
               const meta = STATUS_META[item.computed_status];
               const ev   = item.evidence[0];
               return (
                 <tr
                   key={item.id}
-                  onClick={() => navigate(`/command/cable/${encodeURIComponent(item.cable_code_normalized)}`)}
-                  className="border-t border-zinc-800 hover:bg-zinc-800/40 cursor-pointer transition"
+                  onClick={() => openCable(item.cable_code_normalized)}
+                  className="cursor-pointer border-t border-zinc-800 transition hover:bg-zinc-800/40"
                 >
-                  {/* Câble */}
                   <td className="px-4 py-3">
-                    <span className="font-mono font-semibold text-white">
-                      {formatCableDisplay(item.cable_code_normalized)}
-                    </span>
-                    {item.progress_percent !== null && item.progress_percent < 100 && (
-                      <span className="ml-2 text-xs font-bold text-amber-400">
-                        {item.progress_percent}%
-                      </span>
-                    )}
+                    <span className="font-mono font-semibold text-white">{formatCableDisplay(item.cable_code_normalized)}</span>
+                    {item.progress_percent !== null && item.progress_percent < 100 ? (
+                      <span className="ml-2 text-xs font-bold text-amber-400">{item.progress_percent}%</span>
+                    ) : null}
                   </td>
-
-                  {/* Statut */}
                   <td className="px-4 py-3">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium ${meta.color} ${meta.textColor}`}>
+                    <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-medium ${meta.color} ${meta.textColor}`}>
                       {meta.icon} {meta.label}
                     </span>
                   </td>
-
-                  {/* Zone */}
-                  <td className="px-4 py-3 text-xs text-zinc-400">
-                    {item.perimetro ?? "—"}
+                  <td className="px-4 py-3 text-xs text-zinc-400">{item.perimetro ?? "—"}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-col gap-1">
+                      <EquipmentButton label="APP-P" code={item.app_partenza} onClick={openEquipment} />
+                      <EquipmentButton label="APP-A" code={item.app_arrivo} onClick={openEquipment} />
+                    </div>
                   </td>
-
-                  {/* Terrain */}
                   <td className="px-4 py-3 text-xs text-zinc-400">
                     {ev ? (
                       <>
-                        {ev.actor_label && (
-                          <span className="text-zinc-300 font-medium">{ev.actor_label}</span>
-                        )}
-                        {ev.actor_label && " · "}
-                        {new Date(ev.occurred_at).toLocaleDateString("fr-FR", {
-                          day: "2-digit", month: "2-digit",
-                        })}
+                        {ev.actor_label ? <span className="font-medium text-zinc-300">{ev.actor_label}</span> : null}
+                        {ev.actor_label ? " · " : ""}
+                        {new Date(ev.occurred_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })}
                       </>
                     ) : "—"}
                   </td>
-
-                  {/* Note */}
-                  <td className="px-4 py-3 text-xs text-zinc-500 max-w-[220px] truncate">
-                    {item.note ?? ""}
-                  </td>
+                  <td className="max-w-[220px] truncate px-4 py-3 text-xs text-zinc-500">{item.note ?? ""}</td>
                 </tr>
               );
             })}
@@ -181,11 +222,31 @@ export default function DailyListTable({ items }: Props) {
         </table>
       </div>
 
-      {filtered.length > 0 && (
-        <p className="text-xs text-zinc-600 text-right">
-          {filtered.length} câble{filtered.length > 1 ? "s" : ""}
-        </p>
-      )}
+      {filtered.length > 0 ? (
+        <p className="text-right text-xs text-zinc-600">{filtered.length} câble{filtered.length > 1 ? "s" : ""}</p>
+      ) : null}
     </div>
+  );
+}
+
+function EquipmentButton({
+  label,
+  code,
+  onClick,
+}: {
+  label: string;
+  code: string | null;
+  onClick: (event: MouseEvent, code: string | null) => void;
+}): JSX.Element | null {
+  if (!code?.trim()) return null;
+  return (
+    <button
+      type="button"
+      onClick={(event) => onClick(event, code)}
+      className="w-fit rounded-lg border border-zinc-800 bg-zinc-950/70 px-2 py-1 text-left text-[11px] text-zinc-400 transition hover:border-sky-500/40 hover:text-sky-300"
+    >
+      <span className="mr-1 text-zinc-600">{label}</span>
+      <span className="font-mono text-zinc-200">{code}</span>
+    </button>
   );
 }

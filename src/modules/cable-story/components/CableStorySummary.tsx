@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
-import { formatConfidenceTone, formatStatusTone } from "../cableStory.logic";
 import type { CableStoryCandidate, CableStoryViewModel } from "../cableStory.types";
+import { AppBar, EmptyState, Pill, Section, StatCard } from "../../../components/command-ui";
 import { formatCableDisplay } from "../../../core/cable/cableDisplay";
 
 function formatDate(value: string | null): string {
@@ -19,6 +19,20 @@ function candidateToSearch(candidate: CableStoryCandidate, baseSource: string | 
   params.set("match", candidate.id);
   if (baseSource) params.set("source", baseSource);
   return `?${params.toString()}`;
+}
+
+function statusTone(status: string): "neutral" | "emerald" | "amber" | "red" | "sky" {
+  if (status === "Pose confirmée") return "emerald";
+  if (status === "Bloqué" || status === "Court") return "red";
+  if (status === "À vérifier") return "amber";
+  if (status === "Mentionné") return "sky";
+  return "neutral";
+}
+
+function confidenceTone(band: string): "emerald" | "amber" | "red" {
+  if (band === "High") return "emerald";
+  if (band === "Medium") return "amber";
+  return "red";
 }
 
 export function CableStoryAmbiguousState({
@@ -45,7 +59,7 @@ export function CableStoryAmbiguousState({
           <Link
             key={candidate.id}
             to={candidateToSearch(candidate, source)}
-            className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4 transition hover:border-sky-500/40 hover:bg-zinc-900"
+            className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-4 transition hover:border-sky-500/40 hover:bg-zinc-900"
           >
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -76,42 +90,23 @@ export function CableStoryHeader({
   const topPriority = model.priorities.find((priority) => priority.status === "open") ?? null;
 
   return (
-    <section className="rounded-[28px] border border-zinc-800 bg-zinc-950/80 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.30)]">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-2">
-          <div className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">
-            {source ? `Cable Story · ${source}` : "Cable Story"}
+    <section className="rounded-3xl border border-zinc-800 bg-zinc-950/80 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.30)]">
+      <AppBar
+        title={formatCableDisplay(model.cable.normalized_code)}
+        subtitle={`Entrée ${formatCableDisplay(model.cable.code)} · Canon ${formatCableDisplay(model.cable.normalized_code)}`}
+        action={
+          <div className="flex flex-wrap gap-2">
+            <Pill tone={statusTone(model.memory_summary.computed_status)}>{model.memory_summary.computed_status}</Pill>
+            <Pill tone={confidenceTone(model.memory_summary.confidence_band)}>{model.memory_summary.global_confidence}% confiance</Pill>
+            {model.memory_summary.has_contradictions ? <Pill tone="red">Incohérence</Pill> : null}
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="font-mono text-3xl font-semibold text-zinc-50">{formatCableDisplay(model.cable.normalized_code)}</h1>
-            <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${formatStatusTone(model.memory_summary.computed_status)}`}>
-              {model.memory_summary.computed_status}
-            </span>
-            {model.memory_summary.has_contradictions ? (
-              <span className="rounded-full border border-rose-500/30 bg-rose-500/10 px-3 py-1 text-xs font-semibold text-rose-200">
-                Incohérence
-              </span>
-            ) : null}
-          </div>
-          <div className="text-sm text-zinc-400">
-            Entrée: {formatCableDisplay(model.cable.code)} · Canon: {formatCableDisplay(model.cable.normalized_code)}
-          </div>
-        </div>
-
-        <div className="grid min-w-[220px] grid-cols-2 gap-3 lg:max-w-sm">
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-3">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Confiance</div>
-            <div className={`mt-1 text-2xl font-semibold ${formatConfidenceTone(model.memory_summary.confidence_band)}`}>
-              {model.memory_summary.global_confidence}%
-            </div>
-            <div className="text-xs text-zinc-500">{model.memory_summary.confidence_band}</div>
-          </div>
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-3">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Priorité</div>
-            <div className="mt-1 text-lg font-semibold text-zinc-100">{topPriority?.priority ?? "—"}</div>
-            <div className="text-xs text-zinc-500">{topPriority?.reason ?? "Aucune priorité ouverte"}</div>
-          </div>
-        </div>
+        }
+      />
+      <div className="mt-4 flex flex-wrap gap-2 text-xs text-zinc-500">
+        <span>{source ? `Source ${source}` : "CORE Memory"}</span>
+        <span>·</span>
+        <span>Priorité {topPriority?.priority ?? "—"}</span>
+        {topPriority?.reason ? <span className="text-zinc-400">· {topPriority.reason}</span> : null}
       </div>
     </section>
   );
@@ -120,90 +115,58 @@ export function CableStoryHeader({
 export function CableStoryCards({ model }: { model: CableStoryViewModel }): JSX.Element {
   return (
     <div className="grid gap-4 xl:grid-cols-[1.1fr_1.1fr_0.8fr]">
-      <section className="rounded-[24px] border border-zinc-800 bg-zinc-950/70 p-5">
-        <div className="text-[11px] uppercase tracking-[0.22em] text-zinc-500">INCA</div>
+      <Section title="INCA" eyebrow="Lecture seule" className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
         {model.inca ? (
-          <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <div className="text-zinc-500">ID</div>
-              <div className="font-mono text-zinc-100">{model.inca.id}</div>
-            </div>
-            <div>
-              <div className="text-zinc-500">Codice</div>
-              <div className="font-mono text-zinc-100">{model.inca.codice}</div>
-            </div>
-            <div>
-              <div className="text-zinc-500">Situazione</div>
-              <div className="text-zinc-100">{model.inca.situazione || "—"}</div>
-            </div>
-            <div>
-              <div className="text-zinc-500">Metri teo</div>
-              <div className="text-zinc-100">{model.inca.metri_teo ?? "—"}</div>
-            </div>
-            <div>
-              <div className="text-zinc-500">Impianto</div>
-              <div className="text-zinc-100">{model.inca.impianto || "—"}</div>
-            </div>
-            <div>
-              <div className="text-zinc-500">Commessa</div>
-              <div className="text-zinc-100">{model.inca.commessa || "—"}</div>
-            </div>
-            <div>
-              <div className="text-zinc-500">Zona DA</div>
-              <div className="text-zinc-100">{model.inca.zona_da || "—"}</div>
-            </div>
-            <div>
-              <div className="text-zinc-500">Zona A</div>
-              <div className="text-zinc-100">{model.inca.zona_a || "—"}</div>
-            </div>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <Info label="ID" value={model.inca.id} mono />
+            <Info label="Codice" value={model.inca.codice ? formatCableDisplay(model.inca.codice) : null} mono />
+            <Info label="Situazione" value={model.inca.situazione} />
+            <Info label="Metri teo" value={model.inca.metri_teo ?? "—"} />
+            <Info label="Impianto" value={model.inca.impianto} />
+            <Info label="Commessa" value={model.inca.commessa} />
+            <Info label="Zona DA" value={model.inca.zona_da} />
+            <Info label="Zona A" value={model.inca.zona_a} />
           </div>
         ) : (
-          <div className="mt-3 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-            Non trouvé dans INCA. CORE Memory reste disponible.
-          </div>
+          <EmptyState title="Non trouvé dans INCA" description="CORE Memory reste disponible pour ce câble." icon="!" />
         )}
-      </section>
+      </Section>
 
-      <section className="rounded-[24px] border border-zinc-800 bg-zinc-950/70 p-5">
-        <div className="text-[11px] uppercase tracking-[0.22em] text-zinc-500">Résumé mémoire</div>
-        <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-          <div>
-            <div className="text-zinc-500">Premier signal</div>
-            <div className="text-zinc-100">{formatDate(model.memory_summary.first_signal_at)}</div>
-          </div>
-          <div>
-            <div className="text-zinc-500">Dernier signal</div>
-            <div className="text-zinc-100">{formatDate(model.memory_summary.last_signal_at)}</div>
-          </div>
-          <div>
-            <div className="text-zinc-500">Messages source</div>
-            <div className="text-zinc-100">{model.memory_summary.source_messages_count}</div>
-          </div>
-          <div>
-            <div className="text-zinc-500">Événements</div>
-            <div className="text-zinc-100">{model.memory_summary.events_count}</div>
-          </div>
-          <div>
-            <div className="text-zinc-500">Findings</div>
-            <div className="text-zinc-100">{model.memory_summary.findings_count}</div>
-          </div>
-          <div>
-            <div className="text-zinc-500">Priorités ouvertes</div>
-            <div className="text-zinc-100">{model.memory_summary.open_priorities_count}</div>
-          </div>
+      <Section title="Résumé mémoire" eyebrow="Signaux CORE" className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
+        <div className="grid grid-cols-2 gap-3">
+          <Info label="Premier signal" value={formatDate(model.memory_summary.first_signal_at)} />
+          <Info label="Dernier signal" value={formatDate(model.memory_summary.last_signal_at)} />
         </div>
-      </section>
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatCard label="Messages" value={model.memory_summary.source_messages_count} />
+          <StatCard label="Événements" value={model.memory_summary.events_count} />
+          <StatCard label="Findings" value={model.memory_summary.findings_count} tone={model.memory_summary.findings_count > 0 ? "amber" : "neutral"} />
+          <StatCard label="Priorités" value={model.memory_summary.open_priorities_count} tone={model.memory_summary.open_priorities_count > 0 ? "red" : "neutral"} />
+        </div>
+      </Section>
 
-      <section className="rounded-[24px] border border-zinc-800 bg-zinc-950/70 p-5">
-        <div className="text-[11px] uppercase tracking-[0.22em] text-zinc-500">Histoire courte</div>
-        <ol className="mt-3 space-y-2 text-sm text-zinc-200">
-          {model.short_story.map((line) => (
-            <li key={line} className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
-              {line}
-            </li>
-          ))}
-        </ol>
-      </section>
+      <Section title="Histoire courte" eyebrow="Synthèse" className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
+        {model.short_story.length === 0 ? (
+          <p className="text-sm text-zinc-400">Aucun résumé disponible.</p>
+        ) : (
+          <ol className="space-y-2 text-sm text-zinc-200">
+            {model.short_story.map((line) => (
+              <li key={line} className="rounded-2xl border border-zinc-800 bg-zinc-900/60 px-3 py-3 leading-6">
+                {line}
+              </li>
+            ))}
+          </ol>
+        )}
+      </Section>
+    </div>
+  );
+}
+
+function Info({ label, value, mono = false }: { label: string; value: string | number | null; mono?: boolean }): JSX.Element {
+  return (
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3">
+      <div className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">{label}</div>
+      <div className={`mt-1 break-words text-sm text-zinc-100 ${mono ? "font-mono" : ""}`}>{value ?? "—"}</div>
     </div>
   );
 }
