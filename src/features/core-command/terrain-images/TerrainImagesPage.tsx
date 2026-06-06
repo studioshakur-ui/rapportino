@@ -19,6 +19,7 @@ interface ImageMsg {
 interface VisionResult {
   list_number: string | null;
   list_date: string | null;
+  color_legend?: Array<{ color: string; date: string }>;
   rows_count: number;
   apparati: number;
   posato: number;
@@ -159,7 +160,7 @@ export default function TerrainImagesPage(): JSX.Element {
     <Screen className="max-w-5xl space-y-6">
       <AppBar
         title="Images terrain"
-        subtitle="Captures de liste Telegram. Vert = posé, rose = priorité. Analysées par GPT-4o Vision."
+        subtitle="Captures de liste terrain. Couleur MARCA PEZZO = date de pose. Analysées par GPT-4o Vision."
         action={<Pill tone={unparsed > 0 ? "amber" : "emerald"}>{unparsed} à analyser</Pill>}
       />
 
@@ -215,7 +216,7 @@ export default function TerrainImagesPage(): JSX.Element {
           {result.results.map((r) => (
             <div key={r.message_id} className="mt-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs">
               <span className="text-gray-700">{r.rows_found} lignes · {r.apparati} apparati · </span>
-              <span className="text-emerald-700">{r.posato} lignes vertes</span>
+              <span className="text-emerald-700">{r.posato} câbles posés</span>
               <span className="text-gray-400"> · </span>
               <span className="text-red-700">{r.priority} priorités</span>
               {r.annotations.length > 0 && <p className="mt-1 italic text-gray-500">{r.annotations.join(" · ")}</p>}
@@ -260,9 +261,18 @@ export default function TerrainImagesPage(): JSX.Element {
                 <div className="mt-2 space-y-1 border-t border-gray-100 pt-2 text-xs">
                   <div className="flex flex-wrap gap-2">
                     <span className="text-gray-500">{img.vision_result.rows_count} lignes · {img.vision_result.apparati} apparati</span>
-                    {img.vision_result.posato > 0 && <span className="text-emerald-700">{img.vision_result.posato} vertes</span>}
-                    {img.vision_result.priority > 0 && <span className="text-red-700">{img.vision_result.priority} prio</span>}
+                    {img.vision_result.posato > 0 && <span className="text-emerald-700">{img.vision_result.posato} posés</span>}
+                    {img.vision_result.priority > 0 && <span className="text-red-700">{img.vision_result.priority} priorité</span>}
                   </div>
+                  {img.vision_result.color_legend && img.vision_result.color_legend.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {img.vision_result.color_legend.map((l, i) => (
+                        <span key={i} className="rounded px-1.5 py-0.5 bg-gray-100 text-gray-600 text-[10px]">
+                          {l.color} = {l.date}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   {img.vision_result.annotations.length > 0 && (
                     <p className="italic text-gray-500">{img.vision_result.annotations.join(" · ")}</p>
                   )}
