@@ -1,5 +1,5 @@
 // supabase/functions/classify-incoming/index.ts
-// Classifie les incoming_messages non traités via Claude Haiku.
+// Classifie les incoming_messages non traités via OpenAI gpt-4o-mini.
 // Crée core_events + cable_events pour chaque câble identifié.
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
@@ -16,7 +16,7 @@ interface IncomingRow {
   classification: Record<string, unknown>;
 }
 
-interface ClaudeResult {
+interface AIResult {
   id: string;
   kind: string;
   confidence: number;
@@ -40,10 +40,7 @@ const CABLE_KINDS = new Set([
   "CABLE_MENTION",
 ]);
 
-async function callClaude(
-  key: string,
-  batch: IncomingRow[],
-): Promise<ClaudeResult[]> {
+async function callOpenAI(key: string, batch: IncomingRow[]): Promise<AIResult[]> {
   const msgList = batch
     .map((m) => {
       const refs = m.cable_refs.length > 0
@@ -67,46 +64,42 @@ Classifie chaque message parmi ces types EXCLUSIVEMENT:
 - GENERAL_MESSAGE: message social sans action terrain (salutations, oui/non, émojis seuls, remerciements, "ciao", "grazie", "ok", "okay", photos seules, #today, test)
 
 Règles critiques:
-1. Liste de câbles + "100%" ou "ok" ou "fatto" ou "finito" → CABLE_POSATO (confidence élevée)
-2. Liste de câbles seule, SANS verbe d'état ni indicateur → CABLE_MENTION
-3. "sbagliato" (a fait une erreur) → CABLE_DA_CONTROLLARE
-4. "da trovare" / "non trovato" / "cerca" → CABLE_MANCANTE
+1. Liste de câbles + "100%" ou "ok" ou "fatto" ou "finito" → CABLE_POSATO
+2. Liste de câbles seule SANS indicateur d'état → CABLE_MENTION
+3. "sbagliato" (erreur commise) → CABLE_DA_CONTROLLARE
+4. "da trovare" / "non trovato" → CABLE_MANCANTE
 5. Message purement social (ciao, grazie, 👍, 🙄, test, #today) → GENERAL_MESSAGE
-6. Photo seule → GENERAL_MESSAGE (sauf si texte associé avec câbles)
-7. Note = résumé en 1 phrase EN FRANÇAIS de l'action terrain. null si GENERAL_MESSAGE.
+6. Photo seule → GENERAL_MESSAGE
+7. note = résumé EN FRANÇAIS de l'action terrain, null si GENERAL_MESSAGE
 
-Réponds UNIQUEMENT en JSON minifié valide, sans markdown, sans texte avant/après:
+Réponds en JSON valide uniquement, format:
 {"results":[{"id":"<exact_uuid>","kind":"<KIND>","confidence":<0.0-1.0>,"note":<"phrase"|null>}]}`;
 
-  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
-      "x-api-key": key,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
+      "Authorization": `Bearer ${key}`,
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages: [{ role: "user", content: `Messages à analyser:\n${msgList}` }],
+      model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user",   content: `Messages à analyser:\n${msgList}` },
+      ],
     }),
   });
 
   if (!resp.ok) {
     const err = await resp.text().catch(() => "(unreadable)");
-    throw new Error(`Claude API ${resp.status}: ${err.slice(0, 200)}`);
+    throw new Error(`OpenAI API ${resp.status}: ${err.slice(0, 200)}`);
   }
 
   const data = await resp.json();
-  const text: string = data.content?.[0]?.text ?? "";
-
-  // Extract JSON from response (may have leading/trailing whitespace)
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error(`No JSON in Claude response: ${text.slice(0, 300)}`);
-
-  const parsed = JSON.parse(jsonMatch[0]);
-  return (parsed.results ?? []) as ClaudeResult[];
+  const text: string = data.choices?.[0]?.message?.content ?? "";
+  const parsed = JSON.parse(text);
+  return (parsed.results ?? []) as AIResult[];
 }
 
 serve(
@@ -117,13 +110,13 @@ serve(
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceKey  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const anonKey     = Deno.env.get("SUPABASE_ANON_KEY");
-    const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
+    const openaiKey   = Deno.env.get("OPENAI_API_KEY");
 
     if (!supabaseUrl || !serviceKey || !anonKey) {
       return json(500, { ok: false, error: "Missing Supabase env vars" });
     }
-    if (!anthropicKey) {
-      return json(500, { ok: false, error: "ANTHROPIC_API_KEY not configured in Supabase secrets" });
+    if (!openaiKey) {
+      return json(500, { ok: false, error: "OPENAI_API_KEY not configured in Supabase secrets" });
     }
 
     const authHeader = req.headers.get("authorization") ?? "";
@@ -145,7 +138,6 @@ serve(
     const dryRun = body.dry_run === true;
     const limit  = Math.min(Number(body.limit ?? 50), 100);
 
-    // Fetch unprocessed messages with text content
     const { data: rows, error: fetchErr } = await admin
       .from("incoming_messages")
       .select("id, sender_name, message_ts, message_type, text, cable_refs, classification")
@@ -172,26 +164,25 @@ serve(
       return json(200, { ok: true, processed: 0, events_created: 0, message: "No unprocessed messages" });
     }
 
-    // Batch Claude calls — 10 messages per call
+    // Batch OpenAI calls — 10 messages per call
     const BATCH_SIZE = 10;
-    const allResults: ClaudeResult[] = [];
-    const claudeErrors: string[] = [];
+    const allResults: AIResult[] = [];
+    const apiErrors: string[] = [];
 
     for (let i = 0; i < messages.length; i += BATCH_SIZE) {
       const batch = messages.slice(i, i + BATCH_SIZE);
       try {
-        const results = await callClaude(anthropicKey, batch);
+        const results = await callOpenAI(openaiKey, batch);
         allResults.push(...results);
       } catch (e) {
-        claudeErrors.push(String(e));
-        // On batch failure: fallback to GENERAL_MESSAGE for all in batch
+        apiErrors.push(String(e));
         for (const m of batch) {
           allResults.push({ id: m.id, kind: "GENERAL_MESSAGE", confidence: 0.1, note: null });
         }
       }
     }
 
-    const resultMap = new Map<string, ClaudeResult>();
+    const resultMap = new Map<string, AIResult>();
     for (const r of allResults) resultMap.set(r.id, r);
 
     if (dryRun) {
@@ -206,7 +197,7 @@ serve(
           cables:      m.cable_refs,
           ...resultMap.get(m.id),
         })),
-        claude_errors: claudeErrors,
+        api_errors: apiErrors,
       });
     }
 
@@ -223,7 +214,6 @@ serve(
       let firstCoreEventId: string | null = null;
 
       try {
-        // Create core_events + cable_events for each cable code
         if (CABLE_KINDS.has(kind) && kind !== "GENERAL_MESSAGE") {
           for (const cableCode of cableRefs) {
             const { data: ce, error: ceErr } = await admin
@@ -238,7 +228,7 @@ serve(
                 confidence:            cls.confidence,
                 raw_text:              msg.text,
                 validation_status:     "pending",
-                payload:               { sender: msg.sender_name, classified_by: "claude-ai" },
+                payload:               { sender: msg.sender_name, classified_by: "openai-gpt4o-mini" },
               })
               .select("id")
               .single();
@@ -272,14 +262,13 @@ serve(
           }
         }
 
-        // Mark processed + store AI classification (merge with existing classification)
         const mergedClassification = {
           ...msg.classification,
-          event_kind:     kind,
-          confidence:     cls.confidence,
-          note:           cls.note,
-          classified_by:  "claude-ai",
-          classified_at:  new Date().toISOString(),
+          event_kind:    kind,
+          confidence:    cls.confidence,
+          note:          cls.note,
+          classified_by: "openai-gpt4o-mini",
+          classified_at: new Date().toISOString(),
         };
 
         const updatePayload: Record<string, unknown> = {
@@ -304,7 +293,7 @@ serve(
       total:          messages.length,
       processed:      processedCount,
       events_created: eventsCreated,
-      errors:         [...claudeErrors, ...writeErrors].slice(0, 20),
+      errors:         [...apiErrors, ...writeErrors].slice(0, 20),
     });
   }),
 );

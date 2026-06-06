@@ -122,7 +122,7 @@ export default function TelegramAIPage() {
     <Screen className="space-y-6">
       <AppBar
         title="Analyse IA — Telegram"
-        subtitle="Claude Haiku classifie les messages terrain non traités."
+        subtitle="GPT-4o-mini classifie les messages terrain non traités."
         action={<Pill tone={unprocessed > 0 ? "amber" : "emerald"}>{unprocessed} en attente</Pill>}
       />
 
@@ -150,7 +150,7 @@ export default function TelegramAIPage() {
           disabled={running || unprocessed === 0}
           className="min-h-11 rounded-2xl bg-violet-600 px-5 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:opacity-40"
         >
-          {running ? "Analyse en cours…" : `Classifier ${unprocessed} message${unprocessed > 1 ? "s" : ""} avec Claude`}
+          {running ? "Analyse en cours…" : `Classifier ${unprocessed} message${unprocessed > 1 ? "s" : ""} avec OpenAI`}
         </button>
         <button
           onClick={() => run(true)}
