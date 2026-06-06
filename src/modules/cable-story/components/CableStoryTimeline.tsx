@@ -1,21 +1,21 @@
 import type { CableStoryTimelineItem } from "../cableStory.types";
+import { EmptyState, Pill, Section } from "../../../components/command-ui";
 
-function toneForEvent(eventType: string): string {
+function toneForEvent(eventType: string): "neutral" | "emerald" | "amber" | "red" | "sky" {
   switch (eventType) {
     case "MATCHED_INCA":
-      return "bg-sky-500/15 text-sky-200 border-sky-500/30";
+    case "CONFIRMED":
+      return "sky";
     case "POSED_REPORTED":
     case "RESOLVED":
-      return "bg-emerald-500/15 text-emerald-200 border-emerald-500/30";
+      return "emerald";
     case "SHORT_REPORTED":
-      return "bg-orange-500/15 text-orange-200 border-orange-500/30";
+      return "amber";
     case "MISSING_REPORTED":
     case "BLOCKED_REPORTED":
-      return "bg-rose-500/15 text-rose-200 border-rose-500/30";
-    case "CONFIRMED":
-      return "bg-blue-500/15 text-blue-200 border-blue-500/30";
+      return "red";
     default:
-      return "bg-zinc-500/15 text-zinc-200 border-zinc-500/30";
+      return "neutral";
   }
 }
 
@@ -38,44 +38,33 @@ export default function CableStoryTimeline({
 }): JSX.Element {
   if (items.length === 0) {
     return (
-      <div className="rounded-[24px] border border-zinc-800 bg-zinc-950/70 p-6 text-sm text-zinc-400">
-        Aucun signal terrain. CORE COMMAND n&apos;a pas encore d&apos;histoire à raconter pour ce câble.
-      </div>
+      <EmptyState
+        title="Aucun signal terrain"
+        description="CORE COMMAND n'a pas encore d'histoire à raconter pour ce câble."
+        icon="◌"
+      />
     );
   }
 
   return (
-    <section className="rounded-[24px] border border-zinc-800 bg-zinc-950/70 p-5">
-      <div className="text-[11px] uppercase tracking-[0.22em] text-zinc-500">Timeline câble</div>
-      <ol className="relative mt-4 border-l border-zinc-800 pl-5">
+    <Section title="Timeline câble" eyebrow="Événements" count={items.length} className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
+      <ol className="space-y-3">
         {items.map((item) => {
           const isFocused = focusId === item.id || focusId === item.core_event_id;
           return (
             <li
               key={item.id}
-              className={`relative py-4 ${isFocused ? "rounded-2xl bg-sky-500/5 px-3 -ml-3" : ""}`}
+              className={`rounded-3xl border p-4 transition ${
+                isFocused ? "border-sky-500/40 bg-sky-500/10" : "border-zinc-800 bg-zinc-900/60"
+              }`}
             >
-              <span
-                className={`absolute -left-[22px] top-7 h-3.5 w-3.5 rounded-full border border-zinc-900 ${isFocused ? "bg-sky-400" : "bg-zinc-500"}`}
-              />
-
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div className="min-w-0 space-y-2">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0 space-y-3">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${toneForEvent(item.event_type)}`}>
-                      {item.event_type.replace(/_/g, " ")}
-                    </span>
-                    <span className="text-xs text-zinc-500">{item.source_type}</span>
-                    {item.priority_level ? (
-                      <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-200">
-                        {item.priority_level}
-                      </span>
-                    ) : null}
-                    {item.is_contradictory ? (
-                      <span className="rounded-full border border-rose-500/20 bg-rose-500/10 px-2 py-0.5 text-[11px] font-medium text-rose-200">
-                        Incohérence
-                      </span>
-                    ) : null}
+                    <Pill tone={toneForEvent(item.event_type)}>{item.event_type.replace(/_/g, " ")}</Pill>
+                    <Pill tone="neutral">{item.source_type}</Pill>
+                    {item.priority_level ? <Pill tone="amber">{item.priority_level}</Pill> : null}
+                    {item.is_contradictory ? <Pill tone="red">Incohérence</Pill> : null}
                   </div>
 
                   <div>
@@ -85,14 +74,12 @@ export default function CableStoryTimeline({
                     </div>
                   </div>
 
-                  {item.detail ? (
-                    <p className="max-w-3xl text-sm leading-6 text-zinc-300">{item.detail}</p>
-                  ) : null}
+                  {item.detail ? <p className="max-w-3xl text-sm leading-6 text-zinc-300">{item.detail}</p> : null}
 
                   <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-500">
                     {item.status ? <span>Statut: {item.status}</span> : null}
                     {item.message_id ? (
-                      <a href={`#source-${item.message_id}`} className="text-sky-300 hover:text-sky-200">
+                      <a href={`#source-${item.message_id}`} className="font-medium text-sky-300 hover:text-sky-200">
                         Voir la source
                       </a>
                     ) : null}
@@ -105,6 +92,6 @@ export default function CableStoryTimeline({
           );
         })}
       </ol>
-    </section>
+    </Section>
   );
 }

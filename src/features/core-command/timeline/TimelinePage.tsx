@@ -1,26 +1,27 @@
-// src/features/core-command/timeline/TimelinePage.tsx — V2 (post-audit)
+// src/features/core-command/timeline/TimelinePage.tsx — V3 mobile shell
 // Journal de chantier groupé par jour. Zéro "confidence", zéro "CORE MEM", zéro snake_case.
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCableEvents } from "../hooks/useCableEvents";
 import { formatCableDisplay } from "../../../core/cable/cableDisplay";
+import { AppBar, EmptyState, Pill, Screen, Section } from "../../../components/command-ui";
 
 // Traduction event_kind → phrase chantier
-function humanizeKind(kind: string): { label: string; color: string } {
-  const map: Record<string, { label: string; color: string }> = {
-    CABLE_POSATO:          { label: "Câble posé",         color: "text-emerald-400" },
-    CABLE_SFILATO:         { label: "Câble retiré",       color: "text-sky-400"     },
-    CABLE_LASATO:          { label: "Câble lâché",        color: "text-teal-400"    },
-    CABLE_CORTO:           { label: "Câble trop court",   color: "text-orange-400"  },
-    CABLE_MANCANTE:        { label: "Câble manquant",     color: "text-red-400"     },
-    CABLE_DA_CONTROLLARE:  { label: "À vérifier",         color: "text-yellow-400"  },
-    GENERAL_MESSAGE:       { label: "Signal terrain",     color: "text-zinc-400"    },
-    MATERIAL_REQUEST:      { label: "Demande matériel",   color: "text-purple-400"  },
-    ATTENDANCE_ABSENCE:    { label: "Absence",            color: "text-zinc-500"    },
-    PHOTO_EVENT:           { label: "Photo",              color: "text-indigo-400"  },
-    CABLE_MENTION:         { label: "Mention",            color: "text-zinc-500"    },
+function humanizeKind(kind: string): { label: string; tone: "neutral" | "emerald" | "amber" | "red" | "sky" | "violet" } {
+  const map: Record<string, { label: string; tone: "neutral" | "emerald" | "amber" | "red" | "sky" | "violet" }> = {
+    CABLE_POSATO:          { label: "Câble posé",       tone: "emerald" },
+    CABLE_SFILATO:         { label: "Câble retiré",     tone: "sky"     },
+    CABLE_LASATO:          { label: "Câble lâché",      tone: "sky"     },
+    CABLE_CORTO:           { label: "Câble trop court", tone: "amber"   },
+    CABLE_MANCANTE:        { label: "Câble manquant",   tone: "red"     },
+    CABLE_DA_CONTROLLARE:  { label: "À vérifier",       tone: "amber"   },
+    GENERAL_MESSAGE:       { label: "Signal terrain",   tone: "neutral" },
+    MATERIAL_REQUEST:      { label: "Demande matériel", tone: "violet"  },
+    ATTENDANCE_ABSENCE:    { label: "Absence",          tone: "neutral" },
+    PHOTO_EVENT:           { label: "Photo",            tone: "violet"  },
+    CABLE_MENTION:         { label: "Mention",          tone: "neutral" },
   };
-  return map[kind] ?? { label: kind.replace(/_/g, " "), color: "text-zinc-400" };
+  return map[kind] ?? { label: kind.replace(/_/g, " "), tone: "neutral" };
 }
 
 // Grouper par date
@@ -57,32 +58,37 @@ export default function TimelinePage() {
   const days    = [...grouped.keys()].sort((a, b) => b.localeCompare(a));
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+    <Screen className="space-y-6">
+      <AppBar
+        title="Journal chantier"
+        subtitle="Lecture par jour des événements validés, avec accès direct aux câbles."
+        action={<Pill tone="neutral">{events?.length ?? 0} événement{(events?.length ?? 0) > 1 ? "s" : ""}</Pill>}
+      />
 
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-xl font-bold text-white">Journal chantier</h1>
+      <label className="block">
+        <span className="sr-only">Filtrer par câble</span>
         <input
-          type="text"
+          type="search"
           placeholder="Filtrer par câble…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="rounded-lg border border-zinc-700 bg-zinc-900 text-white px-3 py-1.5 text-sm placeholder:text-zinc-500 outline-none focus:border-zinc-500 w-44"
+          className="min-h-12 w-full rounded-2xl border border-zinc-800 bg-zinc-900 px-4 text-base text-white outline-none transition placeholder:text-zinc-600 focus:border-zinc-600 focus:bg-zinc-900/90"
         />
-      </div>
+      </label>
 
       {isLoading && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-20 bg-zinc-900 rounded-2xl border border-zinc-800 animate-pulse" />
+            <div key={i} className="h-24 animate-pulse rounded-3xl border border-zinc-800 bg-zinc-900" />
           ))}
         </div>
       )}
 
       {!isLoading && days.length === 0 && (
-        <p className="text-zinc-500 text-sm">Aucun événement trouvé.</p>
+        <EmptyState title="Aucun événement trouvé" description="Essaie un autre câble ou vide le filtre." icon="⌕" />
       )}
 
-      {days.map((day) => {
+      {!isLoading && days.map((day) => {
         const dayEvents = grouped.get(day)!;
 
         // Grouper les câbles posés (CABLE_POSATO) pour affichage compact
@@ -100,83 +106,82 @@ export default function TimelinePage() {
         }
 
         return (
-          <div key={day} className="space-y-2">
-            {/* Entête du jour */}
-            <div className="flex items-center gap-3">
-              <p className="text-sm font-bold text-white capitalize">{formatDay(day)}</p>
-              <div className="flex-1 h-px bg-zinc-800" />
-              <p className="text-xs text-zinc-600">{dayEvents.length} événements</p>
-            </div>
-
-            {/* Câbles posés — résumé compact */}
-            {posato.length > 0 && (
-              <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 space-y-3">
-                <p className="text-xs text-zinc-500 uppercase tracking-wider">
-                  {posato.length} câble{posato.length > 1 ? "s" : ""} posé{posato.length > 1 ? "s" : ""}
-                </p>
-                {actors.size > 0 ? (
-                  [...actors.entries()].map(([actor, cables]) => (
-                    <div key={actor}>
-                      <p className="text-sm font-medium text-zinc-300">{actor}</p>
-                      <div className="flex flex-wrap gap-1.5 mt-1">
-                        {cables.map((code) => (
+          <Section key={day} title={formatDay(day)} count={dayEvents.length}>
+            <div className="space-y-3">
+              {posato.length > 0 && (
+                <article className="rounded-3xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <Pill tone="emerald">
+                      {posato.length} câble{posato.length > 1 ? "s" : ""} posé{posato.length > 1 ? "s" : ""}
+                    </Pill>
+                  </div>
+                  <div className="space-y-3">
+                    {actors.size > 0 ? (
+                      [...actors.entries()].map(([actor, cables]) => (
+                        <div key={actor}>
+                          <p className="text-sm font-medium text-zinc-200">{actor}</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {cables.map((code) => (
+                              <button
+                                key={code}
+                                onClick={() => navigate(`/command/cable/${encodeURIComponent(code)}`)}
+                                className="min-h-9 rounded-xl bg-emerald-500/10 px-3 font-mono text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/20"
+                              >
+                                {formatCableDisplay(code)}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {posato.map((e) => (
                           <button
-                            key={code}
-                            onClick={() => navigate(`/command/cable/${encodeURIComponent(code)}`)}
-                            className="font-mono text-xs bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded hover:bg-emerald-500/20 transition"
+                            key={e.id}
+                            onClick={() => navigate(`/command/cable/${encodeURIComponent(e.cable_code)}`)}
+                            className="min-h-9 rounded-xl bg-emerald-500/10 px-3 font-mono text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/20"
                           >
-                            {formatCableDisplay(code)}
+                            {formatCableDisplay(e.cable_code)}
                           </button>
                         ))}
                       </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="flex flex-wrap gap-1.5">
-                    {posato.map((e) => (
-                      <button
-                        key={e.id}
-                        onClick={() => navigate(`/command/cable/${encodeURIComponent(e.cable_code)}`)}
-                        className="font-mono text-xs bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded hover:bg-emerald-500/20 transition"
-                      >
-                        {formatCableDisplay(e.cable_code)}
-                      </button>
-                    ))}
+                    )}
                   </div>
-                )}
-              </div>
-            )}
+                </article>
+              )}
 
-            {/* Autres événements */}
-            {autres.map((e) => {
-              const { label, color } = humanizeKind(e.event_kind);
-              if (e.event_kind === "GENERAL_MESSAGE" && !e.note) return null;
-              return (
-                <button
-                  key={e.id}
-                  onClick={() => navigate(`/command/cable/${encodeURIComponent(e.cable_code)}`)}
-                  className="w-full text-left bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 hover:bg-zinc-800/60 transition"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className={`text-xs font-medium ${color}`}>{label}</span>
-                      <span className="font-mono text-sm text-white truncate">{formatCableDisplay(e.cable_code)}</span>
+              {autres.map((e) => {
+                const { label, tone } = humanizeKind(e.event_kind);
+                if (e.event_kind === "GENERAL_MESSAGE" && !e.note) return null;
+                return (
+                  <button
+                    key={e.id}
+                    onClick={() => navigate(`/command/cable/${encodeURIComponent(e.cable_code)}`)}
+                    className="min-h-16 w-full rounded-2xl border border-zinc-800 bg-zinc-900/80 px-4 py-3 text-left transition hover:border-zinc-700 hover:bg-zinc-900"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Pill tone={tone}>{label}</Pill>
+                          <span className="truncate font-mono text-sm font-semibold text-white">{formatCableDisplay(e.cable_code)}</span>
+                        </div>
+                        {e.note && e.event_kind === "GENERAL_MESSAGE" ? (
+                          <p className="line-clamp-2 text-xs leading-5 text-zinc-500 italic">{e.note.slice(0, 100)}</p>
+                        ) : null}
+                      </div>
+                      <span className="shrink-0 text-xs text-zinc-600">
+                        {new Date(e.occurred_at).toLocaleTimeString("fr-FR", {
+                          hour: "2-digit", minute: "2-digit",
+                        })}
+                      </span>
                     </div>
-                    <span className="text-xs text-zinc-600 shrink-0">
-                      {new Date(e.occurred_at).toLocaleTimeString("fr-FR", {
-                        hour: "2-digit", minute: "2-digit",
-                      })}
-                    </span>
-                  </div>
-                  {e.note && e.event_kind === "GENERAL_MESSAGE" && (
-                    <p className="text-xs text-zinc-500 mt-1 line-clamp-1 italic">{e.note.slice(0, 100)}</p>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+                  </button>
+                );
+              })}
+            </div>
+          </Section>
         );
       })}
-    </div>
+    </Screen>
   );
 }

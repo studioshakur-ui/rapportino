@@ -8,10 +8,12 @@ import { parseFile } from "./dailyLists.parser";
 import { createDailyListImport, listRecentImports, deleteImport } from "./dailyLists.repo";
 import ImportDropzone from "./components/ImportDropzone";
 import type { ParseResult } from "./dailyLists.types";
+import { AppBar, EmptyState, Pill, Screen, Section, StatCard } from "../../components/command-ui";
+import { formatCableDisplay } from "../../core/cable/cableDisplay";
 
 interface AuthSession { user?: { id?: string } }
 
-export default function DailyListsPage() {
+export default function DailyListsPage(): JSX.Element {
   const navigate    = useNavigate();
   const queryClient = useQueryClient();
   const { session } = useAuth() as { session: AuthSession | null };
@@ -78,157 +80,133 @@ export default function DailyListsPage() {
     setParseError(null);
   }
 
+  const recentImports = imports ?? [];
+  const importedCount = recentImports.filter((imp) => imp.status === "imported").length;
+  const draftOrFailedCount = recentImports.length - importedCount;
+
   return (
-    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold">Listes journalières</h1>
-          <p className="text-sm text-zinc-500 mt-0.5">
-            Importer PDF ou Excel (L1/L2/L3) — plan d'action chantier du jour
-          </p>
-        </div>
+    <Screen className="max-w-4xl space-y-6">
+      <AppBar
+        title="Listes journalières"
+        subtitle="Importer PDF ou Excel L1/L2/L3 — plan d'action chantier du jour."
+        action={<Pill tone="sky">Importer liste PDF</Pill>}
+      />
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <StatCard label="Imports récents" value={recentImports.length} tone="neutral" />
+        <StatCard label="Listes prêtes" value={importedCount} tone={importedCount > 0 ? "emerald" : "neutral"} />
+        <StatCard label="À contrôler" value={draftOrFailedCount} tone={draftOrFailedCount > 0 ? "amber" : "neutral"} />
       </div>
 
-      {/* Upload zone */}
-      {!parseResult && (
-        <ImportDropzone onFile={handleFile} disabled={parsing} />
-      )}
+      <Section title="Nouvelle liste" eyebrow="Upload chantier">
+        {!parseResult ? <ImportDropzone onFile={handleFile} disabled={parsing} /> : null}
 
-      {/* Parsing spinner */}
-      {parsing && (
-        <div className="flex items-center gap-3 text-sm text-zinc-500">
-          <svg className="animate-spin h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
-          </svg>
-          Lecture du fichier…
-        </div>
-      )}
-
-      {/* Parse error */}
-      {parseError && (
-        <div className="rounded-xl border border-red-200 bg-red-50 dark:bg-red-900/10 p-4 text-sm text-red-700 dark:text-red-400">
-          <strong>Erreur : </strong>{parseError}
-          <button onClick={resetParse} className="ml-3 underline text-xs">Réessayer</button>
-        </div>
-      )}
-
-      {/* Parse preview */}
-      {parseResult && !parsing && (
-        <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-semibold text-sm">{parsedFileName}</p>
-              <p className="text-xs text-zinc-500">
-                {parseResult.rows.length} lignes détectées ·{" "}
-                {parseResult.source_kind.toUpperCase()} ·{" "}
-                {parseResult.detected_date ?? "date non détectée"}
-              </p>
-            </div>
-            <button onClick={resetParse} className="text-xs text-zinc-400 hover:text-zinc-600">
-              ✕ Annuler
-            </button>
+        {parsing ? (
+          <div className="flex min-h-16 items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/80 px-4 text-sm text-zinc-400">
+            <svg className="h-4 w-4 animate-spin text-sky-400" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+            </svg>
+            Lecture du fichier…
           </div>
+        ) : null}
 
-          {/* Warnings */}
-          {parseResult.warnings.map((w, i) => (
-            <div key={i} className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-1.5 rounded-lg">
-              ⚠ {w}
-            </div>
-          ))}
+        {parseError ? (
+          <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300">
+            <strong>Erreur : </strong>{parseError}
+            <button onClick={resetParse} className="ml-3 text-xs font-semibold underline">Réessayer</button>
+          </div>
+        ) : null}
 
-          {/* Preview table */}
-          {parseResult.rows.length > 0 && (
-            <div className="overflow-x-auto max-h-64 rounded-lg border border-zinc-100 dark:border-zinc-800">
-              <table className="w-full text-xs border-collapse">
-                <thead className="bg-zinc-50 dark:bg-zinc-800 sticky top-0">
-                  <tr>
-                    {["Lista","Résolut.","Câble","État","Périmètre","Sit. INCA","Note"].map((h) => (
-                      <th key={h} className="px-2 py-1.5 text-left font-medium text-zinc-500 border-b border-zinc-200 dark:border-zinc-700">
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {parseResult.rows.slice(0, 20).map((row, i) => (
-                    <tr key={i} className="border-t border-zinc-100 dark:border-zinc-800">
-                      <td className="px-2 py-1 text-zinc-400">{row.lista ?? "—"}</td>
-                      <td className="px-2 py-1 text-zinc-400">{row.risoluzione ?? "—"}</td>
-                      <td className="px-2 py-1 font-mono font-semibold">{row.marca_pezzo}</td>
-                      <td className="px-2 py-1 text-zinc-500">{row.stato_collegamento ?? "—"}</td>
-                      <td className="px-2 py-1 text-zinc-500">{row.perimetro ?? "—"}</td>
-                      <td className="px-2 py-1 text-zinc-500">{row.situazione_inca ?? "—"}</td>
-                      <td className="px-2 py-1 text-zinc-400 truncate max-w-[160px]">{row.note ?? ""}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {parseResult.rows.length > 20 && (
-                <p className="text-xs text-zinc-400 px-3 py-1.5">
-                  … et {parseResult.rows.length - 20} lignes supplémentaires
+        {parseResult && !parsing ? (
+          <div className="space-y-4 rounded-3xl border border-zinc-800 bg-zinc-900/80 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-white">{parsedFileName}</p>
+                <p className="mt-1 text-xs text-zinc-500">
+                  {parseResult.rows.length} lignes détectées · {parseResult.source_kind.toUpperCase()} · {parseResult.detected_date ?? "date non détectée"}
                 </p>
-              )}
+              </div>
+              <button onClick={resetParse} className="shrink-0 rounded-xl border border-zinc-800 px-3 py-2 text-xs font-medium text-zinc-400 transition hover:text-white">
+                Annuler
+              </button>
             </div>
-          )}
 
-          {parseResult.rows.length > 0 && (
-            <button
-              onClick={handleImport}
-              disabled={importMutation.isPending}
-              className="w-full rounded-xl bg-blue-600 text-white text-sm font-semibold py-2.5 hover:bg-blue-700 disabled:opacity-50 transition"
-            >
-              {importMutation.isPending
-                ? "Importation en cours…"
-                : `Importer ${parseResult.rows.length} câbles dans CORE COMMAND`}
-            </button>
-          )}
-        </div>
-      )}
+            {parseResult.warnings.map((warning, index) => (
+              <div key={`${warning}-${index}`} className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+                ⚠ {warning}
+              </div>
+            ))}
 
-      {/* Recent imports */}
-      <section>
-        <h2 className="text-sm font-semibold text-zinc-500 mb-3">
-          Imports récents
-        </h2>
+            {parseResult.rows.length > 0 ? (
+              <div className="max-h-72 overflow-auto rounded-2xl border border-zinc-800">
+                <table className="w-full min-w-[720px] border-collapse text-xs">
+                  <thead className="sticky top-0 bg-zinc-900">
+                    <tr>
+                      {["Lista", "Résolut.", "Câble", "État", "Périmètre", "Sit. INCA", "Note"].map((h) => (
+                        <th key={h} className="border-b border-zinc-800 px-3 py-2 text-left font-medium text-zinc-500">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {parseResult.rows.slice(0, 20).map((row, index) => (
+                      <tr key={`${row.marca_pezzo}-${index}`} className="border-t border-zinc-800/70">
+                        <td className="px-3 py-2 text-zinc-500">{row.lista ?? "—"}</td>
+                        <td className="px-3 py-2 text-zinc-500">{row.risoluzione ?? "—"}</td>
+                        <td className="px-3 py-2 font-mono font-semibold text-white">{formatCableDisplay(row.marca_pezzo)}</td>
+                        <td className="px-3 py-2 text-zinc-500">{row.stato_collegamento ?? "—"}</td>
+                        <td className="px-3 py-2 text-zinc-500">{row.perimetro ?? "—"}</td>
+                        <td className="px-3 py-2 text-zinc-500">{row.situazione_inca ?? "—"}</td>
+                        <td className="max-w-[180px] truncate px-3 py-2 text-zinc-500">{row.note ?? ""}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {parseResult.rows.length > 20 ? (
+                  <p className="border-t border-zinc-800 px-3 py-2 text-xs text-zinc-500">
+                    … et {parseResult.rows.length - 20} lignes supplémentaires
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
 
-        {isLoading && (
-          <p className="text-sm text-zinc-400">Chargement…</p>
-        )}
-
-        {!isLoading && (imports ?? []).length === 0 && (
-          <div className="rounded-xl border border-dashed border-zinc-300 dark:border-zinc-700 p-8 text-center text-sm text-zinc-400">
-            Aucun import. Déposer un fichier L1/L2/L3 ci-dessus.
-          </div>
-        )}
-
-        <ul className="space-y-2">
-          {(imports ?? []).map((imp) => {
-            const statusColor = imp.status === "imported"
-              ? "text-emerald-600 dark:text-emerald-400"
-              : imp.status === "failed"
-              ? "text-red-500"
-              : "text-amber-500";
-
-            return (
-              <li
-                key={imp.id}
-                className="flex items-center justify-between gap-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-3 hover:border-blue-300 dark:hover:border-blue-700 transition"
+            {parseResult.rows.length > 0 ? (
+              <button
+                onClick={handleImport}
+                disabled={importMutation.isPending}
+                className="min-h-12 w-full rounded-2xl bg-sky-600 px-4 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-50"
               >
-                <button
-                  className="flex-1 text-left"
-                  onClick={() => navigate(`/command/daily-lists/${imp.id}`)}
-                >
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-sm">{imp.file_name}</span>
-                    <span className={`text-xs font-medium ${statusColor}`}>
-                      {imp.status}
-                    </span>
+                {importMutation.isPending ? "Importation en cours…" : `Importer ${parseResult.rows.length} câbles dans CORE COMMAND`}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </Section>
+
+      <Section title="Imports récents" eyebrow="Historique" count={recentImports.length}>
+        {isLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => <div key={i} className="h-20 animate-pulse rounded-3xl border border-zinc-800 bg-zinc-900" />)}
+          </div>
+        ) : null}
+
+        {!isLoading && recentImports.length === 0 ? (
+          <EmptyState title="Aucun import" description="Déposer une liste L1/L2/L3 pour commencer le suivi chantier." icon="📋" />
+        ) : null}
+
+        <div className="space-y-3">
+          {recentImports.map((imp) => (
+            <article key={imp.id} className="rounded-3xl border border-zinc-800 bg-zinc-900/80 p-4 transition hover:border-sky-500/40">
+              <div className="flex items-start justify-between gap-3">
+                <button className="min-w-0 flex-1 text-left" onClick={() => navigate(`/command/daily-lists/${imp.id}`)}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="truncate text-sm font-semibold text-white">{imp.file_name}</span>
+                    <Pill tone={imp.status === "imported" ? "emerald" : imp.status === "failed" ? "red" : "amber"}>{imp.status}</Pill>
                   </div>
-                  <p className="text-xs text-zinc-500 mt-0.5">
-                    {imp.list_date ?? "date inconnue"} · {imp.rows_count} câbles ·{" "}
-                    {imp.source_kind.toUpperCase()} ·{" "}
-                    {new Date(imp.imported_at).toLocaleString("fr-FR", {
+                  <p className="mt-2 text-xs leading-5 text-zinc-500">
+                    {imp.list_date ?? "date inconnue"} · {imp.rows_count} câbles · {imp.source_kind.toUpperCase()} · {new Date(imp.imported_at).toLocaleString("fr-FR", {
                       day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
                     })}
                   </p>
@@ -241,15 +219,15 @@ export default function DailyListsPage() {
                       deleteMutation.mutate(imp.id);
                     }
                   }}
-                  className="text-xs text-zinc-400 hover:text-red-500 transition shrink-0"
+                  className="min-h-10 shrink-0 rounded-xl border border-zinc-800 px-3 text-xs font-medium text-zinc-500 transition hover:border-red-500/40 hover:text-red-300"
                 >
-                  ✕
+                  Supprimer
                 </button>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
-    </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </Section>
+    </Screen>
   );
 }
