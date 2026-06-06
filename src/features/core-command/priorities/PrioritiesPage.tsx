@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { listOpenPriorities, closePriority } from "../api/cablePriorities.api";
 import { useAgentFindings } from "../hooks/useAgentFindings";
 import { formatCableDisplay } from "../../../core/cable/cableDisplay";
+import { Screen, EmptyState } from "../ui/CommandKit";
 
 // Traduction INCA/système → langage chantier
 function humanizeKind(kind: string, severity?: string): { label: string; icon: string } {
@@ -42,7 +43,7 @@ export default function PrioritiesPage() {
   const isLoading     = loadPri || loadFind;
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+    <Screen className="space-y-6">
 
       {/* En-tête */}
       <div>
@@ -171,12 +172,8 @@ export default function PrioritiesPage() {
 
       {/* Vide */}
       {!isLoading && totalProblems === 0 && (
-        <div className="rounded-2xl border border-emerald-800/30 bg-emerald-900/10 p-8 text-center">
-          <p className="text-3xl mb-2">✓</p>
-          <p className="text-emerald-400 font-bold">Aucun problème ouvert</p>
-          <p className="text-zinc-500 text-sm mt-1">Tous les câbles sont sans anomalie.</p>
-        </div>
+        <EmptyState title="Aucun problème ouvert" hint="Tous les câbles sont sans anomalie." />
       )}
-    </div>
+    </Screen>
   );
 }

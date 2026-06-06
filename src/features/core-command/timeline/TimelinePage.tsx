@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCableEvents } from "../hooks/useCableEvents";
 import { formatCableDisplay } from "../../../core/cable/cableDisplay";
+import { Screen, EmptyState, CablePills } from "../ui/CommandKit";
 
 // Traduction event_kind → phrase chantier
 function humanizeKind(kind: string): { label: string; color: string } {
@@ -57,7 +58,7 @@ export default function TimelinePage() {
   const days    = [...grouped.keys()].sort((a, b) => b.localeCompare(a));
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+    <Screen className="space-y-6">
 
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-bold text-white">Journal chantier</h1>
@@ -66,7 +67,7 @@ export default function TimelinePage() {
           placeholder="Filtrer par câble…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="rounded-lg border border-zinc-700 bg-zinc-900 text-white px-3 py-1.5 text-sm placeholder:text-zinc-500 outline-none focus:border-zinc-500 w-44"
+          className="w-full sm:w-44 rounded-lg border border-zinc-700 bg-zinc-900 text-white px-3 py-2 text-sm placeholder:text-zinc-500 outline-none focus:border-zinc-500"
         />
       </div>
 
@@ -79,7 +80,7 @@ export default function TimelinePage() {
       )}
 
       {!isLoading && days.length === 0 && (
-        <p className="text-zinc-500 text-sm">Aucun événement trouvé.</p>
+        <EmptyState icon="🗓️" title="Aucun événement" hint="Les signaux terrain apparaîtront ici, groupés par jour." />
       )}
 
       {days.map((day) => {
