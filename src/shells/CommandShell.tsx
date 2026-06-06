@@ -2,6 +2,7 @@
 import { type FormEvent, useState, useRef, useEffect } from "react";
 import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
+import CommandBottomNav from "./CommandBottomNav";
 
 const MAIN_NAV = [
   { to: "/command/center",      label: "Aujourd'hui" },
@@ -106,8 +107,8 @@ export default function CommandShell() {
           </div>
         </div>
 
-        {/* Nav */}
-        <div className="max-w-6xl mx-auto px-6 flex items-center gap-1 pb-0">
+        {/* Nav — desktop tabs (mobile uses the bottom nav) */}
+        <div className="hidden md:flex max-w-6xl mx-auto px-6 items-center gap-1 pb-0">
           {MAIN_NAV.map(({ to, label }) => (
             <NavLink
               key={to}
@@ -126,10 +127,12 @@ export default function CommandShell() {
         </div>
       </header>
 
-      {/* Content */}
-      <main className="flex-1">
+      {/* Content — bottom padding clears the fixed mobile nav */}
+      <main className="flex-1 pb-[calc(64px+env(safe-area-inset-bottom))] md:pb-0">
         <Outlet />
       </main>
+
+      <CommandBottomNav />
     </div>
   );
 }
