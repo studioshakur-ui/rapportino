@@ -9,6 +9,7 @@ import CommandCenterPage  from "./features/core-command/command-center/CommandCe
 import TimelinePage       from "./features/core-command/timeline/TimelinePage";
 import PrioritiesPage     from "./features/core-command/priorities/PrioritiesPage";
 import WhatsAppIntakePage from "./features/core-command/intake/WhatsAppIntakePage";
+import TelegramAIPage     from "./features/core-command/intake/TelegramAIPage";
 import IncaImportPage     from "./features/core-command/inca/IncaImportPage";
 import CableDetailPage    from "./features/core-command/cable/CableDetailPage";
 import DailyListsPage     from "./modules/daily-lists/DailyListsPage";
@@ -49,6 +50,7 @@ export default function AppRoutes(): JSX.Element {
         <Route path="timeline"     element={<TimelinePage />} />
         <Route path="inca"         element={<IncaImportPage />} />
         <Route path="intake"       element={<WhatsAppIntakePage />} />
+        <Route path="ai-intake"    element={<TelegramAIPage />} />
         {/* Compat ancien routing */}
         <Route path="priorities"   element={<Navigate to="/command/problems" replace />} />
       </Route>

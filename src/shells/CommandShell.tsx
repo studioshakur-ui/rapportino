@@ -14,8 +14,9 @@ const MAIN_NAV = [
 ] as const;
 
 const ADMIN_NAV = [
-  { to: "/command/inca",   label: "Import INCA"    },
-  { to: "/command/intake", label: "Intake messages" },
+  { to: "/command/inca",       label: "Import INCA"    },
+  { to: "/command/intake",     label: "Intake messages" },
+  { to: "/command/ai-intake",  label: "Analyse IA"     },
 ] as const;
 
 const PAGE_TITLES: Record<string, string> = {
