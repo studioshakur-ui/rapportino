@@ -26,43 +26,58 @@ export function extractProgressPercent(note: string | null): number | null {
   return val >= 0 && val <= 100 ? val : null;
 }
 
+// ── Event kinds that mean "cable is posed / confirmed on the field" ─────────
+// cable_events store raw kinds ("CABLE_POSATO"); core_events store the mapped
+// story type ("POSED_REPORTED", "RESOLVED"). Both must count as field proof.
+const POSED_EVENT_KINDS = new Set(["CABLE_POSATO", "POSED_REPORTED", "RESOLVED"]);
+
+function isPosedEvent(eventKind: string | null | undefined): boolean {
+  return eventKind ? POSED_EVENT_KINDS.has(eventKind) : false;
+}
+
 // ── Status computation ─────────────────────────────────────────────────────
 export function computeItemStatus(
   item: DailyListItem,
   evidence: DailyItemEvidence[],
   hasOpenBlockingFinding: boolean
 ): DailyItemStatus {
-  // Not in INCA at all
-  if (!item.inca_cavo_id) return "outside_inca";
-
-  // Blocked by an open finding
+  // Blocked by an open finding — always wins.
   if (hasOpenBlockingFinding) return "blocked";
 
-  if (evidence.length === 0) return "no_evidence";
+  // ── Field evidence is the source of truth ─────────────────────────────────
+  // REGRESSION FIX (P3): the previous version ran `if (!item.inca_cavo_id)
+  // return "outside_inca"` FIRST, so whenever INCA resolution failed at import
+  // time (e.g. PDF "I RS 002" vs normalized "IRS 002" vs inca_cavi.marca_cavo),
+  // every item collapsed to "outside_inca" — dropping the list to 0% even with
+  // real terrain proof. Field evidence must be evaluated before INCA matching.
+  if (evidence.length > 0) {
+    // Explicit 100% or a posed/confirmed event → confirmed terrain.
+    const confirmed100 = evidence.some((e) => {
+      const pct = extractProgressPercent(e.raw_note) ?? e.progress_percent;
+      return isPosedEvent(e.event_kind) && (pct === 100 || pct === null);
+    });
+    if (confirmed100) return "confirmed_field";
 
-  // Look for explicit 100% signal
-  const confirmed100 = evidence.some((e) => {
-    const pct = extractProgressPercent(e.raw_note);
-    return (
-      e.event_kind === "CABLE_POSATO" &&
-      (pct === 100 || pct === null)  // CABLE_POSATO with no % = assumed 100
-    );
-  });
-  if (confirmed100) return "confirmed_field";
+    // Posed/confirmed event without explicit percent → likely laid.
+    if (evidence.some((e) => isPosedEvent(e.event_kind))) return "likely_laid";
 
-  // CABLE_POSATO without explicit percent → likely laid
-  const posato = evidence.some((e) => e.event_kind === "CABLE_POSATO");
-  if (posato) return "likely_laid";
+    // Partial % reported (e.g. 70%) → to verify. NOT counted as confirmed.
+    const anyPartial = evidence.some((e) => {
+      const pct = extractProgressPercent(e.raw_note) ?? e.progress_percent;
+      return pct !== null && pct < 100;
+    });
+    if (anyPartial) return "to_verify";
 
-  // GENERAL_MESSAGE with partial %
-  const anyPartial = evidence.some((e) => {
-    const pct = extractProgressPercent(e.raw_note);
-    return pct !== null && pct < 100;
-  });
-  if (anyPartial) return "to_verify";
+    // Some signal exists but kind is unknown → likely laid (a message refs it).
+    return "likely_laid";
+  }
 
-  // Has some event but unknown kind
-  return "likely_laid";
+  // ── No field evidence at all ──────────────────────────────────────────────
+  // Never matched in inca_cavi and never seen on the field.
+  if (!item.inca_cavo_id) return "outside_inca";
+
+  // Matched in INCA but no WhatsApp / field signal yet.
+  return "no_evidence";
 }
 
 export function computeProgressPct(evidence: DailyItemEvidence[]): number | null {
