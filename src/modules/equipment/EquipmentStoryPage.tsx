@@ -1,19 +1,18 @@
 import { useMemo, useState } from "react";
-import type { ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { loadEquipmentStory } from "./equipment.repo";
 import { buildEquipmentBriefingContext } from "./equipment.logic";
 import { EquipmentCableList } from "./components/EquipmentCableList";
 import type { EquipmentRiskLevel } from "./equipment.types";
+import { AppBar, EmptyState, Pill, Screen, Section, StatCard } from "../../components/command-ui";
 import { formatCableDisplay } from "../../core/cable/cableDisplay";
 
-const RISK_TONE: Record<EquipmentRiskLevel, string> = {
-  low: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300",
-  medium: "border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300",
-  high: "border-orange-200 bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-300",
-  critical: "border-red-200 bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300",
-};
+function riskTone(risk: EquipmentRiskLevel): "emerald" | "amber" | "red" {
+  if (risk === "low") return "emerald";
+  if (risk === "medium") return "amber";
+  return "red";
+}
 
 export default function EquipmentStoryPage(): JSX.Element {
   const { code } = useParams<{ code: string }>();
@@ -30,15 +29,35 @@ export default function EquipmentStoryPage(): JSX.Element {
   const briefing = useMemo(() => data ? buildEquipmentBriefingContext(data) : null, [data]);
 
   if (!equipmentCode) {
-    return <div className="p-6 text-red-500">Code équipement manquant.</div>;
+    return (
+      <Screen>
+        <EmptyState title="Code équipement manquant" description="Ouvrir un équipement depuis une liste ou une Cable Story." icon="!" />
+      </Screen>
+    );
   }
 
   if (isLoading) {
-    return <div className="p-6 text-sm text-zinc-400">Chargement Equipment Story…</div>;
+    return (
+      <Screen>
+        <div className="flex min-h-16 items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/80 px-4 text-sm text-zinc-400">
+          <svg className="h-4 w-4 animate-spin text-sky-400" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+          </svg>
+          Chargement Equipment Story…
+        </div>
+      </Screen>
+    );
   }
 
   if (isError || !data) {
-    return <div className="p-6 text-sm text-red-500">Erreur de chargement équipement.</div>;
+    return (
+      <Screen>
+        <div className="rounded-3xl border border-red-500/30 bg-red-500/10 p-5 text-sm text-red-100">
+          Erreur de chargement équipement.
+        </div>
+      </Screen>
+    );
   }
 
   const summary = data.summary;
@@ -47,62 +66,55 @@ export default function EquipmentStoryPage(): JSX.Element {
   const blocked = data.linked_cables.filter((cable) => cable.inca_status_code === "B" || cable.open_blocker_count > 0).length;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 p-4 sm:p-6">
-      <header className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <div className="text-xs uppercase tracking-wide text-zinc-400">Equipment Story</div>
-            <h1 className="mt-1 font-mono text-3xl font-bold">{equipmentCode}</h1>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${RISK_TONE[summary.risk_level]}`}>
-                Risque {summary.risk_level}
-              </span>
-              <span className="rounded-full border border-zinc-200 px-3 py-1 text-xs text-zinc-600 dark:border-zinc-700 dark:text-zinc-300">
-                {summary.completion_rate}% complétion terrain
-              </span>
-              <span className="rounded-full border border-zinc-200 px-3 py-1 text-xs text-zinc-600 dark:border-zinc-700 dark:text-zinc-300">
-                {summary.confirmed_by_field} preuves terrain
-              </span>
+    <Screen className="max-w-6xl space-y-6">
+      <section className="rounded-3xl border border-zinc-800 bg-zinc-950/80 p-5">
+        <AppBar
+          title={equipmentCode}
+          subtitle={`${summary.completion_rate}% complétion terrain · ${summary.confirmed_by_field} preuves terrain`}
+          action={
+            <div className="flex flex-wrap gap-2">
+              <Pill tone={riskTone(summary.risk_level)}>Risque {summary.risk_level}</Pill>
+              <button
+                onClick={() => setShowContext((value) => !value)}
+                className="min-h-10 rounded-xl border border-zinc-800 px-3 text-xs font-medium text-zinc-400 transition hover:border-zinc-700 hover:text-white"
+              >
+                {showContext ? "Masquer contexte" : "Contexte AI-ready"}
+              </button>
             </div>
-          </div>
-          <button
-            onClick={() => setShowContext((value) => !value)}
-            className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-          >
-            {showContext ? "Masquer contexte" : "Contexte AI-ready"}
-          </button>
-        </div>
-      </header>
+          }
+        />
+      </section>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-7">
-        <Metric label="Câbles liés" value={summary.total_cables} />
-        <Metric label="Entrants" value={summary.incoming_cables} />
-        <Metric label="Sortants" value={summary.outgoing_cables} />
-        <Metric label="Posati" value={posati} />
-        <Metric label="Collegati C" value={connectedComplete} />
-        <Metric label="Bloqués" value={blocked} accent={blocked > 0 ? "red" : undefined} />
-        <Metric label="Sans preuve" value={summary.without_field_evidence} accent={summary.without_field_evidence > 0 ? "amber" : undefined} />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
+        <StatCard label="Entrants" value={summary.incoming_cables} />
+        <StatCard label="Sortants" value={summary.outgoing_cables} />
+        <StatCard label="Confirmés" value={summary.confirmed_by_field} tone="emerald" />
+        <StatCard label="Sans preuve" value={summary.without_field_evidence} tone={summary.without_field_evidence > 0 ? "amber" : "neutral"} />
+        <StatCard label="Bloqués" value={blocked} tone={blocked > 0 ? "red" : "neutral"} />
+        <StatCard label="Câbles liés" value={summary.total_cables} />
       </div>
 
       <section className="grid gap-4 lg:grid-cols-2">
-        <Panel title="Avancement INCA">
+        <Section title="Avancement INCA" eyebrow="Statuts" className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
           <div className="space-y-2">
             {Object.entries(summary.status_distribution).map(([status, count]) => (
-              <div key={status} className="flex items-center justify-between rounded-lg bg-zinc-50 px-3 py-2 text-sm dark:bg-zinc-800/50">
-                <span className="font-mono">{status}</span>
-                <span className="font-semibold">{count}</span>
+              <div key={status} className="flex items-center justify-between rounded-2xl border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-sm">
+                <span className="font-mono text-zinc-200">{status}</span>
+                <span className="font-semibold text-white">{count}</span>
               </div>
             ))}
           </div>
-        </Panel>
+        </Section>
 
-        <Panel title="Preuves terrain">
+        <Section title="Preuves terrain" eyebrow="Complétion" className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
           <div className="space-y-2 text-sm">
             <Line label="Confirmés terrain" value={summary.confirmed_by_field} />
             <Line label="Sans preuve terrain" value={summary.without_field_evidence} />
             <Line label="Taux de complétion" value={`${summary.completion_rate}%`} />
+            <Line label="Posati INCA" value={posati} />
+            <Line label="Collegati C" value={connectedComplete} />
           </div>
-        </Panel>
+        </Section>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">
@@ -111,80 +123,52 @@ export default function EquipmentStoryPage(): JSX.Element {
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">
-        <Panel title="Problèmes ouverts">
+        <Section title="Problèmes ouverts" eyebrow="Risques" count={data.open_problems.length} className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
           {data.open_problems.length === 0 ? (
             <p className="text-sm text-zinc-400">Aucun problème ouvert détecté.</p>
           ) : (
             <div className="space-y-2">
               {data.open_problems.slice(0, 12).map((cable) => (
-                <Link key={cable.id} to={cable.cable_story_path} className="block rounded-lg bg-red-50 px-3 py-2 text-sm hover:underline dark:bg-red-900/10">
-                  <span className="font-mono font-semibold">{formatCableDisplay(cable.cable_code_normalized)}</span>
-                  <span className="ml-2 text-red-700 dark:text-red-300">{cable.risk_reasons.join(", ")}</span>
+                <Link key={cable.id} to={cable.cable_story_path} className="block rounded-2xl border border-red-500/20 bg-red-500/10 px-3 py-3 text-sm transition hover:border-red-400/40">
+                  <span className="font-mono font-semibold text-white">{formatCableDisplay(cable.cable_code_normalized)}</span>
+                  <span className="ml-2 text-red-200">{cable.risk_reasons.join(", ")}</span>
                 </Link>
               ))}
             </div>
           )}
-        </Panel>
+        </Section>
 
-        <Panel title="Actions recommandées">
-          <ul className="space-y-2 text-sm">
-            {summary.recommended_actions.map((action) => (
-              <li key={action} className="rounded-lg bg-amber-50 px-3 py-2 text-amber-800 dark:bg-amber-900/10 dark:text-amber-300">
-                {action}
-              </li>
-            ))}
-          </ul>
-        </Panel>
+        <Section title="Actions recommandées" eyebrow="Terrain" count={summary.recommended_actions.length} className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
+          {summary.recommended_actions.length === 0 ? (
+            <p className="text-sm text-zinc-400">Aucune action recommandée.</p>
+          ) : (
+            <ul className="space-y-2 text-sm">
+              {summary.recommended_actions.map((action) => (
+                <li key={action} className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-3 py-3 text-amber-200">
+                  {action}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Section>
       </section>
 
-      {showContext && briefing && (
-        <section className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
-          <h2 className="mb-2 text-sm font-semibold text-zinc-500">Contexte AI-ready</h2>
-          <pre className="max-h-96 overflow-auto rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-[11px] dark:border-zinc-700 dark:bg-zinc-950">
+      {showContext && briefing ? (
+        <Section title="Contexte AI-ready" eyebrow="Debug" className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
+          <pre className="max-h-96 overflow-auto rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-[11px] text-zinc-300">
             {JSON.stringify(briefing, null, 2)}
           </pre>
-        </section>
-      )}
-    </div>
-  );
-}
-
-function Metric({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: number;
-  accent?: "amber" | "red";
-}): JSX.Element {
-  const tone = accent === "red"
-    ? "border-red-200 bg-red-50 text-red-700 dark:bg-red-900/10 dark:text-red-300"
-    : accent === "amber"
-    ? "border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-900/10 dark:text-amber-300"
-    : "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900";
-  return (
-    <div className={`rounded-xl border p-3 ${tone}`}>
-      <div className="text-[11px] uppercase tracking-wide text-zinc-500">{label}</div>
-      <div className="mt-1 text-2xl font-bold">{value}</div>
-    </div>
-  );
-}
-
-function Panel({ title, children }: { title: string; children: ReactNode }): JSX.Element {
-  return (
-    <section className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
-      <h2 className="mb-3 text-sm font-semibold text-zinc-600 dark:text-zinc-400">{title}</h2>
-      {children}
-    </section>
+        </Section>
+      ) : null}
+    </Screen>
   );
 }
 
 function Line({ label, value }: { label: string; value: number | string }): JSX.Element {
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex items-center justify-between rounded-2xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
       <span className="text-zinc-500">{label}</span>
-      <span className="font-semibold">{value}</span>
+      <span className="font-semibold text-white">{value}</span>
     </div>
   );
 }

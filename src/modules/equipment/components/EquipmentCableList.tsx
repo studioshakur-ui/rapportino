@@ -1,6 +1,15 @@
 import { Link } from "react-router-dom";
 import type { EquipmentLinkedCable } from "../equipment.types";
+import { EmptyState, Pill, Section } from "../../../components/command-ui";
 import { formatCableDisplay } from "../../../core/cable/cableDisplay";
+
+function statusTone(cable: EquipmentLinkedCable): "neutral" | "emerald" | "amber" | "red" | "sky" {
+  if (cable.inca_status_code === "C" || cable.confirmed_by_whatsapp) return "emerald";
+  if (cable.inca_status_code === "B" || cable.open_blocker_count > 0) return "red";
+  if (cable.risk_reasons.length > 0 || cable.open_priority_count > 0) return "amber";
+  if (cable.inca_status_code === "P") return "sky";
+  return "neutral";
+}
 
 export function EquipmentCableList({
   title,
@@ -10,33 +19,36 @@ export function EquipmentCableList({
   cables: EquipmentLinkedCable[];
 }): JSX.Element {
   return (
-    <section className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-zinc-600 dark:text-zinc-400">{title}</h2>
-        <span className="text-xs text-zinc-400">{cables.length}</span>
-      </div>
-      <div className="space-y-2">
-        {cables.length === 0 ? (
-          <p className="text-sm text-zinc-400">Aucun câble.</p>
-        ) : cables.map((cable) => (
-          <Link
-            key={`${title}-${cable.id}`}
-            to={cable.cable_story_path}
-            className="block rounded-lg border border-zinc-100 px-3 py-2 text-sm transition hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/50"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <span className="font-mono font-semibold">{formatCableDisplay(cable.cable_code_normalized)}</span>
-                <span className="ml-2 text-xs text-zinc-400">{cable.inca_status_label}</span>
+    <Section title={title} eyebrow="Cable Story" count={cables.length} className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
+      {cables.length === 0 ? (
+        <EmptyState title="Aucun câble" description="Aucun câble lié dans cette direction." icon="◌" />
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+          {cables.map((cable) => (
+            <Link
+              key={`${title}-${cable.id}`}
+              to={cable.cable_story_path}
+              className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-4 text-sm transition hover:border-sky-500/40 hover:bg-zinc-900"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <span className="font-mono text-base font-semibold text-white">{formatCableDisplay(cable.cable_code_normalized)}</span>
+                  <div className="mt-1 text-xs text-zinc-500">{cable.perimetro ?? "—"}</div>
+                </div>
+                <Pill tone={statusTone(cable)}>{cable.confirmed_by_whatsapp ? "preuve" : "sans preuve"}</Pill>
               </div>
-              <span className="text-xs text-zinc-400">{cable.confirmed_by_whatsapp ? "preuve" : "sans preuve"}</span>
-            </div>
-            <div className="mt-1 text-xs text-zinc-500">
-              {cable.risk_reasons[0] ?? cable.recommended_action}
-            </div>
-          </Link>
-        ))}
-      </div>
-    </section>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Pill tone="neutral">{cable.inca_status_label}</Pill>
+                {cable.open_blocker_count > 0 ? <Pill tone="red">{cable.open_blocker_count} bloqué</Pill> : null}
+                {cable.open_priority_count > 0 ? <Pill tone="amber">{cable.open_priority_count} priorité</Pill> : null}
+              </div>
+              <div className="mt-3 text-xs leading-5 text-zinc-400">
+                {cable.risk_reasons[0] ?? cable.recommended_action}
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+    </Section>
   );
 }

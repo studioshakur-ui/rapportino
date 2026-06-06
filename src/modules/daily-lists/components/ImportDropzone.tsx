@@ -6,7 +6,7 @@ interface Props {
   disabled?: boolean;
 }
 
-export default function ImportDropzone({ onFile, disabled = false }: Props) {
+export default function ImportDropzone({ onFile, disabled = false }: Props): JSX.Element {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -22,18 +22,20 @@ export default function ImportDropzone({ onFile, disabled = false }: Props) {
   }
 
   return (
-    <div
+    <button
+      type="button"
       onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
       onDragLeave={() => setDragging(false)}
       onDrop={onDrop}
       onClick={() => !disabled && inputRef.current?.click()}
+      disabled={disabled}
       className={`
-        group relative flex flex-col items-center justify-center gap-3
-        rounded-2xl border-2 border-dashed p-10 text-center cursor-pointer transition-all
+        group relative flex min-h-56 w-full flex-col items-center justify-center gap-4
+        rounded-3xl border border-dashed p-6 text-center transition-all sm:p-10
         ${dragging
-          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
-          : "border-zinc-300 dark:border-zinc-700 hover:border-blue-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"}
-        ${disabled ? "opacity-50 cursor-not-allowed" : ""}
+          ? "border-sky-400 bg-sky-500/10 shadow-2xl shadow-sky-950/30"
+          : "border-zinc-700 bg-zinc-900/70 hover:border-sky-500/70 hover:bg-zinc-900"}
+        ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}
       `}
     >
       <input
@@ -45,21 +47,22 @@ export default function ImportDropzone({ onFile, disabled = false }: Props) {
         onChange={(e) => handle(e.target.files?.[0])}
       />
 
-      <div className="text-4xl">📋</div>
+      <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-sky-500/20 bg-sky-500/10 text-3xl">
+        📋
+      </span>
 
-      <div>
-        <p className="font-semibold text-sm text-zinc-700 dark:text-zinc-200">
-          Déposer la liste journalière ici
-        </p>
-        <p className="text-xs text-zinc-500 mt-1">
-          PDF (L1/L2/L3) ou Excel — glisser-déposer ou cliquer
-        </p>
-      </div>
+      <span className="space-y-1">
+        <span className="block text-lg font-semibold text-white">Importer liste PDF</span>
+        <span className="block text-sm leading-6 text-zinc-400">
+          Déposer la liste journalière ici ou toucher pour choisir un fichier.
+        </span>
+      </span>
 
-      <div className="flex items-center gap-3 text-[11px] text-zinc-400">
-        <span className="border border-zinc-300 dark:border-zinc-600 rounded px-2 py-0.5">PDF</span>
-        <span className="border border-zinc-300 dark:border-zinc-600 rounded px-2 py-0.5">XLSX</span>
-      </div>
-    </div>
+      <span className="flex flex-wrap items-center justify-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+        <span className="rounded-full border border-zinc-700 bg-zinc-950/70 px-2.5 py-1">PDF</span>
+        <span className="rounded-full border border-zinc-700 bg-zinc-950/70 px-2.5 py-1">XLSX</span>
+        <span className="rounded-full border border-zinc-700 bg-zinc-950/70 px-2.5 py-1">L1/L2/L3</span>
+      </span>
+    </button>
   );
 }

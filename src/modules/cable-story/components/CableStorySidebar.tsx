@@ -1,5 +1,6 @@
 import { buildMessageExcerpt } from "../cableStory.logic";
 import type { CableStoryFinding, CableStoryPriority, CableStorySource } from "../cableStory.types";
+import { Pill, Section } from "../../../components/command-ui";
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleString("fr-FR", {
@@ -11,28 +12,16 @@ function formatDate(value: string): string {
   });
 }
 
-function priorityTone(priority: string): string {
-  switch (priority) {
-    case "critical":
-      return "border-red-500/30 bg-red-500/10 text-red-200";
-    case "high":
-      return "border-orange-500/30 bg-orange-500/10 text-orange-200";
-    case "medium":
-      return "border-amber-500/30 bg-amber-500/10 text-amber-200";
-    default:
-      return "border-zinc-700 bg-zinc-900 text-zinc-200";
-  }
+function priorityTone(priority: string): "neutral" | "amber" | "red" {
+  if (priority === "critical" || priority === "high") return "red";
+  if (priority === "medium") return "amber";
+  return "neutral";
 }
 
-function severityTone(severity: string): string {
-  switch (severity) {
-    case "block":
-      return "border-red-500/30 bg-red-500/10 text-red-200";
-    case "warn":
-      return "border-amber-500/30 bg-amber-500/10 text-amber-200";
-    default:
-      return "border-sky-500/30 bg-sky-500/10 text-sky-200";
-  }
+function severityTone(severity: string): "neutral" | "amber" | "red" | "sky" {
+  if (severity === "block") return "red";
+  if (severity === "warn") return "amber";
+  return "sky";
 }
 
 export default function CableStorySidebar({
@@ -44,55 +33,53 @@ export default function CableStorySidebar({
   findings: CableStoryFinding[];
   sources: CableStorySource[];
 }): JSX.Element {
+  const openPriorities = priorities.filter((priority) => priority.status === "open");
+
   return (
     <div className="space-y-4">
-      <section className="rounded-[24px] border border-zinc-800 bg-zinc-950/70 p-5">
-        <div className="text-[11px] uppercase tracking-[0.22em] text-zinc-500">Priorités ouvertes</div>
-        <div className="mt-3 space-y-3">
-          {priorities.filter((priority) => priority.status === "open").length === 0 ? (
+      <Section title="Priorités ouvertes" eyebrow="Action" count={openPriorities.length} className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
+        <div className="space-y-3">
+          {openPriorities.length === 0 ? (
             <div className="text-sm text-zinc-400">Aucune priorité ouverte.</div>
           ) : (
-            priorities
-              .filter((priority) => priority.status === "open")
-              .map((priority) => (
-                <article key={priority.id} className={`rounded-2xl border p-3 ${priorityTone(priority.priority)}`}>
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-semibold uppercase">{priority.priority}</div>
-                    <div className="text-xs opacity-70">{formatDate(priority.created_at)}</div>
-                  </div>
-                  <div className="mt-2 text-sm">{priority.reason || "Sans raison détaillée"}</div>
-                </article>
-              ))
-          )}
-        </div>
-      </section>
-
-      <section className="rounded-[24px] border border-zinc-800 bg-zinc-950/70 p-5">
-        <div className="text-[11px] uppercase tracking-[0.22em] text-zinc-500">Findings agents</div>
-        <div className="mt-3 space-y-3">
-          {findings.length === 0 ? (
-            <div className="text-sm text-zinc-400">Aucun finding.</div>
-          ) : (
-            findings.map((finding) => (
-              <article key={finding.id} className={`rounded-2xl border p-3 ${severityTone(finding.severity)}`}>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-semibold">{finding.agent_name}</div>
-                  <div className="text-xs opacity-70">{formatDate(finding.created_at)}</div>
+            openPriorities.map((priority) => (
+              <article key={priority.id} className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <Pill tone={priorityTone(priority.priority)}>{priority.priority}</Pill>
+                  <div className="text-xs text-zinc-500">{formatDate(priority.created_at)}</div>
                 </div>
-                <div className="mt-1 text-xs uppercase opacity-70">{finding.finding_type}</div>
-                <div className="mt-2 text-sm">{finding.message}</div>
-                {finding.recommendation ? (
-                  <div className="mt-2 text-xs opacity-80">→ {finding.recommendation}</div>
-                ) : null}
+                <div className="mt-2 text-sm leading-6 text-zinc-200">{priority.reason || "Sans raison détaillée"}</div>
               </article>
             ))
           )}
         </div>
-      </section>
+      </Section>
 
-      <section className="rounded-[24px] border border-zinc-800 bg-zinc-950/70 p-5">
-        <div className="text-[11px] uppercase tracking-[0.22em] text-zinc-500">Sources terrain</div>
-        <div className="mt-3 space-y-3">
+      <Section title="Findings agents" eyebrow="Contrôles" count={findings.length} className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
+        <div className="space-y-3">
+          {findings.length === 0 ? (
+            <div className="text-sm text-zinc-400">Aucun finding.</div>
+          ) : (
+            findings.map((finding) => (
+              <article key={finding.id} className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-zinc-100">{finding.agent_name}</div>
+                    <div className="mt-1 text-xs uppercase tracking-[0.14em] text-zinc-500">{finding.finding_type}</div>
+                  </div>
+                  <Pill tone={severityTone(finding.severity)}>{finding.severity}</Pill>
+                </div>
+                <div className="mt-2 text-sm leading-6 text-zinc-200">{finding.message}</div>
+                {finding.recommendation ? <div className="mt-2 text-xs leading-5 text-zinc-400">→ {finding.recommendation}</div> : null}
+                <div className="mt-2 text-xs text-zinc-500">{formatDate(finding.created_at)}</div>
+              </article>
+            ))
+          )}
+        </div>
+      </Section>
+
+      <Section title="Sources terrain" eyebrow="Messages" count={sources.length} className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
+        <div className="space-y-3">
           {sources.length === 0 ? (
             <div className="text-sm text-zinc-400">Aucune preuve message liée.</div>
           ) : (
@@ -112,7 +99,7 @@ export default function CableStorySidebar({
             ))
           )}
         </div>
-      </section>
+      </Section>
     </div>
   );
 }
