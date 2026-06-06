@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { listRecentImports, loadItemsWithEvidence } from "../../../modules/daily-lists/dailyLists.repo";
 import { buildListSummary } from "../../../modules/daily-lists/dailyLists.logic";
 import type { DailyListItemVM } from "../../../modules/daily-lists/dailyLists.types";
+import { formatCableDisplay } from "../../../core/cable/cableDisplay";
 
 export default function CommandCenterPage() {
   const navigate = useNavigate();
@@ -287,7 +288,7 @@ function CablePills({ cables, more, onClick, color }: {
           onClick={() => onClick(code)}
           className={`font-mono text-xs px-1.5 py-0.5 rounded transition-colors ${pillClassName}`}
         >
-          {code}
+          {formatCableDisplay(code)}
         </button>
       ))}
       {more > 0 && <span className="text-xs text-zinc-700 self-center">+{more}</span>}

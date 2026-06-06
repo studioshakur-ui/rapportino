@@ -5,6 +5,7 @@ import { loadCableStory } from "./cableStory.repo";
 import CableStoryTimeline from "./components/CableStoryTimeline";
 import CableStorySidebar from "./components/CableStorySidebar";
 import { CableStoryAmbiguousState, CableStoryCards, CableStoryHeader } from "./components/CableStorySummary";
+import { formatCableDisplay } from "../../core/cable/cableDisplay";
 
 export default function CableStoryPage(): JSX.Element {
   const { code = "" } = useParams<{ code: string }>();
@@ -71,7 +72,7 @@ export default function CableStoryPage(): JSX.Element {
           <span>/</span>
           <span className="text-zinc-300">Cable Story</span>
           <span>/</span>
-          <span className="font-mono text-zinc-100">{model.cable.normalized_code}</span>
+          <span className="font-mono text-zinc-100">{formatCableDisplay(model.cable.normalized_code)}</span>
         </div>
 
         <div className="space-y-4">

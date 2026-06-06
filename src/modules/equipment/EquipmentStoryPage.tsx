@@ -6,6 +6,7 @@ import { loadEquipmentStory } from "./equipment.repo";
 import { buildEquipmentBriefingContext } from "./equipment.logic";
 import { EquipmentCableList } from "./components/EquipmentCableList";
 import type { EquipmentRiskLevel } from "./equipment.types";
+import { formatCableDisplay } from "../../core/cable/cableDisplay";
 
 const RISK_TONE: Record<EquipmentRiskLevel, string> = {
   low: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300",
@@ -117,7 +118,7 @@ export default function EquipmentStoryPage(): JSX.Element {
             <div className="space-y-2">
               {data.open_problems.slice(0, 12).map((cable) => (
                 <Link key={cable.id} to={cable.cable_story_path} className="block rounded-lg bg-red-50 px-3 py-2 text-sm hover:underline dark:bg-red-900/10">
-                  <span className="font-mono font-semibold">{cable.cable_code_normalized}</span>
+                  <span className="font-mono font-semibold">{formatCableDisplay(cable.cable_code_normalized)}</span>
                   <span className="ml-2 text-red-700 dark:text-red-300">{cable.risk_reasons.join(", ")}</span>
                 </Link>
               ))}

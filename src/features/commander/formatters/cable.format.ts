@@ -1,24 +1,25 @@
 import type { CommanderCableReadModel } from "../commands/CommandTypes";
+import { formatCableDisplay } from "../../../core/cable/cableDisplay";
 
 export function formatCommanderCable(model: CommanderCableReadModel): string {
   if (model.resolution.kind === "ambiguous") {
     return [
-      `🔎 ${model.code}`,
+      `🔎 ${formatCableDisplay(model.code)}`,
       "",
       "Più cavi compatibili trovati.",
-      ...model.resolution.candidates.map((candidate) => `- ${candidate.display_code}`),
+      ...model.resolution.candidates.map((candidate) => `- ${formatCableDisplay(candidate.display_code)}`),
     ].join("\n");
   }
 
   if (!model.story) {
-    return [`🔎 ${model.code}`, "", "Non lo so."].join("\n");
+    return [`🔎 ${formatCableDisplay(model.code)}`, "", "Non lo so."].join("\n");
   }
 
   const inca = model.story.inca;
   const summary = model.story.memory_summary;
 
   return [
-    `🔎 ${model.story.cable.normalized_code}`,
+    `🔎 ${formatCableDisplay(model.story.cable.normalized_code)}`,
     "",
     `Stato: ${summary.computed_status}`,
     `Confidenza: ${summary.global_confidence}%`,
