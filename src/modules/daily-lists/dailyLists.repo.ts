@@ -46,7 +46,7 @@ interface WhatsAppEvidenceRow {
 
 interface DailyListItemEventRow {
   id: string;
-  item_id: string | null;          // DB column (was mistakenly daily_list_item_id)
+  daily_list_item_id: string | null;   // DB column (matches schema)
   cable_event_id: string | null;
   core_event_id: string | null;
   whatsapp_message_id: string | null;
@@ -430,8 +430,8 @@ async function persistDailyListItemEvents(
   try {
     const { data: existingRows, error: existingError } = await supabase
       .from("daily_list_item_events")
-      .select("id,item_id,cable_event_id,core_event_id,whatsapp_message_id")
-      .in("item_id", itemIds)
+      .select("id,daily_list_item_id,cable_event_id,core_event_id,whatsapp_message_id")
+      .in("daily_list_item_id", itemIds)
       .limit(5000);
 
     if (existingError) {
@@ -440,7 +440,7 @@ async function persistDailyListItemEvents(
 
     const existingKeys = new Set(
       ((existingRows ?? []) as DailyListItemEventRow[]).map((row) => evidencePersistKey({
-        daily_list_item_id: row.item_id,
+        daily_list_item_id: row.daily_list_item_id,
         cable_event_id:     row.cable_event_id,
         core_event_id:      row.core_event_id,
         whatsapp_message_id: row.whatsapp_message_id,
@@ -453,16 +453,22 @@ async function persistDailyListItemEvents(
     for (const item of items) {
       const evidence = evidenceMap.get(item.cable_code_normalized) ?? [];
       for (const row of evidence) {
-        // Only insert columns that exist in the DB schema
+        // Columns aligned with the daily_list_item_events schema:
+        //   daily_list_item_id, occurred_at, import_id, cable_code_normalized.
         const payload = {
-          item_id:             item.id,
-          cable_event_id:      row.cable_event_id,
-          core_event_id:       row.core_event_id,
-          whatsapp_message_id: row.whatsapp_message_id,
-          event_kind:          row.event_kind,
-          event_at:            row.occurred_at,
-          actor_label:         row.actor_label,
-          confidence:          row.confidence,
+          import_id:             item.import_id,
+          daily_list_item_id:    item.id,
+          cable_code_normalized: item.cable_code_normalized,
+          cable_event_id:        row.cable_event_id,
+          core_event_id:         row.core_event_id,
+          whatsapp_message_id:   row.whatsapp_message_id,
+          source_type:           row.source_type,
+          event_kind:            row.event_kind,
+          occurred_at:           row.occurred_at,
+          actor_label:           row.actor_label,
+          raw_note:              row.raw_note,
+          confidence:            row.confidence,
+          progress_percent:      row.progress_percent,
         };
         const key = evidencePersistKey({ daily_list_item_id: item.id, cable_event_id: payload.cable_event_id, core_event_id: payload.core_event_id, whatsapp_message_id: payload.whatsapp_message_id });
         if (existingKeys.has(key)) {

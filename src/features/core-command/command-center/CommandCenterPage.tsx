@@ -14,7 +14,7 @@ export default function CommandCenterPage() {
     queryKey: ["daily_list_imports"],
     queryFn: () => listRecentImports(1),
     staleTime: 60_000,
-    refetchInterval: 120_000,
+    // No passive polling — Realtime (useRealtimeSync) drives freshness.
   });
   const latest = imports?.[0] ?? null;
 
@@ -23,7 +23,7 @@ export default function CommandCenterPage() {
     queryFn: () => loadItemsWithEvidence(latest!.id),
     enabled: Boolean(latest?.id),
     staleTime: 60_000,
-    refetchInterval: 120_000,
+    // No passive polling — Realtime (useRealtimeSync) drives freshness.
   });
 
   const summary = latest && items

@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import AppRoutes from "./routes";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { supabaseConfigured } from "./lib/supabaseClient";
+import { useRealtimeSync } from "./lib/useRealtimeSync";
 import { AuthProvider } from "./auth/AuthProvider";
 import { I18nProvider } from "./i18n/I18nProvider";
 import { dictionaries } from "./i18n/dictionaries";
@@ -83,6 +84,12 @@ function installChunkLoadRecovery(): void {
   });
 }
 
+// Mounts the live Realtime → React Query bridge inside the provider tree.
+function RealtimeSync(): null {
+  useRealtimeSync();
+  return null;
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -110,6 +117,7 @@ ReactDOM.createRoot(rootEl).render(
     <ErrorBoundary>
       {supabaseConfigured ? (
         <QueryClientProvider client={queryClient}>
+          <RealtimeSync />
           <ThemeProvider>
             <AuthProvider>
               <I18nProvider dictionaries={dictionaries}>
