@@ -70,6 +70,153 @@ function extractPercent(text: string): number | null {
   return v >= 0 && v <= 100 ? v : null;
 }
 
+// ── Minimal deterministic classifier (mirror of classifier.agent.ts) ───────
+// Enough to mark "posato / sistemato / fatto / 100%" as a field confirmation.
+function classifyEventKind(text: string): { kind: string; confidence: number } {
+  const t = text.toLowerCase();
+  if (/\bposat|sistemat|\bfatt|finit|complet|tirat|100\s*%/.test(t)) return { kind: "CABLE_POSATO", confidence: 0.9 };
+  if (/\bcort|manca\s*metr|non\s*arriva/.test(t))                    return { kind: "CABLE_CORTO", confidence: 0.85 };
+  if (/\bmancant|non\s*trovat|non\s*c'?è|assente/.test(t))           return { kind: "CABLE_MANCANTE", confidence: 0.85 };
+  if (/\bda\s*controllar|verificar|errore/.test(t))                 return { kind: "CABLE_DA_CONTROLLARE", confidence: 0.8 };
+  return { kind: "CABLE_MENTION", confidence: 0.5 };
+}
+
+// ── INCA match (READ-ONLY — never writes inca_cavi) ────────────────────────
+// Normalized "IRS 002" → tries ["IRS 002", "I RS 002", "IRS002"] against marca_cavo.
+function incaCandidates(normalized: string): string[] {
+  const parts = normalized.split(" ");
+  const letters = parts[0] ?? "";
+  const digits = parts.slice(1).join(" ");
+  const compactAll = normalized.replace(/\s+/g, "");
+  const expanded = letters.length > 1 ? `${letters[0]} ${letters.slice(1)} ${digits}`.trim() : normalized;
+  return Array.from(new Set([normalized, expanded, compactAll].filter(Boolean)));
+}
+
+async function matchIncaCavoId(normalized: string): Promise<string | null> {
+  const { data } = await supabase
+    .from("inca_cavi")
+    .select("id")
+    .in("marca_cavo", incaCandidates(normalized))
+    .limit(1)
+    .maybeSingle();
+  return (data?.id as string | undefined) ?? null;
+}
+
+interface FieldEventLink {
+  cableEventId: string;
+  coreEventId: string;
+  messageId: string;
+  kind: string;
+  occurredAt: string;
+  author: string;
+  note: string;
+  confidence: number;
+  progress: number | null;
+}
+
+// Link a confirmed cable to every daily-list item that carries the same code,
+// so the Daily List progression reacts live. Uses the real schema columns.
+async function linkDailyListItems(code: string, ev: FieldEventLink): Promise<void> {
+  const { data: items, error } = await supabase
+    .from("daily_list_items")
+    .select("id,import_id")
+    .eq("cable_code_normalized", code)
+    .limit(200);
+  if (error || !items || items.length === 0) return;
+
+  const rows = items.map((it) => ({
+    import_id:             it.import_id,
+    daily_list_item_id:    it.id,
+    cable_code_normalized: code,
+    cable_event_id:        ev.cableEventId,
+    core_event_id:         ev.coreEventId,
+    whatsapp_message_id:   ev.messageId,
+    source_type:           "cable_event",
+    event_kind:            ev.kind,
+    occurred_at:           ev.occurredAt,
+    actor_label:           ev.author,
+    raw_note:              ev.note,
+    confidence:            ev.confidence,
+    progress_percent:      ev.progress,
+  }));
+
+  const { error: insErr } = await supabase.from("daily_list_item_events").insert(rows);
+  if (insErr) console.warn(`⚠  daily_list_item_events (${code}):`, insErr.message);
+}
+
+// For each cable mentioned in a Telegram message: core_event + cable_event + links.
+async function recordFieldEvents(params: {
+  messageId: string;
+  cableRefs: string[];
+  text: string;
+  author: string;
+  occurredAt: string;
+  progress: number | null;
+}): Promise<void> {
+  const { messageId, cableRefs, text, author, occurredAt, progress } = params;
+  if (cableRefs.length === 0) return;
+
+  const { kind, confidence } = classifyEventKind(text);
+  const note = `${author}: ${text.slice(0, 120)}`;
+
+  for (const code of cableRefs) {
+    try {
+      const incaCavoId = await matchIncaCavoId(code);
+
+      const { data: coreEvent, error: coreErr } = await supabase
+        .from("core_events")
+        .insert({
+          event_type:            kind,
+          occurred_at:           occurredAt,
+          source:                "telegram",
+          source_message_id:     messageId,
+          operator_id:           null,
+          inca_cavo_id:          incaCavoId,
+          cable_code_raw:        code,
+          cable_code_normalized: code,
+          confidence,
+          validation_status:     incaCavoId ? "promoted" : "pending",
+          raw_text:              text.slice(0, 500),
+          payload:               { author, progress },
+        })
+        .select("id")
+        .single();
+      if (coreErr || !coreEvent) { console.warn(`⚠  core_events (${code}):`, coreErr?.message); continue; }
+
+      const { data: cableEvent, error: cableErr } = await supabase
+        .from("cable_events")
+        .insert({
+          core_event_id:     coreEvent.id,
+          occurred_at:       occurredAt,
+          inca_cavo_id:      incaCavoId,
+          cable_code:        code,
+          event_kind:        kind,
+          operator_id:       null,
+          source_message_id: messageId,
+          confidence,
+          note,
+        })
+        .select("id")
+        .single();
+      if (cableErr || !cableEvent) { console.warn(`⚠  cable_events (${code}):`, cableErr?.message); continue; }
+
+      await linkDailyListItems(code, {
+        cableEventId: cableEvent.id as string,
+        coreEventId:  coreEvent.id as string,
+        messageId,
+        kind,
+        occurredAt,
+        author,
+        note,
+        confidence,
+        progress,
+      });
+    } catch (err) {
+      console.warn(`⚠  recordFieldEvents (${code}) non-fatal:`, (err as Error).message);
+    }
+  }
+}
+
 // ── Statut bridge ─────────────────────────────────────────────────────────
 let stats = {
   status:          "starting" as "starting"|"connected"|"error",
@@ -171,6 +318,16 @@ bot.on("message", async (ctx: Context) => {
     processed:    false,
   }).then(({ error }) => {
     if (error) console.warn("⚠  incoming_messages (non-fatal):", error.message);
+  });
+
+  // ── Live field reaction: core_events + cable_events + daily list links ──
+  await recordFieldEvents({
+    messageId:  inserted.id as string,
+    cableRefs,
+    text:       displayText,
+    author:     sender,
+    occurredAt: new Date(msg.date * 1000).toISOString(),
+    progress,
   });
 
   // ── Stats ──────────────────────────────────────────────────────────────

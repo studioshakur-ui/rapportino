@@ -28,7 +28,7 @@ export default function DailyListDetailPage() {
     queryFn:  () => loadItemsWithEvidence(importId!),
     enabled:  Boolean(importId),
     staleTime: 30_000,
-    refetchInterval: 120_000,
+    // No passive polling — Realtime (useRealtimeSync) drives freshness.
   });
 
   const isLoading = loadingImport || loadingItems;
