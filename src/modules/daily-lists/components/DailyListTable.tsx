@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import type { DailyListItemVM, DailyItemStatus } from "../dailyLists.types";
 import { STATUS_META } from "../dailyLists.types";
+import { formatCableDisplay } from "../../../core/cable/cableDisplay";
 
 interface Props { items: DailyListItemVM[] }
 
@@ -133,7 +134,7 @@ export default function DailyListTable({ items }: Props) {
                   {/* Câble */}
                   <td className="px-4 py-3">
                     <span className="font-mono font-semibold text-white">
-                      {item.cable_code_normalized}
+                      {formatCableDisplay(item.cable_code_normalized)}
                     </span>
                     {item.progress_percent !== null && item.progress_percent < 100 && (
                       <span className="ml-2 text-xs font-bold text-amber-400">

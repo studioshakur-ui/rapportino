@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { listRecentImports, loadItemsWithEvidence } from "../../../modules/daily-lists/dailyLists.repo";
 import { buildListSummary } from "../../../modules/daily-lists/dailyLists.logic";
 import type { DailyListItemVM } from "../../../modules/daily-lists/dailyLists.types";
+import { formatCableDisplay } from "../../../core/cable/cableDisplay";
 
 export default function CommandCenterPage() {
   const navigate = useNavigate();
@@ -17,7 +18,7 @@ export default function CommandCenterPage() {
   });
   const latest = imports?.[0] ?? null;
 
-  const { data: items, isLoading } = useQuery({
+  const { data: items, isLoading, isError } = useQuery({
     queryKey: ["daily_list_items_vm", latest?.id],
     queryFn: () => loadItemsWithEvidence(latest!.id),
     enabled: Boolean(latest?.id),
@@ -80,6 +81,15 @@ export default function CommandCenterPage() {
 
       <div className="flex flex-col lg:flex-row lg:gap-20">
         <div className="flex-1 min-w-0 space-y-12">
+          {isError && (
+            <div className="rounded-lg border border-amber-700/40 bg-amber-500/10 px-4 py-3">
+              <p className="text-amber-400 text-sm font-medium">Preuves terrain non chargées</p>
+              <p className="text-amber-600/80 text-xs mt-0.5">
+                Le chargement des preuves terrain a échoué. L'avancement ci-dessous peut être incomplet.
+              </p>
+            </div>
+          )}
+
           {summary && (
             <div className="space-y-5">
               <p className="text-zinc-600 text-xs uppercase tracking-widest">Avancement</p>
@@ -175,7 +185,13 @@ export default function CommandCenterPage() {
               )}
 
               {summary && noProof.length === 0 && partial.length === 0 && blocked.length === 0 && (
-                <p className="text-zinc-600 text-sm">Tous les câbles sont confirmés.</p>
+                isError ? (
+                  <p className="text-amber-400 text-sm">Preuves terrain non chargées</p>
+                ) : done >= total && total > 0 ? (
+                  <p className="text-zinc-600 text-sm">Tous les câbles sont confirmés.</p>
+                ) : (
+                  <p className="text-zinc-600 text-sm">Aucune preuve terrain liée pour cette liste.</p>
+                )
               )}
             </div>
           )}
@@ -272,7 +288,7 @@ function CablePills({ cables, more, onClick, color }: {
           onClick={() => onClick(code)}
           className={`font-mono text-xs px-1.5 py-0.5 rounded transition-colors ${pillClassName}`}
         >
-          {code}
+          {formatCableDisplay(code)}
         </button>
       ))}
       {more > 0 && <span className="text-xs text-zinc-700 self-center">+{more}</span>}

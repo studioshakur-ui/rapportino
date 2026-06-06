@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCableEvents } from "../hooks/useCableEvents";
+import { formatCableDisplay } from "../../../core/cable/cableDisplay";
 
 // Traduction event_kind → phrase chantier
 function humanizeKind(kind: string): { label: string; color: string } {
@@ -124,7 +125,7 @@ export default function TimelinePage() {
                             onClick={() => navigate(`/command/cable/${encodeURIComponent(code)}`)}
                             className="font-mono text-xs bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded hover:bg-emerald-500/20 transition"
                           >
-                            {code}
+                            {formatCableDisplay(code)}
                           </button>
                         ))}
                       </div>
@@ -138,7 +139,7 @@ export default function TimelinePage() {
                         onClick={() => navigate(`/command/cable/${encodeURIComponent(e.cable_code)}`)}
                         className="font-mono text-xs bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded hover:bg-emerald-500/20 transition"
                       >
-                        {e.cable_code}
+                        {formatCableDisplay(e.cable_code)}
                       </button>
                     ))}
                   </div>
@@ -159,7 +160,7 @@ export default function TimelinePage() {
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className={`text-xs font-medium ${color}`}>{label}</span>
-                      <span className="font-mono text-sm text-white truncate">{e.cable_code}</span>
+                      <span className="font-mono text-sm text-white truncate">{formatCableDisplay(e.cable_code)}</span>
                     </div>
                     <span className="text-xs text-zinc-600 shrink-0">
                       {new Date(e.occurred_at).toLocaleTimeString("fr-FR", {

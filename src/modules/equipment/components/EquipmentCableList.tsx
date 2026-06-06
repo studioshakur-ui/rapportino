@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import type { EquipmentLinkedCable } from "../equipment.types";
+import { formatCableDisplay } from "../../../core/cable/cableDisplay";
 
 export function EquipmentCableList({
   title,
@@ -25,7 +26,7 @@ export function EquipmentCableList({
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <span className="font-mono font-semibold">{cable.cable_code_normalized}</span>
+                <span className="font-mono font-semibold">{formatCableDisplay(cable.cable_code_normalized)}</span>
                 <span className="ml-2 text-xs text-zinc-400">{cable.inca_status_label}</span>
               </div>
               <span className="text-xs text-zinc-400">{cable.confirmed_by_whatsapp ? "preuve" : "sans preuve"}</span>

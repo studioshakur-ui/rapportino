@@ -9,6 +9,7 @@ import { buildListSummary, buildDailyBriefingContext } from "./dailyLists.logic"
 import { buildEquipmentImpactsFromDailyItems } from "../equipment/equipment.logic";
 import DailyListProgress from "./components/DailyListProgress";
 import DailyListTable   from "./components/DailyListTable";
+import { formatCableDisplay } from "../../core/cable/cableDisplay";
 
 export default function DailyListDetailPage() {
   const { importId } = useParams<{ importId: string }>();
@@ -190,7 +191,7 @@ export default function DailyListDetailPage() {
                       onClick={() => navigate(`/command/cable/${encodeURIComponent(code)}`)}
                       className="font-mono text-[11px] rounded bg-white/70 dark:bg-black/20 px-1.5 py-0.5 hover:underline"
                     >
-                      {code}
+                      {formatCableDisplay(code)}
                     </button>
                   ))}
                 </div>
@@ -250,7 +251,7 @@ export default function DailyListDetailPage() {
                 onClick={() => navigate(item.cable_story_path)}
                 className="text-left rounded-lg border border-zinc-100 dark:border-zinc-800 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition"
               >
-                <span className="font-mono text-sm font-semibold">{item.cable_code_normalized}</span>
+                <span className="font-mono text-sm font-semibold">{formatCableDisplay(item.cable_code_normalized)}</span>
                 <span className="ml-2 text-xs text-zinc-400">{item.perimetro ?? "—"}</span>
                 <span className="block text-xs text-amber-600 dark:text-amber-400 mt-1">
                   {item.recommended_action}
@@ -296,7 +297,7 @@ export default function DailyListDetailPage() {
                     className="w-full text-left flex items-start justify-between gap-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
                   >
                     <span>
-                      <span className="font-mono text-sm font-semibold">{item.cable_code_normalized}</span>
+                      <span className="font-mono text-sm font-semibold">{formatCableDisplay(item.cable_code_normalized)}</span>
                       <span className="block text-xs text-zinc-500">{item.recommended_action}</span>
                     </span>
                     <span className="text-[11px] text-zinc-400 whitespace-nowrap">{item.perimetro ?? "—"}</span>

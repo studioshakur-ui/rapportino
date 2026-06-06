@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { formatConfidenceTone, formatStatusTone } from "../cableStory.logic";
 import type { CableStoryCandidate, CableStoryViewModel } from "../cableStory.types";
+import { formatCableDisplay } from "../../../core/cable/cableDisplay";
 
 function formatDate(value: string | null): string {
   if (!value) return "—";
@@ -33,7 +34,7 @@ export function CableStoryAmbiguousState({
     <div className="space-y-4">
       <div className="rounded-3xl border border-amber-500/30 bg-amber-500/10 p-5 text-amber-100">
         <div className="text-xs uppercase tracking-[0.22em] text-amber-300/80">Désambiguïsation</div>
-        <h2 className="mt-2 text-2xl font-semibold">Plusieurs correspondances pour {normalizedCode}</h2>
+        <h2 className="mt-2 text-2xl font-semibold">Plusieurs correspondances pour {formatCableDisplay(normalizedCode)}</h2>
         <p className="mt-2 text-sm text-amber-50/80">
           CORE COMMAND a trouvé plusieurs câbles proches dans INCA. Choisis la bonne fiche avant de raconter l&apos;histoire.
         </p>
@@ -48,7 +49,7 @@ export function CableStoryAmbiguousState({
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="font-mono text-lg font-semibold text-zinc-50">{candidate.display_code}</div>
+                <div className="font-mono text-lg font-semibold text-zinc-50">{formatCableDisplay(candidate.display_code)}</div>
                 <div className="mt-1 text-sm text-zinc-400">
                   Commessa {candidate.commessa || "—"} · Impianto {candidate.impianto || "—"}
                 </div>
@@ -82,7 +83,7 @@ export function CableStoryHeader({
             {source ? `Cable Story · ${source}` : "Cable Story"}
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="font-mono text-3xl font-semibold text-zinc-50">{model.cable.normalized_code}</h1>
+            <h1 className="font-mono text-3xl font-semibold text-zinc-50">{formatCableDisplay(model.cable.normalized_code)}</h1>
             <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${formatStatusTone(model.memory_summary.computed_status)}`}>
               {model.memory_summary.computed_status}
             </span>
@@ -93,7 +94,7 @@ export function CableStoryHeader({
             ) : null}
           </div>
           <div className="text-sm text-zinc-400">
-            Entrée: {model.cable.code} · Canon: {model.cable.normalized_code}
+            Entrée: {formatCableDisplay(model.cable.code)} · Canon: {formatCableDisplay(model.cable.normalized_code)}
           </div>
         </div>
 

@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { listOpenPriorities, closePriority } from "../api/cablePriorities.api";
 import { useAgentFindings } from "../hooks/useAgentFindings";
+import { formatCableDisplay } from "../../../core/cable/cableDisplay";
 
 // Traduction INCA/système → langage chantier
 function humanizeKind(kind: string, severity?: string): { label: string; icon: string } {
@@ -75,7 +76,7 @@ export default function PrioritiesPage() {
                       onClick={() => navigate(`/command/cable/${encodeURIComponent(p.cable_code)}`)}
                       className="font-mono font-bold text-white hover:text-blue-400 transition"
                     >
-                      {p.cable_code}
+                      {formatCableDisplay(p.cable_code)}
                     </button>
                     {p.reason && (
                       <p className="text-sm text-zinc-300">{p.reason}</p>
@@ -152,7 +153,7 @@ export default function PrioritiesPage() {
                           onClick={() => navigate(`/command/cable/${encodeURIComponent(f.entity_id ?? "")}`)}
                           className="font-mono text-sm font-bold text-white hover:text-blue-400 transition"
                         >
-                          {f.entity_id}
+                          {formatCableDisplay(f.entity_id)}
                         </button>
                       )}
                     </div>
