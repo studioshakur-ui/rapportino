@@ -44,10 +44,22 @@ export async function getKpiForDay(
 }
 
 export async function upsertKpi(payload: InsertProductionKpi): Promise<ProductionKpi> {
-  // Use the two partial unique indexes: (day, commessa NOT NULL) or (day WHERE commessa IS NULL)
+  // Partial unique indexes (one WHERE commessa IS NULL, one WHERE commessa IS NOT NULL)
+  // cannot be used as an onConflict target via supabase-js — read-modify-write instead.
+  const existing = await getKpiForDay(payload.day, payload.commessa ?? null);
+  if (existing) {
+    const { data, error } = await supabase
+      .from("production_daily_kpis")
+      .update(payload)
+      .eq("id", existing.id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
   const { data, error } = await supabase
     .from("production_daily_kpis")
-    .upsert(payload, { onConflict: "day,commessa" })
+    .insert(payload)
     .select()
     .single();
   if (error) throw error;

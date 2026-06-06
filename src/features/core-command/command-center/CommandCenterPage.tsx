@@ -6,7 +6,7 @@ import { listRecentImports, loadItemsWithEvidence } from "../../../modules/daily
 import { buildListSummary } from "../../../modules/daily-lists/dailyLists.logic";
 import type { DailyListItemVM } from "../../../modules/daily-lists/dailyLists.types";
 import { buildEquipmentImpactsFromDailyItems } from "../../../modules/equipment/equipment.logic";
-import { AppBar, EmptyState, Pill, Screen, Section, StatCard } from "../../../components/command-ui";
+import { Pill, Screen, StatCard, EmptyState, Section, AppBar } from "../../../components/command-ui";
 import { formatCableDisplay } from "../../../core/cable/cableDisplay";
 import { listRecentTelegramMessages, type TelegramLiveMessage } from "../api/telegramMessages.api";
 
@@ -17,7 +17,6 @@ export default function CommandCenterPage(): JSX.Element {
     queryKey: ["daily_list_imports"],
     queryFn: () => listRecentImports(1),
     staleTime: 60_000,
-    // No passive polling — Realtime (useRealtimeSync) drives freshness.
   });
   const latest = imports?.[0] ?? null;
 
@@ -26,7 +25,6 @@ export default function CommandCenterPage(): JSX.Element {
     queryFn: () => loadItemsWithEvidence(latest!.id),
     enabled: Boolean(latest?.id),
     staleTime: 60_000,
-    // No passive polling — Realtime (useRealtimeSync) drives freshness.
   });
 
   const { data: telegramMessages } = useQuery({
@@ -39,21 +37,21 @@ export default function CommandCenterPage(): JSX.Element {
     ? buildListSummary(latest.id, latest.list_date, latest.file_name, items)
     : null;
 
-  const done = (summary?.confirmed ?? 0) + (summary?.likely_laid ?? 0);
-  const total = summary?.total ?? 0;
-  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-  const remaining = Math.max(total - done, 0);
+  const done       = (summary?.confirmed ?? 0) + (summary?.likely_laid ?? 0);
+  const total      = summary?.total ?? 0;
+  const pct        = total > 0 ? Math.round((done / total) * 100) : 0;
+  const remaining  = Math.max(total - done, 0);
 
-  const noProof = items?.filter((item) => item.computed_status === "no_evidence") ?? [];
-  const partial = items?.filter((item) => item.computed_status === "to_verify") ?? [];
-  const blocked = items?.filter((item) => item.computed_status === "blocked") ?? [];
-  const zeroZones = summary?.by_perimeter.filter((perimeter) => perimeter.pct === 0 && perimeter.total > 0) ?? [];
-  const equipmentImpacts = items ? buildEquipmentImpactsFromDailyItems(items) : [];
-  const criticalEquipment = equipmentImpacts.filter((equipment) => equipment.risk_level === "critical" || equipment.risk_level === "high");
-  const recentSignals = (items ?? [])
-    .filter((item) => item.last_event_at || item.last_evidence_at)
-    .sort((left, right) => String(right.last_event_at ?? right.last_evidence_at).localeCompare(String(left.last_event_at ?? left.last_evidence_at)))
-    .slice(0, 6);
+  const noProof    = items?.filter((i) => i.computed_status === "no_evidence") ?? [];
+  const partial    = items?.filter((i) => i.computed_status === "to_verify") ?? [];
+  const blocked    = items?.filter((i) => i.computed_status === "blocked") ?? [];
+  const zeroZones  = summary?.by_perimeter.filter((p) => p.pct === 0 && p.total > 0) ?? [];
+  const equipmentImpacts   = items ? buildEquipmentImpactsFromDailyItems(items) : [];
+  const criticalEquipment  = equipmentImpacts.filter((e) => e.risk_level === "critical" || e.risk_level === "high");
+  const recentSignals      = (items ?? [])
+    .filter((i) => i.last_event_at || i.last_evidence_at)
+    .sort((a, b) => String(b.last_event_at ?? b.last_evidence_at).localeCompare(String(a.last_event_at ?? a.last_evidence_at)))
+    .slice(0, 8);
   const problemCount = partial.length + blocked.length + zeroZones.length + criticalEquipment.length;
 
   if (!latest && !isLoading) {
@@ -67,7 +65,7 @@ export default function CommandCenterPage(): JSX.Element {
         <div className="mt-4 text-center">
           <button
             onClick={() => navigate("/command/daily-lists")}
-            className="min-h-12 rounded-2xl bg-sky-600 px-5 text-sm font-semibold text-white transition hover:bg-sky-500"
+            className="min-h-11 rounded-lg bg-blue-600 px-5 text-sm font-semibold text-white transition hover:bg-blue-700"
           >
             Importer la liste du jour
           </button>
@@ -99,7 +97,7 @@ export default function CommandCenterPage(): JSX.Element {
             onClick={() => navigate("/command/daily-lists")}
             className="min-h-10 w-fit rounded-2xl border border-stone-200 bg-white px-3 text-xs font-medium text-stone-600 transition hover:border-stone-300 hover:text-stone-950"
           >
-            Changer de liste →
+            Changer de liste
           </button>
         </div>
 
@@ -142,64 +140,39 @@ export default function CommandCenterPage(): JSX.Element {
         </div>
       ) : null}
 
+      {summary ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard label="Confirmés" value={done} helper={`/ ${total} câbles`} tone="emerald" />
+          <StatCard label="Restants" value={remaining} helper="à suivre" tone={remaining > 0 ? "amber" : "neutral"} />
+          <StatCard label="Sans preuve" value={noProof.length} helper="à confirmer" tone={noProof.length > 0 ? "amber" : "neutral"} />
+          <StatCard label="Alertes" value={problemCount} helper="partiels · bloqués · zones" tone={problemCount > 0 ? "red" : "neutral"} />
+        </div>
+      ) : null}
+
       <TelegramLiveSection
         messages={telegramMessages ?? []}
         onOpenCable={(code) => navigate(`/command/cable/${encodeURIComponent(code)}`)}
       />
 
-      {summary ? (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="Confirmés" value={done} helper={`${total} câbles au total`} tone="emerald" />
-          <StatCard label="Restants" value={remaining} helper="à suivre sur le terrain" tone={remaining > 0 ? "amber" : "neutral"} />
-          <StatCard label="Sans preuve" value={noProof.length} helper="à confirmer" tone={noProof.length > 0 ? "amber" : "neutral"} />
-          <StatCard label="Problèmes" value={problemCount} helper="partiels, bloqués, zones ou équipements" tone={problemCount > 0 ? "red" : "neutral"} />
-        </div>
-      ) : null}
-
-      {!isLoading ? (
-        <Section title="Actions maintenant" eyebrow="Priorité chantier" count={noProof.length + partial.length + blocked.length + zeroZones.length + criticalEquipment.length}>
+      {!isLoading && summary ? (
+        <div>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-stone-500">Actions prioritaires</h2>
           <div className="grid gap-3 lg:grid-cols-2">
-            <ActionCard
-              title="Sans preuve"
-              count={noProof.length}
-              tone="amber"
-              empty="Aucun câble sans preuve."
-              footer={noProof.length > 0 ? `Demander une confirmation à ${uniqueActors(noProof) || "l'équipe"}.` : undefined}
-              onOpenAll={() => latest && navigate(`/command/daily-lists/${latest.id}`)}
-            >
-              <CableButtons items={noProof.slice(0, 12)} onOpen={(code) => navigate(`/command/cable/${encodeURIComponent(code)}`)} />
+            <ActionCard title="Sans preuve terrain" count={noProof.length} tone="amber" empty="Aucun câble sans preuve." onViewAll={() => latest && navigate(`/command/daily-lists/${latest.id}`)}>
+              <CableChips items={noProof.slice(0, 12)} onOpen={(c) => navigate(`/command/cable/${encodeURIComponent(c)}`)} />
             </ActionCard>
 
-            <ActionCard
-              title="Partiels / à vérifier"
-              count={partial.length}
-              tone="sky"
-              empty="Aucun signal partiel."
-              footer={partial.length > 0 ? "Vérifier l'achèvement demain matin." : undefined}
-              onOpenAll={() => latest && navigate(`/command/daily-lists/${latest.id}`)}
-            >
-              <CableButtons items={partial.slice(0, 12)} onOpen={(code) => navigate(`/command/cable/${encodeURIComponent(code)}`)} />
+            <ActionCard title="Partiels / à vérifier" count={partial.length} tone="amber" empty="Aucun signal partiel." onViewAll={() => latest && navigate(`/command/daily-lists/${latest.id}`)}>
+              <CableChips items={partial.slice(0, 12)} onOpen={(c) => navigate(`/command/cable/${encodeURIComponent(c)}`)} />
             </ActionCard>
 
-            <ActionCard
-              title="Bloqués"
-              count={blocked.length}
-              tone="red"
-              empty="Aucun câble bloqué."
-              onOpenAll={() => navigate("/command/problems")}
-            >
-              <CableButtons items={blocked.slice(0, 12)} onOpen={(code) => navigate(`/command/cable/${encodeURIComponent(code)}`)} />
+            <ActionCard title="Câbles bloqués" count={blocked.length} tone="red" empty="Aucun câble bloqué." onViewAll={() => navigate("/command/problems")}>
+              <CableChips items={blocked.slice(0, 12)} onOpen={(c) => navigate(`/command/cable/${encodeURIComponent(c)}`)} />
             </ActionCard>
 
-            <ActionCard
-              title="Zones à 0%"
-              count={zeroZones.length}
-              tone="amber"
-              empty="Aucune zone à 0%."
-              onOpenAll={() => latest && navigate(`/command/daily-lists/${latest.id}`)}
-            >
-              <div className="space-y-2">
-                {zeroZones.slice(0, 6).map((zone) => (
+            <ActionCard title="Zones à 0%" count={zeroZones.length} tone="amber" empty="Aucune zone à 0%." onViewAll={() => latest && navigate(`/command/daily-lists/${latest.id}`)}>
+              <div className="space-y-1.5">
+                {zeroZones.slice(0, 5).map((zone) => (
                   <button
                     key={zone.perimetro}
                     onClick={() => latest && navigate(`/command/daily-lists/${latest.id}`)}
@@ -211,38 +184,18 @@ export default function CommandCenterPage(): JSX.Element {
                 ))}
               </div>
             </ActionCard>
-
-            <ActionCard
-              title="Équipements critiques"
-              count={criticalEquipment.length}
-              tone="red"
-              empty="Aucun équipement critique."
-              onOpenAll={() => criticalEquipment[0] && navigate(`/command/equipment/${encodeURIComponent(criticalEquipment[0].equipment_code)}`)}
-            >
-              <div className="space-y-2">
-                {criticalEquipment.slice(0, 4).map((equipment) => (
-                  <button
-                    key={equipment.equipment_code}
-                    onClick={() => navigate(`/command/equipment/${encodeURIComponent(equipment.equipment_code)}`)}
-                    className="flex w-full items-center justify-between rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2 text-left transition hover:border-rose-300"
-                  >
-                    <span className="font-mono text-sm font-semibold text-stone-950">{equipment.equipment_code}</span>
-                    <span className="text-xs text-rose-700">{equipment.without_field_evidence} sans preuve</span>
-                  </button>
-                ))}
-              </div>
-            </ActionCard>
           </div>
-        </Section>
+        </div>
       ) : null}
 
       {summary && summary.by_perimeter.length > 0 ? (
-        <Section title="Avancement par zone" eyebrow="Périmètres" count={summary.by_perimeter.length}>
+        <div>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-stone-500">
+            Avancement par zone <span className="ml-2 text-stone-400 normal-case font-normal">({summary.by_perimeter.length} périmètres)</span>
+          </h2>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {summary.by_perimeter.map((perimeter) => {
               const perimeterPct = perimeter.total > 0 ? Math.round((perimeter.confirmed / perimeter.total) * 100) : 0;
-              const isLate = perimeterPct < 50 && perimeter.total >= 3;
-
               return (
                 <button
                   key={perimeter.perimetro}
@@ -250,7 +203,7 @@ export default function CommandCenterPage(): JSX.Element {
                   className="rounded-[28px] border border-stone-200 bg-white p-4 text-left shadow-sm transition hover:border-sky-300"
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <span className={`truncate text-sm font-semibold ${isLate ? "text-amber-700" : "text-stone-950"}`}>{perimeter.perimetro}</span>
+                    <span className="truncate text-sm font-semibold text-stone-950">{perimeter.perimetro}</span>
                     <Pill tone={perimeterPct >= 80 ? "emerald" : perimeterPct >= 50 ? "sky" : perimeterPct > 0 ? "amber" : "neutral"}>{perimeterPct}%</Pill>
                   </div>
                   <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-stone-200">
@@ -266,11 +219,12 @@ export default function CommandCenterPage(): JSX.Element {
               );
             })}
           </div>
-        </Section>
+        </div>
       ) : null}
 
       {criticalEquipment.length > 0 ? (
-        <Section title="Équipements critiques" eyebrow="APP à surveiller" count={criticalEquipment.length}>
+        <div>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-stone-500">Équipements critiques</h2>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {criticalEquipment.slice(0, 9).map((equipment) => (
               <button
@@ -290,7 +244,7 @@ export default function CommandCenterPage(): JSX.Element {
               </button>
             ))}
           </div>
-        </Section>
+        </div>
       ) : null}
 
       {!isLoading && recentSignals.length > 0 ? (
@@ -320,8 +274,9 @@ export default function CommandCenterPage(): JSX.Element {
 
       {summary && noProof.length === 0 && partial.length === 0 && blocked.length === 0 && zeroZones.length === 0 && criticalEquipment.length === 0 ? (
         <EmptyState
-          title={isError ? "Preuves terrain non chargées" : done >= total && total > 0 ? "Tous les câbles sont confirmés" : "Aucune action immédiate"}
-          description={isError ? "Réessayer après synchronisation terrain." : "Le cockpit ne détecte aucune alerte prioritaire sur la liste active."}
+          title={done >= total && total > 0 ? "Tous les câbles sont confirmés ✓" : "Aucune action immédiate"}
+          description="Le cockpit ne détecte aucune alerte prioritaire sur la liste active."
+          icon="✓"
         />
       ) : null}
     </Screen>
@@ -398,10 +353,6 @@ function TelegramLiveSection({
   );
 }
 
-function uniqueActors(items: DailyListItemVM[]): string {
-  return [...new Set(items.map((item) => item.last_actor).filter(Boolean))].slice(0, 3).join(", ");
-}
-
 function formatEventDate(value: string | null): string {
   if (!value) return "date inconnue";
   return new Date(value).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
@@ -410,45 +361,31 @@ function formatEventDate(value: string | null): string {
 function statusLabel(status: string): string {
   const labels: Record<string, string> = {
     confirmed_field: "Confirmé",
-    likely_laid: "Probable",
-    to_verify: "À vérifier",
-    no_evidence: "Sans preuve",
-    missing: "Manquant",
-    blocked: "Bloqué",
-    outside_inca: "Hors INCA",
+    likely_laid:     "Probable",
+    to_verify:       "À vérifier",
+    no_evidence:     "Sans preuve",
+    missing:         "Manquant",
+    blocked:         "Bloqué",
+    outside_inca:    "Hors INCA",
   };
   return labels[status] ?? status.replace(/_/g, " ");
 }
 
-function ActionCard({
-  title,
-  count,
-  tone,
-  empty,
-  footer,
-  onOpenAll,
-  children,
-}: {
-  title: string;
-  count: number;
-  tone: "amber" | "red" | "sky";
-  empty: string;
-  footer?: string;
-  onOpenAll: () => void;
-  children: ReactNode;
+function ActionCard({ title, count, tone, empty, onViewAll, children }: {
+  title: string; count: number; tone: "amber" | "red";
+  empty: string; onViewAll: () => void; children: ReactNode;
 }): JSX.Element {
   return (
     <article className="rounded-[28px] border border-stone-200 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-sm font-semibold text-stone-950">{title}</h3>
-        <Pill tone={tone}>{count}</Pill>
+        <Pill tone={count > 0 ? tone : "neutral"}>{count}</Pill>
       </div>
       <div className="mt-3">
         {count > 0 ? children : <p className="text-sm text-stone-600">{empty}</p>}
       </div>
-      {footer ? <p className="mt-3 text-xs leading-5 text-stone-600">{footer}</p> : null}
       {count > 0 ? (
-        <button onClick={onOpenAll} className="mt-3 text-xs font-medium text-sky-700 transition hover:text-sky-800">
+        <button onClick={onViewAll} className="mt-3 text-xs font-medium text-sky-700 transition hover:text-sky-800">
           Voir le détail →
         </button>
       ) : null}
@@ -456,15 +393,9 @@ function ActionCard({
   );
 }
 
-function CableButtons({
-  items,
-  onOpen,
-}: {
-  items: DailyListItemVM[];
-  onOpen: (code: string) => void;
-}): JSX.Element {
+function CableChips({ items, onOpen }: { items: DailyListItemVM[]; onOpen: (code: string) => void }): JSX.Element {
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-1.5">
       {items.map((item) => (
         <button
           key={item.id}

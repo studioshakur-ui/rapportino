@@ -62,7 +62,7 @@ export default function TimelinePage() {
       <AppBar
         title="Journal chantier"
         subtitle="Lecture par jour des événements validés, avec accès direct aux câbles."
-        action={<Pill tone="neutral">{events?.length ?? 0} événement{(events?.length ?? 0) > 1 ? "s" : ""}</Pill>}
+        action={!isLoading && events && events.length > 0 ? <Pill tone="neutral">{events.length} événement{events.length > 1 ? "s" : ""}</Pill> : undefined}
       />
 
       <label className="block">
@@ -72,14 +72,14 @@ export default function TimelinePage() {
           placeholder="Filtrer par câble…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="min-h-12 w-full rounded-2xl border border-zinc-800 bg-zinc-900 px-4 text-base text-white outline-none transition placeholder:text-zinc-600 focus:border-zinc-600 focus:bg-zinc-900/90"
+          className="min-h-12 w-full rounded-2xl border border-gray-200 bg-white px-4 text-base text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:bg-white"
         />
       </label>
 
       {isLoading && (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-24 animate-pulse rounded-3xl border border-zinc-800 bg-zinc-900" />
+            <div key={i} className="h-24 animate-pulse rounded-xl border border-gray-200 bg-gray-100" />
           ))}
         </div>
       )}
@@ -109,7 +109,7 @@ export default function TimelinePage() {
           <Section key={day} title={formatDay(day)} count={dayEvents.length}>
             <div className="space-y-3">
               {posato.length > 0 && (
-                <article className="rounded-3xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+                <article className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <Pill tone="emerald">
                       {posato.length} câble{posato.length > 1 ? "s" : ""} posé{posato.length > 1 ? "s" : ""}
@@ -119,13 +119,13 @@ export default function TimelinePage() {
                     {actors.size > 0 ? (
                       [...actors.entries()].map(([actor, cables]) => (
                         <div key={actor}>
-                          <p className="text-sm font-medium text-zinc-200">{actor}</p>
+                          <p className="text-sm font-medium text-gray-800">{actor}</p>
                           <div className="mt-2 flex flex-wrap gap-2">
                             {cables.map((code) => (
                               <button
                                 key={code}
                                 onClick={() => navigate(`/command/cable/${encodeURIComponent(code)}`)}
-                                className="min-h-9 rounded-xl bg-emerald-500/10 px-3 font-mono text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/20"
+                                className="min-h-9 rounded-xl bg-emerald-50 px-3 font-mono text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
                               >
                                 {formatCableDisplay(code)}
                               </button>
@@ -139,7 +139,7 @@ export default function TimelinePage() {
                           <button
                             key={e.id}
                             onClick={() => navigate(`/command/cable/${encodeURIComponent(e.cable_code)}`)}
-                            className="min-h-9 rounded-xl bg-emerald-500/10 px-3 font-mono text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/20"
+                            className="min-h-9 rounded-xl bg-emerald-50 px-3 font-mono text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
                           >
                             {formatCableDisplay(e.cable_code)}
                           </button>
@@ -157,19 +157,19 @@ export default function TimelinePage() {
                   <button
                     key={e.id}
                     onClick={() => navigate(`/command/cable/${encodeURIComponent(e.cable_code)}`)}
-                    className="min-h-16 w-full rounded-2xl border border-zinc-800 bg-zinc-900/80 px-4 py-3 text-left transition hover:border-zinc-700 hover:bg-zinc-900"
+                    className="min-h-16 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-left transition hover:border-gray-300 hover:bg-gray-50"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <Pill tone={tone}>{label}</Pill>
-                          <span className="truncate font-mono text-sm font-semibold text-white">{formatCableDisplay(e.cable_code)}</span>
+                          <span className="truncate font-mono text-sm font-semibold text-gray-900">{formatCableDisplay(e.cable_code)}</span>
                         </div>
                         {e.note && e.event_kind === "GENERAL_MESSAGE" ? (
-                          <p className="line-clamp-2 text-xs leading-5 text-zinc-500 italic">{e.note.slice(0, 100)}</p>
+                          <p className="line-clamp-2 text-xs leading-5 text-gray-500 italic">{e.note.slice(0, 100)}</p>
                         ) : null}
                       </div>
-                      <span className="shrink-0 text-xs text-zinc-600">
+                      <span className="shrink-0 text-xs text-gray-400">
                         {new Date(e.occurred_at).toLocaleTimeString("fr-FR", {
                           hour: "2-digit", minute: "2-digit",
                         })}

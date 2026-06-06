@@ -16,6 +16,19 @@ html, body {
   padding: 0;
 }
 
+/* Focus visible global — never suppress keyboard focus rings */
+*:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+/* Inputs get a slightly larger radius to match their shape */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  border-radius: 8px;
+}
+
 /* Helpers */
 .print-only { display: none !important; }
 

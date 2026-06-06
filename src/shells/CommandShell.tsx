@@ -1,19 +1,23 @@
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
-import CommandBottomNav from "./CommandBottomNav";
 
 const MAIN_NAV = [
-  { to: "/command/center", label: "Dashboard", hint: "Vue chantier du jour" },
-  { to: "/command/navemaster", label: "Navemaster", hint: "Vérité, travail, import et IA" },
-  { to: "/command/cables", label: "Câbles", hint: "Recherche et stories" },
-  { to: "/command/commander", label: "Commander", hint: "Entrée messages" },
+  { to: "/command/center",        label: "Dashboard",      hint: "Vue chantier du jour" },
+  { to: "/command/navemaster",    label: "Navemaster",     hint: "Vérité, travail, import et IA" },
+  { to: "/command/cables",        label: "Câbles",         hint: "Recherche et stories" },
+  { to: "/command/commander",     label: "Commander",      hint: "Entrée messages" },
+  { to: "/command/apparati",      label: "Apparati",       hint: "Gestion des apparats" },
+  { to: "/command/terrain-images", label: "Images terrain", hint: "Photos et preuves visuelles" },
+  { to: "/command/ai",            label: "IA Cockpit",     hint: "Analyse et classification IA" },
 ] as const;
 
 const ADMIN_NAV = [
-  { to: "/command/problems", label: "Problèmes ouverts" },
-  { to: "/command/timeline", label: "Journal chantier" },
-  { to: "/command/intake", label: "Intake messages" },
+  { to: "/command/problems",  label: "Problèmes ouverts" },
+  { to: "/command/timeline",  label: "Journal chantier" },
+  { to: "/command/inca",      label: "Import INCA" },
+  { to: "/command/intake",    label: "Intake messages" },
+  { to: "/command/ai-intake", label: "Classifieur IA" },
 ] as const;
 
 export default function CommandShell(): JSX.Element {
@@ -174,8 +178,6 @@ export default function CommandShell(): JSX.Element {
           </main>
         </div>
       </div>
-
-      <CommandBottomNav />
     </div>
   );
 }
