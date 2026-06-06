@@ -345,22 +345,33 @@ bot.on("message", async (ctx: Context) => {
 // ── Démarrage ──────────────────────────────────────────────────────────────
 console.log("🚀 CORE COMMAND Telegram Bridge démarrage...\n");
 
-bot.start({
-  onStart: async (info) => {
-    stats.status       = "connected";
-    stats.bot_username = info.username;
-    console.log(`🟢 Bot connecté: @${info.username}`);
-    if (WATCH_IDS.size > 0) {
-      console.log(`👀 Groupes surveillés: ${[...WATCH_IDS].join(", ")}`);
-    } else {
-      console.log("⚠  WATCH_CHAT_IDS vide — envoyer un message dans le groupe pour obtenir l'ID\n");
-    }
-  },
-}).catch((err: Error) => {
-  stats.status = "error";
-  console.error("❌ Erreur bot:", err.message);
-  process.exit(1);
-});
+// Long polling résilient au 409 (Conflict). Pendant un redéploiement, l'ancien
+// conteneur tient encore le getUpdates : quitter le process (process.exit) crée
+// un deadlock — Railway garde l'ancien build en vie tant que le nouveau n'est
+// pas « sain ». On réessaie donc au lieu de quitter : le nouveau process reste
+// vivant, Railway stoppe l'ancien, le poll se libère et le bot prend le relais.
+async function startBot(): Promise<void> {
+  try {
+    await bot.start({
+      drop_pending_updates: true,
+      onStart: async (info) => {
+        stats.status       = "connected";
+        stats.bot_username = info.username;
+        console.log(`🟢 Bot connecté: @${info.username}`);
+        if (WATCH_IDS.size > 0) {
+          console.log(`👀 Groupes surveillés: ${[...WATCH_IDS].join(", ")}`);
+        } else {
+          console.log("⚠  WATCH_CHAT_IDS vide — envoyer un message dans le groupe pour obtenir l'ID\n");
+        }
+      },
+    });
+  } catch (err) {
+    stats.status = "error";
+    console.error("❌ Erreur bot (nouvelle tentative dans 5s):", (err as Error).message);
+    setTimeout(() => { void startBot(); }, 5000);
+  }
+}
+void startBot();
 
 process.on("SIGINT", async () => {
   console.log("\n⏹  Arrêt...");
