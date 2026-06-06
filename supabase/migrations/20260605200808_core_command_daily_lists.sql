@@ -133,8 +133,55 @@ create unique index if not exists uq_daily_list_item_events_source
     coalesce(whatsapp_message_id, '00000000-0000-0000-0000-000000000000'::uuid)
   );
 
-create index if not exists idx_daily_list_item_status_snapshots_item_time
-  on public.daily_list_item_status_snapshots (daily_list_item_id, created_at desc);
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'daily_list_item_status_snapshots'
+      and column_name = 'daily_list_item_id'
+  ) and exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'daily_list_item_status_snapshots'
+      and column_name = 'snapshot_at'
+  ) then
+    execute 'create index if not exists idx_daily_list_item_status_snapshots_item_time on public.daily_list_item_status_snapshots (daily_list_item_id, snapshot_at desc)';
+  elsif exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'daily_list_item_status_snapshots'
+      and column_name = 'item_id'
+  ) and exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'daily_list_item_status_snapshots'
+      and column_name = 'snapshot_at'
+  ) then
+    execute 'create index if not exists idx_daily_list_item_status_snapshots_item_time on public.daily_list_item_status_snapshots (item_id, snapshot_at desc)';
+  elsif exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'daily_list_item_status_snapshots'
+      and column_name = 'daily_list_item_id'
+  ) then
+    execute 'create index if not exists idx_daily_list_item_status_snapshots_item_time on public.daily_list_item_status_snapshots (daily_list_item_id, created_at desc)';
+  elsif exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'daily_list_item_status_snapshots'
+      and column_name = 'item_id'
+  ) then
+    execute 'create index if not exists idx_daily_list_item_status_snapshots_item_time on public.daily_list_item_status_snapshots (item_id, created_at desc)';
+  end if;
+end
+$$;
 
 -- ---------------------------------------------------------------------------
 -- RLS

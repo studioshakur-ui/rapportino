@@ -1,4 +1,4 @@
-// src/features/core-command/command-center/CommandCenterPage.tsx — V6 mobile shell
+// src/features/core-command/command-center/CommandCenterPage.tsx — CORE COMMAND dashboard
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
@@ -8,6 +8,7 @@ import type { DailyListItemVM } from "../../../modules/daily-lists/dailyLists.ty
 import { buildEquipmentImpactsFromDailyItems } from "../../../modules/equipment/equipment.logic";
 import { AppBar, EmptyState, Pill, Screen, Section, StatCard } from "../../../components/command-ui";
 import { formatCableDisplay } from "../../../core/cable/cableDisplay";
+import { listRecentTelegramMessages, type TelegramLiveMessage } from "../api/telegramMessages.api";
 
 export default function CommandCenterPage(): JSX.Element {
   const navigate = useNavigate();
@@ -26,6 +27,12 @@ export default function CommandCenterPage(): JSX.Element {
     enabled: Boolean(latest?.id),
     staleTime: 60_000,
     // No passive polling — Realtime (useRealtimeSync) drives freshness.
+  });
+
+  const { data: telegramMessages } = useQuery({
+    queryKey: ["telegram_live_feed"],
+    queryFn: () => listRecentTelegramMessages(12),
+    staleTime: 30_000,
   });
 
   const summary = latest && items
@@ -71,26 +78,26 @@ export default function CommandCenterPage(): JSX.Element {
 
   return (
     <Screen className="max-w-6xl space-y-6">
-      <section className="rounded-3xl border border-zinc-800 bg-zinc-950/80 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.30)]">
+      <section className="rounded-[32px] border border-stone-200 bg-[linear-gradient(135deg,#ffffff_0%,#f6f0e3_100%)] p-6 shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
         <AppBar
-          title="Aujourd'hui"
+          title="Dashboard chantier"
           subtitle={new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "long" })}
           action={<Pill tone={pct >= 80 ? "emerald" : pct >= 50 ? "sky" : pct > 0 ? "amber" : "neutral"}>{pct}% avancement</Pill>}
         />
 
         <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0 text-sm text-zinc-400">
+          <div className="min-w-0 text-sm text-stone-600">
             {latest ? (
               <>
                 <span className="truncate">{latest.file_name}</span>
-                <span className="mx-2 text-zinc-700">·</span>
+                <span className="mx-2 text-stone-300">·</span>
                 <span>{latest.list_date ?? "date inconnue"}</span>
               </>
             ) : "Chargement de la liste active…"}
           </div>
           <button
             onClick={() => navigate("/command/daily-lists")}
-            className="min-h-10 w-fit rounded-xl border border-zinc-800 px-3 text-xs font-medium text-zinc-400 transition hover:border-zinc-700 hover:text-white"
+            className="min-h-10 w-fit rounded-2xl border border-stone-200 bg-white px-3 text-xs font-medium text-stone-600 transition hover:border-stone-300 hover:text-stone-950"
           >
             Changer de liste →
           </button>
@@ -99,20 +106,20 @@ export default function CommandCenterPage(): JSX.Element {
         {summary ? (
           <div className="mt-6 space-y-4">
             <div className="flex items-end gap-4">
-              <span className="text-7xl font-black leading-none tracking-tighter text-white sm:text-8xl">
-                {pct}<span className="text-4xl text-zinc-600 sm:text-5xl">%</span>
+              <span className="text-7xl font-black leading-none tracking-tighter text-stone-950 sm:text-8xl">
+                {pct}<span className="text-4xl text-stone-400 sm:text-5xl">%</span>
               </span>
-              <span className="pb-2 text-sm leading-relaxed text-zinc-500">
+              <span className="pb-2 text-sm leading-relaxed text-stone-600">
                 {done} / {total}<br />câbles
               </span>
             </div>
 
-            <div className="flex h-2 overflow-hidden rounded-full bg-zinc-800/80">
+            <div className="flex h-2 overflow-hidden rounded-full bg-stone-200">
               {[
                 { count: summary.confirmed, className: "bg-emerald-500" },
                 { count: summary.likely_laid, className: "bg-sky-500" },
                 { count: summary.to_verify, className: "bg-amber-400" },
-                { count: summary.no_evidence, className: "bg-zinc-700" },
+                { count: summary.no_evidence, className: "bg-stone-400" },
                 { count: summary.blocked, className: "bg-red-500" },
               ].filter((segment) => segment.count > 0).map((segment) => (
                 <div
@@ -127,13 +134,18 @@ export default function CommandCenterPage(): JSX.Element {
       </section>
 
       {isError ? (
-        <div className="rounded-3xl border border-amber-500/30 bg-amber-500/10 p-4">
-          <p className="text-sm font-medium text-amber-300">Preuves terrain non chargées</p>
-          <p className="mt-1 text-xs text-amber-200/70">
+        <div className="rounded-[28px] border border-amber-200 bg-amber-50 p-4">
+          <p className="text-sm font-medium text-amber-800">Preuves terrain non chargées</p>
+          <p className="mt-1 text-xs text-amber-700">
             Le chargement des preuves terrain a échoué. L'avancement ci-dessous peut être incomplet.
           </p>
         </div>
       ) : null}
+
+      <TelegramLiveSection
+        messages={telegramMessages ?? []}
+        onOpenCable={(code) => navigate(`/command/cable/${encodeURIComponent(code)}`)}
+      />
 
       {summary ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -191,10 +203,10 @@ export default function CommandCenterPage(): JSX.Element {
                   <button
                     key={zone.perimetro}
                     onClick={() => latest && navigate(`/command/daily-lists/${latest.id}`)}
-                    className="flex w-full items-center justify-between rounded-2xl border border-zinc-800 bg-zinc-950/50 px-3 py-2 text-left transition hover:border-amber-500/40"
+                    className="flex w-full items-center justify-between rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2 text-left transition hover:border-amber-300"
                   >
-                    <span className="text-sm font-medium text-zinc-100">{zone.perimetro}</span>
-                    <span className="text-xs text-amber-300">{zone.total} câbles</span>
+                    <span className="text-sm font-medium text-stone-900">{zone.perimetro}</span>
+                    <span className="text-xs text-amber-700">{zone.total} câbles</span>
                   </button>
                 ))}
               </div>
@@ -212,10 +224,10 @@ export default function CommandCenterPage(): JSX.Element {
                   <button
                     key={equipment.equipment_code}
                     onClick={() => navigate(`/command/equipment/${encodeURIComponent(equipment.equipment_code)}`)}
-                    className="flex w-full items-center justify-between rounded-2xl border border-zinc-800 bg-zinc-950/50 px-3 py-2 text-left transition hover:border-red-500/40"
+                    className="flex w-full items-center justify-between rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2 text-left transition hover:border-rose-300"
                   >
-                    <span className="font-mono text-sm font-semibold text-white">{equipment.equipment_code}</span>
-                    <span className="text-xs text-red-200">{equipment.without_field_evidence} sans preuve</span>
+                    <span className="font-mono text-sm font-semibold text-stone-950">{equipment.equipment_code}</span>
+                    <span className="text-xs text-rose-700">{equipment.without_field_evidence} sans preuve</span>
                   </button>
                 ))}
               </div>
@@ -235,19 +247,19 @@ export default function CommandCenterPage(): JSX.Element {
                 <button
                   key={perimeter.perimetro}
                   onClick={() => latest && navigate(`/command/daily-lists/${latest.id}`)}
-                  className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-4 text-left transition hover:border-sky-500/40"
+                  className="rounded-[28px] border border-stone-200 bg-white p-4 text-left shadow-sm transition hover:border-sky-300"
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <span className={`truncate text-sm font-semibold ${isLate ? "text-amber-300" : "text-zinc-100"}`}>{perimeter.perimetro}</span>
+                    <span className={`truncate text-sm font-semibold ${isLate ? "text-amber-700" : "text-stone-950"}`}>{perimeter.perimetro}</span>
                     <Pill tone={perimeterPct >= 80 ? "emerald" : perimeterPct >= 50 ? "sky" : perimeterPct > 0 ? "amber" : "neutral"}>{perimeterPct}%</Pill>
                   </div>
-                  <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-zinc-800">
+                  <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-stone-200">
                     <div
                       style={{ width: `${perimeterPct}%` }}
-                      className={`h-full rounded-full ${perimeterPct === 0 ? "bg-zinc-700" : perimeterPct < 50 ? "bg-amber-400" : perimeterPct < 80 ? "bg-sky-500" : "bg-emerald-500"}`}
+                      className={`h-full rounded-full ${perimeterPct === 0 ? "bg-stone-400" : perimeterPct < 50 ? "bg-amber-400" : perimeterPct < 80 ? "bg-sky-500" : "bg-emerald-500"}`}
                     />
                   </div>
-                  <p className="mt-2 text-xs text-zinc-500">
+                  <p className="mt-2 text-xs text-stone-600">
                     {perimeter.confirmed} confirmé{perimeter.confirmed > 1 ? "s" : ""} · {perimeter.total - perimeter.confirmed} restant{(perimeter.total - perimeter.confirmed) > 1 ? "s" : ""}
                   </p>
                 </button>
@@ -264,17 +276,17 @@ export default function CommandCenterPage(): JSX.Element {
               <button
                 key={equipment.equipment_code}
                 onClick={() => navigate(`/command/equipment/${encodeURIComponent(equipment.equipment_code)}`)}
-                className="rounded-3xl border border-red-500/20 bg-red-500/10 p-4 text-left transition hover:border-red-400/40"
+                className="rounded-[28px] border border-rose-200 bg-rose-50/70 p-4 text-left shadow-sm transition hover:border-rose-300"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <span className="font-mono text-base font-semibold text-white">{equipment.equipment_code}</span>
+                  <span className="font-mono text-base font-semibold text-stone-950">{equipment.equipment_code}</span>
                   <Pill tone="red">{equipment.risk_level}</Pill>
                 </div>
-                <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-zinc-400">
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-stone-600">
                   <span>{equipment.total_cables} câbles liés</span>
                   <span>{equipment.without_field_evidence} sans preuve</span>
                 </div>
-                {equipment.risk_reasons[0] ? <p className="mt-3 text-xs leading-5 text-red-200">{equipment.risk_reasons[0]}</p> : null}
+                {equipment.risk_reasons[0] ? <p className="mt-3 text-xs leading-5 text-rose-700">{equipment.risk_reasons[0]}</p> : null}
               </button>
             ))}
           </div>
@@ -288,18 +300,18 @@ export default function CommandCenterPage(): JSX.Element {
               <button
                 key={item.id}
                 onClick={() => navigate(`/command/cable/${encodeURIComponent(item.cable_code_normalized)}`)}
-                className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-4 text-left transition hover:border-sky-500/40"
+                className="rounded-[28px] border border-stone-200 bg-white p-4 text-left shadow-sm transition hover:border-sky-300"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <span className="font-mono text-base font-semibold text-white">{formatCableDisplay(item.cable_code_normalized)}</span>
+                  <span className="font-mono text-base font-semibold text-stone-950">{formatCableDisplay(item.cable_code_normalized)}</span>
                   <Pill tone={item.computed_status === "blocked" ? "red" : item.computed_status === "to_verify" ? "amber" : item.computed_status === "confirmed_field" ? "emerald" : "neutral"}>
                     {statusLabel(item.computed_status)}
                   </Pill>
                 </div>
-                <p className="mt-2 text-xs text-zinc-500">
+                <p className="mt-2 text-xs text-stone-600">
                   {item.last_actor ?? "Équipe"} · {formatEventDate(item.last_event_at ?? item.last_evidence_at)}
                 </p>
-                {item.last_message ? <p className="mt-2 line-clamp-2 text-sm leading-6 text-zinc-300">{item.last_message}</p> : null}
+                {item.last_message ? <p className="mt-2 line-clamp-2 text-sm leading-6 text-stone-700">{item.last_message}</p> : null}
               </button>
             ))}
           </div>
@@ -313,6 +325,76 @@ export default function CommandCenterPage(): JSX.Element {
         />
       ) : null}
     </Screen>
+  );
+}
+
+function TelegramLiveSection({
+  messages,
+  onOpenCable,
+}: {
+  messages: TelegramLiveMessage[];
+  onOpenCable: (code: string) => void;
+}): JSX.Element {
+  const messagesWithCable = messages.filter((message) => message.cable_refs.length > 0).length;
+
+  return (
+    <Section title="Telegram live" eyebrow="Flux terrain officiel" count={messages.length}>
+      {messages.length === 0 ? (
+        <EmptyState
+          title="Aucun message Telegram capturé"
+          description="Le flux se remplira dès que le bot Railway reçoit un message du groupe chantier."
+          icon="📡"
+        />
+      ) : (
+        <div className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <StatCard label="Messages récents" value={messages.length} helper="capturés en DB" tone="sky" />
+            <StatCard label="Avec câbles" value={messagesWithCable} helper="ouvrables en Cable Story" tone={messagesWithCable > 0 ? "emerald" : "neutral"} />
+            <StatCard label="Sans code" value={messages.length - messagesWithCable} helper="contexte terrain" tone="neutral" />
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            {messages.map((message) => (
+              <article key={message.id} className="rounded-[28px] border border-sky-200 bg-sky-50/70 p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-stone-950">{message.sender_name ?? "Telegram"}</p>
+                    <p className="mt-1 text-xs text-stone-600">
+                      {formatEventDate(message.message_ts ?? message.created_at)}
+                      {message.message_type ? ` · ${message.message_type}` : ""}
+                    </p>
+                  </div>
+                  <Pill tone={message.cable_refs.length > 0 ? "emerald" : "neutral"}>
+                    {message.cable_refs.length > 0 ? `${message.cable_refs.length} câble${message.cable_refs.length > 1 ? "s" : ""}` : "info"}
+                  </Pill>
+                </div>
+
+                <p className="mt-3 line-clamp-3 whitespace-pre-line text-sm leading-6 text-stone-700">
+                  {message.text || "Message sans texte"}
+                </p>
+
+                {message.cable_refs.length > 0 ? (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {message.cable_refs.slice(0, 10).map((code) => (
+                      <button
+                        key={code}
+                        onClick={() => onOpenCable(code)}
+                        className="rounded-xl border border-stone-200 bg-white px-2 py-1 font-mono text-xs font-semibold text-stone-700 transition hover:border-sky-300 hover:text-sky-700"
+                      >
+                        {formatCableDisplay(code)}
+                      </button>
+                    ))}
+                    {message.cable_refs.length > 10 ? (
+                      <span className="self-center text-xs text-stone-500">+{message.cable_refs.length - 10}</span>
+                    ) : null}
+                  </div>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        </div>
+      )}
+    </Section>
   );
 }
 
@@ -356,17 +438,17 @@ function ActionCard({
   children: ReactNode;
 }): JSX.Element {
   return (
-    <article className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-4">
+    <article className="rounded-[28px] border border-stone-200 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold text-white">{title}</h3>
+        <h3 className="text-sm font-semibold text-stone-950">{title}</h3>
         <Pill tone={tone}>{count}</Pill>
       </div>
       <div className="mt-3">
-        {count > 0 ? children : <p className="text-sm text-zinc-500">{empty}</p>}
+        {count > 0 ? children : <p className="text-sm text-stone-600">{empty}</p>}
       </div>
-      {footer ? <p className="mt-3 text-xs leading-5 text-zinc-500">{footer}</p> : null}
+      {footer ? <p className="mt-3 text-xs leading-5 text-stone-600">{footer}</p> : null}
       {count > 0 ? (
-        <button onClick={onOpenAll} className="mt-3 text-xs font-medium text-sky-300 transition hover:text-sky-200">
+        <button onClick={onOpenAll} className="mt-3 text-xs font-medium text-sky-700 transition hover:text-sky-800">
           Voir le détail →
         </button>
       ) : null}
@@ -387,7 +469,7 @@ function CableButtons({
         <button
           key={item.id}
           onClick={() => onOpen(item.cable_code_normalized)}
-          className="rounded-xl border border-zinc-800 bg-zinc-950/70 px-2.5 py-1.5 font-mono text-xs font-semibold text-zinc-200 transition hover:border-sky-500/40 hover:text-sky-300"
+          className="rounded-xl border border-stone-200 bg-stone-50 px-2.5 py-1.5 font-mono text-xs font-semibold text-stone-700 transition hover:border-sky-300 hover:text-sky-700"
         >
           {formatCableDisplay(item.cable_code_normalized)}
         </button>

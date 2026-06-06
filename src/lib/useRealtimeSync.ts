@@ -1,17 +1,7 @@
-// src/lib/useRealtimeSync.ts
-// P3.2 — Live Field Reaction Engine.
-// Subscribes to Supabase Realtime INSERTs on the ingestion tables and
-// invalidates the React Query caches so the UI reacts to a Telegram/WhatsApp
-// message instantly — no passive 2-minute polling wait.
-//
-// Requires the watched tables to be members of the `supabase_realtime`
-// publication (see migration *_core_command_realtime.sql). INCA stays read-only.
-
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "./supabaseClient";
 
-// Tables whose INSERTs mean "new field signal arrived".
 const WATCHED_TABLES = [
   "whatsapp_messages",
   "core_events",
@@ -20,9 +10,6 @@ const WATCHED_TABLES = [
   "incoming_messages",
 ] as const;
 
-// React Query keys to refresh. Partial-match (React Query invalidates any query
-// whose key starts with these), so ["daily_list_items_vm"] also refreshes
-// ["daily_list_items_vm", importId], etc.
 const INVALIDATE_KEYS: readonly (readonly unknown[])[] = [
   ["daily_list_imports"],
   ["daily_list_items_vm"],
@@ -33,6 +20,10 @@ const INVALIDATE_KEYS: readonly (readonly unknown[])[] = [
   ["core_events"],
   ["cable_priorities"],
   ["agent_findings"],
+  ["telegram_live_feed"],
+  ["navemaster_active_import"],
+  ["navemaster_archives"],
+  ["navemaster_rows"],
 ];
 
 export function useRealtimeSync(): void {
@@ -41,8 +32,6 @@ export function useRealtimeSync(): void {
   useEffect(() => {
     let scheduled = false;
 
-    // Coalesce bursts (a single message produces several INSERTs across tables)
-    // into one invalidation pass per animation frame / tick.
     const refresh = (): void => {
       if (scheduled) return;
       scheduled = true;
@@ -56,11 +45,7 @@ export function useRealtimeSync(): void {
 
     const channel = supabase.channel("core-command-live");
     for (const table of WATCHED_TABLES) {
-      channel.on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table },
-        refresh
-      );
+      channel.on("postgres_changes", { event: "INSERT", schema: "public", table }, refresh);
     }
     channel.subscribe();
 
