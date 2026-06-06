@@ -26,7 +26,6 @@ export function AppBar({ title, subtitle, action }: AppBarProps): JSX.Element {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0 space-y-1">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">Core Command</p>
         <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">{title}</h1>
         {subtitle ? <p className="text-sm leading-6 text-zinc-400">{subtitle}</p> : null}
       </div>

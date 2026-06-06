@@ -1,6 +1,4 @@
 // src/shells/CommandBottomNav.tsx
-// Mobile-first bottom navigation for CORE COMMAND.
-// Fixed, thumb-reachable, safe-area aware. Hidden on desktop (md+).
 import { NavLink } from "react-router-dom";
 import type { ReactNode } from "react";
 
@@ -54,6 +52,7 @@ const NAV: NavItem[] = [
 export default function CommandBottomNav() {
   return (
     <nav
+      aria-label="Navigation mobile"
       className="md:hidden fixed inset-x-0 bottom-0 z-40 border-t border-zinc-800/80 bg-zinc-950/95 backdrop-blur"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
@@ -63,7 +62,7 @@ export default function CommandBottomNav() {
             key={to}
             to={to}
             className={({ isActive }) =>
-              `flex flex-1 flex-col items-center gap-1 py-2.5 text-[10px] font-medium tracking-wide transition-colors ${
+              `flex flex-1 flex-col items-center gap-1 min-h-[52px] py-3 text-xs font-medium tracking-wide transition-colors ${
                 isActive ? "text-white" : "text-zinc-600 active:text-zinc-300"
               }`
             }

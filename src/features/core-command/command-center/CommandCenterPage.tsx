@@ -81,11 +81,9 @@ export default function CommandCenterPage(): JSX.Element {
         <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0 text-sm text-zinc-400">
             {latest ? (
-              <>
-                <span className="truncate">{latest.file_name}</span>
-                <span className="mx-2 text-zinc-700">·</span>
-                <span>{latest.list_date ?? "date inconnue"}</span>
-              </>
+              latest.list_date
+                ? `Liste du ${new Date(latest.list_date + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}`
+                : latest.file_name
             ) : "Chargement de la liste active…"}
           </div>
           <button

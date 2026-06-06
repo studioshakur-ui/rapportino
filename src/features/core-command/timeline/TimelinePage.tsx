@@ -62,7 +62,7 @@ export default function TimelinePage() {
       <AppBar
         title="Journal chantier"
         subtitle="Lecture par jour des événements validés, avec accès direct aux câbles."
-        action={<Pill tone="neutral">{events?.length ?? 0} événement{(events?.length ?? 0) > 1 ? "s" : ""}</Pill>}
+        action={!isLoading && events && events.length > 0 ? <Pill tone="neutral">{events.length} événement{events.length > 1 ? "s" : ""}</Pill> : undefined}
       />
 
       <label className="block">

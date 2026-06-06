@@ -40,6 +40,7 @@ export default function PrioritiesPage() {
   const navigate = useNavigate();
   const qc       = useQueryClient();
   const [search, setSearch] = useState("");
+  const [confirmId, setConfirmId] = useState<string | null>(null);
 
   const { data: priorities, isLoading: loadPri } = useQuery({
     queryKey: ["cable_priorities", "open"],
@@ -149,13 +150,30 @@ export default function PrioritiesPage() {
                   >
                     Voir le câble →
                   </button>
-                  <button
-                    onClick={() => closeMut.mutate(p.id)}
-                    disabled={closeMut.isPending}
-                    className="min-h-10 rounded-xl border border-zinc-800 px-3 text-sm font-medium text-zinc-400 transition hover:border-zinc-700 hover:text-zinc-200 disabled:opacity-50"
-                  >
-                    Marquer résolu
-                  </button>
+                  {confirmId === p.id ? (
+                    <>
+                      <button
+                        onClick={() => { closeMut.mutate(p.id); setConfirmId(null); }}
+                        disabled={closeMut.isPending}
+                        className="min-h-10 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 text-sm font-medium text-emerald-300 transition hover:bg-emerald-500/20 disabled:opacity-50"
+                      >
+                        Confirmer ✓
+                      </button>
+                      <button
+                        onClick={() => setConfirmId(null)}
+                        className="min-h-10 rounded-xl border border-zinc-800 px-3 text-sm font-medium text-zinc-500 transition hover:text-zinc-300"
+                      >
+                        Annuler
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmId(p.id)}
+                      className="min-h-10 rounded-xl border border-zinc-800 px-3 text-sm font-medium text-zinc-400 transition hover:border-zinc-700 hover:text-zinc-200"
+                    >
+                      Marquer résolu
+                    </button>
+                  )}
                 </div>
               </article>
             ))}
