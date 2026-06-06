@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCableEvents } from "../hooks/useCableEvents";
 import { formatCableDisplay } from "../../../core/cable/cableDisplay";
-import { Screen, EmptyState, CablePills } from "../ui/CommandKit";
+import { Screen, EmptyState } from "../ui/CommandKit";
 
 // Traduction event_kind → phrase chantier
 function humanizeKind(kind: string): { label: string; color: string } {
@@ -178,6 +178,6 @@ export default function TimelinePage() {
           </div>
         );
       })}
-    </div>
+    </Screen>
   );
 }

@@ -7,30 +7,10 @@ export type Json =
   | Json[]
 
 export type Database = {
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "13.0.5"
   }
   public: {
     Tables: {
@@ -2633,6 +2613,332 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_list_imports: {
+        Row: {
+          file_name: string
+          id: string
+          imported_at: string
+          imported_by: string | null
+          list_date: string | null
+          raw_metadata: Json
+          rows_count: number
+          source_kind: string
+          status: string
+        }
+        Insert: {
+          file_name: string
+          id?: string
+          imported_at?: string
+          imported_by?: string | null
+          list_date?: string | null
+          raw_metadata?: Json
+          rows_count?: number
+          source_kind: string
+          status?: string
+        }
+        Update: {
+          file_name?: string
+          id?: string
+          imported_at?: string
+          imported_by?: string | null
+          list_date?: string | null
+          raw_metadata?: Json
+          rows_count?: number
+          source_kind?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      daily_list_item_events: {
+        Row: {
+          actor_label: string | null
+          cable_code_normalized: string | null
+          cable_event_id: string | null
+          confidence: number
+          core_event_id: string | null
+          created_at: string
+          daily_list_item_id: string
+          event_kind: string
+          id: string
+          import_id: string | null
+          occurred_at: string | null
+          progress_percent: number | null
+          raw_note: string | null
+          source_type: string | null
+          whatsapp_message_id: string | null
+        }
+        Insert: {
+          actor_label?: string | null
+          cable_code_normalized?: string | null
+          cable_event_id?: string | null
+          confidence?: number
+          core_event_id?: string | null
+          created_at?: string
+          daily_list_item_id: string
+          event_kind: string
+          id?: string
+          import_id?: string | null
+          occurred_at?: string | null
+          progress_percent?: number | null
+          raw_note?: string | null
+          source_type?: string | null
+          whatsapp_message_id?: string | null
+        }
+        Update: {
+          actor_label?: string | null
+          cable_code_normalized?: string | null
+          cable_event_id?: string | null
+          confidence?: number
+          core_event_id?: string | null
+          created_at?: string
+          daily_list_item_id?: string
+          event_kind?: string
+          id?: string
+          import_id?: string | null
+          occurred_at?: string | null
+          progress_percent?: number | null
+          raw_note?: string | null
+          source_type?: string | null
+          whatsapp_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_list_item_events_cable_event_id_fkey"
+            columns: ["cable_event_id"]
+            isOneToOne: false
+            referencedRelation: "cable_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_list_item_events_core_event_id_fkey"
+            columns: ["core_event_id"]
+            isOneToOne: false
+            referencedRelation: "core_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_list_item_events_import_id_fkey"
+            columns: ["import_id"]
+            isOneToOne: false
+            referencedRelation: "daily_list_imports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_list_item_events_item_id_fkey"
+            columns: ["daily_list_item_id"]
+            isOneToOne: false
+            referencedRelation: "daily_list_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_list_item_events_whatsapp_message_id_fkey"
+            columns: ["whatsapp_message_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      daily_list_item_status_snapshots: {
+        Row: {
+          computed_status: string
+          evidence_count: number
+          id: string
+          item_id: string
+          open_findings_count: number
+          open_priorities_count: number
+          payload: Json
+          snapshot_at: string
+        }
+        Insert: {
+          computed_status: string
+          evidence_count?: number
+          id?: string
+          item_id: string
+          open_findings_count?: number
+          open_priorities_count?: number
+          payload?: Json
+          snapshot_at?: string
+        }
+        Update: {
+          computed_status?: string
+          evidence_count?: number
+          id?: string
+          item_id?: string
+          open_findings_count?: number
+          open_priorities_count?: number
+          payload?: Json
+          snapshot_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_list_item_status_snapshots_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "daily_list_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      daily_list_items: {
+        Row: {
+          app_arrivo: string | null
+          app_partenza: string | null
+          cable_code_normalized: string
+          cable_code_raw: string
+          created_at: string
+          data_perimetro: string | null
+          id: string
+          import_id: string
+          inca_cavo_id: string | null
+          list_number: string | null
+          list_resolution_date: string | null
+          note: string | null
+          perimetro: string | null
+          planned_status: string | null
+          priority_level: string | null
+          situazione_inca: string | null
+          stato_collegamento: string | null
+        }
+        Insert: {
+          app_arrivo?: string | null
+          app_partenza?: string | null
+          cable_code_normalized: string
+          cable_code_raw: string
+          created_at?: string
+          data_perimetro?: string | null
+          id?: string
+          import_id: string
+          inca_cavo_id?: string | null
+          list_number?: string | null
+          list_resolution_date?: string | null
+          note?: string | null
+          perimetro?: string | null
+          planned_status?: string | null
+          priority_level?: string | null
+          situazione_inca?: string | null
+          stato_collegamento?: string | null
+        }
+        Update: {
+          app_arrivo?: string | null
+          app_partenza?: string | null
+          cable_code_normalized?: string
+          cable_code_raw?: string
+          created_at?: string
+          data_perimetro?: string | null
+          id?: string
+          import_id?: string
+          inca_cavo_id?: string | null
+          list_number?: string | null
+          list_resolution_date?: string | null
+          note?: string | null
+          perimetro?: string | null
+          planned_status?: string | null
+          priority_level?: string | null
+          situazione_inca?: string | null
+          stato_collegamento?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_list_items_import_id_fkey"
+            columns: ["import_id"]
+            isOneToOne: false
+            referencedRelation: "daily_list_imports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_list_items_inca_cavo_id_fkey"
+            columns: ["inca_cavo_id"]
+            isOneToOne: false
+            referencedRelation: "direzione_inca_vs_rapportini"
+            referencedColumns: ["inca_cavo_id"]
+          },
+          {
+            foreignKeyName: "daily_list_items_inca_cavo_id_fkey"
+            columns: ["inca_cavo_id"]
+            isOneToOne: false
+            referencedRelation: "inca_cavi"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_list_items_inca_cavo_id_fkey"
+            columns: ["inca_cavo_id"]
+            isOneToOne: false
+            referencedRelation: "inca_cavi_live_by_ship_v1"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_list_items_inca_cavo_id_fkey"
+            columns: ["inca_cavo_id"]
+            isOneToOne: false
+            referencedRelation: "inca_cavi_with_data_posa_v1"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_list_items_inca_cavo_id_fkey"
+            columns: ["inca_cavo_id"]
+            isOneToOne: false
+            referencedRelation: "inca_cavi_with_last_posa_and_capo_v1"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_list_items_inca_cavo_id_fkey"
+            columns: ["inca_cavo_id"]
+            isOneToOne: false
+            referencedRelation: "inca_cavi_with_last_posa_and_capo_v2"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_list_items_inca_cavo_id_fkey"
+            columns: ["inca_cavo_id"]
+            isOneToOne: false
+            referencedRelation: "inca_cavi_with_last_posa_and_capo_v3"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_list_items_inca_cavo_id_fkey"
+            columns: ["inca_cavo_id"]
+            isOneToOne: false
+            referencedRelation: "inca_cavi_with_last_posa_v1"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_list_items_inca_cavo_id_fkey"
+            columns: ["inca_cavo_id"]
+            isOneToOne: false
+            referencedRelation: "inca_cavi_with_last_rapportino_v1"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_list_items_inca_cavo_id_fkey"
+            columns: ["inca_cavo_id"]
+            isOneToOne: false
+            referencedRelation: "inca_cavi_with_path"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_list_items_inca_cavo_id_fkey"
+            columns: ["inca_cavo_id"]
+            isOneToOne: false
+            referencedRelation: "inca_export_ufficio_v1"
+            referencedColumns: ["inca_cavo_id"]
+          },
+          {
+            foreignKeyName: "daily_list_items_inca_cavo_id_fkey"
+            columns: ["inca_cavo_id"]
+            isOneToOne: false
+            referencedRelation: "inca_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_list_items_inca_cavo_id_fkey"
+            columns: ["inca_cavo_id"]
+            isOneToOne: false
+            referencedRelation: "navemaster_live_v1"
+            referencedColumns: ["inca_cavo_id"]
+          },
+        ]
+      }
       impianti: {
         Row: {
           code: string
@@ -4035,6 +4341,65 @@ export type Database = {
           sort?: Json
         }
         Relationships: []
+      }
+      incoming_messages: {
+        Row: {
+          cable_refs: Json
+          classification: Json
+          core_event_id: string | null
+          created_at: string
+          id: string
+          message_ts: string | null
+          message_type: string | null
+          processed: boolean
+          raw_payload: Json
+          sender: string | null
+          sender_name: string | null
+          source: string
+          text: string | null
+          wamid: string | null
+        }
+        Insert: {
+          cable_refs?: Json
+          classification?: Json
+          core_event_id?: string | null
+          created_at?: string
+          id?: string
+          message_ts?: string | null
+          message_type?: string | null
+          processed?: boolean
+          raw_payload?: Json
+          sender?: string | null
+          sender_name?: string | null
+          source?: string
+          text?: string | null
+          wamid?: string | null
+        }
+        Update: {
+          cable_refs?: Json
+          classification?: Json
+          core_event_id?: string | null
+          created_at?: string
+          id?: string
+          message_ts?: string | null
+          message_type?: string | null
+          processed?: boolean
+          raw_payload?: Json
+          sender?: string | null
+          sender_name?: string | null
+          source?: string
+          text?: string | null
+          wamid?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "incoming_messages_core_event_id_fkey"
+            columns: ["core_event_id"]
+            isOneToOne: false
+            referencedRelation: "core_events"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       manager_capo_assignments: {
         Row: {
@@ -6750,6 +7115,7 @@ export type Database = {
           email: string | null
           full_name: string | null
           id: string
+          is_core_owner: boolean
           must_change_password: boolean
           role: Database["public"]["Enums"]["app_role"]
           updated_at: string
@@ -6766,6 +7132,7 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id: string
+          is_core_owner?: boolean
           must_change_password?: boolean
           role?: Database["public"]["Enums"]["app_role"]
           updated_at?: string
@@ -6782,6 +7149,7 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          is_core_owner?: boolean
           must_change_password?: boolean
           role?: Database["public"]["Enums"]["app_role"]
           updated_at?: string
@@ -8377,7 +8745,7 @@ export type Database = {
           author_operator_id: string | null
           created_at: string
           id: string
-          import_id: string
+          import_id: string | null
           media_filename: string | null
           media_type: string | null
           message_hash: string | null
@@ -8389,7 +8757,7 @@ export type Database = {
           author_operator_id?: string | null
           created_at?: string
           id?: string
-          import_id: string
+          import_id?: string | null
           media_filename?: string | null
           media_type?: string | null
           message_hash?: string | null
@@ -8401,7 +8769,7 @@ export type Database = {
           author_operator_id?: string | null
           created_at?: string
           id?: string
-          import_id?: string
+          import_id?: string | null
           media_filename?: string | null
           media_type?: string | null
           message_hash?: string | null
@@ -9185,106 +9553,7 @@ export type Database = {
           rapportino_id?: string | null
           updated_at?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "rapportino_cavi_inca_cavo_id_fkey"
-            columns: ["inca_cavo_id"]
-            isOneToOne: false
-            referencedRelation: "direzione_inca_vs_rapportini"
-            referencedColumns: ["inca_cavo_id"]
-          },
-          {
-            foreignKeyName: "rapportino_cavi_inca_cavo_id_fkey"
-            columns: ["inca_cavo_id"]
-            isOneToOne: false
-            referencedRelation: "inca_cavi"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "rapportino_cavi_inca_cavo_id_fkey"
-            columns: ["inca_cavo_id"]
-            isOneToOne: false
-            referencedRelation: "inca_cavi_live_by_ship_v1"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "rapportino_cavi_inca_cavo_id_fkey"
-            columns: ["inca_cavo_id"]
-            isOneToOne: false
-            referencedRelation: "inca_cavi_with_data_posa_v1"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "rapportino_cavi_inca_cavo_id_fkey"
-            columns: ["inca_cavo_id"]
-            isOneToOne: false
-            referencedRelation: "inca_cavi_with_last_posa_and_capo_v1"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "rapportino_cavi_inca_cavo_id_fkey"
-            columns: ["inca_cavo_id"]
-            isOneToOne: false
-            referencedRelation: "inca_cavi_with_last_posa_and_capo_v2"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "rapportino_cavi_inca_cavo_id_fkey"
-            columns: ["inca_cavo_id"]
-            isOneToOne: false
-            referencedRelation: "inca_cavi_with_last_posa_and_capo_v3"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "rapportino_cavi_inca_cavo_id_fkey"
-            columns: ["inca_cavo_id"]
-            isOneToOne: false
-            referencedRelation: "inca_cavi_with_last_posa_v1"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "rapportino_cavi_inca_cavo_id_fkey"
-            columns: ["inca_cavo_id"]
-            isOneToOne: false
-            referencedRelation: "inca_cavi_with_last_rapportino_v1"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "rapportino_cavi_inca_cavo_id_fkey"
-            columns: ["inca_cavo_id"]
-            isOneToOne: false
-            referencedRelation: "inca_cavi_with_path"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "rapportino_cavi_inca_cavo_id_fkey"
-            columns: ["inca_cavo_id"]
-            isOneToOne: false
-            referencedRelation: "inca_export_ufficio_v1"
-            referencedColumns: ["inca_cavo_id"]
-          },
-          {
-            foreignKeyName: "rapportino_cavi_inca_cavo_id_fkey"
-            columns: ["inca_cavo_id"]
-            isOneToOne: false
-            referencedRelation: "inca_rows"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "rapportino_cavi_inca_cavo_id_fkey"
-            columns: ["inca_cavo_id"]
-            isOneToOne: false
-            referencedRelation: "navemaster_live_v1"
-            referencedColumns: ["inca_cavo_id"]
-          },
-          {
-            foreignKeyName: "rapportino_cavi_rapportino_id_fkey"
-            columns: ["rapportino_id"]
-            isOneToOne: false
-            referencedRelation: "archive_rapportini_v1"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       archive_rapportino_inca_cavi_v1: {
         Row: {
@@ -17818,6 +18087,7 @@ export type Database = {
         Args: { p_rapportino_id: string }
         Returns: undefined
       }
+      core_command_is_owner: { Args: never; Returns: boolean }
       core_current_profile: {
         Args: never
         Returns: Database["public"]["CompositeTypes"]["core_current_profile_type"]
@@ -17881,6 +18151,7 @@ export type Database = {
           email: string | null
           full_name: string | null
           id: string
+          is_core_owner: boolean
           must_change_password: boolean
           role: Database["public"]["Enums"]["app_role"]
           updated_at: string
@@ -18250,9 +18521,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       activity_type: ["QUANTITATIVE", "FORFAIT", "QUALITATIVE"],
@@ -18324,4 +18592,3 @@ export const Constants = {
     },
   },
 } as const
-
