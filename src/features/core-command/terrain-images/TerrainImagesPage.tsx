@@ -20,8 +20,9 @@ interface VisionResult {
   list_number: string | null;
   list_date: string | null;
   rows_count: number;
-  posato: string[];
-  priority: string[];
+  apparati: number;
+  posato: number;
+  priority: number;
   annotations: string[];
   parsed_at: string;
 }
@@ -30,11 +31,11 @@ interface ParseResponse {
   ok: boolean;
   dry_run?: boolean;
   processed: number;
-  events_created: number;
   snapshots_created: number;
   results: Array<{
     message_id: string;
     rows_found: number;
+    apparati: number;
     posato: number;
     priority: number;
     annotations: string[];
@@ -158,13 +159,12 @@ export default function TerrainImagesPage(): JSX.Element {
           <p className="font-semibold text-gray-900">{result.dry_run ? "Aperçu (aucune écriture)" : "Analyse terminée"}</p>
           <div className="mt-2 flex flex-wrap gap-4 text-xs text-gray-600">
             <span>{result.processed} image(s)</span>
-            <span className="text-emerald-700">{result.events_created} câbles posés</span>
-            <span className="text-blue-700">{result.snapshots_created} snapshots apparati</span>
+            <span className="text-blue-700">{result.snapshots_created} apparati mis à jour</span>
           </div>
           {result.results.map((r) => (
             <div key={r.message_id} className="mt-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs">
-              <span className="text-gray-700">{r.rows_found} lignes lues · </span>
-              <span className="text-emerald-700">{r.posato} posés</span>
+              <span className="text-gray-700">{r.rows_found} lignes · {r.apparati} apparati · </span>
+              <span className="text-emerald-700">{r.posato} lignes vertes</span>
               <span className="text-gray-400"> · </span>
               <span className="text-red-700">{r.priority} priorités</span>
               {r.annotations.length > 0 && <p className="mt-1 italic text-gray-500">{r.annotations.join(" · ")}</p>}
@@ -208,9 +208,9 @@ export default function TerrainImagesPage(): JSX.Element {
               {img.vision_result && (
                 <div className="mt-2 space-y-1 border-t border-gray-100 pt-2 text-xs">
                   <div className="flex flex-wrap gap-2">
-                    <span className="text-gray-500">{img.vision_result.rows_count} lignes</span>
-                    {img.vision_result.posato.length > 0 && <span className="text-emerald-700">{img.vision_result.posato.length} posés</span>}
-                    {img.vision_result.priority.length > 0 && <span className="text-red-700">{img.vision_result.priority.length} prio</span>}
+                    <span className="text-gray-500">{img.vision_result.rows_count} lignes · {img.vision_result.apparati} apparati</span>
+                    {img.vision_result.posato > 0 && <span className="text-emerald-700">{img.vision_result.posato} vertes</span>}
+                    {img.vision_result.priority > 0 && <span className="text-red-700">{img.vision_result.priority} prio</span>}
                   </div>
                   {img.vision_result.annotations.length > 0 && (
                     <p className="italic text-gray-500">{img.vision_result.annotations.join(" · ")}</p>
