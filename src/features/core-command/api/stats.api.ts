@@ -87,11 +87,11 @@ export async function fetchTopAuthors(limit = 20): Promise<AuthorRank[]> {
 }
 
 export async function fetchMessagesWithoutCable(limit = 100): Promise<number> {
+  // incoming_messages rows where cable_refs is an empty JSON array = no cable extracted
   const { count, error } = await supabase
-    .from("core_events")
+    .from("incoming_messages")
     .select("id", { count: "exact", head: true })
-    .eq("event_type", "info")
-    .eq("validation_status", "pending");
+    .filter("cable_refs", "eq", "[]");
   if (error) throw error;
   void limit;
   return count ?? 0;
