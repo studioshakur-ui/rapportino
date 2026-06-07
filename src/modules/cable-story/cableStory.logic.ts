@@ -7,6 +7,7 @@ import type {
   CableStoryTimelineItem,
 } from "./cableStory.types";
 import { getIncaStatusDefinition } from "../../core/inca/statusDictionary";
+import { ensureArray } from "../../core/utils/array";
 
 type StoryStatus =
   | "Pose confirmée"
@@ -77,8 +78,9 @@ function mapIncaSituazioneStatus(situazione: string | null | undefined): StorySt
 }
 
 function highestPriority(priorities: CableStoryPriority[]): CableStoryPriority | null {
+  const safePriorities = ensureArray(priorities, "cableStory.highestPriority.priorities");
   const rank: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
-  return [...priorities]
+  return [...safePriorities]
     .filter((priority) => priority.status === "open")
     .sort((left, right) => (rank[right.priority] ?? 0) - (rank[left.priority] ?? 0))[0] ?? null;
 }
@@ -87,12 +89,14 @@ export function hasContradictions(
   timeline: CableStoryTimelineItem[],
   findings: CableStoryFinding[]
 ): boolean {
-  const kinds = new Set(timeline.map((item) => item.event_type));
+  const safeTimeline = ensureArray(timeline, "cableStory.hasContradictions.timeline");
+  const safeFindings = ensureArray(findings, "cableStory.hasContradictions.findings");
+  const kinds = new Set(safeTimeline.map((item) => item.event_type));
   const contradictoryEvents =
     (kinds.has("POSED_REPORTED") && kinds.has("SHORT_REPORTED")) ||
     (kinds.has("POSED_REPORTED") && kinds.has("MISSING_REPORTED"));
 
-  const contradictoryFindings = findings.some(
+  const contradictoryFindings = safeFindings.some(
     (finding) =>
       finding.status === "open" &&
       (finding.severity === "warn" || finding.severity === "block") &&
@@ -109,20 +113,23 @@ export function computeGlobalConfidence(args: {
   hasExactIncaMatch: boolean;
 }): number {
   const { timeline, findings, priorities, hasExactIncaMatch } = args;
-  if (timeline.length === 0) {
+  const safeTimeline = ensureArray(timeline, "cableStory.computeGlobalConfidence.timeline");
+  const safeFindings = ensureArray(findings, "cableStory.computeGlobalConfidence.findings");
+  const safePriorities = ensureArray(priorities, "cableStory.computeGlobalConfidence.priorities");
+  if (safeTimeline.length === 0) {
     return hasExactIncaMatch ? 55 : 20;
   }
 
-  const baseAverage = timeline.reduce((sum, item) => sum + item.confidence, 0) / timeline.length;
-  const promotedCount = timeline.filter((item) => item.status === "promoted").length;
-  const confirmationCount = timeline.filter((item) => item.event_type === "CONFIRMED").length;
-  const contradictionPenalty = hasContradictions(timeline, findings) ? 18 : 0;
-  const severePriorityPenalty = priorities.some(
+  const baseAverage = safeTimeline.reduce((sum, item) => sum + item.confidence, 0) / safeTimeline.length;
+  const promotedCount = safeTimeline.filter((item) => item.status === "promoted").length;
+  const confirmationCount = safeTimeline.filter((item) => item.event_type === "CONFIRMED").length;
+  const contradictionPenalty = hasContradictions(safeTimeline, safeFindings) ? 18 : 0;
+  const severePriorityPenalty = safePriorities.some(
     (priority) => priority.status === "open" && (priority.priority === "high" || priority.priority === "critical")
   )
     ? 12
     : 0;
-  const openFindingPenalty = findings.filter((finding) => finding.status === "open" && finding.severity !== "info").length * 4;
+  const openFindingPenalty = safeFindings.filter((finding) => finding.status === "open" && finding.severity !== "info").length * 4;
   const exactMatchBonus = hasExactIncaMatch ? 15 : 0;
   const promotedBonus = Math.min(promotedCount * 4, 12);
   const confirmationBonus = Math.min(confirmationCount * 6, 12);
@@ -146,6 +153,8 @@ export function computeStoryStatus(args: {
   findings: CableStoryFinding[];
 }): StoryStatus {
   const { inca, timeline, priorities, findings } = args;
+  const safeTimeline = ensureArray(timeline, "cableStory.computeStoryStatus.timeline");
+  const safeFindings = ensureArray(findings, "cableStory.computeStoryStatus.findings");
   const topPriority = highestPriority(priorities);
 
   if (topPriority?.status === "open") {
@@ -154,7 +163,7 @@ export function computeStoryStatus(args: {
     if (/bloqu|contr[oô]l/i.test(topPriority.reason ?? "")) return "Bloqué";
   }
 
-  const latestEvent = [...timeline]
+  const latestEvent = [...safeTimeline]
     .filter((item) => item.event_type !== "MATCHED_INCA")
     .sort((left, right) => right.event_at.localeCompare(left.event_at))[0];
 
@@ -166,13 +175,13 @@ export function computeStoryStatus(args: {
     if (latestEvent.event_type === "MENTIONED" || latestEvent.event_type === "CONFIRMED") return "Mentionné";
   }
 
-  const criticalFinding = findings.find(
+  const criticalFinding = safeFindings.find(
     (finding) => finding.status === "open" && (finding.severity === "block" || finding.severity === "warn")
   );
   if (criticalFinding) return "À vérifier";
 
   if (inca) return mapIncaSituazioneStatus(inca.situazione);
-  if (timeline.length > 0) return "Mentionné";
+  if (safeTimeline.length > 0) return "Mentionné";
   return "Sans signal récent";
 }
 
@@ -181,6 +190,8 @@ export function buildShortStory(args: {
   timeline: CableStoryTimelineItem[];
   findings: CableStoryFinding[];
 }): string[] {
+  const safeTimeline = ensureArray(args.timeline, "cableStory.buildShortStory.timeline");
+  const safeFindings = ensureArray(args.findings, "cableStory.buildShortStory.findings");
   const story: string[] = [];
   const seen = new Set<string>();
 
@@ -188,7 +199,7 @@ export function buildShortStory(args: {
     story.push("Créé dans INCA");
   }
 
-  const significantEvents = args.timeline
+  const significantEvents = safeTimeline
     .filter((item) => item.event_type !== "MATCHED_INCA")
     .sort((left, right) => left.event_at.localeCompare(right.event_at));
 
@@ -202,7 +213,7 @@ export function buildShortStory(args: {
     if (story.length >= 7) break;
   }
 
-  const openFinding = args.findings.find((finding) => finding.status === "open");
+  const openFinding = safeFindings.find((finding) => finding.status === "open");
   if (openFinding && story.length < 8) {
     story.push(`Signal faible: ${openFinding.message}`);
   }

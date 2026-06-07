@@ -6,7 +6,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { listRecentImports, loadItemsWithEvidence } from "../../../modules/daily-lists/dailyLists.repo";
 import { buildListSummary } from "../../../modules/daily-lists/dailyLists.logic";
-import { buildEquipmentImpactsFromDailyItems } from "../../../modules/equipment/equipment.logic";
 import { Pill, Screen, StatCard, EmptyState, Section, AppBar } from "../../../components/command-ui";
 import { formatCableDisplay } from "../../../core/cable/cableDisplay";
 import { listRecentTelegramMessages } from "../api/telegramMessages.api";
@@ -14,12 +13,14 @@ import { buildSistemiChiusura, sistemiNonChiusi, chiusureRecenti } from "../../.
 import { buildApparecchiaturaVMs } from "../../../domain/apparecchiatura";
 import { buildPercorsoCritico } from "../../../domain/percorso-critico";
 import { buildImpattiTelegram } from "../../../domain/telegram-impact";
+import { loadEquipmentIntelligenceDashboard } from "../../../modules/equipment/equipmentIntelligence.repo";
 import type { DailyListItemVM } from "../../../modules/daily-lists/dailyLists.types";
 import type { SistemaChiusura } from "../../../domain/sistema";
 import type { ApparecchiaturaVM } from "../../../domain/apparecchiatura";
 import type { CavoPercorsoCritico } from "../../../domain/percorso-critico";
 import type { ImpattoTelegram } from "../../../domain/telegram-impact";
 import { STATO_CHIUSURA } from "../../../domain/dizionario";
+import { ensureArray } from "../../../core/utils/array";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -83,23 +84,28 @@ export default function CommandCenterPage(): JSX.Element {
     staleTime: 30_000,
   });
 
+  const { data: equipmentDashboard } = useQuery({
+    queryKey: ["equipment_intelligence_dashboard"],
+    queryFn: loadEquipmentIntelligenceDashboard,
+    staleTime: 30_000,
+  });
+
   // ── Domain layer — tutto il calcolo métier qui, fuori dai componenti ──────
   const summary = latest && items
     ? buildListSummary(latest.id, latest.list_date, latest.file_name, items)
     : null;
 
-  const equipmentImpacts = items ? buildEquipmentImpactsFromDailyItems(items) : [];
+  const equipments = ensureArray(equipmentDashboard?.equipments, "commandCenter.equipments");
 
-  const sistemi         = items ? buildSistemiChiusura(items, equipmentImpacts) : [];
+  const sistemi         = items ? buildSistemiChiusura(items, equipments) : [];
   const nonChiusi       = sistemiNonChiusi(sistemi);
   const recentiChiusi   = chiusureRecenti(sistemi);
 
   const apparecchiature = buildApparecchiaturaVMs(
-    equipmentImpacts.filter((e) => e.risk_level === "critical" || e.risk_level === "high"),
-    items ?? []
+    equipments.filter((e) => e.risk_level === "critical" || e.risk_level === "high")
   );
 
-  const percorsoCritico = items ? buildPercorsoCritico(items, equipmentImpacts) : [];
+  const percorsoCritico = items ? buildPercorsoCritico(items, equipments) : [];
 
   const impattiTelegram = items && telegramMessages
     ? buildImpattiTelegram(telegramMessages, items)
@@ -110,7 +116,7 @@ export default function CommandCenterPage(): JSX.Element {
         data: msg.message_ts ?? msg.created_at,
         cavi_impattati: [],
         ha_cavi_bloccanti: false,
-        ha_riferimenti_cavi: msg.cable_refs.length > 0,
+        ha_riferimenti_cavi: ensureArray(msg.cable_refs, `commandCenter.telegram.${msg.id}.cable_refs`).length > 0,
       }));
 
   const cabliBloccantiDiretti = items?.filter((i) => i.computed_status === "blocked") ?? [];
@@ -125,7 +131,7 @@ export default function CommandCenterPage(): JSX.Element {
         />
         <div className="mt-4 text-center">
           <button
-            onClick={() => navigate("/command/daily-lists")}
+            onClick={() => navigate("/import")}
             className="min-h-11 rounded-lg bg-blue-600 px-5 text-sm font-semibold text-white transition hover:bg-blue-700"
           >
             Importa lista del giorno
@@ -163,7 +169,7 @@ export default function CommandCenterPage(): JSX.Element {
             ) : "Caricamento lista attiva…"}
           </div>
           <button
-            onClick={() => navigate("/command/daily-lists")}
+            onClick={() => navigate("/import")}
             className="min-h-10 w-fit rounded-2xl border border-stone-200 bg-white px-3 text-xs font-medium text-stone-600 transition hover:border-stone-300 hover:text-stone-950"
           >
             Cambia lista
@@ -194,7 +200,7 @@ export default function CommandCenterPage(): JSX.Element {
       {!isLoading && nonChiusi.length > 0 ? (
         <SistemiNonChiusiSection
           sistemi={nonChiusi}
-          onNavigate={() => latest && navigate(`/command/daily-lists/${latest.id}`)}
+          onNavigate={() => latest && navigate(`/import/${latest.id}`)}
         />
       ) : null}
 
@@ -202,7 +208,7 @@ export default function CommandCenterPage(): JSX.Element {
       {apparecchiature.length > 0 ? (
         <ApparecchiatureCriticheSection
           apparecchiature={apparecchiature}
-          onOpen={(codice) => navigate(`/command/equipment/${encodeURIComponent(codice)}`)}
+          onOpen={(codice) => navigate(`/equipment/${encodeURIComponent(codice)}`)}
         />
       ) : null}
 
@@ -210,7 +216,7 @@ export default function CommandCenterPage(): JSX.Element {
       {cabliBloccantiDiretti.length > 0 ? (
         <CaviBloccantiSection
           cavi={cabliBloccantiDiretti}
-          onOpen={(code) => navigate(`/command/cable/${encodeURIComponent(code)}`)}
+          onOpen={(code) => navigate(`/cable/${encodeURIComponent(code)}`)}
         />
       ) : null}
 
@@ -218,14 +224,14 @@ export default function CommandCenterPage(): JSX.Element {
       {percorsoCritico.length > 0 ? (
         <PercorsoCriticoSection
           percorso={percorsoCritico}
-          onOpen={(code) => navigate(`/command/cable/${encodeURIComponent(code)}`)}
+          onOpen={(code) => navigate(`/cable/${encodeURIComponent(code)}`)}
         />
       ) : null}
 
       {/* ── Impatti Telegram ─────────────────────────────────────────────── */}
       <ImpattiTelegramSection
         impatti={impattiTelegram}
-        onOpenCavo={(code) => navigate(`/command/cable/${encodeURIComponent(code)}`)}
+        onOpenCavo={(code) => navigate(`/cable/${encodeURIComponent(code)}`)}
       />
 
       {/* ── Chiusure recenti ─────────────────────────────────────────────── */}

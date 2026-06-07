@@ -4,6 +4,7 @@
 import type { TelegramLiveMessage } from "../features/core-command/api/telegramMessages.api";
 import type { DailyListItemVM } from "../modules/daily-lists/dailyLists.types";
 import { STATO_CAVO } from "./dizionario";
+import { ensureArray } from "../core/utils/array";
 
 export interface ImpattoCavo {
   codice_cavo: string;
@@ -33,7 +34,8 @@ export function buildImpattiTelegram(
   }
 
   return messages.map((msg) => {
-    const caviImpattati: ImpattoCavo[] = msg.cable_refs.map((code) => {
+    const cableRefs = ensureArray(msg.cable_refs, `telegramImpact.${msg.id}.cable_refs`);
+    const caviImpattati: ImpattoCavo[] = cableRefs.map((code) => {
       const item = itemByCode.get(code.toUpperCase());
       const stato = item?.computed_status ?? "unknown";
       return {
@@ -55,7 +57,7 @@ export function buildImpattiTelegram(
       data: msg.message_ts ?? msg.created_at,
       cavi_impattati: caviImpattati,
       ha_cavi_bloccanti: caviImpattati.some((c) => c.bloccante),
-      ha_riferimenti_cavi: caviImpattati.length > 0,
+      ha_riferimenti_cavi: cableRefs.length > 0,
     } satisfies ImpattoTelegram;
   });
 }

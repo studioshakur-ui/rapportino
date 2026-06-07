@@ -228,7 +228,7 @@ export default function AICockpitPage() {
                             {msg.data.cables.slice(0, 20).map((c) => (
                               <tr
                                 key={c.code}
-                                onClick={() => navigate(`/command/cable/${encodeURIComponent(c.code)}`)}
+                                onClick={() => navigate(`/cable/${encodeURIComponent(c.code)}`)}
                                 className="cursor-pointer hover:bg-blue-50/40 transition"
                               >
                                 <td className="px-3 py-2 font-mono text-sm font-semibold text-gray-900">{c.code}</td>

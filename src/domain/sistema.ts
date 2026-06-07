@@ -3,8 +3,9 @@
 // Calcola stato chiusura, cosa manca, cosa blocca, impatto apparecchiature.
 
 import type { DailyListItemVM } from "../modules/daily-lists/dailyLists.types";
-import type { EquipmentImpactSummary } from "../modules/equipment/equipment.types";
+import type { EquipmentIntelligence } from "../modules/equipment/equipment.types";
 import { STATO_CHIUSURA, type StatoChiusura } from "./dizionario";
+import { ensureArray } from "../core/utils/array";
 
 export interface SistemaChiusura {
   nome: string;
@@ -21,15 +22,15 @@ export interface SistemaChiusura {
 }
 
 const ORDER_STATO: Record<StatoChiusura, number> = {
-  BLOCCATO:   0,
+  BLOCCATO:     0,
   "NON CHIUSO": 1,
-  "IN CORSO": 2,
-  CHIUSO:     3,
+  "IN CORSO":   2,
+  CHIUSO:       3,
 };
 
 export function buildSistemiChiusura(
   items: DailyListItemVM[],
-  equipmentImpacts: EquipmentImpactSummary[]
+  equipments: EquipmentIntelligence[]
 ): SistemaChiusura[] {
   const perimetroMap = new Map<string, DailyListItemVM[]>();
   for (const item of items) {
@@ -39,9 +40,10 @@ export function buildSistemiChiusura(
     perimetroMap.set(key, list);
   }
 
+  // Only canonical ESWBS equipment codes matter for impatto
   const criticalEquipmentCodes = new Set(
-    equipmentImpacts
-      .filter((e) => e.risk_level === "critical" || e.risk_level === "high")
+    equipments
+      .filter((e) => e.closure_status === "BLOCKED" || e.closure_status === "OPEN")
       .map((e) => e.equipment_code)
   );
 
@@ -59,10 +61,17 @@ export function buildSistemiChiusura(
           c.computed_status === "to_verify"
       );
 
+      // Only include ESWBS-valid equipment codes in apparecchiature_impattate
       const appCodes = new Set<string>();
-      for (const c of cavi) {
-        if (c.app_partenza) appCodes.add(c.app_partenza);
-        if (c.app_arrivo) appCodes.add(c.app_arrivo);
+      for (const eq of equipments) {
+        const incomingCables = ensureArray(eq.incoming_cables, `sistema.${eq.equipment_code}.incoming_cables`);
+        const outgoingCables = ensureArray(eq.outgoing_cables, `sistema.${eq.equipment_code}.outgoing_cables`);
+        const touchesZone = incomingCables.some((code) =>
+          cavi.some((c) => c.cable_code_normalized === code)
+        ) || outgoingCables.some((code) =>
+          cavi.some((c) => c.cable_code_normalized === code)
+        );
+        if (touchesZone) appCodes.add(eq.equipment_code);
       }
 
       let stato: StatoChiusura;

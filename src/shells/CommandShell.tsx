@@ -1,52 +1,26 @@
-import { type FormEvent, useEffect, useRef, useState } from "react";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { type FormEvent, useState } from "react";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 
 const MAIN_NAV = [
-  { to: "/command/center",         label: "Centro Comando",    hint: "Vista giornaliera cantiere" },
-  { to: "/command/navemaster",     label: "Navemaster",        hint: "Verità, lavoro, import e IA" },
-  { to: "/command/cables",         label: "Cavi",              hint: "Ricerca e storie cavi" },
-  { to: "/command/commander",      label: "Commander",         hint: "Invio messaggi" },
-  { to: "/command/apparati",       label: "Apparati",          hint: "Gestione apparecchiature" },
-  { to: "/command/terrain-images", label: "Immagini terreno",  hint: "Foto ed evidenze visive" },
-  { to: "/command/ai",             label: "IA Cockpit",        hint: "Analisi e classificazione IA" },
-] as const;
-
-const ADMIN_NAV = [
-  { to: "/command/problems",  label: "Anomalie aperte" },
-  { to: "/command/timeline",  label: "Giornale cantiere" },
-  { to: "/command/inca",      label: "Import INCA" },
-  { to: "/command/intake",    label: "Intake messaggi" },
-  { to: "/command/ai-intake", label: "Classificatore IA" },
+  { to: "/oggi", label: "Oggi", hint: "Cosa chiudere adesso" },
+  { to: "/apparati", label: "Apparati", hint: "Chiusure sistema/apparato" },
+  { to: "/campo", label: "Campo", hint: "Prove, import, Telegram" },
+  { to: "/grafici", label: "Grafici", hint: "Solo metriche métier" },
 ] as const;
 
 export default function CommandShell(): JSX.Element {
   const navigate = useNavigate();
-  const location = useLocation();
   const { signOut } = useAuth() as { signOut: (a: { reason: string }) => Promise<void> };
   const [query, setQuery] = useState("");
-  const [adminOpen, setAdminOpen] = useState(false);
-  const adminRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handler(event: MouseEvent) {
-      if (adminRef.current && !adminRef.current.contains(event.target as Node)) {
-        setAdminOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
 
   function search(event: FormEvent) {
     event.preventDefault();
     const code = query.trim();
     if (!code) return;
-    navigate(`/command/cable/${encodeURIComponent(code)}`);
+    navigate(`/cable/${encodeURIComponent(code)}`);
     setQuery("");
   }
-
-  const adminActive = ADMIN_NAV.some((item) => location.pathname.startsWith(item.to));
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(245,158,11,0.12),_transparent_24%),linear-gradient(180deg,#fcfbf8_0%,#f5f1e8_100%)] text-stone-900">
@@ -55,7 +29,9 @@ export default function CommandShell(): JSX.Element {
           <div className="rounded-[28px] border border-stone-200 bg-[linear-gradient(135deg,#ffffff_0%,#f6f0e3_100%)] p-5 shadow-[0_20px_50px_rgba(15,23,42,0.06)]">
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-stone-500">Core Command</p>
             <h1 className="mt-3 text-2xl font-semibold tracking-tight text-stone-950">Hamidou Control Room</h1>
-            <p className="mt-2 text-sm leading-6 text-stone-600">Telegram in diretta, Navemaster, priorità cavi e decisioni terreno.</p>
+            <p className="mt-2 text-sm leading-6 text-stone-600">
+              Oggi, Apparati, Campo e Grafici. Il resto resta dietro le quinte.
+            </p>
           </div>
 
           <form onSubmit={search} className="mt-6">
@@ -94,25 +70,6 @@ export default function CommandShell(): JSX.Element {
             ))}
           </nav>
 
-          <div className="mt-8 rounded-[24px] border border-stone-200 bg-stone-50/90 p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-stone-500">Strumenti</p>
-            <div className="mt-3 space-y-2">
-              {ADMIN_NAV.map(({ to, label }) => (
-                <NavLink
-                  key={to}
-                  to={to}
-                  className={({ isActive }) =>
-                    `block rounded-2xl px-3 py-2 text-sm transition ${
-                      isActive ? "bg-white text-stone-950 shadow-sm" : "text-stone-600 hover:bg-white hover:text-stone-900"
-                    }`
-                  }
-                >
-                  {label}
-                </NavLink>
-              ))}
-            </div>
-          </div>
-
           <div className="mt-auto pt-6">
             <button
               onClick={() => signOut({ reason: "manual" })}
@@ -131,34 +88,12 @@ export default function CommandShell(): JSX.Element {
                   <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-stone-500">Core Command</p>
                   <p className="mt-1 text-base font-semibold text-stone-950">Centro Comando</p>
                 </div>
-                <div ref={adminRef} className="relative shrink-0">
-                  <button
-                    onClick={() => setAdminOpen((value) => !value)}
-                    className={`rounded-2xl border px-3 py-2 text-sm transition ${
-                      adminActive ? "border-stone-900 bg-stone-900 text-white" : "border-stone-200 bg-white text-stone-600"
-                    }`}
-                  >
-                    Strumenti
-                  </button>
-                  {adminOpen ? (
-                    <div className="absolute right-0 top-full mt-2 w-56 rounded-2xl border border-stone-200 bg-white p-2 shadow-[0_20px_60px_rgba(15,23,42,0.10)]">
-                      {ADMIN_NAV.map(({ to, label }) => (
-                        <NavLink
-                          key={to}
-                          to={to}
-                          onClick={() => setAdminOpen(false)}
-                          className={({ isActive }) =>
-                            `block rounded-xl px-3 py-2 text-sm transition ${
-                              isActive ? "bg-stone-900 text-white" : "text-stone-600 hover:bg-stone-100 hover:text-stone-900"
-                            }`
-                          }
-                        >
-                          {label}
-                        </NavLink>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
+                <button
+                  onClick={() => signOut({ reason: "manual" })}
+                  className="rounded-2xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-600"
+                >
+                  Esci
+                </button>
               </div>
 
               <form onSubmit={search} className="mt-3">
@@ -170,6 +105,22 @@ export default function CommandShell(): JSX.Element {
                   className="min-h-11 w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 text-sm text-stone-900 outline-none placeholder:text-stone-400 focus:border-amber-400 focus:bg-white"
                 />
               </form>
+
+              <div className="mt-3 grid grid-cols-4 gap-2">
+                {MAIN_NAV.map(({ to, label }) => (
+                  <NavLink
+                    key={to}
+                    to={to}
+                    className={({ isActive }) =>
+                      `rounded-2xl border px-2 py-2 text-center text-xs font-medium transition ${
+                        isActive ? "border-stone-900 bg-stone-900 text-white" : "border-stone-200 bg-white text-stone-600"
+                      }`
+                    }
+                  >
+                    {label}
+                  </NavLink>
+                ))}
+              </div>
             </div>
           </header>
 

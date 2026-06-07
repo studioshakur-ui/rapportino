@@ -14,6 +14,7 @@ import type {
   PerimeterSummary,
   TomorrowAction,
 } from "./dailyLists.types";
+import { ensureArray } from "../../core/utils/array";
 
 // ── Progress % extraction from WhatsApp raw note ───────────────────────────
 const PERCENT_RE = /(\d{1,3})\s*%/;
@@ -41,6 +42,7 @@ export function computeItemStatus(
   evidence: DailyItemEvidence[],
   hasOpenBlockingFinding: boolean
 ): DailyItemStatus {
+  const safeEvidence = ensureArray(evidence, "dailyLists.computeItemStatus.evidence");
   // Blocked by an open finding — always wins.
   if (hasOpenBlockingFinding) return "blocked";
 
@@ -50,19 +52,19 @@ export function computeItemStatus(
   // time (e.g. PDF "I RS 002" vs normalized "IRS 002" vs inca_cavi.marca_cavo),
   // every item collapsed to "outside_inca" — dropping the list to 0% even with
   // real terrain proof. Field evidence must be evaluated before INCA matching.
-  if (evidence.length > 0) {
+  if (safeEvidence.length > 0) {
     // Explicit 100% or a posed/confirmed event → confirmed terrain.
-    const confirmed100 = evidence.some((e) => {
+    const confirmed100 = safeEvidence.some((e) => {
       const pct = extractProgressPercent(e.raw_note) ?? e.progress_percent;
       return isPosedEvent(e.event_kind) && (pct === 100 || pct === null);
     });
     if (confirmed100) return "confirmed_field";
 
     // Posed/confirmed event without explicit percent → likely laid.
-    if (evidence.some((e) => isPosedEvent(e.event_kind))) return "likely_laid";
+    if (safeEvidence.some((e) => isPosedEvent(e.event_kind))) return "likely_laid";
 
     // Partial % reported (e.g. 70%) → to verify. NOT counted as confirmed.
-    const anyPartial = evidence.some((e) => {
+    const anyPartial = safeEvidence.some((e) => {
       const pct = extractProgressPercent(e.raw_note) ?? e.progress_percent;
       return pct !== null && pct < 100;
     });
@@ -81,11 +83,12 @@ export function computeItemStatus(
 }
 
 export function computeProgressPct(evidence: DailyItemEvidence[]): number | null {
-  if (evidence.length === 0) return null;
+  const safeEvidence = ensureArray(evidence, "dailyLists.computeProgressPct.evidence");
+  if (safeEvidence.length === 0) return null;
 
   // Pick best percent from evidence
   let best: number | null = null;
-  for (const e of evidence) {
+  for (const e of safeEvidence) {
     const pct = extractProgressPercent(e.raw_note) ?? e.progress_percent;
     if (pct !== null && (best === null || pct > best)) best = pct;
   }
@@ -93,22 +96,24 @@ export function computeProgressPct(evidence: DailyItemEvidence[]): number | null
 }
 
 export function hasShortIssue(item: DailyListItem, evidence: DailyItemEvidence[]): boolean {
+  const safeEvidence = ensureArray(evidence, "dailyLists.hasShortIssue.evidence");
   const haystack = [
     item.note,
     item.situazione_inca,
     item.stato_collegamento,
-    ...evidence.map((e) => e.raw_note),
+    ...safeEvidence.map((e) => e.raw_note),
   ].filter(Boolean).join(" ").toLowerCase();
 
   return /\b(corto|court|short|shortage|manca corto|troppo corto)\b/i.test(haystack);
 }
 
 export function hasMissingIssue(item: DailyListItem, evidence: DailyItemEvidence[]): boolean {
+  const safeEvidence = ensureArray(evidence, "dailyLists.hasMissingIssue.evidence");
   const haystack = [
     item.note,
     item.situazione_inca,
     item.stato_collegamento,
-    ...evidence.map((e) => e.raw_note),
+    ...safeEvidence.map((e) => e.raw_note),
   ].filter(Boolean).join(" ").toLowerCase();
 
   return /\b(manca|mancante|missing|non trovato|assente|da trovare)\b/i.test(haystack);
@@ -138,22 +143,23 @@ export function buildItemVM(
   evidence: DailyItemEvidence[],
   hasOpenBlockingFinding: boolean
 ): DailyListItemVM {
-  const sorted = [...evidence].sort(
+  const safeEvidence = ensureArray(evidence, "dailyLists.buildItemVM.evidence");
+  const sorted = [...safeEvidence].sort(
     (a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime()
   );
 
-  const computed_status = computeItemStatus(item, evidence, hasOpenBlockingFinding);
-  const progress_percent = computeProgressPct(evidence);
+  const computed_status = computeItemStatus(item, safeEvidence, hasOpenBlockingFinding);
+  const progress_percent = computeProgressPct(safeEvidence);
   const last_event_at = sorted[0]?.occurred_at ?? null;
   const last_actor    = sorted[0]?.actor_label ?? null;
   const last_message  = sorted[0]?.last_message ?? sorted[0]?.raw_note ?? null;
   const last_event_type = sorted[0]?.event_kind ?? null;
   const last_confidence = sorted[0]?.confidence ?? null;
   const inca_matched  = Boolean(item.inca_cavo_id);
-  const confirmed_by_whatsapp = evidence.some((e) => Boolean(e.whatsapp_message_id));
-  const missing_evidence = evidence.length === 0;
-  const has_short_issue = hasShortIssue(item, evidence);
-  const has_missing_issue = hasMissingIssue(item, evidence);
+  const confirmed_by_whatsapp = safeEvidence.some((e) => Boolean(e.whatsapp_message_id));
+  const missing_evidence = safeEvidence.length === 0;
+  const has_short_issue = hasShortIssue(item, safeEvidence);
+  const has_missing_issue = hasMissingIssue(item, safeEvidence);
   const has_partial_progress = progress_percent !== null && progress_percent < 100;
   const recommended_action = buildRecommendedAction(computed_status, {
     hasShortIssue: has_short_issue,
@@ -164,13 +170,13 @@ export function buildItemVM(
   return {
     ...item,
     computed_status,
-    evidence,
+    evidence: safeEvidence,
     confirmed_by_whatsapp,
     missing_evidence,
     has_short_issue,
     has_missing_issue,
     has_partial_progress,
-    evidence_count: evidence.length,
+    evidence_count: safeEvidence.length,
     last_evidence_at: last_event_at,
     last_event_at,
     last_actor,
@@ -179,7 +185,7 @@ export function buildItemVM(
     last_confidence,
     progress_percent,
     inca_matched,
-    cable_story_path: `/command/cable/${encodeURIComponent(item.cable_code_normalized)}`,
+    cable_story_path: `/cable/${encodeURIComponent(item.cable_code_normalized)}`,
     recommended_action,
   };
 }

@@ -8,6 +8,7 @@ import { EquipmentCableList } from "./components/EquipmentCableList";
 import type { EquipmentRiskLevel } from "./equipment.types";
 import { AppBar, EmptyState, Pill, Screen, Section, StatCard } from "../../components/command-ui";
 import { formatCableDisplay } from "../../core/cable/cableDisplay";
+import { ensureArray } from "../../core/utils/array";
 
 function riskTone(risk: EquipmentRiskLevel): "emerald" | "amber" | "red" {
   if (risk === "low") return "emerald";
@@ -31,7 +32,7 @@ export default function EquipmentStoryPage(): JSX.Element {
   const intelligence = useMemo(() => {
     if (!data) return null;
     return buildEquipmentIntelligence(
-      data.linked_cables.map((item) => ({
+      ensureArray(data.linked_cables, `equipmentStory.${equipmentCode}.linked_cables`).map((item) => ({
         item,
         inca: null,
         priority: undefined,
@@ -72,8 +73,13 @@ export default function EquipmentStoryPage(): JSX.Element {
   }
 
   const summary = data.summary;
-  const posati = data.linked_cables.filter((cable) => cable.inca_status_code === "P").length;
-  const blocked = intelligence?.blocked_cables ?? data.linked_cables.filter((cable) => cable.inca_status_code === "B" || cable.open_blocker_count > 0).length;
+  const linkedCables = ensureArray(data.linked_cables, `equipmentStory.${equipmentCode}.linked_cables`);
+  const openProblems = ensureArray(data.open_problems, `equipmentStory.${equipmentCode}.open_problems`);
+  const incoming = ensureArray(data.incoming, `equipmentStory.${equipmentCode}.incoming`);
+  const outgoing = ensureArray(data.outgoing, `equipmentStory.${equipmentCode}.outgoing`);
+  const recommendedActions = ensureArray(summary.recommended_actions, `equipmentStory.${equipmentCode}.recommended_actions`);
+  const posati = linkedCables.filter((cable) => cable.inca_status_code === "P").length;
+  const blocked = intelligence?.blocked_cables ?? linkedCables.filter((cable) => cable.inca_status_code === "B" || cable.open_blocker_count > 0).length;
 
   return (
     <Screen className="max-w-6xl space-y-6">
@@ -142,17 +148,17 @@ export default function EquipmentStoryPage(): JSX.Element {
       ) : null}
 
       <section className="grid gap-4 lg:grid-cols-2">
-        <EquipmentCableList title="Cavi entranti" cables={data.incoming} />
-        <EquipmentCableList title="Cavi uscenti" cables={data.outgoing} />
+        <EquipmentCableList title="Cavi entranti" cables={incoming} />
+        <EquipmentCableList title="Cavi uscenti" cables={outgoing} />
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">
-        <Section title="Problemi aperti" eyebrow="Rischi" count={data.open_problems.length} className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
-          {data.open_problems.length === 0 ? (
+        <Section title="Problemi aperti" eyebrow="Rischi" count={openProblems.length} className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
+          {openProblems.length === 0 ? (
             <p className="text-sm text-zinc-400">Nessun problema aperto rilevato.</p>
           ) : (
             <div className="space-y-2">
-              {data.open_problems.slice(0, 12).map((cable) => (
+              {openProblems.slice(0, 12).map((cable) => (
                 <Link key={cable.id} to={cable.cable_story_path} className="block rounded-2xl border border-red-500/20 bg-red-500/10 px-3 py-3 text-sm transition hover:border-red-400/40">
                   <span className="font-mono font-semibold text-white">{formatCableDisplay(cable.cable_code_normalized)}</span>
                   <span className="ml-2 text-red-200">{cable.risk_reasons.join(", ")}</span>
@@ -162,12 +168,12 @@ export default function EquipmentStoryPage(): JSX.Element {
           )}
         </Section>
 
-        <Section title="Azioni raccomandate" eyebrow="Campo" count={summary.recommended_actions.length} className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
-          {summary.recommended_actions.length === 0 ? (
+        <Section title="Azioni raccomandate" eyebrow="Campo" count={recommendedActions.length} className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
+          {recommendedActions.length === 0 ? (
             <p className="text-sm text-zinc-400">Nessuna azione raccomandata.</p>
           ) : (
             <ul className="space-y-2 text-sm">
-              {summary.recommended_actions.map((action) => (
+              {recommendedActions.map((action) => (
                 <li key={action} className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-3 py-3 text-amber-200">
                   {action}
                 </li>

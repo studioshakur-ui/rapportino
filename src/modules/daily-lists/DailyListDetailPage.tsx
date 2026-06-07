@@ -68,7 +68,7 @@ export default function DailyListDetailPage(): JSX.Element {
   return (
     <Screen className="max-w-6xl space-y-6">
       <button
-        onClick={() => navigate("/command/daily-lists")}
+        onClick={() => navigate("/import")}
         className="min-h-10 rounded-xl border border-zinc-800 px-3 text-xs font-medium text-zinc-400 transition hover:border-zinc-700 hover:text-white"
       >
         ← Tutte le liste
@@ -135,7 +135,7 @@ export default function DailyListDetailPage(): JSX.Element {
                   {action.cable_codes.map((code) => (
                     <button
                       key={code}
-                      onClick={() => navigate(`/command/cable/${encodeURIComponent(code)}`)}
+                      onClick={() => navigate(`/cable/${encodeURIComponent(code)}`)}
                       className="min-h-9 rounded-xl bg-black/20 px-3 font-mono text-sm font-semibold text-amber-100 transition hover:bg-black/30"
                     >
                       {formatCableDisplay(code)}
@@ -241,7 +241,7 @@ export default function DailyListDetailPage(): JSX.Element {
             {equipmentImpacts.slice(0, 18).map((equipment) => (
               <button
                 key={equipment.equipment_code}
-                onClick={() => navigate(`/command/equipment/${encodeURIComponent(equipment.equipment_code)}`)}
+                onClick={() => navigate(`/equipment/${encodeURIComponent(equipment.equipment_code)}`)}
                 className="rounded-3xl border border-zinc-800 bg-zinc-900/80 p-4 text-left transition hover:border-sky-500/40"
               >
                 <div className="flex items-center justify-between gap-2">

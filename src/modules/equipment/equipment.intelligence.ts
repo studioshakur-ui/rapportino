@@ -8,6 +8,7 @@ import type {
   SystemClosure,
   TelegramImpact,
 } from "./equipment.types";
+import { ensureArray } from "../../core/utils/array";
 
 interface IncaEquipmentMeta {
   apparato_a: string | null;
@@ -82,12 +83,12 @@ function isCableBlocked(item: DailyListItemVM): boolean {
 
 function buildCableReason(item: DailyListItemVM): string {
   if (item.situazione_inca === "B") return "INCA B";
-  if (item.computed_status === "blocked") return "finding critique";
-  if (item.has_missing_issue) return "cable manquant";
-  if (item.has_short_issue) return "cable court";
-  if (item.has_partial_progress) return "progression partielle";
-  if (item.missing_evidence) return "sans preuve";
-  return "non confirme";
+  if (item.computed_status === "blocked") return "anomalia critica";
+  if (item.has_missing_issue) return "cavo mancante";
+  if (item.has_short_issue) return "cavo corto";
+  if (item.has_partial_progress) return "avanzamento parziale";
+  if (item.missing_evidence) return "senza prova";
+  return "non confermato";
 }
 
 function toCriticalPathCable(
@@ -232,7 +233,7 @@ export function buildEquipmentIntelligence(
         equipment_name: graphNode?.equipment_name ?? null,
         equipment_type: graphNode?.equipment_type ?? null,
         zone: graphNode?.zone ?? null,
-        system: graphNode?.system ?? "SYSTEM UNASSIGNED",
+        system: graphNode?.system ?? "SISTEMA NON ASSEGNATO",
         total_cables: cables.length,
         confirmed_cables: confirmed,
         open_cables: open,
@@ -267,7 +268,7 @@ export function buildSystemClosures(
   const groups = new Map<string, EquipmentIntelligence[]>();
 
   for (const equipment of equipments) {
-    const key = equipment.system ?? "SYSTEM UNASSIGNED";
+    const key = equipment.system ?? "SISTEMA NON ASSEGNATO";
     const list = groups.get(key) ?? [];
     list.push(equipment);
     groups.set(key, list);
@@ -338,7 +339,9 @@ export function buildTelegramImpacts(
   const systemByName = new Map(systems.map((system) => [system.system, system]));
 
   for (const equipment of equipments) {
-    for (const cable of [...equipment.incoming_cables, ...equipment.outgoing_cables]) {
+    const incomingCables = ensureArray(equipment.incoming_cables, `equipmentIntelligence.${equipment.equipment_code}.incoming_cables`);
+    const outgoingCables = ensureArray(equipment.outgoing_cables, `equipmentIntelligence.${equipment.equipment_code}.outgoing_cables`);
+    for (const cable of [...incomingCables, ...outgoingCables]) {
       const list = equipmentByCable.get(cable) ?? [];
       list.push(equipment);
       equipmentByCable.set(cable, list);
@@ -348,11 +351,11 @@ export function buildTelegramImpacts(
   return messages
     .flatMap((message) => {
       const positive = messageLooksPositive(message.text);
-      return message.cable_refs.map((cableCode) => {
+      return ensureArray(message.cable_refs, `equipmentIntelligence.telegram.${message.id}.cable_refs`).map((cableCode) => {
         const impactedEquipments = equipmentByCable.get(cableCode) ?? [];
         if (impactedEquipments.length === 0) return null;
 
-        const systemsTouched = Array.from(new Set(impactedEquipments.map((equipment) => equipment.system ?? "SYSTEM UNASSIGNED")));
+        const systemsTouched = Array.from(new Set(impactedEquipments.map((equipment) => equipment.system ?? "SISTEMA NON ASSEGNATO")));
         const beforeSystem = systemsTouched
           .map((name) => systemByName.get(name))
           .filter((system): system is SystemClosure => Boolean(system))
@@ -367,7 +370,7 @@ export function buildTelegramImpacts(
 
         const beforeLabel = beforeSystem
           ? `${beforeSystem.system} ${beforeSystem.closed_equipments}/${beforeSystem.total_equipments}`
-          : systemsTouched[0] ?? "SYSTEM UNASSIGNED";
+          : systemsTouched[0] ?? "SISTEMA NON ASSEGNATO";
         const afterLabel = beforeSystem && positive
           ? `${beforeSystem.system} ${Math.min(beforeSystem.total_equipments, beforeSystem.closed_equipments + closingEquipments)}/${beforeSystem.total_equipments}`
           : beforeLabel;

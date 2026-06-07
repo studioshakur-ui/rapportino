@@ -74,7 +74,7 @@ export default function CableStoryPage(): JSX.Element {
   return (
     <Screen className="max-w-7xl space-y-5">
       <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-500">
-        <Link to="/command/center" className="hover:text-zinc-300">Command Center</Link>
+        <Link to="/oggi" className="hover:text-zinc-300">Oggi</Link>
         <span>/</span>
         <span className="text-zinc-300">Cable Story</span>
         <span>/</span>

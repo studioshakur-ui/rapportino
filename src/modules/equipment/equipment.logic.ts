@@ -1,6 +1,7 @@
 import { getIncaStatusDefinition, formatIncaStatus } from "../../core/inca/statusDictionary";
 import type { DailyListItemVM } from "../daily-lists/dailyLists.types";
 import type { EquipmentBriefingContext, EquipmentImpactSummary, EquipmentLinkedCable, EquipmentRiskLevel, EquipmentStoryVM, EquipmentSummary } from "./equipment.types";
+import { ensureArray } from "../../core/utils/array";
 
 const RISK_RANK: Record<EquipmentRiskLevel, number> = {
   low: 1,
@@ -90,7 +91,7 @@ export function buildEquipmentSummary(
 export function isFieldConfirmed(cable: EquipmentLinkedCable): boolean {
   if (cable.confirmed_by_whatsapp && cable.progress_percent === null) return true;
   if (cable.progress_percent !== null && cable.progress_percent >= 100) return true;
-  return cable.evidence.some((evidence) => {
+  return ensureArray(cable.evidence, "equipment.isFieldConfirmed.evidence").some((evidence) => {
     const pct = evidence.progress_percent;
     return evidence.event_kind === "CABLE_POSATO" && (pct === null || pct >= 100);
   });
@@ -119,9 +120,10 @@ function computeRiskLevel(args: {
   withoutFieldEvidence: number;
   riskReasons: string[];
 }): EquipmentRiskLevel {
+  const riskReasons = ensureArray(args.riskReasons, "equipment.computeRiskLevel.riskReasons");
   let risk: EquipmentRiskLevel = "low";
   if (args.withoutFieldEvidence > 0 || args.openPriorities > 0 || args.completionRate < 80) risk = "medium";
-  if (args.openBlockers > 0 || args.riskReasons.some((reason) => /court|manquant|bloqu/i.test(reason))) risk = "high";
+  if (args.openBlockers > 0 || riskReasons.some((reason) => /court|manquant|bloqu|corto|mancant|blocc/i.test(reason))) risk = "high";
   if (args.openBlockers >= 2 || args.completionRate < 40) risk = "critical";
   return risk;
 }

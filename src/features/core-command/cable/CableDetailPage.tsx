@@ -129,7 +129,7 @@ export default function CableDetailPage() {
             : null
           )}
           <button
-            onClick={() => navigate("/command/inca")}
+            onClick={() => navigate("/import")}
             className="min-h-9 rounded-lg border border-zinc-800 px-3 text-xs font-medium text-zinc-500 transition hover:border-zinc-600 hover:text-zinc-300"
           >
             INCA →

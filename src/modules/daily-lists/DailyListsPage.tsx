@@ -35,7 +35,7 @@ export default function DailyListsPage(): JSX.Element {
       createDailyListImport(payload),
     onSuccess: (importId) => {
       void queryClient.invalidateQueries({ queryKey: ["daily_list_imports"] });
-      navigate(`/command/daily-lists/${importId}`);
+      navigate(`/import/${importId}`);
     },
     onError: (err: Error) => setParseError(err.message),
   });
@@ -223,7 +223,7 @@ export default function DailyListsPage(): JSX.Element {
                 className={`flex items-center gap-3 px-4 py-3 ${idx > 0 ? "border-t border-gray-100" : ""} hover:bg-gray-50 transition`}
               >
                 <button
-                  onClick={() => navigate(`/command/daily-lists/${imp.id}`)}
+                  onClick={() => navigate(`/import/${imp.id}`)}
                   className="min-w-0 flex-1 text-left"
                 >
                   <div className="flex flex-wrap items-center gap-2">

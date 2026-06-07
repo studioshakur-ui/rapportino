@@ -12,8 +12,6 @@ export {
 
 export { default as CoreChartCard } from "./CoreChartCard";
 
-// Existing JS chart wrappers (kept as-is)
+// ECharts wrappers kept for métier charts
 export { default as CoreEChart } from "./CoreEChart";
-export { default as CoreLineChart } from "./CoreLineChart";
-export { default as CoreBarLineCombo } from "./CoreBarLineCombo";
 export { CoreEmpty, CoreLoading } from "./CoreEmptyState";

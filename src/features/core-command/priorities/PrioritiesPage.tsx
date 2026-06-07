@@ -128,7 +128,7 @@ export default function PrioritiesPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1 space-y-2">
                     <button
-                      onClick={() => navigate(`/command/cable/${encodeURIComponent(p.cable_code)}`)}
+                      onClick={() => navigate(`/cable/${encodeURIComponent(p.cable_code)}`)}
                       className="font-mono text-lg font-bold text-gray-900 transition hover:text-blue-600"
                     >
                       {formatCableDisplay(p.cable_code)}
@@ -145,7 +145,7 @@ export default function PrioritiesPage() {
 
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                   <button
-                    onClick={() => navigate(`/command/cable/${encodeURIComponent(p.cable_code)}`)}
+                    onClick={() => navigate(`/cable/${encodeURIComponent(p.cable_code)}`)}
                     className="min-h-10 rounded-xl bg-blue-50 px-3 text-sm font-medium text-blue-600 transition hover:text-blue-600"
                   >
                     Voir le câble →
@@ -205,7 +205,7 @@ export default function PrioritiesPage() {
                         <Pill tone={isBlock ? "red" : "amber"}>{label}</Pill>
                         {f.entity_id ? (
                           <button
-                            onClick={() => navigate(`/command/cable/${encodeURIComponent(f.entity_id ?? "")}`)}
+                            onClick={() => navigate(`/cable/${encodeURIComponent(f.entity_id ?? "")}`)}
                             className="font-mono text-sm font-bold text-gray-900 transition hover:text-blue-600"
                           >
                             {formatCableDisplay(f.entity_id)}

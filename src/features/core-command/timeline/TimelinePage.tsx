@@ -124,7 +124,7 @@ export default function TimelinePage() {
                             {cables.map((code) => (
                               <button
                                 key={code}
-                                onClick={() => navigate(`/command/cable/${encodeURIComponent(code)}`)}
+                                onClick={() => navigate(`/cable/${encodeURIComponent(code)}`)}
                                 className="min-h-9 rounded-xl bg-emerald-50 px-3 font-mono text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
                               >
                                 {formatCableDisplay(code)}
@@ -138,7 +138,7 @@ export default function TimelinePage() {
                         {posato.map((e) => (
                           <button
                             key={e.id}
-                            onClick={() => navigate(`/command/cable/${encodeURIComponent(e.cable_code)}`)}
+                            onClick={() => navigate(`/cable/${encodeURIComponent(e.cable_code)}`)}
                             className="min-h-9 rounded-xl bg-emerald-50 px-3 font-mono text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
                           >
                             {formatCableDisplay(e.cable_code)}
@@ -156,7 +156,7 @@ export default function TimelinePage() {
                 return (
                   <button
                     key={e.id}
-                    onClick={() => navigate(`/command/cable/${encodeURIComponent(e.cable_code)}`)}
+                    onClick={() => navigate(`/cable/${encodeURIComponent(e.cable_code)}`)}
                     className="min-h-16 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-left transition hover:border-gray-300 hover:bg-gray-50"
                   >
                     <div className="flex items-start justify-between gap-3">

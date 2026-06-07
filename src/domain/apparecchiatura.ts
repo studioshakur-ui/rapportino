@@ -1,13 +1,17 @@
 // src/domain/apparecchiatura.ts — Intelligenza apparecchiature
-// Arricchisce EquipmentImpactSummary con contesto di dominio italiano.
+// Arricchisce EquipmentIntelligence (motore canonico ESWBS) con contesto dominio italiano.
 // UI consuma solo ApparecchiaturaVM — nessun calcolo nel componente React.
+// Solo codici ESWBS validi (^\d{12}$) — filtro già applicato dall'engine canonico.
 
-import type { EquipmentImpactSummary } from "../modules/equipment/equipment.types";
-import type { DailyListItemVM } from "../modules/daily-lists/dailyLists.types";
+import type { EquipmentIntelligence } from "../modules/equipment/equipment.types";
 import { LIVELLO_RISCHIO } from "./dizionario";
+import { ensureArray } from "../core/utils/array";
 
 export interface ApparecchiaturaVM {
   codice: string;
+  nome: string | null;
+  sistema: string | null;
+  zona: string | null;
   livello_rischio: string;
   livello_rischio_raw: string;
   cavi_totali: number;
@@ -15,6 +19,7 @@ export interface ApparecchiaturaVM {
   cavi_senza_evidenza: number;
   cavi_bloccanti: string[];
   anomalie: string[];
+  stato_chiusura: string;
   avanzamento_label: string;
   cosa_manca: string;
   cosa_blocca: string | null;
@@ -22,27 +27,15 @@ export interface ApparecchiaturaVM {
   azioni_raccomandate: string[];
 }
 
-export function buildApparecchiaturaVM(
-  impact: EquipmentImpactSummary,
-  items: DailyListItemVM[]
-): ApparecchiaturaVM {
-  const linked = items.filter(
-    (i) =>
-      (i.app_partenza ?? "").toUpperCase() === impact.equipment_code.toUpperCase() ||
-      (i.app_arrivo ?? "").toUpperCase() === impact.equipment_code.toUpperCase()
-  );
+export function buildApparecchiaturaVM(eq: EquipmentIntelligence): ApparecchiaturaVM {
+  const criticalPath = ensureArray(eq.critical_path, `apparecchiatura.${eq.equipment_code}.critical_path`);
+  const riskReasons = ensureArray(eq.risk_reasons, `apparecchiatura.${eq.equipment_code}.risk_reasons`);
+  const bloccanti = criticalPath
+    .filter((c) => c.status === "blocked" || eq.closure_status === "BLOCKED")
+    .map((c) => c.cable_code);
 
-  const bloccanti = linked
-    .filter(
-      (i) =>
-        i.computed_status === "blocked" ||
-        i.has_short_issue ||
-        i.has_missing_issue
-    )
-    .map((i) => i.cable_code_normalized);
-
-  const rimanenti = impact.total_cables - impact.confirmed_by_field;
-  const avanzamentoLabel = `${impact.confirmed_by_field}/${impact.total_cables} cavi confermati`;
+  const rimanenti = eq.total_cables - eq.confirmed_cables;
+  const avanzamentoLabel = `${eq.confirmed_cables}/${eq.total_cables} cavi confermati`;
 
   const cosaManca =
     rimanenti > 0
@@ -55,30 +48,30 @@ export function buildApparecchiaturaVM(
       : null;
 
   const impattoSistema =
-    impact.risk_level === "critical" || impact.risk_level === "high"
-      ? `apparecchiatura ${impact.equipment_code} impedisce chiusura sistema`
+    eq.closure_status === "BLOCKED" || eq.closure_status === "OPEN"
+      ? `apparecchiatura ${eq.equipment_code} impedisce chiusura sistema`
       : null;
 
   const azioni: string[] = [];
-  if (bloccanti.length > 0)
-    azioni.push(
-      `Sbloccare ${bloccanti.length} cav${bloccanti.length === 1 ? "o" : "i"} bloccant${bloccanti.length === 1 ? "e" : "i"}`
-    );
-  if (impact.without_field_evidence > 0)
-    azioni.push(
-      `Richiedere evidenza terreno per ${impact.without_field_evidence} cav${impact.without_field_evidence === 1 ? "o" : "i"}`
-    );
-  if (azioni.length === 0) azioni.push("Monitorare — nessun rischio aperto rilevato");
+  if (eq.blocked_cables > 0)
+    azioni.push(`Sbloccare ${eq.blocked_cables} cav${eq.blocked_cables === 1 ? "o" : "i"} bloccati`);
+  if (eq.open_cables > 0 && eq.blocked_cables === 0)
+    azioni.push(`Confermare ${eq.open_cables} cav${eq.open_cables === 1 ? "o" : "i"} non chiusi`);
+  if (azioni.length === 0) azioni.push("Solo monitoraggio — nessun rischio aperto rilevato");
 
   return {
-    codice: impact.equipment_code,
-    livello_rischio: LIVELLO_RISCHIO[impact.risk_level] ?? impact.risk_level,
-    livello_rischio_raw: impact.risk_level,
-    cavi_totali: impact.total_cables,
-    cavi_confermati: impact.confirmed_by_field,
-    cavi_senza_evidenza: impact.without_field_evidence,
+    codice: eq.equipment_code,
+    nome: eq.equipment_name,
+    sistema: eq.system,
+    zona: eq.zone,
+    livello_rischio: LIVELLO_RISCHIO[eq.risk_level] ?? eq.risk_level,
+    livello_rischio_raw: eq.risk_level,
+    cavi_totali: eq.total_cables,
+    cavi_confermati: eq.confirmed_cables,
+    cavi_senza_evidenza: eq.open_cables,
     cavi_bloccanti: bloccanti,
-    anomalie: impact.risk_reasons,
+    anomalie: riskReasons,
+    stato_chiusura: eq.closure_status,
     avanzamento_label: avanzamentoLabel,
     cosa_manca: cosaManca,
     cosa_blocca: cosaBlocca,
@@ -88,8 +81,7 @@ export function buildApparecchiaturaVM(
 }
 
 export function buildApparecchiaturaVMs(
-  impacts: EquipmentImpactSummary[],
-  items: DailyListItemVM[]
+  equipments: EquipmentIntelligence[]
 ): ApparecchiaturaVM[] {
-  return impacts.map((impact) => buildApparecchiaturaVM(impact, items));
+  return equipments.map(buildApparecchiaturaVM);
 }

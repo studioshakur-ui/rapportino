@@ -5,7 +5,6 @@ import type { EChartsOption } from "echarts";
 import ECharts from "../../../components/charts/ECharts";
 import { useAuth } from "../../../auth/AuthProvider";
 import { AppBar, EmptyState, Pill, Screen, Section, StatCard } from "../../../components/command-ui";
-import { formatCableDisplay } from "../../../core/cable/cableDisplay";
 import { normalizeCableCode } from "../../core-command/agents/normalizer.agent";
 import { listRecentTelegramMessages } from "../api/telegramMessages.api";
 import { createDailyListImport, fetchEvidenceForCodes, listItemsByImport, listRecentImports } from "../../../modules/daily-lists/dailyLists.repo";
@@ -23,7 +22,7 @@ import type { NavemasterParseProgress, NavemasterWorkbookParseResult } from "../
 const DEFAULT_ANALYSIS_ROW_LIMIT = 120;
 type NavemasterTab = "live" | "worklist" | "story" | "import" | "archives";
 type WorklistLevelFilter = "all" | "critical" | "high" | "watch";
-type WorklistSourceFilter = "all" | "telegram" | "terrain" | "ocr";
+type WorklistSourceFilter = "all" | "telegram" | "terrain";
 
 interface AuthSession {
   user?: { id?: string };
@@ -61,9 +60,6 @@ export default function NavemasterPage(): JSX.Element {
   const [worklistQuery, setWorklistQuery] = useState("");
   const [analysisProgress, setAnalysisProgress] = useState<NavemasterParseProgress | null>(null);
   const [storyQuery, setStoryQuery] = useState("");
-  const [ocrState, setOcrState] = useState<"idle" | "reading">("idle");
-  const [ocrText, setOcrText] = useState("");
-  const [ocrProgress, setOcrProgress] = useState(0);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const activeTab = isNavemasterTab(searchParams.get("tab")) ? searchParams.get("tab") : "live";
@@ -148,10 +144,8 @@ export default function NavemasterPage(): JSX.Element {
     () => Array.from(new Set(worklistModel.items.map((item) => item.perimetro ?? "Sans perimetro"))).sort((a, b) => a.localeCompare(b)),
     [worklistModel.items]
   );
-  const ocrCodes = useMemo(() => extractCableCodesFromText(ocrText), [ocrText]);
   const worklist = useMemo(() => {
     const query = worklistQuery.trim().toUpperCase();
-    const ocrSet = new Set(ocrCodes.map((code) => normalizeCableCode(code)));
 
     return worklistModel.items.filter((item) => {
       if (item.score < 35) return false;
@@ -161,11 +155,10 @@ export default function NavemasterPage(): JSX.Element {
       if (selectedLevel !== "all" && item.level !== selectedLevel) return false;
       if (selectedSource === "telegram" && item.telegramMessages.length === 0) return false;
       if (selectedSource === "terrain" && item.terrainEvidence.length === 0) return false;
-      if (selectedSource === "ocr" && !ocrSet.has(normalizeCableCode(item.cableCode))) return false;
       if (query && ![item.displayCode, item.cableCode, item.perimetro, ...item.apparati].join(" ").toUpperCase().includes(query)) return false;
       return true;
     });
-  }, [ocrCodes, selectedEquipment, selectedLevel, selectedListCodes, selectedListId, selectedPerimeter, selectedSource, worklistModel.items, worklistQuery]);
+  }, [selectedEquipment, selectedLevel, selectedListCodes, selectedListId, selectedPerimeter, selectedSource, worklistModel.items, worklistQuery]);
   const perimeterChart = useMemo(() => buildPerimeterChart(worklistModel.perimeters), [worklistModel.perimeters]);
   const equipmentChart = useMemo(() => buildEquipmentChart(worklistModel.equipments), [worklistModel.equipments]);
 
@@ -179,27 +172,7 @@ export default function NavemasterPage(): JSX.Element {
     event.preventDefault();
     const code = storyQuery.trim();
     if (!code) return;
-    navigate(`/command/cable/${encodeURIComponent(code)}`);
-  }
-
-  async function runImageOcr(file: File): Promise<void> {
-    setOcrState("reading");
-    setOcrProgress(0);
-    setOcrText("");
-    try {
-      const Tesseract = await import("tesseract.js");
-      const result = await Tesseract.recognize(file, "ita+fra+eng", {
-        logger: (message) => {
-          if (message.status === "recognizing text") setOcrProgress(Math.round(message.progress * 100));
-        },
-      });
-      setOcrText(result.data.text.trim());
-    } catch (ocrError) {
-      setOcrText(ocrError instanceof Error ? `OCR impossible: ${ocrError.message}` : "OCR impossible");
-    } finally {
-      setOcrState("idle");
-      setOcrProgress(0);
-    }
+    navigate(`/cable/${encodeURIComponent(code)}`);
   }
 
   async function handleWorklistFile(file: File): Promise<void> {
@@ -605,7 +578,6 @@ export default function NavemasterPage(): JSX.Element {
                     <option value="all">Toutes</option>
                     <option value="telegram">Telegram</option>
                     <option value="terrain">Terrain</option>
-                    <option value="ocr">OCR</option>
                   </select>
                 </label>
 
@@ -639,43 +611,6 @@ export default function NavemasterPage(): JSX.Element {
               </article>
             </div>
 
-            <article className="rounded-[24px] border border-sky-200 bg-sky-50/60 p-4 shadow-sm">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-stone-950">OCR message photo</h3>
-                  <p className="mt-1 text-xs text-stone-600">Lecture locale d'une capture Telegram ou photo chantier. Aucun résultat n'est écrit en base.</p>
-                </div>
-                <Pill tone={ocrCodes.length > 0 ? "emerald" : "neutral"}>{ocrCodes.length} câble(s)</Pill>
-              </div>
-              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) void runImageOcr(file);
-                  }}
-                  className="block flex-1 text-sm file:mr-3 file:rounded-2xl file:border-0 file:bg-white file:px-4 file:py-2 file:text-sm file:font-medium"
-                />
-                {ocrState === "reading" ? <span className="text-xs text-sky-700">OCR {ocrProgress}%</span> : null}
-              </div>
-              {ocrCodes.length > 0 ? (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {ocrCodes.map((code) => (
-                    <button
-                      key={code}
-                      type="button"
-                      onClick={() => navigate(`/command/cable/${encodeURIComponent(code)}`)}
-                      className="rounded-xl border border-sky-200 bg-white px-3 py-1.5 font-mono text-xs font-semibold text-sky-800"
-                    >
-                      {formatCableDisplay(code)}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-              {ocrText ? <p className="mt-3 max-h-28 overflow-auto rounded-2xl bg-white/70 p-3 text-xs leading-5 text-stone-600">{ocrText}</p> : null}
-            </article>
-
             {worklistModel.equipments.length > 0 ? (
               <article className="rounded-[24px] border border-stone-200 bg-white p-4 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
@@ -704,7 +639,7 @@ export default function NavemasterPage(): JSX.Element {
                     <div>
                       <button
                         type="button"
-                        onClick={() => navigate(`/command/cable/${encodeURIComponent(insight.cableCode)}`)}
+                        onClick={() => navigate(`/cable/${encodeURIComponent(insight.cableCode)}`)}
                         className="font-mono text-sm font-semibold text-stone-950 hover:text-sky-700"
                       >
                         {insight.displayCode}
@@ -823,11 +758,6 @@ function formatDate(value: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function extractCableCodesFromText(text: string): string[] {
-  const matches = text.toUpperCase().match(/\b(?:\d+\s*[-/]\s*\d+\s*)?[A-Z]\s*[A-Z]{1,4}\s*\d{2,5}[A-Z]?\b/g) ?? [];
-  return Array.from(new Set(matches.map((match) => normalizeCableCode(match)).filter(Boolean))).slice(0, 24);
 }
 
 function buildPerimeterChart(perimeters: Array<{ name: string; count: number; maxScore: number }>): EChartsOption {

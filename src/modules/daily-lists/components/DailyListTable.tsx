@@ -63,14 +63,14 @@ export default function DailyListTable({ items }: Props): JSX.Element {
   }, [items]);
 
   function openCable(code: string) {
-    navigate(`/command/cable/${encodeURIComponent(code)}`);
+    navigate(`/cable/${encodeURIComponent(code)}`);
   }
 
   function openEquipment(event: MouseEvent, code: string | null) {
     event.stopPropagation();
     const clean = code?.trim();
     if (!clean) return;
-    navigate(`/command/equipment/${encodeURIComponent(clean)}`);
+    navigate(`/equipment/${encodeURIComponent(clean)}`);
   }
 
   return (

@@ -1,100 +1,122 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { AppBar, EmptyState, Pill, Screen, StatCard } from "../../components/command-ui";
+import { AppBar, EmptyState, Pill, Screen, Section, StatCard } from "../../components/command-ui";
 import { formatCableDisplay } from "../../core/cable/cableDisplay";
-import { loadEquipmentIntelligenceDashboard } from "../equipment/equipmentIntelligence.repo";
-import type { EquipmentClosureStatus } from "../equipment/equipment.types";
-
-function closureTone(status: EquipmentClosureStatus): "emerald" | "amber" | "red" | "neutral" {
-  if (status === "CLOSED") return "emerald";
-  if (status === "PARTIAL") return "amber";
-  if (status === "BLOCKED") return "red";
-  return "neutral";
-}
+import { loadCoreEngineSnapshot } from "../../domain/core-engine";
 
 export default function ApparatiPage(): JSX.Element {
   const navigate = useNavigate();
   const { data, isLoading } = useQuery({
-    queryKey: ["equipment_intelligence_dashboard"],
-    queryFn: loadEquipmentIntelligenceDashboard,
+    queryKey: ["core_engine_snapshot"],
+    queryFn: loadCoreEngineSnapshot,
     staleTime: 30_000,
   });
 
-  const equipments = data?.equipments ?? [];
-  const critical = equipments.filter((equipment) => equipment.closure_status !== "CLOSED");
+  const apparatus = data?.apparatus ?? null;
 
   return (
-    <Screen className="max-w-5xl space-y-6">
+    <Screen className="max-w-6xl space-y-6">
       <AppBar
         title="Apparati"
-        subtitle="Lettura apparato chiuso / non chiuso prima della percentuale cavo."
+        subtitle="Solo apparati che contano per la chiusura: chiusi, aperti o bloccati."
       />
 
-      <div className="grid gap-3 sm:grid-cols-4">
-        <StatCard label="Apparati" value={equipments.length} tone="neutral" />
-        <StatCard label="Chiusi" value={equipments.filter((equipment) => equipment.closure_status === "CLOSED").length} tone="emerald" />
-        <StatCard label="Non chiusi" value={critical.length} tone={critical.length > 0 ? "amber" : "neutral"} />
-        <StatCard label="Bloccati" value={equipments.filter((equipment) => equipment.closure_status === "BLOCKED").length} tone={equipments.some((equipment) => equipment.closure_status === "BLOCKED") ? "red" : "neutral"} />
-      </div>
-
-      {isLoading && (
-        <div className="space-y-2">
-          {[1, 2, 3].map((index) => <div key={index} className="h-16 animate-pulse rounded-xl border border-gray-200 bg-gray-100" />)}
-        </div>
-      )}
-
-      {!isLoading && equipments.length === 0 && (
+      {!isLoading && !apparatus ? (
         <EmptyState
-          title="Nessun apparato monitorato"
-          description="Importa una lista o un segnale di campo per alimentare l'intelligence apparati."
+          title="Nessun dato disponibile"
+          description="Importa una lista e sincronizza INCA per costruire il grafo apparati."
           icon="⚙"
         />
-      )}
+      ) : null}
 
-      {!isLoading && equipments.length > 0 && (
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-          <table className="w-full border-collapse text-sm">
-            <thead className="border-b border-gray-200 bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Apparato</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Chiusura</th>
-                <th className="hidden px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 sm:table-cell">Sistema</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Bloccante</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {equipments.map((equipment) => (
-                <tr
-                  key={equipment.equipment_code}
-                  onClick={() => navigate(`/command/equipment/${encodeURIComponent(equipment.equipment_code)}`)}
-                  className="cursor-pointer transition hover:bg-blue-50/40"
-                >
-                  <td className="px-4 py-3">
-                    <div className="flex flex-col gap-1">
-                      <span className="font-mono text-sm font-semibold text-gray-900">{equipment.equipment_code}</span>
-                      <span className="text-xs text-gray-500">{equipment.equipment_name ?? equipment.zone ?? "ESWBS"}</span>
+      {apparatus ? (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard label="Sistemi" value={apparatus.systems.length} tone="neutral" />
+            <StatCard label="Apparati" value={apparatus.equipments.length} tone="neutral" />
+            <StatCard label="Aperti" value={apparatus.equipments.filter((item) => item.closure_status !== "CLOSED").length} tone="amber" />
+            <StatCard label="Bloccati" value={apparatus.equipments.filter((item) => item.closure_status === "BLOCKED").length} tone="red" />
+          </div>
+
+          <Section title="Apparati critici" eyebrow="Chiusura" count={apparatus.equipments.length}>
+            {apparatus.equipments.length === 0 ? (
+              <EmptyState
+                title="Nessun apparato critico"
+                description="La lista attiva non lascia apparati aperti o bloccati."
+                icon="✓"
+              />
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {apparatus.equipments.slice(0, 18).map((equipment) => (
+                  <button
+                    key={equipment.equipment_code}
+                    onClick={() => navigate(equipment.route)}
+                    className="rounded-[24px] border border-stone-200 bg-white p-4 text-left shadow-sm transition hover:border-sky-300"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-mono text-sm font-semibold text-stone-950">{equipment.equipment_code}</p>
+                        <p className="mt-1 truncate text-xs text-stone-500">{equipment.equipment_name ?? equipment.zone ?? "ESWBS"}</p>
+                      </div>
+                      <Pill tone={equipment.closure_status === "BLOCKED" ? "red" : equipment.closure_status === "PARTIAL" ? "amber" : "emerald"}>
+                        {equipment.closure_status}
+                      </Pill>
                     </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <Pill tone={closureTone(equipment.closure_status)}>{equipment.closure_status}</Pill>
-                      <span className="text-xs text-gray-600">{equipment.confirmed_cables}/{equipment.total_cables}</span>
+
+                    <div className="mt-3 text-xs text-stone-600">
+                      {equipment.confirmed_cables}/{equipment.total_cables} cavi confermati
                     </div>
-                  </td>
-                  <td className="hidden px-4 py-3 text-xs text-gray-500 sm:table-cell">
-                    {equipment.system ?? "SISTEMA NON ASSEGNATO"}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-gray-500">
-                    {equipment.critical_path[0]
-                      ? `${formatCableDisplay(equipment.critical_path[0].cable_code)} · ${equipment.critical_path[0].reason}`
-                      : "nessuno"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+                    <div className="mt-1 text-xs text-stone-500">
+                      {equipment.system ?? "SISTEMA NON ASSEGNATO"} · {equipment.zone ?? "Zona non assegnata"}
+                    </div>
+                    <div className="mt-2 text-xs text-red-700">
+                      {equipment.blocker ?? "Nessun blocco aperto"}
+                    </div>
+                    {equipment.critical_path.length > 0 ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {equipment.critical_path.slice(0, 4).map((code) => (
+                          <span key={code} className="rounded-xl border border-stone-200 bg-stone-50 px-2.5 py-1 font-mono text-[11px] text-stone-700">
+                            {formatCableDisplay(code)}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            )}
+          </Section>
+
+          <Section title="Chiusure per sistema" eyebrow="Sistema" count={apparatus.systems.length}>
+            {apparatus.systems.length === 0 ? (
+              <EmptyState
+                title="Nessun sistema disponibile"
+                description="Non ci sono sistemi aggregati nel snapshot corrente."
+                icon="∅"
+              />
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2">
+                {apparatus.systems.slice(0, 12).map((system) => (
+                  <article key={system.system} className="rounded-[24px] border border-stone-200 bg-white p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-stone-950">{system.system}</p>
+                        <p className="mt-1 text-xs text-stone-500">{system.zone ?? "Zona non assegnata"}</p>
+                      </div>
+                      <Pill tone={system.closure_status === "BLOCKED" ? "red" : system.closure_status === "PARTIAL" ? "amber" : "emerald"}>
+                        {system.closure_status}
+                      </Pill>
+                    </div>
+                    <p className="mt-3 text-xs text-stone-600">
+                      {system.closed_equipments}/{system.total_equipments} chiusi · {system.blocked_equipments} bloccati
+                    </p>
+                  </article>
+                ))}
+              </div>
+            )}
+          </Section>
+        </>
+      ) : null}
     </Screen>
   );
 }

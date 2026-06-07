@@ -1,73 +1,84 @@
 // src/routes.tsx — CORE COMMAND
 import { Routes, Route, Navigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 
 import RequireAuth from "./auth/RequireAuth";
 import Login from "./pages/Login";
 import CommandShell from "./shells/CommandShell";
 
-import CommandCenterPage from "./features/core-command/command-center/CommandCenterPage";
-import NavemasterPage from "./features/core-command/navemaster/NavemasterPage";
-import TimelinePage from "./features/core-command/timeline/TimelinePage";
-import PrioritiesPage from "./features/core-command/priorities/PrioritiesPage";
-import WhatsAppIntakePage from "./features/core-command/intake/WhatsAppIntakePage";
-import TelegramAIPage     from "./features/core-command/intake/TelegramAIPage";
-import AICockpitPage      from "./features/core-command/ai/AICockpitPage";
-import IncaImportPage     from "./features/core-command/inca/IncaImportPage";
 import CableDetailPage    from "./features/core-command/cable/CableDetailPage";
+import CampoPage          from "./features/core-command/campo/CampoPage";
+import GraficiPage        from "./features/core-command/grafici/GraficiPage";
+import OggiPage           from "./features/core-command/oggi/OggiPage";
 import DailyListsPage     from "./modules/daily-lists/DailyListsPage";
 import DailyListDetailPage from "./modules/daily-lists/DailyListDetailPage";
-import CommanderHarnessPage from "./features/commander/CommanderHarnessPage";
-import EquipmentStoryPage  from "./modules/equipment/EquipmentStoryPage";
 import ApparatiPage        from "./modules/apparati/ApparatiPage";
-import TerrainImagesPage   from "./features/core-command/terrain-images/TerrainImagesPage";
+import EquipmentStoryPage  from "./modules/equipment/EquipmentStoryPage";
 
-function CablesHint(): JSX.Element {
-  return (
-    <div className="max-w-xl mx-auto px-4 py-12 text-center space-y-4">
-      <p className="text-stone-600 text-sm">Utiliser la barre de recherche en haut pour trouver un câble.</p>
-      <p className="text-stone-500 text-xs">Exemple : <code className="rounded bg-stone-100 px-2 py-0.5 text-stone-900">N AH 173</code></p>
-    </div>
-  );
+function RouteRedirect({ to }: { to: string }): JSX.Element {
+  return <Navigate to={to} replace />;
+}
+
+function ParamRedirect({ to }: { to: (params: Record<string, string | undefined>) => string }): JSX.Element {
+  const params = useParams();
+  return <Navigate to={to(params)} replace />;
 }
 
 export default function AppRoutes(): JSX.Element {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
-
+      <Route path="/cable-story/:code" element={<ParamRedirect to={(params) => `/cable/${params.code ?? ""}`} />} />
+      <Route path="/equipment-story/:code" element={<ParamRedirect to={(params) => `/equipment/${params.code ?? ""}`} />} />
+      <Route path="/dashboard" element={<RouteRedirect to="/oggi" />} />
+      <Route path="/navemaster" element={<RouteRedirect to="/oggi" />} />
+      <Route path="/commander" element={<RouteRedirect to="/campo" />} />
+      <Route path="/images-terreno" element={<RouteRedirect to="/campo" />} />
+      <Route path="/ia-cockpit" element={<RouteRedirect to="/oggi" />} />
+      <Route path="/analytics" element={<RouteRedirect to="/grafici" />} />
       <Route
-        path="/command"
+        path="/"
         element={
           <RequireAuth>
             <CommandShell />
           </RequireAuth>
         }
       >
-        <Route index element={<Navigate to="center" replace />} />
-        <Route path="center"       element={<CommandCenterPage />} />
-        <Route path="navemaster"   element={<NavemasterPage />} />
-        <Route path="cables"       element={<CablesHint />} />
-        <Route path="commander"    element={<CommanderHarnessPage />} />
-        <Route path="daily-lists"  element={<DailyListsPage />} />
-        <Route path="daily-lists/:importId" element={<DailyListDetailPage />} />
-        <Route path="cable/:code"  element={<CableDetailPage />} />
-        <Route path="apparati"     element={<ApparatiPage />} />
+        <Route index element={<Navigate to="/oggi" replace />} />
+        <Route path="oggi" element={<OggiPage />} />
+        <Route path="apparati" element={<ApparatiPage />} />
+        <Route path="campo" element={<CampoPage />} />
+        <Route path="grafici" element={<GraficiPage />} />
+        <Route path="import" element={<DailyListsPage />} />
+        <Route path="import/:importId" element={<DailyListDetailPage />} />
+        <Route path="cable/:code" element={<CableDetailPage />} />
         <Route path="equipment/:code" element={<EquipmentStoryPage />} />
-        <Route path="terrain-images"  element={<TerrainImagesPage />} />
-        {/* Admin / ⚙ */}
-        <Route path="problems"     element={<PrioritiesPage />} />
-        <Route path="timeline"     element={<TimelinePage />} />
-        <Route path="inca"         element={<IncaImportPage />} />
-        <Route path="intake"       element={<WhatsAppIntakePage />} />
-        <Route path="ai"           element={<AICockpitPage />} />
-        <Route path="ai-intake"    element={<TelegramAIPage />} />
-        {/* Compat redirects — old paths now live in navemaster */}
-        <Route path="ai-cockpit"   element={<Navigate to="/command/navemaster?tab=worklist" replace />} />
-        <Route path="priorities"   element={<Navigate to="/command/problems" replace />} />
+        <Route path="command" element={<Navigate to="/oggi" replace />} />
+        <Route path="command/oggi" element={<Navigate to="/oggi" replace />} />
+        <Route path="command/apparati" element={<Navigate to="/apparati" replace />} />
+        <Route path="command/campo" element={<Navigate to="/campo" replace />} />
+        <Route path="command/grafici" element={<Navigate to="/grafici" replace />} />
+        <Route path="command/import" element={<Navigate to="/import" replace />} />
+        <Route path="command/import/:importId" element={<ParamRedirect to={(params) => `/import/${params.importId ?? ""}`} />} />
+        <Route path="command/cable/:code" element={<ParamRedirect to={(params) => `/cable/${params.code ?? ""}`} />} />
+        <Route path="command/equipment/:code" element={<ParamRedirect to={(params) => `/equipment/${params.code ?? ""}`} />} />
+        <Route path="command/daily-lists" element={<Navigate to="/import" replace />} />
+        <Route path="command/daily-lists/:importId" element={<ParamRedirect to={(params) => `/import/${params.importId ?? ""}`} />} />
+        <Route path="command/center" element={<Navigate to="/oggi" replace />} />
+        <Route path="command/cables" element={<Navigate to="/oggi" replace />} />
+        <Route path="command/navemaster" element={<Navigate to="/oggi" replace />} />
+        <Route path="command/commander" element={<Navigate to="/campo" replace />} />
+        <Route path="command/problems" element={<Navigate to="/campo" replace />} />
+        <Route path="command/timeline" element={<Navigate to="/campo" replace />} />
+        <Route path="command/inca" element={<Navigate to="/import" replace />} />
+        <Route path="command/intake" element={<Navigate to="/campo" replace />} />
+        <Route path="command/ai" element={<Navigate to="/oggi" replace />} />
+        <Route path="command/ai-intake" element={<Navigate to="/oggi" replace />} />
+        <Route path="command/terrain-images" element={<Navigate to="/campo" replace />} />
+        <Route path="command/ai-cockpit" element={<Navigate to="/oggi" replace />} />
+        <Route path="command/priorities" element={<Navigate to="/campo" replace />} />
       </Route>
-
-      <Route path="/" element={<Navigate to="/command/center" replace />} />
-      <Route path="*" element={<Navigate to="/command/center" replace />} />
+      <Route path="*" element={<Navigate to="/oggi" replace />} />
     </Routes>
   );
 }
