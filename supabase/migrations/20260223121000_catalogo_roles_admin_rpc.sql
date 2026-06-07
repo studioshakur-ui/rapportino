@@ -1,5 +1,4 @@
 begin;
-
 create or replace function public.catalogo_role_create(
   p_role_key text,
   p_label_it text,
@@ -38,7 +37,6 @@ begin
   return v_row;
 end;
 $$;
-
 create or replace function public.catalogo_role_set_active(
   p_role_id uuid,
   p_is_active boolean
@@ -68,11 +66,8 @@ begin
   return v_row;
 end;
 $$;
-
 revoke all on function public.catalogo_role_create(text, text, text, text) from public;
 grant execute on function public.catalogo_role_create(text, text, text, text) to authenticated;
-
 revoke all on function public.catalogo_role_set_active(uuid, boolean) from public;
 grant execute on function public.catalogo_role_set_active(uuid, boolean) to authenticated;
-
 commit;

@@ -79,7 +79,7 @@ export default function DailyListTable({ items }: Props): JSX.Element {
         <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_220px]">
           <input
             type="search"
-            placeholder="Câble, zone, APP, responsable…"
+            placeholder="Cavo, zona, APP, responsabile…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="min-h-11 w-full rounded-2xl border border-zinc-800 bg-zinc-950 px-4 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-zinc-600"
@@ -90,7 +90,7 @@ export default function DailyListTable({ items }: Props): JSX.Element {
             onChange={(e) => setPerimeter(e.target.value)}
             className="min-h-11 w-full rounded-2xl border border-zinc-800 bg-zinc-950 px-4 text-sm text-white outline-none focus:border-zinc-600"
           >
-            <option value="all">Toutes les zones</option>
+            <option value="all">Tutte le zone</option>
             {perimeters.map((p) => <option key={p} value={p}>{p}</option>)}
           </select>
         </div>
@@ -102,7 +102,7 @@ export default function DailyListTable({ items }: Props): JSX.Element {
               filter === "all" ? "border-white bg-white text-zinc-950" : "border-zinc-700 bg-zinc-800/80 text-zinc-300"
             }`}
           >
-            Tous ({items.length})
+            Tutti ({items.length})
           </button>
           {STATUS_ORDER.map((status) => {
             const count = statusCounts.get(status) ?? 0;
@@ -124,7 +124,7 @@ export default function DailyListTable({ items }: Props): JSX.Element {
       </div>
 
       {filtered.length === 0 ? (
-        <EmptyState title="Aucun câble pour ce filtre" description="Modifier la recherche ou afficher tous les statuts." icon="⌕" />
+        <EmptyState title="Nessun cavo per questo filtro" description="Modifica la ricerca o mostra tutti gli stati." icon="⌕" />
       ) : null}
 
       <div className="space-y-3 md:hidden">
@@ -142,7 +142,7 @@ export default function DailyListTable({ items }: Props): JSX.Element {
                   <Pill tone={STATUS_TONE[item.computed_status]}>{meta.icon} {meta.label}</Pill>
                 </div>
                 {item.progress_percent !== null && item.progress_percent < 100 ? (
-                  <p className="mt-2 text-xs font-semibold text-amber-300">Progression terrain {item.progress_percent}%</p>
+                  <p className="mt-2 text-xs font-semibold text-amber-300">Avanzamento campo {item.progress_percent}%</p>
                 ) : null}
                 {ev ? (
                   <p className="mt-3 text-xs leading-5 text-zinc-400">
@@ -169,12 +169,12 @@ export default function DailyListTable({ items }: Props): JSX.Element {
         <table className="w-full min-w-[920px] border-collapse text-sm">
           <thead>
             <tr className="bg-zinc-900/80 text-left text-[11px] uppercase tracking-wider text-zinc-500">
-              <th className="px-4 py-3 font-medium">Câble</th>
-              <th className="px-4 py-3 font-medium">Statut</th>
+              <th className="px-4 py-3 font-medium">Cavo</th>
+              <th className="px-4 py-3 font-medium">Stato</th>
               <th className="px-4 py-3 font-medium">Zone</th>
               <th className="px-4 py-3 font-medium">APP</th>
-              <th className="px-4 py-3 font-medium">Terrain</th>
-              <th className="px-4 py-3 font-medium">Note</th>
+              <th className="px-4 py-3 font-medium">Campo</th>
+              <th className="px-4 py-3 font-medium">Nota</th>
             </tr>
           </thead>
           <tbody>
@@ -223,7 +223,7 @@ export default function DailyListTable({ items }: Props): JSX.Element {
       </div>
 
       {filtered.length > 0 ? (
-        <p className="text-right text-xs text-zinc-600">{filtered.length} câble{filtered.length > 1 ? "s" : ""}</p>
+        <p className="text-right text-xs text-zinc-600">{filtered.length} cav{filtered.length > 1 ? "i" : "o"}</p>
       ) : null}
     </div>
   );

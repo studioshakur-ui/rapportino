@@ -1,7 +1,5 @@
 begin;
-
 drop policy if exists "catalogo_roles_select_authenticated" on public.catalogo_roles;
-
 create policy "catalogo_roles_select_authenticated"
 on public.catalogo_roles
 for select
@@ -16,5 +14,4 @@ using (
       and upper(p.app_role::text) = 'ADMIN'
   )
 );
-
 commit;

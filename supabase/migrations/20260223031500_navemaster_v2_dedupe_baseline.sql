@@ -2,7 +2,6 @@
 -- Avoids unique violation on navemaster_state_rows_run_codice_norm_ux
 
 begin;
-
 create or replace function public.navemaster_compute_run_v2(
   p_ship_id uuid,
   p_inca_file_id uuid default null,
@@ -431,7 +430,5 @@ begin
   return v_run_id;
 end;
 $$;
-
 grant execute on function public.navemaster_compute_run_v2(uuid,uuid,date,date,boolean) to authenticated;
-
 commit;

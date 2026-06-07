@@ -13,7 +13,6 @@
 -- - Triggers provide the "hard stop" for writes on core operational tables.
 
 begin;
-
 -- 1) Suspension predicate
 create or replace function public.is_suspended(p_uid uuid default auth.uid())
 returns boolean
@@ -29,10 +28,8 @@ as $$
       and p.disabled_at is not null
   );
 $$;
-
 revoke all on function public.is_suspended(uuid) from public;
 grant execute on function public.is_suspended(uuid) to authenticated;
-
 -- 2) Central write guard
 create or replace function public.require_not_suspended(p_uid uuid default auth.uid())
 returns void
@@ -50,10 +47,8 @@ begin
   end if;
 end;
 $$;
-
 revoke all on function public.require_not_suspended(uuid) from public;
 grant execute on function public.require_not_suspended(uuid) to authenticated;
-
 -- 3) Trigger function: blocks INSERT/UPDATE/DELETE for suspended users.
 create or replace function public.trg_guard_not_suspended()
 returns trigger
@@ -74,10 +69,8 @@ begin
   return new;
 end;
 $$;
-
 revoke all on function public.trg_guard_not_suspended() from public;
 grant execute on function public.trg_guard_not_suspended() to authenticated;
-
 -- 4) Harden role helpers: suspended users are never considered authorized.
 --    (Policies that use these helpers will automatically lock out suspended users.)
 create or replace function public.is_role(role_text text)
@@ -93,7 +86,6 @@ as $$
       and upper(pr.app_role::text) = upper(role_text)
   );
 $$;
-
 create or replace function public.is_admin()
 returns boolean
 language sql
@@ -107,7 +99,6 @@ as $$
       and p.app_role = 'ADMIN'
   );
 $$;
-
 create or replace function public.core_is_admin()
 returns boolean
 language sql
@@ -121,7 +112,6 @@ as $$
       and p.app_role = 'ADMIN'
   );
 $$;
-
 create or replace function public.is_ufficio()
 returns boolean
 language sql
@@ -135,7 +125,6 @@ as $$
       and p.app_role = 'UFFICIO'::text
   );
 $$;
-
 -- 5) Ensure require_admin refuses suspended callers (admin console cannot be used while suspended).
 create or replace function public.require_admin()
 returns void
@@ -169,7 +158,6 @@ begin
   end if;
 end;
 $$;
-
 -- 6) Attach write-guards to core operational tables.
 --    We use conditional DDL to keep the migration safe across environments.
 DO $$
@@ -194,5 +182,4 @@ BEGIN
     END IF;
   END LOOP;
 END $$;
-
 commit;

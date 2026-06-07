@@ -1,5 +1,4 @@
 begin;
-
 -- ============================================================
 -- Direzione AI Dashboard (CNCS Executive) — v1
 -- Metrics are computed server-side (views/functions only).
@@ -111,10 +110,8 @@ select
   coalesce(blocks_open_critical, 0)::numeric as blocks_open_critical,
   coalesce(anomalies_open, 0)::numeric as anomalies_open
 from agg;
-
 comment on view public.direzione_ai_radar_v1 is
   'Radar giornaliero (stato attuale): alert aperti + blocchi + anomalie ship resolution (ultimi 7 giorni).';
-
 -- 2) CNCS Stability Score (0–100, explainable)
 drop view if exists public.direzione_ai_stability_v1;
 create view public.direzione_ai_stability_v1 as
@@ -141,10 +138,8 @@ select
     )
   ) as stability_score
 from public.direzione_ai_radar_v1;
-
 comment on view public.direzione_ai_stability_v1 is
   'CNCS Stability Score: 100 - 5*C - 3*M - 2*B - 1*A - 1*MM.';
-
 -- 3) Daily risk index (new events by day)
 drop view if exists public.direzione_ai_daily_risk_v1;
 create view public.direzione_ai_daily_risk_v1 as
@@ -216,10 +211,8 @@ select
   anomalies,
   (5 * alerts_critical + 3 * alerts_major + 2 * blocks_new + 1 * anomalies) as risk_index
 from agg;
-
 comment on view public.direzione_ai_daily_risk_v1 is
   'Indice rischio giornaliero (eventi nuovi): 5*C + 3*M + 2*Blocchi + 1*Anomalie.';
-
 -- 4) 7-day projection (linear trend on last 7 days)
 drop view if exists public.direzione_ai_projection_v1;
 create view public.direzione_ai_projection_v1 as
@@ -275,10 +268,8 @@ select
   current_date::date as base_to
 from stats s
 cross join generate_series(1, 7) as gs(day_offset);
-
 comment on view public.direzione_ai_projection_v1 is
   'Proiezione 7 giorni: trend lineare su ultimi 7 giorni di rischio.';
-
 -- 5) Top/Bottom performance ranking (last 7 days, approved)
 drop view if exists public.direzione_ai_performance_rank_v1;
 create view public.direzione_ai_performance_rank_v1 as
@@ -314,10 +305,8 @@ select
   end as performance_ratio
 from base
 group by ship_id, ship_code, ship_name, costr, commessa;
-
 comment on view public.direzione_ai_performance_rank_v1 is
   'Performance ratio per nave (ultimi 7 giorni): Σprodotto / Σprevisto.';
-
 -- 6) Structural anomalies (open)
 drop view if exists public.direzione_ai_anomalies_v1;
 create view public.direzione_ai_anomalies_v1 as
@@ -358,10 +347,8 @@ select
   sum(open_count) as open_count
 from combined
 group by costr, commessa, scope_level, anomaly_type;
-
 comment on view public.direzione_ai_anomalies_v1 is
   'Anomalie strutturali aperte: NAVEMASTER alert + ship resolution.';
-
 drop view if exists public.direzione_ai_anomalies_total_v1;
 create view public.direzione_ai_anomalies_total_v1 as
 select
@@ -371,8 +358,6 @@ select
   sum(open_count) as open_count
 from public.direzione_ai_anomalies_v1
 group by costr, commessa, scope_level;
-
 comment on view public.direzione_ai_anomalies_total_v1 is
   'Totale anomalie strutturali aperte per scope.';
-
 commit;

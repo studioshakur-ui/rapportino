@@ -10,9 +10,7 @@
 --   - public.inca_cavi_with_last_posa_and_capo_v2
 
 BEGIN;
-
 DROP VIEW IF EXISTS public.inca_cavi_with_last_posa_and_capo_v2;
-
 CREATE OR REPLACE VIEW public.inca_cavi_with_last_posa_and_capo_v2 AS
 WITH posa AS (
   SELECT DISTINCT ON (ric.codice_cache, ric.costr_cache, ric.commessa_cache)
@@ -49,13 +47,10 @@ LEFT JOIN posa
   ON posa.codice_cache = c.codice
   AND posa.costr_cache = c.costr
   AND posa.commessa_cache = c.commessa;
-
 COMMENT ON VIEW public.inca_cavi_with_last_posa_and_capo_v2 IS
   'INCA cables + last POSA date + capo label (stable across INCA re-imports via caches). RAW is included via c.*.';
-
 -- Align grants with prior behavior (adjust if your RLS model expects different).
 GRANT ALL ON TABLE public.inca_cavi_with_last_posa_and_capo_v2 TO anon;
 GRANT ALL ON TABLE public.inca_cavi_with_last_posa_and_capo_v2 TO authenticated;
 GRANT ALL ON TABLE public.inca_cavi_with_last_posa_and_capo_v2 TO service_role;
-
 COMMIT;

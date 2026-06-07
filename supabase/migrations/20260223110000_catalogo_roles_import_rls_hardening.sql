@@ -1,5 +1,4 @@
 begin;
-
 -- ============================================================
 -- CNCS Catalogo hardening + dynamic roles + import runs
 -- ============================================================
@@ -7,16 +6,12 @@ begin;
 -- 0) Soft-delete support (no hard delete for historical integrity)
 alter table if exists public.catalogo_attivita
   add column if not exists deleted_at timestamptz null;
-
 alter table if exists public.catalogo_ship_commessa_attivita
   add column if not exists deleted_at timestamptz null;
-
 create index if not exists catalogo_attivita_deleted_at_idx
   on public.catalogo_attivita (deleted_at);
-
 create index if not exists catalogo_ship_commessa_deleted_at_idx
   on public.catalogo_ship_commessa_attivita (deleted_at);
-
 -- 1) Dynamic catalog roles (metier)
 create table if not exists public.catalogo_roles (
   id uuid primary key default gen_random_uuid(),
@@ -30,38 +25,31 @@ create table if not exists public.catalogo_roles (
   updated_at timestamptz not null default now(),
   deleted_at timestamptz null
 );
-
 create unique index if not exists catalogo_roles_role_key_norm_uk
   on public.catalogo_roles (lower(trim(role_key)));
-
 create index if not exists catalogo_roles_active_idx
   on public.catalogo_roles (is_active)
   where deleted_at is null;
-
 drop trigger if exists trg_catalogo_roles_updated_at on public.catalogo_roles;
 create trigger trg_catalogo_roles_updated_at
 before update on public.catalogo_roles
 for each row execute function public.set_updated_at();
-
 alter table public.catalogo_roles enable row level security;
 revoke all on public.catalogo_roles from anon;
 revoke all on public.catalogo_roles from authenticated;
 grant select on public.catalogo_roles to authenticated;
-
 drop policy if exists "catalogo_roles_select_authenticated" on public.catalogo_roles;
 create policy "catalogo_roles_select_authenticated"
 on public.catalogo_roles
 for select
 to authenticated
 using (deleted_at is null);
-
 drop policy if exists "catalogo_roles_insert_admin" on public.catalogo_roles;
 create policy "catalogo_roles_insert_admin"
 on public.catalogo_roles
 for insert
 to authenticated
 with check (public.is_admin());
-
 drop policy if exists "catalogo_roles_update_admin" on public.catalogo_roles;
 create policy "catalogo_roles_update_admin"
 on public.catalogo_roles
@@ -69,7 +57,6 @@ for update
 to authenticated
 using (public.is_admin())
 with check (public.is_admin());
-
 insert into public.catalogo_roles(role_key, label_it, label_fr, label_en, is_active)
 values
   ('electricista', 'Elettricista', 'Electricien', 'Electrician', true),
@@ -83,7 +70,6 @@ set
   is_active = excluded.is_active,
   deleted_at = null,
   updated_at = now();
-
 -- 2) Activity <-> role pivot
 create table if not exists public.catalogo_attivita_roles (
   activity_id uuid not null references public.catalogo_attivita(id) on delete cascade,
@@ -92,36 +78,30 @@ create table if not exists public.catalogo_attivita_roles (
   created_at timestamptz not null default now(),
   primary key (activity_id, role_id)
 );
-
 create index if not exists catalogo_attivita_roles_role_idx
   on public.catalogo_attivita_roles(role_id);
-
 alter table public.catalogo_attivita_roles enable row level security;
 revoke all on public.catalogo_attivita_roles from anon;
 revoke all on public.catalogo_attivita_roles from authenticated;
 grant select on public.catalogo_attivita_roles to authenticated;
-
 drop policy if exists "catalogo_attivita_roles_select_authenticated" on public.catalogo_attivita_roles;
 create policy "catalogo_attivita_roles_select_authenticated"
 on public.catalogo_attivita_roles
 for select
 to authenticated
 using (true);
-
 drop policy if exists "catalogo_attivita_roles_insert_admin" on public.catalogo_attivita_roles;
 create policy "catalogo_attivita_roles_insert_admin"
 on public.catalogo_attivita_roles
 for insert
 to authenticated
 with check (public.is_admin());
-
 drop policy if exists "catalogo_attivita_roles_delete_admin" on public.catalogo_attivita_roles;
 create policy "catalogo_attivita_roles_delete_admin"
 on public.catalogo_attivita_roles
 for delete
 to authenticated
 using (public.is_admin());
-
 -- 3) Import runs + row traceability
 create table if not exists public.catalogo_import_runs (
   run_id uuid primary key default gen_random_uuid(),
@@ -139,7 +119,6 @@ create table if not exists public.catalogo_import_runs (
   created_at timestamptz not null default now(),
   applied_at timestamptz null
 );
-
 create table if not exists public.catalogo_import_run_rows (
   id bigint generated always as identity primary key,
   run_id uuid not null references public.catalogo_import_runs(run_id) on delete cascade,
@@ -149,21 +128,16 @@ create table if not exists public.catalogo_import_run_rows (
   error_text text null,
   created_at timestamptz not null default now()
 );
-
 create index if not exists catalogo_import_run_rows_run_idx
   on public.catalogo_import_run_rows(run_id, row_index);
-
 alter table public.catalogo_import_runs enable row level security;
 alter table public.catalogo_import_run_rows enable row level security;
-
 revoke all on public.catalogo_import_runs from anon;
 revoke all on public.catalogo_import_runs from authenticated;
 revoke all on public.catalogo_import_run_rows from anon;
 revoke all on public.catalogo_import_run_rows from authenticated;
-
 grant select on public.catalogo_import_runs to authenticated;
 grant select on public.catalogo_import_run_rows to authenticated;
-
 drop policy if exists "catalogo_import_runs_admin_all" on public.catalogo_import_runs;
 create policy "catalogo_import_runs_admin_all"
 on public.catalogo_import_runs
@@ -171,7 +145,6 @@ for all
 to authenticated
 using (public.is_admin())
 with check (public.is_admin());
-
 drop policy if exists "catalogo_import_run_rows_admin_all" on public.catalogo_import_run_rows;
 create policy "catalogo_import_run_rows_admin_all"
 on public.catalogo_import_run_rows
@@ -179,7 +152,6 @@ for all
 to authenticated
 using (public.is_admin())
 with check (public.is_admin());
-
 -- 4) Ensure audit table exists (some environments missed older seed migration)
 create table if not exists public.catalogo_events (
   id uuid primary key default gen_random_uuid(),
@@ -193,18 +165,14 @@ create table if not exists public.catalogo_events (
   before_row jsonb null,
   after_row jsonb null
 );
-
 create index if not exists catalogo_events_at_idx on public.catalogo_events (at desc);
 create index if not exists catalogo_events_ship_commessa_idx on public.catalogo_events (ship_id, commessa);
 create index if not exists catalogo_events_activity_idx on public.catalogo_events (activity_id);
-
 -- 5) Hardening audit log: prevent direct client inserts
 alter table public.catalogo_events enable row level security;
-
 revoke insert, update, delete on public.catalogo_events from anon;
 revoke insert, update, delete on public.catalogo_events from authenticated;
 grant select on public.catalogo_events to authenticated;
-
 drop policy if exists "catalogo_events_insert_authenticated" on public.catalogo_events;
 drop policy if exists "catalogo_events_select_admin" on public.catalogo_events;
 create policy "catalogo_events_select_admin"
@@ -212,7 +180,6 @@ on public.catalogo_events
 for select
 to authenticated
 using (public.is_admin());
-
 create or replace function public.catalogo_events_reject_direct_insert()
 returns trigger
 language plpgsql
@@ -227,15 +194,12 @@ begin
   return new;
 end;
 $$;
-
 revoke all on function public.catalogo_events_reject_direct_insert() from public;
 grant execute on function public.catalogo_events_reject_direct_insert() to authenticated;
-
 drop trigger if exists trg_catalogo_events_reject_direct_insert on public.catalogo_events;
 create trigger trg_catalogo_events_reject_direct_insert
 before insert on public.catalogo_events
 for each row execute function public.catalogo_events_reject_direct_insert();
-
 -- 6) Canonical catalog audit triggers (append-only)
 create or replace function public.catalogo_log_ship_commessa_attivita()
 returns trigger
@@ -264,7 +228,6 @@ begin
   return null;
 end;
 $$;
-
 create or replace function public.catalogo_log_attivita()
 returns trigger
 language plpgsql
@@ -292,17 +255,14 @@ begin
   return null;
 end;
 $$;
-
 drop trigger if exists trg_catalogo_log_ship_commessa_attivita on public.catalogo_ship_commessa_attivita;
 create trigger trg_catalogo_log_ship_commessa_attivita
 after insert or update or delete on public.catalogo_ship_commessa_attivita
 for each row execute function public.catalogo_log_ship_commessa_attivita();
-
 drop trigger if exists trg_catalogo_log_attivita on public.catalogo_attivita;
 create trigger trg_catalogo_log_attivita
 after insert or update or delete on public.catalogo_attivita
 for each row execute function public.catalogo_log_attivita();
-
 -- 7) No hard delete: force soft-delete only
 create or replace function public.catalogo_prevent_hard_delete()
 returns trigger
@@ -315,20 +275,16 @@ begin
     using errcode = '42501';
 end;
 $$;
-
 revoke all on function public.catalogo_prevent_hard_delete() from public;
 grant execute on function public.catalogo_prevent_hard_delete() to authenticated;
-
 drop trigger if exists trg_catalogo_attivita_prevent_delete on public.catalogo_attivita;
 create trigger trg_catalogo_attivita_prevent_delete
 before delete on public.catalogo_attivita
 for each row execute function public.catalogo_prevent_hard_delete();
-
 drop trigger if exists trg_catalogo_ship_commessa_prevent_delete on public.catalogo_ship_commessa_attivita;
 create trigger trg_catalogo_ship_commessa_prevent_delete
 before delete on public.catalogo_ship_commessa_attivita
 for each row execute function public.catalogo_prevent_hard_delete();
-
 -- 8) Normalize commessa before write
 create or replace function public.catalogo_normalize_commessa()
 returns trigger
@@ -343,72 +299,59 @@ begin
   return new;
 end;
 $$;
-
 drop trigger if exists trg_catalogo_normalize_commessa on public.catalogo_ship_commessa_attivita;
 create trigger trg_catalogo_normalize_commessa
 before insert or update on public.catalogo_ship_commessa_attivita
 for each row execute function public.catalogo_normalize_commessa();
-
 -- 9) Harden base catalog RLS
 alter table public.catalogo_attivita enable row level security;
 alter table public.catalogo_ship_commessa_attivita enable row level security;
-
 revoke all on public.catalogo_attivita from anon;
 revoke all on public.catalogo_attivita from authenticated;
 revoke all on public.catalogo_ship_commessa_attivita from anon;
 revoke all on public.catalogo_ship_commessa_attivita from authenticated;
-
 grant select on public.catalogo_attivita to authenticated;
 grant select on public.catalogo_ship_commessa_attivita to authenticated;
-
 drop policy if exists "catalogo_attivita_delete_admin" on public.catalogo_attivita;
 drop policy if exists "catalogo_attivita_insert_admin" on public.catalogo_attivita;
 drop policy if exists "catalogo_attivita_read" on public.catalogo_attivita;
 drop policy if exists "catalogo_attivita_select_authenticated" on public.catalogo_attivita;
 drop policy if exists "catalogo_attivita_update_admin" on public.catalogo_attivita;
 drop policy if exists "catalogo_attivita_write_admin" on public.catalogo_attivita;
-
 drop policy if exists "catalogo_ship_commessa_read" on public.catalogo_ship_commessa_attivita;
 drop policy if exists "catalogo_ship_commessa_write_admin" on public.catalogo_ship_commessa_attivita;
-
 create policy "catalogo_attivita_select_authenticated"
 on public.catalogo_attivita
 for select
 to authenticated
 using (deleted_at is null or public.is_admin());
-
 create policy "catalogo_attivita_insert_admin"
 on public.catalogo_attivita
 for insert
 to authenticated
 with check (public.is_admin());
-
 create policy "catalogo_attivita_update_admin"
 on public.catalogo_attivita
 for update
 to authenticated
 using (public.is_admin())
 with check (public.is_admin());
-
 create policy "catalogo_ship_commessa_select_admin"
 on public.catalogo_ship_commessa_attivita
 for select
 to authenticated
 using (public.is_admin());
-
 create policy "catalogo_ship_commessa_insert_admin"
 on public.catalogo_ship_commessa_attivita
 for insert
 to authenticated
 with check (public.is_admin());
-
 create policy "catalogo_ship_commessa_update_admin"
 on public.catalogo_ship_commessa_attivita
 for update
 to authenticated
 using (public.is_admin())
 with check (public.is_admin());
-
 -- 10) Effective scoped view for CAPO/UFFICIO/MANAGER/DIREZIONE/ADMIN
 create or replace view public.catalogo_scope_effective_v2 as
 select
@@ -469,9 +412,7 @@ where
         and sc.capo_id = auth.uid()
     )
   );
-
 grant select on public.catalogo_scope_effective_v2 to authenticated;
-
 -- 11) Import preview/apply RPC
 create or replace function public.catalogo_import_preview(
   p_kind text,
@@ -738,7 +679,6 @@ begin
   );
 end;
 $$;
-
 create or replace function public.catalogo_import_apply(
   p_run_id uuid
 )
@@ -904,11 +844,8 @@ exception
     raise;
 end;
 $$;
-
 revoke all on function public.catalogo_import_preview(text, uuid, text, text, bigint, text, jsonb, jsonb) from public;
 grant execute on function public.catalogo_import_preview(text, uuid, text, text, bigint, text, jsonb, jsonb) to authenticated;
-
 revoke all on function public.catalogo_import_apply(uuid) from public;
 grant execute on function public.catalogo_import_apply(uuid) to authenticated;
-
 commit;

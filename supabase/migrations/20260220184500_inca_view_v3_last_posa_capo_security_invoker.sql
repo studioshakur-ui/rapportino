@@ -6,7 +6,6 @@
 -- - Does NOT mask history based on situazione (Objective B: avoid "lost data" perception)
 
 begin;
-
 -- 1) Canonical V3 view
 create or replace view public.inca_cavi_with_last_posa_and_capo_v3
 with (security_invoker = true) as
@@ -40,17 +39,13 @@ left join posa
   on posa.codice_cache = c.codice
  and posa.costr_cache = c.costr
  and posa.commessa_cache = c.commessa;
-
 comment on view public.inca_cavi_with_last_posa_and_capo_v3 is
 'INCA cockpit canonical view: inca_cavi enriched with last posa_date + capo_label from rapportini history. security_invoker=true (RLS safe).';
-
 -- 2) Backward-compatible alias V2 -> V3 (prevents drift / conflicting migrations)
 create or replace view public.inca_cavi_with_last_posa_and_capo_v2
 with (security_invoker = true) as
 select *
 from public.inca_cavi_with_last_posa_and_capo_v3;
-
 comment on view public.inca_cavi_with_last_posa_and_capo_v2 is
 'Backward-compatible alias to V3. Do not redefine independently.';
-
 commit;

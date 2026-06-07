@@ -3,7 +3,6 @@
 -- Safe with Core Drive file-centric policies.
 
 begin;
-
 create table if not exists public.cncs_signal_runs (
   id uuid primary key default gen_random_uuid(),
   rapportino_id uuid not null references public.rapportini(id) on delete cascade,
@@ -16,13 +15,10 @@ create table if not exists public.cncs_signal_runs (
   warn_count integer not null default 0,
   block_count integer not null default 0
 );
-
 create index if not exists cncs_signal_runs_rapportino_id_idx
   on public.cncs_signal_runs(rapportino_id);
-
 create index if not exists cncs_signal_runs_created_at_idx
   on public.cncs_signal_runs(created_at desc);
-
 create table if not exists public.cncs_signals (
   id uuid primary key default gen_random_uuid(),
   run_id uuid not null references public.cncs_signal_runs(id) on delete cascade,
@@ -34,19 +30,14 @@ create table if not exists public.cncs_signals (
   payload jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
-
 create index if not exists cncs_signals_rapportino_id_idx
   on public.cncs_signals(rapportino_id);
-
 create index if not exists cncs_signals_run_id_idx
   on public.cncs_signals(run_id);
-
 create index if not exists cncs_signals_code_idx
   on public.cncs_signals(code);
-
 alter table public.cncs_signal_runs enable row level security;
 alter table public.cncs_signals enable row level security;
-
 -- RLS strategy:
 -- A user can see CNCS runs/signals only if they can see the underlying rapportino row.
 -- We rely on existing RLS on public.rapportini as the authoritative access gate.
@@ -62,7 +53,6 @@ using (
     where r.id = cncs_signal_runs.rapportino_id
   )
 );
-
 drop policy if exists cncs_signals_select_via_rapportini on public.cncs_signals;
 create policy cncs_signals_select_via_rapportini
 on public.cncs_signals
@@ -74,7 +64,6 @@ using (
     where r.id = cncs_signals.rapportino_id
   )
 );
-
 -- No direct inserts/updates/deletes for authenticated.
 -- Writes are server-side only (Edge Function using service role).
 

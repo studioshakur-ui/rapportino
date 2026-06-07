@@ -4,10 +4,8 @@
 
 alter table public.inca_cavi
   drop constraint if exists inca_cavi_situazione_check;
-
 alter table public.inca_cavi
   add constraint inca_cavi_situazione_check
   check ((situazione is null) or (situazione = any (array['L','T','P','R','B','E'])));
-
 comment on column public.inca_cavi.situazione is
   'L=libero (disponibile), R=richiesta, T=tagliato, B=bloccato, P=posato, E=eliminato. NULL legacy (NP).';

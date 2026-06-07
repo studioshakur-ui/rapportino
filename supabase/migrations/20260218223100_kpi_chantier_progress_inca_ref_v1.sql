@@ -8,7 +8,6 @@
 -- 3) UI reads views (no JS math rules), keeping sources unique and reproducible.
 
 begin;
-
 -- -----------------------------------------------------------------------------
 -- 1) INCA Chantier: per-file aggregation with metri_ref = greatest(metri_teo, metri_dis)
 -- -----------------------------------------------------------------------------
@@ -69,10 +68,8 @@ with base as (
   group by inca_file_id, nome_file, caricato_il, costr, commessa
 )
 select * from agg;
-
 comment on view public.direzione_inca_chantier_v1 is
   'Direzione (chantier): agrégation INCA par fichier avec metri_ref = greatest(metri_teo, metri_dis). Expose aussi metri_teo/metri_dis (audit) et stats de complétude.';
-
 -- Aggregation totals (per COSTR/Commessa) — convenient for charts / joining.
 create or replace view public.direzione_inca_chantier_totals_v1 as
 select
@@ -89,10 +86,8 @@ select
   (coalesce(sum(cavi_ref_none), 0))::int as cavi_ref_none
 from public.direzione_inca_chantier_v1
 group by costr, commessa;
-
 comment on view public.direzione_inca_chantier_totals_v1 is
   'Direzione (chantier): totaux INCA par COSTR/Commessa basés sur metri_ref (greatest(teo,dis)).';
-
 -- -----------------------------------------------------------------------------
 -- 2) KPI Chantier: global daily index on previsto_alloc (facts v4) — MT only.
 --    Canonical formula: indice = Σ(prodotto_alloc) / Σ(previsto_alloc)
@@ -130,10 +125,8 @@ select
   end as prod_mh
 from public.direzione_operator_facts_v4 f
 group by f.report_date, f.costr, f.commessa;
-
 comment on view public.kpi_chantier_global_day_v1 is
   'KPI Chantier (global/day): basé sur direzione_operator_facts_v4 (APPROVED_UFFICIO) et prorata ligne. MT only. Indice = Σreal_alloc / Σprevisto_alloc.';
-
 -- -----------------------------------------------------------------------------
 -- 3) KPI Chantier curve: join INCA baseline (metri_ref) with progress (MT only)
 -- -----------------------------------------------------------------------------
@@ -153,19 +146,15 @@ select
 from public.kpi_chantier_global_day_v1 k
 left join public.direzione_inca_chantier_totals_v1 i
   on i.costr = k.costr and i.commessa is not distinct from k.commessa;
-
 comment on view public.kpi_chantier_progress_day_v1 is
   'KPI Chantier (day): progress MT (rapportini approved) vs INCA baseline metri_ref (greatest teo/dis).';
-
 -- Permissions: views are read-only for app roles.
 revoke all on table public.direzione_inca_chantier_v1 from anon, authenticated;
 revoke all on table public.direzione_inca_chantier_totals_v1 from anon, authenticated;
 revoke all on table public.kpi_chantier_global_day_v1 from anon, authenticated;
 revoke all on table public.kpi_chantier_progress_day_v1 from anon, authenticated;
-
 grant select on table public.direzione_inca_chantier_v1 to authenticated, service_role;
 grant select on table public.direzione_inca_chantier_totals_v1 to authenticated, service_role;
 grant select on table public.kpi_chantier_global_day_v1 to authenticated, service_role;
 grant select on table public.kpi_chantier_progress_day_v1 to authenticated, service_role;
-
 commit;

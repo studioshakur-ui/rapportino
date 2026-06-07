@@ -1,5 +1,4 @@
 begin;
-
 create or replace function public.catalogo_role_create(
   p_role_key text,
   p_label_it text,
@@ -39,8 +38,6 @@ begin
   return v_row;
 end;
 $$;
-
 revoke all on function public.catalogo_role_create(text, text, text, text) from public;
 grant execute on function public.catalogo_role_create(text, text, text, text) to authenticated;
-
 commit;

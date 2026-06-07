@@ -1,3 +1,4 @@
+-- 20260218223000_inca_raw_columns_and_view_v2.sql
 -- CORE / INCA hardening: preserve *all* XLSX columns + stable posa/capo join across imports.
 --
 -- Non negotiable invariants:
@@ -6,13 +7,10 @@
 -- - Respect RLS: views must be SECURITY INVOKER.
 
 BEGIN;
-
 -- 1) Preserve full XLSX row payload (naval-grade audit).
 ALTER TABLE public.inca_cavi
   ADD COLUMN IF NOT EXISTS raw jsonb NOT NULL DEFAULT '{}'::jsonb;
-
 COMMENT ON COLUMN public.inca_cavi.raw IS 'Raw canonicalized XLSX row (all columns preserved as JSONB).';
-
 -- 2) v2 view: last posa + capo must survive new imports.
 --    Root cause: old view joined rapportino_inca_cavi by inca_cavo_id only.
 --    After re-import, inca_cavi ids change -> posa_date/capo disappear.
@@ -23,7 +21,6 @@ COMMENT ON COLUMN public.inca_cavi.raw IS 'Raw canonicalized XLSX row (all colum
 --      (Caches are hydrated by fn_hydrate_rapportino_inca_cavi_caches).
 
 DROP VIEW IF EXISTS public.inca_cavi_with_last_posa_and_capo_v2;
-
 CREATE VIEW public.inca_cavi_with_last_posa_and_capo_v2
 WITH (security_invoker = true) AS
 SELECT
@@ -103,13 +100,10 @@ FROM
   ) lp ON true
   LEFT JOIN public.rapportini r ON r.id = lp.rapportino_id
   LEFT JOIN public.profiles p ON p.id = r.capo_id;
-
 COMMENT ON VIEW public.inca_cavi_with_last_posa_and_capo_v2 IS
   'INCA cables + last posa + capo label. v2 preserves posa/capo across new INCA imports by joining via caches (codice_cache/costr_cache/commessa_cache) when IDs change.';
-
 -- Keep grants aligned with v1 behavior.
 GRANT ALL ON TABLE public.inca_cavi_with_last_posa_and_capo_v2 TO anon;
 GRANT ALL ON TABLE public.inca_cavi_with_last_posa_and_capo_v2 TO authenticated;
 GRANT ALL ON TABLE public.inca_cavi_with_last_posa_and_capo_v2 TO service_role;
-
 COMMIT;

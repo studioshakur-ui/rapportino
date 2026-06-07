@@ -1,5 +1,4 @@
 set check_function_bodies = off;
-
 -- Patch: fix date_from NULL (BETWEEN NULL issue) + robust costr/commessa matching
 -- + fix INCA column name (situazione)
 
@@ -17,7 +16,6 @@ AS $$
       ELSE 'OTHER'
     END;
 $$;
-
 CREATE OR REPLACE FUNCTION public.capo_mega_kpi_stesura_v1(
   p_costr text,
   p_commessa text DEFAULT NULL,

@@ -3,19 +3,15 @@
 -- Idempotent.
 
 begin;
-
 -- 1) Perf safety: indexes for the NOT EXISTS probes
 create index if not exists rapportino_inca_cavi_inca_cavo_id_idx
   on public.rapportino_inca_cavi(inca_cavo_id);
-
 create index if not exists archive_rapportino_cavi_inca_cavo_id_idx
   on archive.rapportino_cavi(inca_cavo_id);
-
 -- Optional but recommended: partial index to speed inca_file_id IS NULL filtering
 create index if not exists inca_cavi_inca_file_id_null_idx
   on public.inca_cavi(inca_file_id)
   where inca_file_id is null;
-
 -- 2) Audit + delete with exact deleted count
 do $$
 declare
@@ -76,5 +72,4 @@ begin
 
   raise notice 'inca_cavi legacy NULL rows after delete: remaining=%', v_after;
 end $$;
-
 commit;

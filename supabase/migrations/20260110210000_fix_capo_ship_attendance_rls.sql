@@ -9,10 +9,8 @@
 -- - Add a CAPO SELECT policy for completeness/diagnostics.
 
 begin;
-
 -- Ensure RLS is enabled (idempotent).
 alter table if exists public.capo_ship_attendance enable row level security;
-
 -- Helper: can the current CAPO write attendance for (plan_date, ship_id, capo_id)?
 -- Notes:
 -- - SECURITY DEFINER + postgres owner ensures this check is not affected by RLS on capo_ship_assignments.
@@ -39,7 +37,6 @@ as $$
         and a.ship_id = p_ship_id
     );
 $$;
-
 -- Helper: can the current CAPO write any ship-scoped rows for (plan_date, ship_id)?
 -- Used for operator_ship_attendance policies (table does not have capo_id column).
 create or replace function public.capo_can_write_assigned_ship(
@@ -62,19 +59,14 @@ as $$
         and a.ship_id = p_ship_id
     );
 $$;
-
 alter function public.capo_can_write_assigned_ship(date, uuid) owner to postgres;
-
 revoke all on function public.capo_can_write_assigned_ship(date, uuid) from public;
 grant execute on function public.capo_can_write_assigned_ship(date, uuid) to authenticated;
 grant execute on function public.capo_can_write_assigned_ship(date, uuid) to service_role;
-
 alter function public.capo_can_write_ship_attendance(date, uuid, uuid) owner to postgres;
-
 revoke all on function public.capo_can_write_ship_attendance(date, uuid, uuid) from public;
 grant execute on function public.capo_can_write_ship_attendance(date, uuid, uuid) to authenticated;
 grant execute on function public.capo_can_write_ship_attendance(date, uuid, uuid) to service_role;
-
 -- Rebuild policies (idempotent).
 drop policy if exists capo_insert_own_ship_attendance on public.capo_ship_attendance;
 create policy capo_insert_own_ship_attendance
@@ -85,7 +77,6 @@ to authenticated
 with check (
   public.capo_can_write_ship_attendance(plan_date, ship_id, capo_id)
 );
-
 drop policy if exists capo_update_own_ship_attendance on public.capo_ship_attendance;
 create policy capo_update_own_ship_attendance
 on public.capo_ship_attendance
@@ -98,7 +89,6 @@ using (
 with check (
   public.capo_can_write_ship_attendance(plan_date, ship_id, capo_id)
 );
-
 -- Optional but useful: CAPO can read his own attendance rows.
 drop policy if exists capo_select_own_ship_attendance on public.capo_ship_attendance;
 create policy capo_select_own_ship_attendance
@@ -109,10 +99,8 @@ to authenticated
 using (
   capo_id = auth.uid()
 );
-
 -- Harden operator_ship_attendance policies (same authorization concept: CAPO must be assigned to ship/day).
 alter table if exists public.operator_ship_attendance enable row level security;
-
 drop policy if exists capo_insert_operator_attendance_for_assigned_ship on public.operator_ship_attendance;
 create policy capo_insert_operator_attendance_for_assigned_ship
 on public.operator_ship_attendance
@@ -122,7 +110,6 @@ to authenticated
 with check (
   public.capo_can_write_assigned_ship(plan_date, ship_id)
 );
-
 drop policy if exists capo_update_operator_attendance_for_assigned_ship on public.operator_ship_attendance;
 create policy capo_update_operator_attendance_for_assigned_ship
 on public.operator_ship_attendance
@@ -135,5 +122,4 @@ using (
 with check (
   public.capo_can_write_assigned_ship(plan_date, ship_id)
 );
-
 commit;

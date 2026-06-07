@@ -6,26 +6,20 @@
 update public.rapportino_inca_cavi
 set progress_percent = 100
 where progress_percent is null;
-
 update public.rapportino_inca_cavi
 set progress_side = 'DA'
 where progress_side is null;
-
 -- Enforce defaults for new rows.
 alter table public.rapportino_inca_cavi
   alter column progress_percent set default 100,
   alter column progress_side set default 'DA';
-
 -- Remove NULLs at DB level.
 alter table public.rapportino_inca_cavi
   alter column progress_percent set not null,
   alter column progress_side set not null;
-
-
 -- 2) catalogo_attivita: introduce is_kpi flag
 alter table public.catalogo_attivita
   add column if not exists is_kpi boolean not null default false;
-
 -- Default KPI mapping for electricians (can be refined later in Admin UI).
 update public.catalogo_attivita
 set is_kpi = true
@@ -35,8 +29,6 @@ where upper(trim(coalesce(categoria, ''))) = 'STESURA'
     or upper(trim(coalesce(descrizione, ''))) = 'RIPRESA CAVI'
     or upper(trim(coalesce(descrizione, ''))) like 'RIPRESA%'
   );
-
-
 -- 3) KPI view: exclude informational lines (e.g. FASCETTATURA) for ELETTRICISTA
 create or replace view public.kpi_operator_line_v1 as
 with base as (

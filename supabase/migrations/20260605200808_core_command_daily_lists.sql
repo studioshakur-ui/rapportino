@@ -8,13 +8,10 @@
 -- ============================================================================
 
 begin;
-
 create extension if not exists pgcrypto;
-
 -- Telegram / live bridge compatibility: messages live are not tied to a file import.
 alter table public.whatsapp_messages
   alter column import_id drop not null;
-
 -- ---------------------------------------------------------------------------
 -- Daily list imports
 -- ---------------------------------------------------------------------------
@@ -31,7 +28,6 @@ create table if not exists public.daily_list_imports (
   raw_metadata jsonb       not null default '{}'::jsonb,
   created_at   timestamptz not null default now()
 );
-
 -- ---------------------------------------------------------------------------
 -- Daily list items
 -- ---------------------------------------------------------------------------
@@ -54,7 +50,6 @@ create table if not exists public.daily_list_items (
   planned_status        text,
   created_at            timestamptz not null default now()
 );
-
 -- ---------------------------------------------------------------------------
 -- Evidence links per daily list item
 -- ---------------------------------------------------------------------------
@@ -81,7 +76,6 @@ create table if not exists public.daily_list_item_events (
     or whatsapp_message_id is not null
   )
 );
-
 -- ---------------------------------------------------------------------------
 -- Optional deterministic status snapshots for future AI Advisor context
 -- ---------------------------------------------------------------------------
@@ -102,29 +96,22 @@ create table if not exists public.daily_list_item_status_snapshots (
   payload               jsonb       not null default '{}'::jsonb,
   created_at            timestamptz not null default now()
 );
-
 -- ---------------------------------------------------------------------------
 -- Indexes
 -- ---------------------------------------------------------------------------
 create index if not exists idx_daily_list_imports_imported_at
   on public.daily_list_imports (imported_at desc);
-
 create index if not exists idx_daily_list_items_import_code
   on public.daily_list_items (import_id, cable_code_normalized);
-
 create index if not exists idx_daily_list_items_inca
   on public.daily_list_items (inca_cavo_id)
   where inca_cavo_id is not null;
-
 create index if not exists idx_daily_list_items_perimetro
   on public.daily_list_items (import_id, perimetro);
-
 create index if not exists idx_daily_list_item_events_item_time
   on public.daily_list_item_events (daily_list_item_id, occurred_at desc);
-
 create index if not exists idx_daily_list_item_events_code_time
   on public.daily_list_item_events (cable_code_normalized, occurred_at desc);
-
 create unique index if not exists uq_daily_list_item_events_source
   on public.daily_list_item_events (
     daily_list_item_id,
@@ -132,7 +119,6 @@ create unique index if not exists uq_daily_list_item_events_source
     coalesce(core_event_id, '00000000-0000-0000-0000-000000000000'::uuid),
     coalesce(whatsapp_message_id, '00000000-0000-0000-0000-000000000000'::uuid)
   );
-
 do $$
 begin
   if exists (
@@ -182,7 +168,6 @@ begin
   end if;
 end
 $$;
-
 -- ---------------------------------------------------------------------------
 -- RLS
 -- ---------------------------------------------------------------------------
@@ -190,22 +175,18 @@ alter table public.daily_list_imports enable row level security;
 alter table public.daily_list_items enable row level security;
 alter table public.daily_list_item_events enable row level security;
 alter table public.daily_list_item_status_snapshots enable row level security;
-
 revoke all on public.daily_list_imports from anon;
 revoke all on public.daily_list_items from anon;
 revoke all on public.daily_list_item_events from anon;
 revoke all on public.daily_list_item_status_snapshots from anon;
-
 grant select, insert, update, delete on public.daily_list_imports to authenticated;
 grant select, insert, update, delete on public.daily_list_items to authenticated;
 grant select, insert, update, delete on public.daily_list_item_events to authenticated;
 grant select, insert, update, delete on public.daily_list_item_status_snapshots to authenticated;
-
 grant all on public.daily_list_imports to service_role;
 grant all on public.daily_list_items to service_role;
 grant all on public.daily_list_item_events to service_role;
 grant all on public.daily_list_item_status_snapshots to service_role;
-
 drop policy if exists "daily_list_imports_owner_all" on public.daily_list_imports;
 create policy "daily_list_imports_owner_all"
 on public.daily_list_imports
@@ -214,7 +195,6 @@ for all
 to authenticated
 using (public.core_command_is_owner())
 with check (public.core_command_is_owner());
-
 drop policy if exists "daily_list_items_owner_all" on public.daily_list_items;
 create policy "daily_list_items_owner_all"
 on public.daily_list_items
@@ -223,7 +203,6 @@ for all
 to authenticated
 using (public.core_command_is_owner())
 with check (public.core_command_is_owner());
-
 drop policy if exists "daily_list_item_events_owner_all" on public.daily_list_item_events;
 create policy "daily_list_item_events_owner_all"
 on public.daily_list_item_events
@@ -232,7 +211,6 @@ for all
 to authenticated
 using (public.core_command_is_owner())
 with check (public.core_command_is_owner());
-
 drop policy if exists "daily_list_item_status_snapshots_owner_all" on public.daily_list_item_status_snapshots;
 create policy "daily_list_item_status_snapshots_owner_all"
 on public.daily_list_item_status_snapshots
@@ -241,5 +219,4 @@ for all
 to authenticated
 using (public.core_command_is_owner())
 with check (public.core_command_is_owner());
-
 commit;

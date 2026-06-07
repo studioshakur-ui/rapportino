@@ -12,7 +12,6 @@
 -- - Returns last_sign_in_at + auth_created_at.
 
 begin;
-
 -- 1) Guard: require admin
 create or replace function public.require_admin()
 returns void
@@ -41,7 +40,6 @@ begin
   end if;
 end;
 $$;
-
 -- 2) RPC: list users with auth last_sign_in_at
 create or replace function public.admin_list_users_v1(
   p_q text default null,
@@ -97,12 +95,9 @@ as $$
   order by
     coalesce(u.last_sign_in_at, u.created_at, p.updated_at, p.created_at) desc nulls last;
 $$;
-
 -- 3) Privileges: executable by authenticated users (guarded by require_admin())
 revoke all on function public.admin_list_users_v1(text, text) from public;
 grant execute on function public.admin_list_users_v1(text, text) to authenticated;
-
 revoke all on function public.require_admin() from public;
 grant execute on function public.require_admin() to authenticated;
-
 commit;

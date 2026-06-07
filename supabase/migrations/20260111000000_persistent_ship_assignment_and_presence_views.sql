@@ -10,7 +10,6 @@
 */
 
 BEGIN;
-
 -- ------------------------------------------------------------------
 -- 1) CAPO ships "du jour" = assignation pérénne (ship_capos)
 --    plan_date est une colonne compat front, forcée à CURRENT_DATE
@@ -28,11 +27,8 @@ SELECT
 FROM "public"."ship_capos" sc
 JOIN "public"."ships" s ON s."id" = sc."ship_id"
 WHERE sc."capo_id" = auth.uid();
-
 COMMENT ON VIEW "public"."capo_today_ship_assignments_v1"
 IS 'CAPO ships for UI "today": derived from persistent ship_capos; plan_date is always CURRENT_DATE for front compatibility.';
-
-
 -- ------------------------------------------------------------------
 -- 2) RLS Presence : plus de dépendance à capo_ship_assignments(plan_date)
 --    => check sur ship_capos (ship_id, capo_id)
@@ -52,7 +48,6 @@ WITH CHECK (
       AND sc."capo_id" = auth.uid()
   )
 );
-
 -- operator_ship_attendance UPDATE
 DROP POLICY IF EXISTS "capo_update_operator_attendance_for_assigned_ship" ON "public"."operator_ship_attendance";
 CREATE POLICY "capo_update_operator_attendance_for_assigned_ship"
@@ -75,7 +70,6 @@ WITH CHECK (
       AND sc."capo_id" = auth.uid()
   )
 );
-
 -- capo_ship_attendance INSERT
 DROP POLICY IF EXISTS "capo_insert_own_ship_attendance" ON "public"."capo_ship_attendance";
 CREATE POLICY "capo_insert_own_ship_attendance"
@@ -91,7 +85,6 @@ WITH CHECK (
       AND sc."capo_id" = auth.uid()
   )
 );
-
 -- NOTE : capo_update_own_ship_attendance existe déjà et reste OK (capo_id = auth.uid()).
 
 
@@ -120,7 +113,6 @@ WITH CHECK (
       AND mca."active" = TRUE
   )
 );
-
 -- DELETE
 DROP POLICY IF EXISTS "ship_capos_manager_delete_perimeter" ON "public"."ship_capos";
 CREATE POLICY "ship_capos_manager_delete_perimeter"

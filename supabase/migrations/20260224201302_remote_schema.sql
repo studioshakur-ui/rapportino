@@ -1,5 +1,4 @@
-
-  create table "public"."capo_team_days" (
+create table "public"."capo_team_days" (
     "id" uuid not null default gen_random_uuid(),
     "capo_id" uuid not null,
     "ship_id" uuid not null,
@@ -11,12 +10,8 @@
     "updated_at" timestamp with time zone not null default now(),
     "created_by" uuid
       );
-
-
 alter table "public"."capo_team_days" enable row level security;
-
-
-  create table "public"."capo_team_members" (
+create table "public"."capo_team_members" (
     "id" uuid not null default gen_random_uuid(),
     "team_id" uuid not null,
     "operator_id" uuid not null,
@@ -26,12 +21,8 @@ alter table "public"."capo_team_days" enable row level security;
     "created_at" timestamp with time zone not null default now(),
     "updated_at" timestamp with time zone not null default now()
       );
-
-
 alter table "public"."capo_team_members" enable row level security;
-
-
-  create table "public"."capo_teams" (
+create table "public"."capo_teams" (
     "id" uuid not null default gen_random_uuid(),
     "team_day_id" uuid not null,
     "name" text not null,
@@ -43,88 +34,46 @@ alter table "public"."capo_team_members" enable row level security;
     "created_at" timestamp with time zone not null default now(),
     "updated_at" timestamp with time zone not null default now()
       );
-
-
 alter table "public"."capo_teams" enable row level security;
-
 alter table "archive"."rapportino_rows" add column "position" integer;
-
 alter table "public"."manager_plans" add column "is_locked" boolean not null default false;
-
 alter table "public"."manager_plans" add column "locked_at" timestamp with time zone;
-
 alter table "public"."manager_plans" add column "locked_by" uuid;
-
 alter table "public"."manager_plans" add column "unlocked_at" timestamp with time zone;
-
 alter table "public"."manager_plans" add column "unlocked_by" uuid;
-
 alter table "public"."rapportini" alter column "data" set default CURRENT_DATE;
-
 CREATE INDEX archive_rapportino_rows_rapportino_id_position_idx ON archive.rapportino_rows USING btree (rapportino_id, "position");
-
 CREATE INDEX capo_team_days_capo_date_idx ON public.capo_team_days USING btree (capo_id, plan_date);
-
 CREATE UNIQUE INDEX capo_team_days_pkey ON public.capo_team_days USING btree (id);
-
 CREATE INDEX capo_team_days_ship_date_idx ON public.capo_team_days USING btree (ship_id, plan_date);
-
 CREATE UNIQUE INDEX capo_team_days_unique_capo_ship_date ON public.capo_team_days USING btree (capo_id, ship_id, plan_date);
-
 CREATE INDEX capo_team_members_operator_idx ON public.capo_team_members USING btree (operator_id);
-
 CREATE UNIQUE INDEX capo_team_members_pkey ON public.capo_team_members USING btree (id);
-
 CREATE INDEX capo_team_members_team_idx ON public.capo_team_members USING btree (team_id);
-
 CREATE UNIQUE INDEX capo_team_members_unique_team_operator ON public.capo_team_members USING btree (team_id, operator_id);
-
 CREATE UNIQUE INDEX capo_teams_pkey ON public.capo_teams USING btree (id);
-
 CREATE INDEX capo_teams_team_day_idx ON public.capo_teams USING btree (team_day_id);
-
 CREATE UNIQUE INDEX capo_teams_unique_day_position ON public.capo_teams USING btree (team_day_id, "position");
-
 CREATE INDEX manager_plans_is_locked_idx ON public.manager_plans USING btree (is_locked) WHERE (is_locked = true);
-
 alter table "public"."capo_team_days" add constraint "capo_team_days_pkey" PRIMARY KEY using index "capo_team_days_pkey";
-
 alter table "public"."capo_team_members" add constraint "capo_team_members_pkey" PRIMARY KEY using index "capo_team_members_pkey";
-
 alter table "public"."capo_teams" add constraint "capo_teams_pkey" PRIMARY KEY using index "capo_teams_pkey";
-
 alter table "public"."capo_team_days" add constraint "capo_team_days_ship_fk" FOREIGN KEY (ship_id) REFERENCES public.ships(id) ON DELETE RESTRICT not valid;
-
 alter table "public"."capo_team_days" validate constraint "capo_team_days_ship_fk";
-
 alter table "public"."capo_team_days" add constraint "capo_team_days_status_chk" CHECK ((status = ANY (ARRAY['DRAFT'::text, 'LOCKED'::text]))) not valid;
-
 alter table "public"."capo_team_days" validate constraint "capo_team_days_status_chk";
-
 alter table "public"."capo_team_days" add constraint "capo_team_days_unique_capo_ship_date" UNIQUE using index "capo_team_days_unique_capo_ship_date";
-
 alter table "public"."capo_team_members" add constraint "capo_team_members_minutes_chk" CHECK (((planned_minutes >= 0) AND (planned_minutes <= (24 * 60)))) not valid;
-
 alter table "public"."capo_team_members" validate constraint "capo_team_members_minutes_chk";
-
 alter table "public"."capo_team_members" add constraint "capo_team_members_operator_fk" FOREIGN KEY (operator_id) REFERENCES public.operators(id) ON DELETE RESTRICT not valid;
-
 alter table "public"."capo_team_members" validate constraint "capo_team_members_operator_fk";
-
 alter table "public"."capo_team_members" add constraint "capo_team_members_team_id_fkey" FOREIGN KEY (team_id) REFERENCES public.capo_teams(id) ON DELETE CASCADE not valid;
-
 alter table "public"."capo_team_members" validate constraint "capo_team_members_team_id_fkey";
-
 alter table "public"."capo_team_members" add constraint "capo_team_members_unique_team_operator" UNIQUE using index "capo_team_members_unique_team_operator";
-
 alter table "public"."capo_teams" add constraint "capo_teams_team_day_id_fkey" FOREIGN KEY (team_day_id) REFERENCES public.capo_team_days(id) ON DELETE CASCADE not valid;
-
 alter table "public"."capo_teams" validate constraint "capo_teams_team_day_id_fkey";
-
 alter table "public"."capo_teams" add constraint "capo_teams_unique_day_position" UNIQUE using index "capo_teams_unique_day_position";
-
 set check_function_bodies = off;
-
 CREATE OR REPLACE FUNCTION public.capo_get_team_day_v1(p_ship_id uuid, p_plan_date date)
  RETURNS jsonb
  LANGUAGE sql
@@ -163,9 +112,7 @@ select jsonb_build_object(
   'day', (select to_jsonb(d) from day_row d),
   'teams', coalesce((select jsonb_agg(to_jsonb(teams)) from teams), '[]'::jsonb)
 );
-$function$
-;
-
+$function$;
 create or replace view "public"."capo_team_day_full_v1" as  SELECT d.id AS team_day_id,
     d.capo_id,
     d.ship_id,
@@ -189,8 +136,6 @@ create or replace view "public"."capo_team_day_full_v1" as  SELECT d.id AS team_
    FROM ((public.capo_team_days d
      LEFT JOIN public.capo_teams t ON ((t.team_day_id = d.id)))
      LEFT JOIN public.capo_team_members m ON ((m.team_id = t.id)));
-
-
 CREATE OR REPLACE FUNCTION public.capo_team_days_fill_owner()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -211,9 +156,7 @@ begin
   new.capo_id := auth.uid();
   return new;
 end;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.core_set_updated_at()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -222,9 +165,7 @@ begin
   new.updated_at = now();
   return new;
 end;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.debug_whoami()
  RETURNS jsonb
  LANGUAGE sql
@@ -235,9 +176,7 @@ AS $function$
     'jwt_sub', current_setting('request.jwt.claim.sub', true),
     'jwt_role', current_setting('request.jwt.claim.role', true)
   );
-$function$
-;
-
+$function$;
 create or replace view "public"."inca_head_by_project_v1" as  SELECT DISTINCT ON (costr, commessa) id AS inca_file_id,
     costr,
     commessa,
@@ -245,8 +184,6 @@ create or replace view "public"."inca_head_by_project_v1" as  SELECT DISTINCT ON
    FROM public.inca_files
   WHERE (file_type = 'XLSX'::text)
   ORDER BY costr, commessa, uploaded_at DESC;
-
-
 CREATE OR REPLACE FUNCTION public.test_set_auth(uid uuid)
  RETURNS void
  LANGUAGE plpgsql
@@ -258,9 +195,7 @@ begin
     true
   );
 end;
-$function$
-;
-
+$function$;
 create or replace view "public"."archive_rapportino_rows_v1" as  SELECT rr.id,
     rr.rapportino_id,
     rr.row_index,
@@ -288,8 +223,6 @@ create or replace view "public"."archive_rapportino_rows_v1" as  SELECT rr.id,
      LEFT JOIN public.catalogo_ship_commessa_attivita csca ON (((csca.ship_id = s.ship_id) AND (csca.commessa = r.commessa) AND (csca.activity_id = rr.activity_id))))
      LEFT JOIN public.catalogo_attivita ca_global ON ((ca_global.id = rr.activity_id)))
      LEFT JOIN public.catalogo_attivita ca ON ((ca.id = rr.activity_id)));
-
-
 CREATE OR REPLACE FUNCTION public.capo_can_write_assigned_ship(p_plan_date date, p_ship_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -305,9 +238,7 @@ AS $function$
         and a.plan_date = p_plan_date
         and a.ship_id = p_ship_id
     );
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.capo_can_write_ship_attendance(p_plan_date date, p_ship_id uuid, p_capo_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -324,9 +255,7 @@ AS $function$
         and a.plan_date = p_plan_date
         and a.ship_id = p_ship_id
     );
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.capo_kpi_worktime_v1(p_costr text, p_commessa text DEFAULT NULL::text, p_date_from date DEFAULT NULL::date, p_date_to date DEFAULT NULL::date)
  RETURNS jsonb
  LANGUAGE sql
@@ -452,9 +381,7 @@ json_out as (
   ) as payload
 )
 select coalesce((select err from guard), (select payload from json_out));
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.capo_returned_summary(p_role text)
  RETURNS TABLE(returned_count bigint, last_id uuid, last_report_date date, last_costr text, last_commessa text, last_updated_at timestamp with time zone)
  LANGUAGE sql
@@ -493,9 +420,7 @@ select
   null::text,
   null::timestamptz
 where not exists (select 1 from last_one);
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.core_current_profile()
  RETURNS public.core_current_profile_type
  LANGUAGE sql
@@ -513,9 +438,7 @@ AS $function$
       select (auth.uid(), null::text, array[]::text[])::public.core_current_profile_type
     )
   );
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.core_drive_emit_upload_event(p_file_id uuid, p_payload jsonb DEFAULT '{}'::jsonb)
  RETURNS uuid
  LANGUAGE plpgsql
@@ -535,9 +458,7 @@ begin
 
   return public.core_drive_append_event(p_file_id, 'UPLOAD', coalesce(p_payload, '{}'::jsonb), null, null);
 end;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.core_drive_soft_delete_file(p_file_id uuid, p_reason text DEFAULT NULL::text)
  RETURNS uuid
  LANGUAGE plpgsql
@@ -576,9 +497,7 @@ begin
 
   return v_event_id;
 end;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.current_profile()
  RETURNS public.profiles
  LANGUAGE sql
@@ -588,9 +507,7 @@ AS $function$
   select p.*
   from public.profiles p
   where p.id = auth.uid();
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.fn_capo_mega_kpi_kind(p_descr text)
  RETURNS text
  LANGUAGE sql
@@ -604,9 +521,7 @@ AS $function$
       WHEN lower(p_descr) LIKE '%stesura%' THEN 'STESURA'
       ELSE 'OTHER'
     END;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.fn_consolidate_inca_on_rapportino_approved()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -658,9 +573,7 @@ begin
 
   return new;
 end;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.fn_hydrate_rapportino_rows_previsto()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -755,9 +668,7 @@ begin
 
   return new;
 end;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.fn_rapportino_apply_product(p_rapportino_id uuid)
  RETURNS void
  LANGUAGE plpgsql
@@ -794,9 +705,7 @@ begin
 
   -- Optionnel: tu peux logger plus tard dans une table d’audit si besoin.
 end;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.fn_resolve_ship_id_from_commessa(p_commessa text)
  RETURNS uuid
  LANGUAGE plpgsql
@@ -840,9 +749,7 @@ begin
 
   return null;
 end;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.guard_profiles_capo_ui_mode_v1()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -885,9 +792,7 @@ begin
 
   return new;
 end;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.handle_new_user()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -906,9 +811,7 @@ begin
 
   return new;
 end;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.manager_my_capi()
  RETURNS TABLE(capo_id uuid, display_name text, email text)
  LANGUAGE sql
@@ -935,9 +838,7 @@ AS $function$
       me.app_role in ('MANAGER','ADMIN')
     )
   order by mca.created_at asc;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.manager_my_capi_ui_modes_v1()
  RETURNS TABLE(capo_id uuid, display_name text, email text, capo_ui_mode text)
  LANGUAGE sql
@@ -973,9 +874,7 @@ AS $function$
     )
   order by
     coalesce(p.display_name, p.email, p.id::text);
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.manager_my_capi_v1()
  RETURNS TABLE(capo_id uuid, display_name text, email text)
  LANGUAGE sql
@@ -993,9 +892,7 @@ AS $function$
     and a.active = true
     and p.app_role = 'CAPO'
   order by a.created_at asc;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.manager_my_operators_v1()
  RETURNS TABLE(operator_id uuid, operator_name text, operator_roles text[], created_at timestamp with time zone)
  LANGUAGE sql
@@ -1023,9 +920,7 @@ AS $function$
     order by so.operator_id, od.display_name asc
   ) x
   order by x.operator_name asc;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.manager_set_capo_ui_mode_v1(p_capo_id uuid, p_mode text)
  RETURNS void
  LANGUAGE plpgsql
@@ -1088,9 +983,7 @@ begin
     raise exception 'capo not found: %', p_capo_id;
   end if;
 end;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.nav_status_from_text(x text)
  RETURNS public.nav_status
  LANGUAGE sql
@@ -1105,9 +998,7 @@ AS $function$
     when 'NP' then 'NP'::public.nav_status
     else 'NP'::public.nav_status
   end
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.percorso_propose_lots(p_document_id uuid, p_min_core_segments integer, p_min_cables integer, p_max_lots integer, p_dry_run boolean)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -1157,9 +1048,7 @@ begin
     )
   );
 end;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.prevent_update_on_frozen_files()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -1170,9 +1059,7 @@ begin
   end if;
   return new;
 end;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.recompute_operator_kpi_snapshot(p_operator_id uuid, p_period public.kpi_period, p_ref_date date, p_year_iso integer, p_week_iso integer, p_actor uuid)
  RETURNS void
  LANGUAGE plpgsql
@@ -1243,9 +1130,7 @@ begin
     computed_by = excluded.computed_by;
 
 end;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.sync_profile_roles()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -1283,9 +1168,7 @@ begin
 
   return new;
 end;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.trg_auto_tp_from_progress()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -1320,9 +1203,7 @@ begin
 
   return new;
 end;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.trg_fill_rapportino_inca_cache()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -1351,9 +1232,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.trg_rapportini_on_status_product()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -1383,9 +1262,7 @@ begin
 
   return new;
 end;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.ufficio_create_correction_rapportino(p_rapportino_id uuid, p_reason text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -1664,137 +1541,71 @@ begin
     'copied_inca_links', v_copied_inca
   );
 end;
-$function$
-;
-
+$function$;
 grant delete on table "public"."capo_team_days" to "anon";
-
 grant insert on table "public"."capo_team_days" to "anon";
-
 grant references on table "public"."capo_team_days" to "anon";
-
 grant select on table "public"."capo_team_days" to "anon";
-
 grant trigger on table "public"."capo_team_days" to "anon";
-
 grant truncate on table "public"."capo_team_days" to "anon";
-
 grant update on table "public"."capo_team_days" to "anon";
-
 grant delete on table "public"."capo_team_days" to "authenticated";
-
 grant insert on table "public"."capo_team_days" to "authenticated";
-
 grant references on table "public"."capo_team_days" to "authenticated";
-
 grant select on table "public"."capo_team_days" to "authenticated";
-
 grant trigger on table "public"."capo_team_days" to "authenticated";
-
 grant truncate on table "public"."capo_team_days" to "authenticated";
-
 grant update on table "public"."capo_team_days" to "authenticated";
-
 grant delete on table "public"."capo_team_days" to "service_role";
-
 grant insert on table "public"."capo_team_days" to "service_role";
-
 grant references on table "public"."capo_team_days" to "service_role";
-
 grant select on table "public"."capo_team_days" to "service_role";
-
 grant trigger on table "public"."capo_team_days" to "service_role";
-
 grant truncate on table "public"."capo_team_days" to "service_role";
-
 grant update on table "public"."capo_team_days" to "service_role";
-
 grant delete on table "public"."capo_team_members" to "anon";
-
 grant insert on table "public"."capo_team_members" to "anon";
-
 grant references on table "public"."capo_team_members" to "anon";
-
 grant select on table "public"."capo_team_members" to "anon";
-
 grant trigger on table "public"."capo_team_members" to "anon";
-
 grant truncate on table "public"."capo_team_members" to "anon";
-
 grant update on table "public"."capo_team_members" to "anon";
-
 grant delete on table "public"."capo_team_members" to "authenticated";
-
 grant insert on table "public"."capo_team_members" to "authenticated";
-
 grant references on table "public"."capo_team_members" to "authenticated";
-
 grant select on table "public"."capo_team_members" to "authenticated";
-
 grant trigger on table "public"."capo_team_members" to "authenticated";
-
 grant truncate on table "public"."capo_team_members" to "authenticated";
-
 grant update on table "public"."capo_team_members" to "authenticated";
-
 grant delete on table "public"."capo_team_members" to "service_role";
-
 grant insert on table "public"."capo_team_members" to "service_role";
-
 grant references on table "public"."capo_team_members" to "service_role";
-
 grant select on table "public"."capo_team_members" to "service_role";
-
 grant trigger on table "public"."capo_team_members" to "service_role";
-
 grant truncate on table "public"."capo_team_members" to "service_role";
-
 grant update on table "public"."capo_team_members" to "service_role";
-
 grant delete on table "public"."capo_teams" to "anon";
-
 grant insert on table "public"."capo_teams" to "anon";
-
 grant references on table "public"."capo_teams" to "anon";
-
 grant select on table "public"."capo_teams" to "anon";
-
 grant trigger on table "public"."capo_teams" to "anon";
-
 grant truncate on table "public"."capo_teams" to "anon";
-
 grant update on table "public"."capo_teams" to "anon";
-
 grant delete on table "public"."capo_teams" to "authenticated";
-
 grant insert on table "public"."capo_teams" to "authenticated";
-
 grant references on table "public"."capo_teams" to "authenticated";
-
 grant select on table "public"."capo_teams" to "authenticated";
-
 grant trigger on table "public"."capo_teams" to "authenticated";
-
 grant truncate on table "public"."capo_teams" to "authenticated";
-
 grant update on table "public"."capo_teams" to "authenticated";
-
 grant delete on table "public"."capo_teams" to "service_role";
-
 grant insert on table "public"."capo_teams" to "service_role";
-
 grant references on table "public"."capo_teams" to "service_role";
-
 grant select on table "public"."capo_teams" to "service_role";
-
 grant trigger on table "public"."capo_teams" to "service_role";
-
 grant truncate on table "public"."capo_teams" to "service_role";
-
 grant update on table "public"."capo_teams" to "service_role";
-
-
-  create policy "capo_ship_assignments_select_ufficio_scoped"
+create policy "capo_ship_assignments_select_ufficio_scoped"
   on "public"."capo_ship_assignments"
   as permissive
   for select
@@ -1802,47 +1613,32 @@ grant update on table "public"."capo_teams" to "service_role";
 using ((EXISTS ( SELECT 1
    FROM public.ufficio_capo_scopes s
   WHERE ((s.ufficio_id = auth.uid()) AND (s.capo_id = capo_ship_assignments.capo_id) AND (s.ship_id = capo_ship_assignments.ship_id) AND (s.active = true)))));
-
-
-
-  create policy "capo_team_days_delete_own"
+create policy "capo_team_days_delete_own"
   on "public"."capo_team_days"
   as permissive
   for delete
   to authenticated
 using ((capo_id = auth.uid()));
-
-
-
-  create policy "capo_team_days_insert_own"
+create policy "capo_team_days_insert_own"
   on "public"."capo_team_days"
   as permissive
   for insert
   to authenticated
 with check ((capo_id = auth.uid()));
-
-
-
-  create policy "capo_team_days_select_own"
+create policy "capo_team_days_select_own"
   on "public"."capo_team_days"
   as permissive
   for select
   to authenticated
 using ((capo_id = auth.uid()));
-
-
-
-  create policy "capo_team_days_update_own"
+create policy "capo_team_days_update_own"
   on "public"."capo_team_days"
   as permissive
   for update
   to authenticated
 using ((capo_id = auth.uid()))
 with check ((capo_id = auth.uid()));
-
-
-
-  create policy "capo_team_members_delete_own"
+create policy "capo_team_members_delete_own"
   on "public"."capo_team_members"
   as permissive
   for delete
@@ -1851,10 +1647,7 @@ using ((EXISTS ( SELECT 1
    FROM (public.capo_teams t
      JOIN public.capo_team_days d ON ((d.id = t.team_day_id)))
   WHERE ((t.id = capo_team_members.team_id) AND (d.capo_id = auth.uid())))));
-
-
-
-  create policy "capo_team_members_insert_own"
+create policy "capo_team_members_insert_own"
   on "public"."capo_team_members"
   as permissive
   for insert
@@ -1863,10 +1656,7 @@ with check ((EXISTS ( SELECT 1
    FROM (public.capo_teams t
      JOIN public.capo_team_days d ON ((d.id = t.team_day_id)))
   WHERE ((t.id = capo_team_members.team_id) AND (d.capo_id = auth.uid())))));
-
-
-
-  create policy "capo_team_members_select_own"
+create policy "capo_team_members_select_own"
   on "public"."capo_team_members"
   as permissive
   for select
@@ -1875,10 +1665,7 @@ using ((EXISTS ( SELECT 1
    FROM (public.capo_teams t
      JOIN public.capo_team_days d ON ((d.id = t.team_day_id)))
   WHERE ((t.id = capo_team_members.team_id) AND (d.capo_id = auth.uid())))));
-
-
-
-  create policy "capo_team_members_update_own"
+create policy "capo_team_members_update_own"
   on "public"."capo_team_members"
   as permissive
   for update
@@ -1891,10 +1678,7 @@ with check ((EXISTS ( SELECT 1
    FROM (public.capo_teams t
      JOIN public.capo_team_days d ON ((d.id = t.team_day_id)))
   WHERE ((t.id = capo_team_members.team_id) AND (d.capo_id = auth.uid())))));
-
-
-
-  create policy "capo_teams_delete_own"
+create policy "capo_teams_delete_own"
   on "public"."capo_teams"
   as permissive
   for delete
@@ -1902,10 +1686,7 @@ with check ((EXISTS ( SELECT 1
 using ((EXISTS ( SELECT 1
    FROM public.capo_team_days d
   WHERE ((d.id = capo_teams.team_day_id) AND (d.capo_id = auth.uid())))));
-
-
-
-  create policy "capo_teams_insert_own"
+create policy "capo_teams_insert_own"
   on "public"."capo_teams"
   as permissive
   for insert
@@ -1913,10 +1694,7 @@ using ((EXISTS ( SELECT 1
 with check ((EXISTS ( SELECT 1
    FROM public.capo_team_days d
   WHERE ((d.id = capo_teams.team_day_id) AND (d.capo_id = auth.uid())))));
-
-
-
-  create policy "capo_teams_select_own"
+create policy "capo_teams_select_own"
   on "public"."capo_teams"
   as permissive
   for select
@@ -1924,10 +1702,7 @@ with check ((EXISTS ( SELECT 1
 using ((EXISTS ( SELECT 1
    FROM public.capo_team_days d
   WHERE ((d.id = capo_teams.team_day_id) AND (d.capo_id = auth.uid())))));
-
-
-
-  create policy "capo_teams_update_own"
+create policy "capo_teams_update_own"
   on "public"."capo_teams"
   as permissive
   for update
@@ -1938,54 +1713,28 @@ using ((EXISTS ( SELECT 1
 with check ((EXISTS ( SELECT 1
    FROM public.capo_team_days d
   WHERE ((d.id = capo_teams.team_day_id) AND (d.capo_id = auth.uid())))));
-
-
-
-  create policy "admin_delete_all_manager_plans"
+create policy "admin_delete_all_manager_plans"
   on "public"."manager_plans"
   as permissive
   for delete
   to public
 using (public.is_role('ADMIN'::text));
-
-
-
-  create policy "admin_insert_all_manager_plans"
+create policy "admin_insert_all_manager_plans"
   on "public"."manager_plans"
   as permissive
   for insert
   to public
 with check (public.is_role('ADMIN'::text));
-
-
-
-  create policy "admin_update_all_manager_plans"
+create policy "admin_update_all_manager_plans"
   on "public"."manager_plans"
   as permissive
   for update
   to public
 using (public.is_role('ADMIN'::text))
 with check (public.is_role('ADMIN'::text));
-
-
 CREATE TRIGGER trg_capo_team_days_fill_owner BEFORE INSERT ON public.capo_team_days FOR EACH ROW EXECUTE FUNCTION public.capo_team_days_fill_owner();
-
 CREATE TRIGGER trg_capo_team_days_updated_at BEFORE UPDATE ON public.capo_team_days FOR EACH ROW EXECUTE FUNCTION public.core_set_updated_at();
-
 CREATE TRIGGER trg_capo_team_members_updated_at BEFORE UPDATE ON public.capo_team_members FOR EACH ROW EXECUTE FUNCTION public.core_set_updated_at();
-
 CREATE TRIGGER trg_capo_teams_updated_at BEFORE UPDATE ON public.capo_teams FOR EACH ROW EXECUTE FUNCTION public.core_set_updated_at();
-
--- storage.protect_delete() is a Supabase Cloud internal — not present in local Docker.
--- Wrapped in DO blocks so local db reset succeeds; prod already has these triggers.
-DO $$ BEGIN
-  CREATE TRIGGER protect_buckets_delete BEFORE DELETE ON storage.buckets FOR EACH STATEMENT EXECUTE FUNCTION storage.protect_delete();
-EXCEPTION WHEN undefined_function OR undefined_table THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE TRIGGER protect_objects_delete BEFORE DELETE ON storage.objects FOR EACH STATEMENT EXECUTE FUNCTION storage.protect_delete();
-EXCEPTION WHEN undefined_function OR undefined_table THEN NULL;
-END $$;
-
-
+CREATE TRIGGER protect_buckets_delete BEFORE DELETE ON storage.buckets FOR EACH STATEMENT EXECUTE FUNCTION storage.protect_delete();
+CREATE TRIGGER protect_objects_delete BEFORE DELETE ON storage.objects FOR EACH STATEMENT EXECUTE FUNCTION storage.protect_delete();

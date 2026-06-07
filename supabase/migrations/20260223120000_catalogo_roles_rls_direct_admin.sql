@@ -1,17 +1,13 @@
 begin;
-
 alter table public.catalogo_roles enable row level security;
-
 drop policy if exists "catalogo_roles_select_authenticated" on public.catalogo_roles;
 drop policy if exists "catalogo_roles_insert_admin" on public.catalogo_roles;
 drop policy if exists "catalogo_roles_update_admin" on public.catalogo_roles;
-
 create policy "catalogo_roles_select_authenticated"
 on public.catalogo_roles
 for select
 to authenticated
 using (deleted_at is null);
-
 create policy "catalogo_roles_insert_admin"
 on public.catalogo_roles
 for insert
@@ -25,7 +21,6 @@ with check (
       and upper(p.app_role::text) = 'ADMIN'
   )
 );
-
 create policy "catalogo_roles_update_admin"
 on public.catalogo_roles
 for update
@@ -48,5 +43,4 @@ with check (
       and upper(p.app_role::text) = 'ADMIN'
   )
 );
-
 commit;

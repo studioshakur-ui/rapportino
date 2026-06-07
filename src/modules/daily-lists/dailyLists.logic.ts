@@ -122,14 +122,14 @@ export function buildRecommendedAction(
     hasPartialProgress: boolean;
   }
 ): string {
-  if (status === "outside_inca") return "Vérifier le code INCA avant action terrain";
-  if (status === "blocked") return "Lever le blocage ouvert avant clôture";
-  if (flags.hasShortIssue) return "Contrôler longueur et relancer correction câble court";
-  if (flags.hasMissingIssue) return "Localiser câble manquant et confirmer sur WhatsApp";
-  if (flags.hasPartialProgress) return "Demander pourcentage final et preuve de pose";
-  if (status === "no_evidence") return "Demander confirmation WhatsApp avec photo ou message clair";
-  if (status === "to_verify") return "Valider l'achèvement avant clôture de liste";
-  return "Archiver comme exploitable dans Cable Story";
+  if (status === "outside_inca") return "Verificare il codice INCA prima dell'azione di campo";
+  if (status === "blocked") return "Rimuovere il blocco aperto prima della chiusura";
+  if (flags.hasShortIssue) return "Controllare la lunghezza e rilanciare la correzione del cavo corto";
+  if (flags.hasMissingIssue) return "Localizzare il cavo mancante e confermare su WhatsApp";
+  if (flags.hasPartialProgress) return "Richiedere percentuale finale e prova di posa";
+  if (status === "no_evidence") return "Richiedere conferma WhatsApp con foto o messaggio chiaro";
+  if (status === "to_verify") return "Validare il completamento prima della chiusura lista";
+  return "Archiviare come elemento sfruttabile nella Cable Story";
 }
 
 // ── Build ItemVM from DB rows ──────────────────────────────────────────────
@@ -263,7 +263,7 @@ export function buildTomorrowActions(
   if (missingEvidence.length > 0) {
     actions.push({
       kind: "missing_evidence",
-      label: "Traiter les câbles sans preuve WhatsApp",
+      label: "Trattare i cavi senza prova WhatsApp",
       count: missingEvidence.length,
       cable_codes: missingEvidence.slice(0, 10).map((i) => i.cable_code_normalized),
       perimetro: null,
@@ -274,7 +274,7 @@ export function buildTomorrowActions(
   if (qualityIssues.length > 0) {
     actions.push({
       kind: "quality_issue",
-      label: "Traiter les courts, manquants et progressions partielles",
+      label: "Trattare cavi corti, mancanti e avanzamenti parziali",
       count: qualityIssues.length,
       cable_codes: qualityIssues.slice(0, 10).map((i) => i.cable_code_normalized),
       perimetro: null,
@@ -286,7 +286,7 @@ export function buildTomorrowActions(
     const zoneItems = items.filter((i) => (i.perimetro ?? "—") === zone.perimetro);
     actions.push({
       kind: "zero_zone",
-      label: `Zone à 0%: ${zone.perimetro}`,
+      label: `Zona a 0%: ${zone.perimetro}`,
       count: zone.total,
       cable_codes: zoneItems.slice(0, 8).map((i) => i.cable_code_normalized),
       perimetro: zone.perimetro,

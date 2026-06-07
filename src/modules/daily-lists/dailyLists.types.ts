@@ -20,13 +20,13 @@ export interface StatusMeta {
 }
 
 export const STATUS_META: Record<DailyItemStatus, StatusMeta> = {
-  confirmed_field: { label: "Confirmé terrain",   color: "bg-emerald-100 dark:bg-emerald-900/30", textColor: "text-emerald-700 dark:text-emerald-400", icon: "✓" },
-  likely_laid:     { label: "Posé probable",       color: "bg-blue-100 dark:bg-blue-900/30",     textColor: "text-blue-700 dark:text-blue-400",     icon: "~" },
-  to_verify:       { label: "À vérifier",          color: "bg-amber-100 dark:bg-amber-900/30",   textColor: "text-amber-700 dark:text-amber-400",   icon: "%" },
-  no_evidence:     { label: "Sans preuve",         color: "bg-zinc-100 dark:bg-zinc-800",        textColor: "text-zinc-500 dark:text-zinc-400",     icon: "?" },
-  missing:         { label: "Manquant",            color: "bg-red-100 dark:bg-red-900/30",       textColor: "text-red-700 dark:text-red-400",       icon: "✗" },
-  blocked:         { label: "Bloqué",              color: "bg-red-200 dark:bg-red-900/40",       textColor: "text-red-800 dark:text-red-300",       icon: "⊘" },
-  outside_inca:    { label: "Hors INCA",           color: "bg-purple-100 dark:bg-purple-900/30", textColor: "text-purple-700 dark:text-purple-400", icon: "∅" },
+  confirmed_field: { label: "Confermato campo", color: "bg-emerald-100 dark:bg-emerald-900/30", textColor: "text-emerald-700 dark:text-emerald-400", icon: "✓" },
+  likely_laid:     { label: "Posa probabile",   color: "bg-blue-100 dark:bg-blue-900/30",     textColor: "text-blue-700 dark:text-blue-400",     icon: "~" },
+  to_verify:       { label: "Da verificare",    color: "bg-amber-100 dark:bg-amber-900/30",   textColor: "text-amber-700 dark:text-amber-400",   icon: "%" },
+  no_evidence:     { label: "Senza prova",      color: "bg-zinc-100 dark:bg-zinc-800",        textColor: "text-zinc-500 dark:text-zinc-400",     icon: "?" },
+  missing:         { label: "Mancante",         color: "bg-red-100 dark:bg-red-900/30",       textColor: "text-red-700 dark:text-red-400",       icon: "✗" },
+  blocked:         { label: "Bloccato",         color: "bg-red-200 dark:bg-red-900/40",       textColor: "text-red-800 dark:text-red-300",       icon: "⊘" },
+  outside_inca:    { label: "Fuori INCA",       color: "bg-purple-100 dark:bg-purple-900/30", textColor: "text-purple-700 dark:text-purple-400", icon: "∅" },
 };
 
 // ── DB row types ───────────────────────────────────────────────────────────
