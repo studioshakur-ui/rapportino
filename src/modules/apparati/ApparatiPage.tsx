@@ -4,6 +4,13 @@ import { AppBar, EmptyState, Pill, Screen, Section, StatCard } from "../../compo
 import { formatCableDisplay } from "../../core/cable/cableDisplay";
 import { loadCoreEngineSnapshot } from "../../domain/core-engine";
 
+function closureLabel(status: string): string {
+  if (status === "CLOSED") return "CHIUSO";
+  if (status === "PARTIAL") return "PARZIALE";
+  if (status === "BLOCKED") return "BLOCCATO";
+  return "APERTO";
+}
+
 export default function ApparatiPage(): JSX.Element {
   const navigate = useNavigate();
   const { data, isLoading } = useQuery({
@@ -13,6 +20,7 @@ export default function ApparatiPage(): JSX.Element {
   });
 
   const apparatus = data?.apparatus ?? null;
+  const openEquipments = apparatus?.equipments.filter((item) => item.closure_status !== "CLOSED") ?? [];
 
   return (
     <Screen className="max-w-6xl space-y-6">
@@ -31,23 +39,16 @@ export default function ApparatiPage(): JSX.Element {
 
       {apparatus ? (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard label="Sistemi" value={apparatus.systems.length} tone="neutral" />
-            <StatCard label="Apparati" value={apparatus.equipments.length} tone="neutral" />
-            <StatCard label="Aperti" value={apparatus.equipments.filter((item) => item.closure_status !== "CLOSED").length} tone="amber" />
-            <StatCard label="Bloccati" value={apparatus.equipments.filter((item) => item.closure_status === "BLOCKED").length} tone="red" />
-          </div>
-
-          <Section title="Apparati critici" eyebrow="Chiusura" count={apparatus.equipments.length}>
-            {apparatus.equipments.length === 0 ? (
+          <Section title="Apparati da chiudere" eyebrow="Azione" count={openEquipments.length}>
+            {openEquipments.length === 0 ? (
               <EmptyState
-                title="Nessun apparato critico"
-                description="La lista attiva non lascia apparati aperti o bloccati."
+                title="Nessun apparato aperto"
+                description="La lista attiva non richiede azioni apparato."
                 icon="✓"
               />
             ) : (
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {apparatus.equipments.slice(0, 18).map((equipment) => (
+                {openEquipments.slice(0, 18).map((equipment) => (
                   <button
                     key={equipment.equipment_code}
                     onClick={() => navigate(equipment.route)}
@@ -59,18 +60,16 @@ export default function ApparatiPage(): JSX.Element {
                         <p className="mt-1 truncate text-xs text-stone-500">{equipment.equipment_name ?? equipment.zone ?? "ESWBS"}</p>
                       </div>
                       <Pill tone={equipment.closure_status === "BLOCKED" ? "red" : equipment.closure_status === "PARTIAL" ? "amber" : "emerald"}>
-                        {equipment.closure_status}
+                        {closureLabel(equipment.closure_status)}
                       </Pill>
                     </div>
 
-                    <div className="mt-3 text-xs text-stone-600">
-                      {equipment.confirmed_cables}/{equipment.total_cables} cavi confermati
-                    </div>
+                    <p className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">Mancano</p>
                     <div className="mt-1 text-xs text-stone-500">
                       {equipment.system ?? "SISTEMA NON ASSEGNATO"} · {equipment.zone ?? "Zona non assegnata"}
                     </div>
-                    <div className="mt-2 text-xs text-red-700">
-                      {equipment.blocker ?? "Nessun blocco aperto"}
+                    <div className={`mt-2 text-xs ${equipment.closure_status === "BLOCKED" ? "text-red-700" : "text-amber-700"}`}>
+                      {equipment.closure_status === "BLOCKED" ? equipment.blocker ?? "Blocco reale" : "Da verificare sul campo"}
                     </div>
                     {equipment.critical_path.length > 0 ? (
                       <div className="mt-3 flex flex-wrap gap-2">
@@ -81,11 +80,21 @@ export default function ApparatiPage(): JSX.Element {
                         ))}
                       </div>
                     ) : null}
+                    <div className="mt-4 inline-flex min-h-9 items-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-700">
+                      Verificare {Math.max(equipment.total_cables - equipment.confirmed_cables, 0)} cavi
+                    </div>
                   </button>
                 ))}
               </div>
             )}
           </Section>
+
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard label="Sistemi" value={apparatus.systems.length} tone="neutral" />
+            <StatCard label="Apparati" value={apparatus.equipments.length} tone="neutral" />
+            <StatCard label="Aperti" value={openEquipments.length} tone="amber" />
+            <StatCard label="Bloccati" value={apparatus.equipments.filter((item) => item.closure_status === "BLOCKED").length} tone="red" />
+          </div>
 
           <Section title="Chiusure per sistema" eyebrow="Sistema" count={apparatus.systems.length}>
             {apparatus.systems.length === 0 ? (
@@ -104,7 +113,7 @@ export default function ApparatiPage(): JSX.Element {
                         <p className="mt-1 text-xs text-stone-500">{system.zone ?? "Zona non assegnata"}</p>
                       </div>
                       <Pill tone={system.closure_status === "BLOCKED" ? "red" : system.closure_status === "PARTIAL" ? "amber" : "emerald"}>
-                        {system.closure_status}
+                        {closureLabel(system.closure_status)}
                       </Pill>
                     </div>
                     <p className="mt-3 text-xs text-stone-600">

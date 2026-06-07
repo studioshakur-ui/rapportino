@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { AppBar, EmptyState, Pill, Screen, Section, StatCard } from "../../../components/command-ui";
+import { AppBar, Btn, EmptyState, Pill, Screen, Section, StatCard } from "../../../components/command-ui";
 import { formatCableDisplay } from "../../../core/cable/cableDisplay";
 import { loadCoreEngineSnapshot } from "../../../domain/core-engine";
 
@@ -12,6 +12,18 @@ function formatDate(value: string | null): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function closureLabel(status: string): string {
+  if (status === "CLOSED") return "CHIUSO";
+  if (status === "PARTIAL") return "PARZIALE";
+  if (status === "BLOCKED") return "BLOCCATO";
+  return "APERTO";
+}
+
+function isFieldVerificationBlocker(value: string | null | undefined): boolean {
+  const text = String(value ?? "").toLowerCase();
+  return text.includes("prova") || text.includes("evidenza") || text.includes("verific");
 }
 
 export default function OggiPage(): JSX.Element {
@@ -43,7 +55,27 @@ export default function OggiPage(): JSX.Element {
 
       {today ? (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <section className="rounded-[28px] border border-stone-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-stone-500">Azione adesso</p>
+                <h2 className="text-lg font-semibold text-stone-950">Preparare il giro di oggi</h2>
+                <p className="mt-1 text-sm text-stone-600">
+                  Lista {today.latest_import?.file_name ?? "non disponibile"} · {today.metrics.remaining_cables} cavi da chiudere.
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Btn onClick={() => window.print()} variant="secondary" className="w-full sm:w-auto">
+                  Stampa lista
+                </Btn>
+                <Btn onClick={() => navigate("/campo")} className="w-full sm:w-auto">
+                  Apri giro campo
+                </Btn>
+              </div>
+            </div>
+          </section>
+
+          <div className="grid gap-2 overflow-x-auto pb-1 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard label="Cavi totali" value={today.metrics.total_cables} tone="neutral" />
             <StatCard label="Rimanenti" value={today.metrics.remaining_cables} tone={today.metrics.remaining_cables > 0 ? "amber" : "emerald"} />
             <StatCard label="Sistemi aperti" value={today.metrics.open_systems} tone={today.metrics.open_systems > 0 ? "amber" : "emerald"} />
@@ -51,11 +83,11 @@ export default function OggiPage(): JSX.Element {
           </div>
 
           <section className="grid gap-4 lg:grid-cols-2">
-            <Section title="Fermeture critiche" eyebrow="Oggi" count={today.critical_closures.length}>
+            <Section title="Da verificare oggi" eyebrow="Oggi" count={today.critical_closures.length}>
               {today.critical_closures.length === 0 ? (
                 <EmptyState
-                  title="Nessuna chiusura critica"
-                  description="Tutti i sistemi e gli apparati principali risultano chiusi."
+                  title="Nessuna verifica urgente"
+                  description="La lista non contiene apparati o sistemi da controllare subito."
                   icon="✓"
                 />
               ) : (
@@ -73,9 +105,15 @@ export default function OggiPage(): JSX.Element {
                           </p>
                           <p className="mt-1 text-base font-semibold text-stone-950">{item.name}</p>
                           <p className="mt-1 text-sm text-stone-600">{item.summary}</p>
-                          {item.blocker ? <p className="mt-2 text-xs text-red-700">Bloccato da: {item.blocker}</p> : null}
+                          {item.blocker ? (
+                            <p className={`mt-2 text-xs ${isFieldVerificationBlocker(item.blocker) ? "text-amber-700" : "text-red-700"}`}>
+                              {isFieldVerificationBlocker(item.blocker) ? "Da verificare sul campo" : "Blocco reale"}: {item.blocker}
+                            </p>
+                          ) : null}
                         </div>
-                        <Pill tone={item.status === "BLOCKED" ? "red" : item.status === "PARTIAL" ? "amber" : "neutral"}>{item.status}</Pill>
+                        <Pill tone={item.status === "BLOCKED" ? "red" : item.status === "PARTIAL" ? "amber" : "neutral"}>
+                          {closureLabel(item.status)}
+                        </Pill>
                       </div>
                     </button>
                   ))}
@@ -99,7 +137,7 @@ export default function OggiPage(): JSX.Element {
                           <p className="text-sm font-semibold text-stone-950">{formatDate(impact.message_ts)}</p>
                           <p className="mt-1 text-xs text-stone-500">{impact.before_label} → {impact.after_label}</p>
                         </div>
-                        <Pill tone={impact.system_closed ? "emerald" : "amber"}>{impact.system_closed ? "SYSTEM CLOSED" : "IMPACT"}</Pill>
+                        <Pill tone={impact.system_closed ? "emerald" : "amber"}>{impact.system_closed ? "Sistema chiuso" : "Impatto"}</Pill>
                       </div>
                       <p className="mt-3 line-clamp-3 whitespace-pre-line text-sm leading-6 text-stone-700">
                         {impact.text || "Messaggio senza testo"}

@@ -1,6 +1,5 @@
 // src/modules/daily-lists/DailyListDetailPage.tsx
-// CORE COMMAND — Dashboard métier d'une liste journalière
-// Phase E + G: vue par câble, par périmètre, contexte AI-ready
+// CORE COMMAND — dettaglio operativo di una lista giornaliera
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -78,12 +77,28 @@ export default function DailyListDetailPage(): JSX.Element {
         title={importRow?.file_name ?? "Lista giornaliera"}
         subtitle={`${importRow?.list_date ?? "data sconosciuta"} · ${importRow?.rows_count ?? 0} cavi · ${importRow?.source_kind?.toUpperCase() ?? ""}`}
         action={
-          <button
-            onClick={() => setShowBriefing((v) => !v)}
-            className="min-h-10 rounded-xl border border-zinc-800 px-3 text-xs font-medium text-zinc-400 transition hover:border-zinc-700 hover:text-white"
-          >
-            {showBriefing ? "Nascondi contesto AI" : "🤖 Contesto AI"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="min-h-10 rounded-xl bg-white px-3 text-xs font-semibold text-zinc-950 transition hover:bg-zinc-200"
+            >
+              Stampa lista
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/campo")}
+              className="min-h-10 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-200 transition hover:border-emerald-400"
+            >
+              Apri giro campo
+            </button>
+            <button
+              onClick={() => setShowBriefing((v) => !v)}
+              className="min-h-10 rounded-xl border border-zinc-800 px-3 text-xs font-medium text-zinc-400 transition hover:border-zinc-700 hover:text-white"
+            >
+              {showBriefing ? "Nascondi dati tecnici" : "Dati tecnici"}
+            </button>
+          </div>
         }
       />
 
@@ -102,7 +117,7 @@ export default function DailyListDetailPage(): JSX.Element {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard label="Totale" value={summary.total} helper="righe utilizzabili" />
             <StatCard label="Confermati" value={summary.confirmed} helper={`${summary.confirmed_by_whatsapp} conferme WhatsApp`} tone="emerald" />
-            <StatCard label="Restanti" value={remaining} helper={`${summary.missing_evidence} senza prova`} tone={remaining > 0 ? "amber" : "neutral"} />
+            <StatCard label="Restanti" value={remaining} helper={`${summary.missing_evidence} da verificare`} tone={remaining > 0 ? "amber" : "neutral"} />
             <StatCard
               label="Problemi"
               value={problemItems.length + partialItems.length}
@@ -149,7 +164,7 @@ export default function DailyListDetailPage(): JSX.Element {
       ) : null}
 
       {missingEvidenceItems.length > 0 ? (
-        <Section title="Senza prova" eyebrow="Da confermare" count={missingEvidenceItems.length}>
+        <Section title="Da verificare sul campo" eyebrow="Azione" count={missingEvidenceItems.length}>
           <CableCardGrid items={missingEvidenceItems} accent="amber" onOpen={(item) => navigate(item.cable_story_path)} />
         </Section>
       ) : null}
@@ -161,7 +176,7 @@ export default function DailyListDetailPage(): JSX.Element {
       ) : null}
 
       {problemItems.length > 0 || zeroPerimeters.length > 0 ? (
-        <Section title="Bloccati / Problemi" eyebrow="Rischio cantiere" count={problemItems.length + zeroPerimeters.length}>
+        <Section title="Bloccanti reali e anomalie" eyebrow="Controllo cantiere" count={problemItems.length + zeroPerimeters.length}>
           <div className="grid gap-3 lg:grid-cols-2">
             <div className="rounded-3xl border border-red-500/20 bg-red-500/10 p-4">
               <h3 className="text-sm font-semibold text-red-200">Zone critiche</h3>
@@ -180,7 +195,7 @@ export default function DailyListDetailPage(): JSX.Element {
             </div>
 
             <div className="rounded-3xl border border-zinc-800 bg-zinc-900/80 p-4">
-              <h3 className="text-sm font-semibold text-zinc-100">Priorita assolute</h3>
+              <h3 className="text-sm font-semibold text-zinc-100">Azioni da seguire</h3>
               {absolutePriorities.length === 0 ? (
                 <p className="mt-3 text-sm text-zinc-400">Nessuna priorita bloccante rilevata.</p>
               ) : (
@@ -226,7 +241,7 @@ export default function DailyListDetailPage(): JSX.Element {
                         className={`h-full rounded-full ${pct === 0 ? "bg-zinc-600" : pct < 50 ? "bg-amber-400" : pct < 80 ? "bg-sky-400" : "bg-emerald-500"}`}
                       />
                     </div>
-                    {perimeter.no_evidence > 0 ? <p className="text-[11px] text-amber-300">{perimeter.no_evidence} senza prova</p> : null}
+                    {perimeter.no_evidence > 0 ? <p className="text-[11px] text-amber-300">{perimeter.no_evidence} da verificare sul campo</p> : null}
                   </div>
                 );
               })}
@@ -247,11 +262,11 @@ export default function DailyListDetailPage(): JSX.Element {
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-mono text-sm font-semibold text-white">{equipment.equipment_code}</span>
                   <Pill tone={equipment.risk_level === "critical" || equipment.risk_level === "high" ? "red" : equipment.risk_level === "medium" ? "amber" : "emerald"}>
-                    {equipment.risk_level}
+                    {formatRiskLabel(equipment.risk_level)}
                   </Pill>
                 </div>
                 <div className="mt-2 text-xs leading-5 text-zinc-500">
-                  {equipment.total_cables} cavi · {equipment.confirmed_by_field} prove · {equipment.without_field_evidence} senza prova
+                  {equipment.total_cables} cavi · {equipment.confirmed_by_field} prove · {equipment.without_field_evidence} da verificare
                 </div>
                 {equipment.risk_reasons[0] ? <div className="mt-2 truncate text-xs text-amber-300">{equipment.risk_reasons[0]}</div> : null}
               </button>
@@ -271,10 +286,10 @@ export default function DailyListDetailPage(): JSX.Element {
       ) : null}
 
       {showBriefing && briefing ? (
-        <Section title="Contesto AI-ready" eyebrow="Debug" count={1}>
+        <Section title="Dati tecnici" eyebrow="Interno" count={1}>
           <div className="rounded-3xl border border-zinc-800 bg-zinc-900/80 p-4">
             <p className="mb-3 text-xs text-zinc-500">
-              JSON pronto da inviare a un AI Advisor. Nessun LLM e stato chiamato qui.
+              JSON tecnico per verifica interna. Nessun servizio esterno e stato chiamato qui.
             </p>
             <pre className="max-h-96 overflow-auto rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-[11px] text-zinc-300">
               {JSON.stringify(briefing, null, 2)}
@@ -320,4 +335,12 @@ function CableCardGrid({
       ))}
     </div>
   );
+}
+
+function formatRiskLabel(level: string): string {
+  if (level === "critical") return "CRITICA";
+  if (level === "high") return "ALTA";
+  if (level === "medium") return "MEDIA";
+  if (level === "low") return "BASSA";
+  return level;
 }

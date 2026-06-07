@@ -21,8 +21,8 @@ export default function GraficiPage(): JSX.Element {
   return (
     <Screen className="max-w-7xl space-y-6">
       <AppBar
-        title="Grafici"
-        subtitle="Solo grafici métier: chiusure per sistema, bloccati per zona, trend Telegram e distribuzione INCA."
+        title="Analisi"
+        subtitle="Grafici di supporto: chiusure per sistema, apparati per zona, prove Telegram e distribuzione INCA."
       />
 
       {!isLoading && !charts ? (
@@ -44,7 +44,7 @@ export default function GraficiPage(): JSX.Element {
 
           <section className="grid gap-4 xl:grid-cols-2">
             <ChartCard title="Chiusure per sistema" eyebrow="Sistema" option={systemChart} />
-            <ChartCard title="Apparati bloccati per zona" eyebrow="Zona" option={zoneChart} />
+            <ChartCard title="Apparati per zona" eyebrow="Zona" option={zoneChart} />
             <ChartCard title="Trend prove Telegram" eyebrow="Messaggi" option={telegramChart} />
             <ChartCard title="Distribuzione situazione INCA" eyebrow="Stato" option={incaChart} />
           </section>

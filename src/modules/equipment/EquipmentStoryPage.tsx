@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { EmptyState, Pill, ProgressBar, Screen, Section, StatCard } from "../../components/command-ui";
 import { useAuth } from "../../auth/AuthProvider";
@@ -92,15 +92,27 @@ function statusTone(status: string | null | undefined): "neutral" | "emerald" | 
   return "amber";
 }
 
+function closureLabel(status: string): string {
+  if (status === "CLOSED") return "CHIUSO";
+  if (status === "PARTIAL") return "PARZIALE";
+  if (status === "BLOCKED") return "BLOCCATO";
+  return "APERTO";
+}
+
+function riskLabel(status: string): string {
+  if (status === "critical") return "CRITICA";
+  if (status === "high") return "ALTA";
+  if (status === "medium") return "MEDIA";
+  return "BASSA";
+}
+
 export default function EquipmentStoryPage(): JSX.Element {
   const { code } = useParams<{ code: string }>();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { uid } = useAuth();
   const equipmentCode = code ? decodeURIComponent(code) : "";
   const [selectedCable, setSelectedCable] = useState<string | null>(null);
   const [confirmedCodes, setConfirmedCodes] = useState<Set<string>>(new Set());
-  const [showContext, setShowContext] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [verificationNote, setVerificationNote] = useState("");
 
@@ -229,7 +241,7 @@ export default function EquipmentStoryPage(): JSX.Element {
               <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">{equipment.equipment_code}</h1>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <Pill tone={closureStatus === "CLOSED" ? "emerald" : closureStatus === "BLOCKED" ? "red" : "amber"} className="border-white/10 bg-white/10 text-white">
-                  {closureStatus}
+                  {closureLabel(closureStatus)}
                 </Pill>
                 <span className="text-sm font-medium text-white/85">{activeConfirmed} / {totalCables} cavi confermati</span>
               </div>
@@ -238,39 +250,44 @@ export default function EquipmentStoryPage(): JSX.Element {
 
           <div className="flex flex-wrap items-center gap-2">
             <Pill tone={riskLevel === "critical" || riskLevel === "high" ? "red" : riskLevel === "medium" ? "amber" : "emerald"} className="border-red-400/30 bg-red-500/10 text-red-100">
-              Rischio {riskLevel}
+              Priorità {riskLabel(riskLevel)}
             </Pill>
-            <Pill tone={closureStatus === "CLOSED" ? "emerald" : closureStatus === "BLOCKED" ? "red" : "amber"} className="border-white/10 bg-white/10 text-white">
-              {closureStatus}
-            </Pill>
-            <button
-              onClick={() => setShowContext((value) => !value)}
-              className="inline-flex min-h-11 items-center rounded-2xl border border-white/10 bg-white/10 px-4 text-sm font-semibold text-white/85 transition hover:bg-white/15"
-            >
-              Contesto AI-ready
-            </button>
-            <button
-              onClick={() => navigate("/import")}
-              className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-semibold text-stone-900 transition hover:border-zinc-300"
-            >
-              <span className="text-lg leading-none">🗄</span>
-              Import INCA
-            </button>
-            <button
-              onClick={() => navigate("/import")}
-              className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-500 px-4 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(16,185,129,0.22)] transition hover:bg-emerald-600"
-            >
-              <span className="text-lg leading-none">⇧</span>
-              Import lista (PDF/Excel)
-            </button>
           </div>
+        </div>
+      </section>
+
+      <section className="rounded-[28px] border border-emerald-200 bg-emerald-50/70 p-5 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-700">Azione apparato</p>
+            <h2 className="mt-1 text-lg font-semibold text-stone-950">
+              Verificare {remaining} cavi per chiudere l'apparato
+            </h2>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {visibleCards.filter((item) => !item.confirmedHere).slice(0, 6).map((item) => (
+                <span key={item.cableCode} className="rounded-xl border border-emerald-200 bg-white px-2.5 py-1 font-mono text-xs font-semibold text-stone-800">
+                  {item.displayCableCode}
+                </span>
+              ))}
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              const first = visibleCards.find((item) => !item.confirmedHere);
+              if (first) openVerification(first.cableCode);
+            }}
+            disabled={remaining === 0}
+            className="min-h-11 rounded-2xl border border-emerald-600 bg-emerald-600 px-4 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-200 disabled:text-zinc-500"
+          >
+            Verifica sul campo
+          </button>
         </div>
       </section>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <StatCard label="Entranti" value={incoming.length} helper="confermati" tone="sky" />
         <StatCard label="Uscenti" value={outgoing.length} helper="confermati" tone="emerald" />
-        <StatCard label="Chiusura" value={closureStatus} helper="stato attuale" tone={closureStatus === "CLOSED" ? "emerald" : closureStatus === "BLOCKED" ? "red" : "amber"} />
+        <StatCard label="Chiusura" value={closureLabel(closureStatus)} helper="stato attuale" tone={closureStatus === "CLOSED" ? "emerald" : closureStatus === "BLOCKED" ? "red" : "amber"} />
         <StatCard label="Restanti" value={remaining} helper="da confermare" tone={remaining > 0 ? "amber" : "neutral"} />
         <StatCard label="Bloccati" value={blocked} helper={`INCA = ${summary.blocked_cables > 0 ? "B" : "—"}`} tone={blocked > 0 ? "red" : "neutral"} />
         <StatCard label="Cavi collegati" value={totalCables} helper="totale cavi" tone="neutral" />
@@ -296,7 +313,7 @@ export default function EquipmentStoryPage(): JSX.Element {
 
         <Section title="Chiusura apparato" eyebrow="Closure Engine" className="rounded-[28px] border border-stone-200 bg-white p-5 shadow-sm">
           <div className="space-y-2 text-sm">
-            <Line label="Stato" value={closureStatus} accent={closureStatus === "CLOSED" ? "emerald" : closureStatus === "BLOCKED" ? "red" : "amber"} />
+            <Line label="Stato" value={closureLabel(closureStatus)} accent={closureStatus === "CLOSED" ? "emerald" : closureStatus === "BLOCKED" ? "red" : "amber"} />
             <Line label="Confermati terreno" value={activeConfirmed} />
             <Line label="Restanti" value={remaining} accent={remaining > 0 ? "amber" : "emerald"} />
             <Line label="Posati INCA" value={summary.status_distribution["P"] ?? 0} />
@@ -410,14 +427,6 @@ export default function EquipmentStoryPage(): JSX.Element {
           )}
         </Section>
       </section>
-
-      {showContext && summary ? (
-        <Section title="Contesto AI-ready" eyebrow="Debug" className="rounded-[28px] border border-stone-200 bg-white p-5 shadow-sm">
-          <pre className="max-h-96 overflow-auto rounded-2xl border border-stone-200 bg-stone-950 p-4 text-[11px] text-stone-300">
-            {JSON.stringify(summary, null, 2)}
-          </pre>
-        </Section>
-      ) : null}
 
       {selected ? (
         <aside className="fixed inset-x-0 bottom-0 z-40 border-t border-stone-200 bg-white shadow-[0_-12px_30px_rgba(15,23,42,0.12)] lg:inset-y-0 lg:right-0 lg:left-auto lg:w-[390px] lg:border-l lg:border-t-0 lg:shadow-[-12px_0_30px_rgba(15,23,42,0.12)]">

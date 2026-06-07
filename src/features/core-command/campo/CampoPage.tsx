@@ -25,6 +25,12 @@ export default function CampoPage(): JSX.Element {
 
   const field = data?.field ?? null;
   const summary = field?.summary ?? null;
+  const actionItems = field ? mergeFieldItems([
+    ...field.partial_items,
+    ...field.missing_evidence_items,
+    ...field.priority_items,
+  ].filter((item) => item.computed_status !== "confirmed_field" && item.computed_status !== "likely_laid")) : [];
+  const verifiedItems = field ? mergeFieldItems(field.priority_items.filter((item) => item.computed_status === "confirmed_field" || item.computed_status === "likely_laid")) : [];
 
   return (
     <Screen className="max-w-6xl space-y-6">
@@ -43,13 +49,6 @@ export default function CampoPage(): JSX.Element {
 
       {field ? (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard label="Import recenti" value={field.imports.length} tone="neutral" />
-            <StatCard label="Priorità" value={field.priority_items.length} tone={field.priority_items.length > 0 ? "red" : "neutral"} />
-            <StatCard label="Prove mancanti" value={field.missing_evidence_items.length} tone={field.missing_evidence_items.length > 0 ? "amber" : "neutral"} />
-            <StatCard label="Da verificare" value={field.partial_items.length} tone={field.partial_items.length > 0 ? "amber" : "neutral"} />
-          </div>
-
           {summary ? (
             <Section title="Lista attiva" eyebrow="Import">
               <div className="rounded-[28px] border border-stone-200 bg-white p-5 shadow-sm">
@@ -71,56 +70,37 @@ export default function CampoPage(): JSX.Element {
             </Section>
           ) : null}
 
-          <section className="grid gap-4 lg:grid-cols-2">
-            <EvidenceList
-              title="Priorità campo"
-              count={field.priority_items.length}
-              items={field.priority_items}
-              onOpen={(code) => navigate(code)}
-            />
-            <EvidenceList
-              title="Prove mancanti"
-              count={field.missing_evidence_items.length}
-              items={field.missing_evidence_items}
-              onOpen={(code) => navigate(code)}
-            />
-          </section>
+          <EvidenceList
+            title="Da fare sul campo"
+            count={actionItems.length}
+            items={actionItems}
+            onOpen={(code) => navigate(code)}
+            primaryAction="Verifica sul campo"
+          />
 
           <section className="grid gap-4 lg:grid-cols-2">
             <EvidenceList
-              title="Da verificare"
-              count={field.partial_items.length}
-              items={field.partial_items}
-              onOpen={(code) => navigate(code)}
-            />
-            <EvidenceList
-              title="Bloccati"
+              title="Bloccanti reali"
               count={field.blocked_items.length}
               items={field.blocked_items}
               onOpen={(code) => navigate(code)}
+              primaryAction="Apri blocco"
+            />
+            <EvidenceList
+              title="Verificati oggi"
+              count={verifiedItems.length}
+              items={verifiedItems}
+              onOpen={(code) => navigate(code)}
+              primaryAction="Apri cavo"
             />
           </section>
 
-          <Section title="Import recenti" eyebrow="Storico" count={field.imports.length}>
-            {field.imports.length === 0 ? (
-              <EmptyState
-                title="Nessun import recente"
-                description="Carica una lista per iniziare."
-                icon="📋"
-              />
-            ) : (
-              <div className="grid gap-3 md:grid-cols-2">
-                {field.imports.map((item) => (
-                  <article key={item.id} className="rounded-[24px] border border-stone-200 bg-white p-4 shadow-sm">
-                    <p className="text-sm font-semibold text-stone-950">{item.file_name}</p>
-                    <p className="mt-1 text-xs text-stone-500">
-                      {item.list_date ?? "data sconosciuta"} · {item.rows_count} cavi · {formatDate(item.list_date)}
-                    </p>
-                  </article>
-                ))}
-              </div>
-            )}
-          </Section>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard label="Da fare" value={actionItems.length} tone={actionItems.length > 0 ? "amber" : "emerald"} />
+            <StatCard label="Bloccanti reali" value={field.blocked_items.length} tone={field.blocked_items.length > 0 ? "red" : "neutral"} />
+            <StatCard label="Verificati oggi" value={verifiedItems.length} tone="emerald" />
+            <StatCard label="Import recenti" value={field.imports.length} tone="neutral" />
+          </div>
         </>
       ) : null}
     </Screen>
@@ -132,6 +112,7 @@ function EvidenceList({
   count,
   items,
   onOpen,
+  primaryAction,
 }: {
   title: string;
   count: number;
@@ -147,6 +128,7 @@ function EvidenceList({
     recommended_action: string;
   }>;
   onOpen: (route: string) => void;
+  primaryAction: string;
 }): JSX.Element {
   return (
     <Section title={title} eyebrow="Campo" count={count}>
@@ -181,13 +163,28 @@ function EvidenceList({
                   }))}
                 </Pill>
               </div>
-              <p className="mt-3 text-xs leading-5 text-stone-600">{item.recommended_action}</p>
+              <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs leading-5 text-stone-600">{item.recommended_action}</p>
+                <span className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-700">
+                  {primaryAction}
+                </span>
+              </div>
             </button>
           ))}
         </div>
       )}
     </Section>
   );
+}
+
+type FieldItem = Parameters<typeof EvidenceList>[0]["items"][number];
+
+function mergeFieldItems(items: FieldItem[]): FieldItem[] {
+  const merged = new Map<string, FieldItem>();
+  for (const item of items) {
+    if (!merged.has(item.cable_code)) merged.set(item.cable_code, item);
+  }
+  return Array.from(merged.values());
 }
 
 function translateTone(status: string): "red" | "amber" | "emerald" {

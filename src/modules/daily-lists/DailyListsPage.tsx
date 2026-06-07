@@ -76,6 +76,7 @@ export default function DailyListsPage(): JSX.Element {
   const recentImports   = imports ?? [];
   const importedCount   = recentImports.filter((i) => i.status === "imported").length;
   const pendingCount    = recentImports.length - importedCount;
+  const latestReadyImport = recentImports.find((i) => i.status === "imported");
 
   return (
     <Screen className="max-w-4xl space-y-6">
@@ -83,6 +84,34 @@ export default function DailyListsPage(): JSX.Element {
         title="Liste giornaliere"
         subtitle="Importa PDF o Excel L1/L2/L3 — piano d'azione cantiere del giorno."
       />
+
+      <div className="rounded-[28px] border border-stone-200 bg-white p-4 shadow-sm">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">Azioni operative</p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+          <button
+            type="button"
+            onClick={() => document.getElementById("daily-list-upload")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            className="min-h-12 rounded-2xl bg-stone-950 px-4 text-sm font-semibold text-white transition hover:bg-stone-800"
+          >
+            Importa lista PDF/Excel
+          </button>
+          <button
+            type="button"
+            onClick={() => alert("Import INCA disponibile solo tramite procedura protetta. Il cockpit non scrive mai in inca_cavi.")}
+            className="min-h-12 rounded-2xl border border-stone-200 bg-white px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-300"
+          >
+            Importa INCA
+          </button>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            disabled={!latestReadyImport}
+            className="min-h-12 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-semibold text-emerald-800 transition hover:border-emerald-300 disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-50 disabled:text-stone-400"
+          >
+            Stampa lista
+          </button>
+        </div>
+      </div>
 
       {/* ── Stats ── */}
       <div className="grid gap-3 sm:grid-cols-3">
@@ -99,7 +128,7 @@ export default function DailyListsPage(): JSX.Element {
       </div>
 
       {/* ── Upload zone ── */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div id="daily-list-upload" className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <h2 className="mb-4 text-sm font-semibold text-gray-900">Nuova lista</h2>
 
         {!parseResult && !parsing && <ImportDropzone onFile={handleFile} disabled={parsing} />}
@@ -229,25 +258,26 @@ export default function DailyListsPage(): JSX.Element {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-semibold text-gray-900">{imp.file_name}</span>
                     <Pill tone={imp.status === "imported" ? "emerald" : imp.status === "failed" ? "red" : "amber"}>
-                      {imp.status}
+                      {formatImportStatus(imp.status)}
                     </Pill>
                   </div>
                   <p className="mt-0.5 text-xs text-gray-500">
                     {imp.list_date
-                      ? new Date(imp.list_date + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })
+                      ? new Date(imp.list_date + "T12:00:00").toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })
                       : "data sconosciuta"
                     } · {imp.rows_count} cavi · {imp.source_kind.toUpperCase()} ·{" "}
-                    {new Date(imp.imported_at).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                    {new Date(imp.imported_at).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                   </p>
                 </button>
 
                 <button
                   onClick={() => {
-                    if (confirm(`Eliminare "${imp.file_name}"?`)) deleteMutation.mutate(imp.id);
+                    const confirmed = prompt(`Per eliminare "${imp.file_name}" scrivi ELIMINA`);
+                    if (confirmed === "ELIMINA") deleteMutation.mutate(imp.id);
                   }}
                   className="shrink-0 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-500 transition hover:border-red-300 hover:bg-red-50 hover:text-red-600"
                 >
-                  Elimina
+                  Opzioni
                 </button>
               </div>
             ))}
@@ -256,4 +286,11 @@ export default function DailyListsPage(): JSX.Element {
       </div>
     </Screen>
   );
+}
+
+function formatImportStatus(status: string): string {
+  if (status === "imported") return "importata";
+  if (status === "failed") return "errore";
+  if (status === "pending") return "da controllare";
+  return status;
 }

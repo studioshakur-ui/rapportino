@@ -15,6 +15,13 @@ export function SituazioneView({ situation }: { situation: DailySituationView | 
     }
   }
 
+  function openShare(target: "telegram" | "whatsapp"): void {
+    if (!situation) return;
+    const encoded = encodeURIComponent(situation.messageToSend);
+    const url = target === "telegram" ? `https://t.me/share/url?text=${encoded}` : `https://wa.me/?text=${encoded}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
   if (!situation) {
     return (
       <Screen className="max-w-5xl space-y-6">
@@ -36,7 +43,26 @@ export function SituazioneView({ situation }: { situation: DailySituationView | 
         action={<Pill tone="emerald">{situation.listName ?? "Lista non disponibile"}</Pill>}
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <Section title="Testo pronto da inviare" eyebrow="Azione" className="space-y-3">
+        <div className="rounded-[28px] border border-stone-200 bg-white p-5 shadow-sm">
+          <pre className="whitespace-pre-wrap break-words text-sm leading-6 text-stone-800">{situation.messageToSend}</pre>
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-3">
+            <Btn onClick={() => void copyText()} className="w-full">
+              Copia
+            </Btn>
+            <Btn onClick={() => openShare("telegram")} variant="secondary" className="w-full">
+              Telegram
+            </Btn>
+            <Btn onClick={() => openShare("whatsapp")} variant="secondary" className="w-full">
+              WhatsApp
+            </Btn>
+          </div>
+          {copyFeedback ? <p className="mt-3 text-sm font-medium text-emerald-700">{copyFeedback}</p> : null}
+        </div>
+      </Section>
+
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Lista" value={situation.listName ?? "N/D"} tone="neutral" />
         <StatCard label="Totale cavi" value={situation.totals.totalCables} tone="neutral" />
         <StatCard label="Verificati campo" value={situation.totals.verifiedCables} tone="emerald" />
@@ -60,7 +86,7 @@ export function SituazioneView({ situation }: { situation: DailySituationView | 
                       {[item.apparatusCode, item.system].filter(Boolean).join(" · ") || "Contesto non disponibile"}
                     </p>
                   </div>
-                  <Pill tone="amber">Verifica</Pill>
+                  <Pill tone="amber">Da verificare</Pill>
                 </div>
                 <p className="mt-2 text-sm text-stone-700">{item.reason}</p>
               </article>
@@ -80,9 +106,9 @@ export function SituazioneView({ situation }: { situation: DailySituationView | 
                   <div>
                     <p className="text-sm font-semibold text-stone-950">{apparatus.equipmentCode}</p>
                     {apparatus.system ? <p className="mt-1 text-sm text-stone-600">{apparatus.system}</p> : null}
-                    <p className="mt-1 text-xs uppercase tracking-[0.2em] text-stone-500">{apparatus.closureStatus}</p>
+                    <p className="mt-1 text-xs uppercase tracking-[0.2em] text-stone-500">{closureLabel(apparatus.closureStatus)}</p>
                   </div>
-                  {apparatus.riskLevel ? <Pill tone={apparatus.riskLevel === "critical" ? "red" : apparatus.riskLevel === "high" ? "amber" : "neutral"}>{apparatus.riskLevel}</Pill> : null}
+                  {apparatus.riskLevel ? <Pill tone={apparatus.riskLevel === "critical" ? "red" : apparatus.riskLevel === "high" ? "amber" : "neutral"}>{riskLabel(apparatus.riskLevel)}</Pill> : null}
                 </div>
                 <p className="mt-3 text-sm text-stone-700">
                   {apparatus.openCables} aperti · {apparatus.blockedCables} bloccati
@@ -103,9 +129,9 @@ export function SituazioneView({ situation }: { situation: DailySituationView | 
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-stone-950">{system.systemName}</p>
-                    <p className="mt-1 text-xs uppercase tracking-[0.2em] text-stone-500">{system.status}</p>
+                    <p className="mt-1 text-xs uppercase tracking-[0.2em] text-stone-500">{closureLabel(system.status)}</p>
                   </div>
-                  <Pill tone={system.status === "BLOCKED" ? "red" : "amber"}>{system.status}</Pill>
+                  <Pill tone={system.status === "BLOCKED" ? "red" : "amber"}>{closureLabel(system.status)}</Pill>
                 </div>
                 <p className="mt-3 text-sm text-stone-700">
                   {system.openEquipments} aperti · {system.blockedEquipments} bloccati
@@ -174,19 +200,22 @@ export function SituazioneView({ situation }: { situation: DailySituationView | 
           </div>
         )}
       </Section>
-
-      <Section title="Testo pronto da inviare" eyebrow="Messaggio" className="space-y-3">
-        <div className="rounded-[28px] border border-stone-200 bg-white p-5 shadow-sm">
-          <pre className="whitespace-pre-wrap break-words text-sm leading-6 text-stone-800">{situation.messageToSend}</pre>
-
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <Btn onClick={() => void copyText()} variant="secondary" className="w-full sm:w-auto">
-              Copia testo
-            </Btn>
-            {copyFeedback ? <p className="text-sm font-medium text-emerald-700">{copyFeedback}</p> : null}
-          </div>
-        </div>
-      </Section>
     </Screen>
   );
+}
+
+function closureLabel(status: string): string {
+  if (status === "CLOSED") return "CHIUSO";
+  if (status === "PARTIAL") return "PARZIALE";
+  if (status === "BLOCKED") return "BLOCCATO";
+  if (status === "OPEN") return "APERTO";
+  return status;
+}
+
+function riskLabel(status: string): string {
+  if (status === "critical") return "CRITICA";
+  if (status === "high") return "ALTA";
+  if (status === "medium") return "MEDIA";
+  if (status === "low") return "BASSA";
+  return status;
 }

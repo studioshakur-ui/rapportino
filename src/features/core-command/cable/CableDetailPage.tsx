@@ -1,10 +1,13 @@
 // src/features/core-command/cable/CableDetailPage.tsx
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../../../lib/supabaseClient";
 import { formatCableDisplay } from "../../../core/cable/cableDisplay";
 import { Pill, Screen, EmptyState } from "../../../components/command-ui";
 import { formatFieldStatusLabel, resolveFieldStatus } from "../../../domain/core-engine/fieldVerification";
+import { useAuth } from "../../../auth/AuthProvider";
+import { recordFieldVerification } from "../api/fieldVerification.api";
 import type { CableEvent } from "../types";
 
 // Normalize cable code for DB lookup: "C CS 102" or "CCS102" → "CCS 102"
@@ -19,17 +22,17 @@ function normalizeForQuery(raw: string): string {
 }
 
 const KIND_META: Record<string, { label: string; tone: string; dot: string }> = {
-  CABLE_POSATO:         { label: "Câble posé",    tone: "text-emerald-300", dot: "bg-emerald-500" },
-  CABLE_MENTION:        { label: "Mention",        tone: "text-zinc-400",   dot: "bg-zinc-600"    },
-  CABLE_SFILATO:        { label: "Câble retiré",   tone: "text-sky-300",    dot: "bg-sky-500"     },
-  CABLE_CORTO:          { label: "Trop court",     tone: "text-amber-300",  dot: "bg-amber-500"   },
-  CABLE_MANCANTE:       { label: "Manquant",       tone: "text-red-300",    dot: "bg-red-500"     },
-  CABLE_DA_CONTROLLARE: { label: "À vérifier",     tone: "text-amber-300",  dot: "bg-amber-400"   },
-  GENERAL_MESSAGE:      { label: "Signal terrain", tone: "text-zinc-400",   dot: "bg-zinc-600"    },
-  posa:                 { label: "Câble posé",    tone: "text-emerald-300", dot: "bg-emerald-500" },
-  ripresa:              { label: "Reprise",        tone: "text-sky-300",    dot: "bg-sky-500"     },
-  blocco:               { label: "Bloqué",         tone: "text-red-300",    dot: "bg-red-500"     },
-  anomalia:             { label: "Anomalie",        tone: "text-amber-300",  dot: "bg-amber-500"   },
+  CABLE_POSATO:         { label: "Cavo posato",      tone: "text-emerald-300", dot: "bg-emerald-500" },
+  CABLE_MENTION:        { label: "Nota campo",       tone: "text-zinc-400",   dot: "bg-zinc-600"    },
+  CABLE_SFILATO:        { label: "Cavo sfilato",     tone: "text-sky-300",    dot: "bg-sky-500"     },
+  CABLE_CORTO:          { label: "Cavo corto",       tone: "text-amber-300",  dot: "bg-amber-500"   },
+  CABLE_MANCANTE:       { label: "Cavo mancante",    tone: "text-red-300",    dot: "bg-red-500"     },
+  CABLE_DA_CONTROLLARE: { label: "Da verificare",    tone: "text-amber-300",  dot: "bg-amber-400"   },
+  GENERAL_MESSAGE:      { label: "Segnale campo",    tone: "text-zinc-400",   dot: "bg-zinc-600"    },
+  posa:                 { label: "Cavo posato",      tone: "text-emerald-300", dot: "bg-emerald-500" },
+  ripresa:              { label: "Ripresa",          tone: "text-sky-300",    dot: "bg-sky-500"     },
+  blocco:               { label: "Bloccato",         tone: "text-red-300",    dot: "bg-red-500"     },
+  anomalia:             { label: "Anomalia",        tone: "text-amber-300",  dot: "bg-amber-500"   },
 };
 
 function kindMeta(kind: string) {
@@ -109,6 +112,9 @@ async function fetchCableDetail(raw: string) {
 export default function CableDetailPage() {
   const { code }    = useParams<{ code: string }>();
   const navigate    = useNavigate();
+  const queryClient = useQueryClient();
+  const { uid } = useAuth();
+  const [feedback, setFeedback] = useState<string | null>(null);
   const cableCode   = code ? decodeURIComponent(code) : "";
   const displayCode = formatCableDisplay(cableCode);
 
@@ -130,33 +136,60 @@ export default function CableDetailPage() {
     hasVerificationProof: Boolean(latestFieldEvent || lastEvent?.event_kind === "CABLE_POSATO" || lastEvent?.event_kind === "posa"),
   });
 
+  async function verifyOnField(): Promise<void> {
+    if (!uid) {
+      setFeedback("Utente non autenticato");
+      return;
+    }
+    try {
+      await recordFieldVerification({
+        cableCodeRaw: displayCode || cableCode,
+        cableCodeNormalized: normalizeForQuery(cableCode),
+        verificationSource: "manual",
+        verifiedBy: uid,
+        note: null,
+      });
+      setFeedback("Verifica registrata");
+      await queryClient.invalidateQueries({ queryKey: ["cable_detail", cableCode] });
+      await queryClient.invalidateQueries({ queryKey: ["core_engine_snapshot"] });
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Errore durante la verifica");
+    }
+  }
+
   return (
     <Screen className="space-y-6">
 
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 space-y-1">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600">Câble</p>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600">Cavo</p>
           <h1 className="font-mono text-3xl font-bold tracking-tight text-white">
             {displayCode || cableCode || "—"}
           </h1>
           {!isLoading && lastEvent && (
             <p className="text-sm text-zinc-500">
-              Dernier signal&nbsp;: {new Date(lastEvent.occurred_at).toLocaleDateString("fr-FR", {
+              Ultimo segnale: {new Date(lastEvent.occurred_at).toLocaleDateString("it-IT", {
                 day: "2-digit", month: "long",
-              })} à {new Date(lastEvent.occurred_at).toLocaleTimeString("fr-FR", {
+              })} alle {new Date(lastEvent.occurred_at).toLocaleTimeString("it-IT", {
                 hour: "2-digit", minute: "2-digit",
               })}
             </p>
           )}
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2 pt-1">
-          {!isLoading && (
-            fieldStatus === "VERIFIED" ? <Pill tone="emerald">{formatFieldStatusLabel(fieldStatus)}</Pill>
-            : fieldStatus === "BLOCKED" ? <Pill tone="red">{formatFieldStatusLabel(fieldStatus)}</Pill>
-            : events.length > 0 ? <Pill tone="amber">{formatFieldStatusLabel(fieldStatus)}</Pill>
-            : null
-          )}
+          {!isLoading ? (
+            <Pill tone={fieldStatus === "VERIFIED" ? "emerald" : fieldStatus === "BLOCKED" ? "red" : "amber"}>
+              {formatFieldStatusLabel(fieldStatus)}
+            </Pill>
+          ) : null}
+          <button
+            onClick={() => void verifyOnField()}
+            disabled={!uid || fieldStatus === "BLOCKED"}
+            className="min-h-10 rounded-lg border border-emerald-600 bg-emerald-600 px-3 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:border-zinc-700 disabled:bg-zinc-800 disabled:text-zinc-500"
+          >
+            Verifica sul campo
+          </button>
           <button
             onClick={() => navigate("/import")}
             className="min-h-9 rounded-lg border border-zinc-800 px-3 text-xs font-medium text-zinc-500 transition hover:border-zinc-600 hover:text-zinc-300"
@@ -178,7 +211,7 @@ export default function CableDetailPage() {
       {/* Error */}
       {isError && (
         <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300">
-          Erreur de chargement. Vérifier la connexion réseau.
+          Errore di caricamento. Verifica la connessione.
         </div>
       )}
 
@@ -186,18 +219,18 @@ export default function CableDetailPage() {
       {!isLoading && priorities.length > 0 && (
         <section className="space-y-2">
           <h2 className="text-xs font-semibold uppercase tracking-widest text-amber-500">
-            ⚠ {priorities.length} priorité{priorities.length > 1 ? "s" : ""} ouverte{priorities.length > 1 ? "s" : ""}
+            {priorities.length} priorità aperte
           </h2>
           {priorities.map((p: any) => (
             <div key={p.id} className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-sm text-amber-200">{p.reason ?? "Problème signalé"}</p>
+                <p className="text-sm text-amber-200">{p.reason ?? "Problema segnalato"}</p>
                 <Pill tone="amber">
-                  {p.priority === "critical" ? "Critique" : p.priority === "high" ? "Urgent" : "Moyen"}
+                  {p.priority === "critical" ? "Critica" : p.priority === "high" ? "Alta" : "Media"}
                 </Pill>
               </div>
               <p className="mt-1 text-xs text-zinc-600">
-                {new Date(p.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "long" })}
+                {new Date(p.created_at).toLocaleDateString("it-IT", { day: "2-digit", month: "long" })}
               </p>
             </div>
           ))}
@@ -208,20 +241,20 @@ export default function CableDetailPage() {
       {!isLoading && listItems.length > 0 && (
         <section className="space-y-2">
           <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-500">
-            Présent dans les listes
+            Presente nelle liste
           </h2>
           <div className="flex flex-wrap gap-2">
             {listItems.map((item: any, i: number) => (
               <div key={i} className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm">
                 <span className="text-zinc-300">
                   {item.list_date
-                    ? new Date(item.list_date + "T12:00:00").toLocaleDateString("fr-FR", {
+                    ? new Date(item.list_date + "T12:00:00").toLocaleDateString("it-IT", {
                         day: "2-digit", month: "long",
                       })
                     : item.file_name}
                 </span>
                 {item.list_number && (
-                  <span className="ml-2 text-xs text-zinc-600">n°{item.list_number}</span>
+                  <span className="ml-2 text-xs text-zinc-600">· lista n° {item.list_number}</span>
                 )}
               </div>
             ))}
@@ -232,17 +265,18 @@ export default function CableDetailPage() {
       {/* Empty state */}
       {!isLoading && !isError && events.length === 0 && (
         <EmptyState
-          title="Aucun événement enregistré"
-          description="Ce câble n'a pas encore été signalé dans les messages terrain ni dans INCA."
+          title="Nessun evento registrato"
+          description="Questo cavo non ha ancora prove campo o segnali INCA collegati."
           icon="○"
         />
       )}
+      {feedback ? <p className="text-sm font-medium text-emerald-300">{feedback}</p> : null}
 
       {/* Event timeline */}
       {!isLoading && events.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-500">
-            Historique — {events.length} événement{events.length > 1 ? "s" : ""}
+            Storico — {events.length} eventi
           </h2>
           <ol className="space-y-0">
             {events.map((e, idx) => {
@@ -261,10 +295,10 @@ export default function CableDetailPage() {
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                       <span className={`text-sm font-medium ${meta.tone}`}>{meta.label}</span>
                       <span className="text-xs text-zinc-600">
-                        {new Date(e.occurred_at).toLocaleDateString("fr-FR", {
+                        {new Date(e.occurred_at).toLocaleDateString("it-IT", {
                           weekday: "short", day: "2-digit", month: "short",
                         })}{" "}
-                        {new Date(e.occurred_at).toLocaleTimeString("fr-FR", {
+                        {new Date(e.occurred_at).toLocaleTimeString("it-IT", {
                           hour: "2-digit", minute: "2-digit",
                         })}
                       </span>

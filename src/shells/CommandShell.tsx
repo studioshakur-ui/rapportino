@@ -4,10 +4,13 @@ import { useAuth } from "../auth/AuthProvider";
 
 const MAIN_NAV = [
   { to: "/oggi", label: "Oggi", hint: "Cosa chiudere adesso" },
-  { to: "/apparati", label: "Apparati", hint: "Chiusure sistema/apparato" },
-  { to: "/campo", label: "Campo", hint: "Prove, import, Telegram" },
+  { to: "/campo", label: "Campo", hint: "Verifiche sul campo" },
+  { to: "/apparati", label: "Apparati", hint: "Chiusure apparato" },
   { to: "/situazione", label: "Situazione", hint: "Messaggio 16:30" },
-  { to: "/grafici", label: "Grafici", hint: "Solo metriche métier" },
+] as const;
+
+const SECONDARY_NAV = [
+  { to: "/grafici", label: "Analisi", hint: "Grafici di supporto" },
 ] as const;
 
 export default function CommandShell(): JSX.Element {
@@ -31,7 +34,7 @@ export default function CommandShell(): JSX.Element {
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-stone-500">Core Command</p>
             <h1 className="mt-3 text-2xl font-semibold tracking-tight text-stone-950">Hamidou Control Room</h1>
             <p className="mt-2 text-sm leading-6 text-stone-600">
-              Oggi, Apparati, Campo, Situazione e Grafici. Il resto resta dietro le quinte.
+              Oggi, Campo, Apparati e Situazione. Il resto resta negli strumenti.
             </p>
           </div>
 
@@ -71,6 +74,28 @@ export default function CommandShell(): JSX.Element {
             ))}
           </nav>
 
+          <nav className="mt-6 border-t border-stone-200 pt-4">
+            <p className="px-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-stone-400">Strumenti</p>
+            <div className="mt-2 space-y-2">
+              {SECONDARY_NAV.map(({ to, label, hint }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  className={({ isActive }) =>
+                    `block rounded-[18px] border px-4 py-3 transition ${
+                      isActive
+                        ? "border-stone-300 bg-white text-stone-950"
+                        : "border-transparent bg-transparent text-stone-500 hover:border-stone-200 hover:bg-white hover:text-stone-950"
+                    }`
+                  }
+                >
+                  <p className="text-sm font-semibold">{label}</p>
+                  <p className="mt-1 text-xs text-stone-500">{hint}</p>
+                </NavLink>
+              ))}
+            </div>
+          </nav>
+
           <div className="mt-auto pt-6">
             <button
               onClick={() => signOut({ reason: "manual" })}
@@ -107,7 +132,7 @@ export default function CommandShell(): JSX.Element {
                 />
               </form>
 
-              <div className="mt-3 grid grid-cols-5 gap-2">
+              <div className="mt-3 grid grid-cols-4 gap-2">
                 {MAIN_NAV.map(({ to, label }) => (
                   <NavLink
                     key={to}
@@ -121,6 +146,11 @@ export default function CommandShell(): JSX.Element {
                     {label}
                   </NavLink>
                 ))}
+              </div>
+              <div className="mt-2 flex justify-end">
+                <NavLink to="/grafici" className="text-xs font-medium text-stone-500 underline-offset-4 hover:text-stone-900 hover:underline">
+                  Analisi
+                </NavLink>
               </div>
             </div>
           </header>

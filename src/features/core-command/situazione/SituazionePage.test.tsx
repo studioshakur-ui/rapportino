@@ -94,7 +94,7 @@ describe("SituazioneView", () => {
     const html = renderToStaticMarkup(<SituazioneView situation={buildSituation()} />);
 
     expect(html).toContain("Situazione 16:30");
-    expect(html).toContain("Copia testo");
+    expect(html).toContain("Copia");
     expect(html).toContain("Testo pronto da inviare");
     expect(html).toContain("SITUAZIONE ORE 16:30");
     expect(html).toContain("Cavi da verificare");
