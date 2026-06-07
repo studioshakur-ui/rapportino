@@ -80,16 +80,16 @@ export default function DailyListsPage(): JSX.Element {
   return (
     <Screen className="max-w-4xl space-y-6">
       <AppBar
-        title="Listes journalières"
-        subtitle="Importer PDF ou Excel L1/L2/L3 — plan d'action chantier du jour."
+        title="Liste giornaliere"
+        subtitle="Importa PDF o Excel L1/L2/L3 — piano d'azione cantiere del giorno."
       />
 
       {/* ── Stats ── */}
       <div className="grid gap-3 sm:grid-cols-3">
         {[
-          { label: "Imports récents", value: recentImports.length, tone: "neutral" },
-          { label: "Listes prêtes",   value: importedCount,        tone: importedCount > 0 ? "emerald" : "neutral" },
-          { label: "À contrôler",     value: pendingCount,         tone: pendingCount > 0 ? "amber" : "neutral" },
+          { label: "Import recenti", value: recentImports.length, tone: "neutral" },
+          { label: "Liste pronte",   value: importedCount,        tone: importedCount > 0 ? "emerald" : "neutral" },
+          { label: "Da controllare", value: pendingCount,         tone: pendingCount > 0 ? "amber" : "neutral" },
         ].map(({ label, value, tone }) => (
           <div key={label} className={`rounded-xl border p-4 ${tone === "emerald" ? "border-emerald-200 bg-emerald-50" : tone === "amber" ? "border-amber-200 bg-amber-50" : "border-gray-200 bg-white"} shadow-sm`}>
             <p className="text-xs font-medium uppercase tracking-widest text-gray-500">{label}</p>
@@ -100,7 +100,7 @@ export default function DailyListsPage(): JSX.Element {
 
       {/* ── Upload zone ── */}
       <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-        <h2 className="mb-4 text-sm font-semibold text-gray-900">Nouvelle liste</h2>
+        <h2 className="mb-4 text-sm font-semibold text-gray-900">Nuova lista</h2>
 
         {!parseResult && !parsing && <ImportDropzone onFile={handleFile} disabled={parsing} />}
 
@@ -110,15 +110,15 @@ export default function DailyListsPage(): JSX.Element {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
             </svg>
-            Lecture du fichier…
+            Lettura file…
           </div>
         )}
 
         {parseError && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            <strong>Erreur : </strong>{parseError}
+            <strong>Errore: </strong>{parseError}
             <button onClick={() => setParseError(null)} className="ml-3 text-xs font-semibold underline">
-              Réessayer
+              Riprova
             </button>
           </div>
         )}
@@ -129,14 +129,14 @@ export default function DailyListsPage(): JSX.Element {
               <div>
                 <p className="text-sm font-semibold text-gray-900">{parsedFileName}</p>
                 <p className="mt-0.5 text-xs text-gray-500">
-                  {parseResult.rows.length} lignes · {parseResult.source_kind.toUpperCase()} · {parseResult.detected_date ?? "date non détectée"}
+                  {parseResult.rows.length} righe · {parseResult.source_kind.toUpperCase()} · {parseResult.detected_date ?? "data non rilevata"}
                 </p>
               </div>
               <button
                 onClick={() => { setParseResult(null); setParsedFileName(""); setParseError(null); }}
                 className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50"
               >
-                Annuler
+                Annulla
               </button>
             </div>
 
@@ -151,7 +151,7 @@ export default function DailyListsPage(): JSX.Element {
                 <table className="w-full min-w-[640px] border-collapse text-xs">
                   <thead className="sticky top-0 bg-gray-50">
                     <tr>
-                      {["Lista", "Câble", "État", "Périmètre", "Sit. INCA", "Note"].map((h) => (
+                      {["Lista", "Cavo", "Stato", "Perimetro", "Sit. INCA", "Nota"].map((h) => (
                         <th key={h} className="border-b border-gray-200 px-3 py-2 text-left font-semibold uppercase tracking-wider text-gray-500">
                           {h}
                         </th>
@@ -173,7 +173,7 @@ export default function DailyListsPage(): JSX.Element {
                 </table>
                 {parseResult.rows.length > 20 && (
                   <p className="border-t border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-500">
-                    … et {parseResult.rows.length - 20} lignes supplémentaires
+                    … e altre {parseResult.rows.length - 20} righe
                   </p>
                 )}
               </div>
@@ -186,8 +186,8 @@ export default function DailyListsPage(): JSX.Element {
                 className="w-full min-h-11 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
               >
                 {importMutation.isPending
-                  ? "Importation en cours…"
-                  : `Importer ${parseResult.rows.length} câbles dans CORE COMMAND`}
+                  ? "Importazione in corso…"
+                  : `Importa ${parseResult.rows.length} cavi in CORE COMMAND`}
               </button>
             )}
           </div>
@@ -197,9 +197,9 @@ export default function DailyListsPage(): JSX.Element {
       {/* ── Import history ── */}
       <div>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-900">Imports récents</h2>
+          <h2 className="text-sm font-semibold text-gray-900">Import recenti</h2>
           {recentImports.length > 0 && (
-            <span className="text-xs text-gray-400">{recentImports.length} listes</span>
+            <span className="text-xs text-gray-400">{recentImports.length} liste</span>
           )}
         </div>
 
@@ -212,7 +212,7 @@ export default function DailyListsPage(): JSX.Element {
         )}
 
         {!isLoading && recentImports.length === 0 && (
-          <EmptyState title="Aucun import" description="Déposer une liste L1/L2/L3 pour commencer le suivi." icon="📋" />
+          <EmptyState title="Nessun import" description="Carica una lista L1/L2/L3 per iniziare il monitoraggio." icon="📋" />
         )}
 
         {!isLoading && (
@@ -235,19 +235,19 @@ export default function DailyListsPage(): JSX.Element {
                   <p className="mt-0.5 text-xs text-gray-500">
                     {imp.list_date
                       ? new Date(imp.list_date + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })
-                      : "date inconnue"
-                    } · {imp.rows_count} câbles · {imp.source_kind.toUpperCase()} ·{" "}
+                      : "data sconosciuta"
+                    } · {imp.rows_count} cavi · {imp.source_kind.toUpperCase()} ·{" "}
                     {new Date(imp.imported_at).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                   </p>
                 </button>
 
                 <button
                   onClick={() => {
-                    if (confirm(`Supprimer "${imp.file_name}" ?`)) deleteMutation.mutate(imp.id);
+                    if (confirm(`Eliminare "${imp.file_name}"?`)) deleteMutation.mutate(imp.id);
                   }}
                   className="shrink-0 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-500 transition hover:border-red-300 hover:bg-red-50 hover:text-red-600"
                 >
-                  Supprimer
+                  Elimina
                 </button>
               </div>
             ))}

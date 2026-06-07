@@ -60,7 +60,7 @@ export default function DailyListDetailPage(): JSX.Element {
   if (!importId) {
     return (
       <Screen>
-        <EmptyState title="Import ID manquant" description="Retourner aux listes journalières et rouvrir une liste." icon="!" />
+        <EmptyState title="Import ID mancante" description="Torna alle liste giornaliere e riapri una lista." icon="!" />
       </Screen>
     );
   }
@@ -71,18 +71,18 @@ export default function DailyListDetailPage(): JSX.Element {
         onClick={() => navigate("/command/daily-lists")}
         className="min-h-10 rounded-xl border border-zinc-800 px-3 text-xs font-medium text-zinc-400 transition hover:border-zinc-700 hover:text-white"
       >
-        ← Toutes les listes
+        ← Tutte le liste
       </button>
 
       <AppBar
-        title={importRow?.file_name ?? "Liste journalière"}
-        subtitle={`${importRow?.list_date ?? "date inconnue"} · ${importRow?.rows_count ?? 0} câbles · ${importRow?.source_kind?.toUpperCase() ?? ""}`}
+        title={importRow?.file_name ?? "Lista giornaliera"}
+        subtitle={`${importRow?.list_date ?? "data sconosciuta"} · ${importRow?.rows_count ?? 0} cavi · ${importRow?.source_kind?.toUpperCase() ?? ""}`}
         action={
           <button
             onClick={() => setShowBriefing((v) => !v)}
             className="min-h-10 rounded-xl border border-zinc-800 px-3 text-xs font-medium text-zinc-400 transition hover:border-zinc-700 hover:text-white"
           >
-            {showBriefing ? "Masquer contexte AI" : "🤖 Contexte AI"}
+            {showBriefing ? "Nascondi contesto AI" : "🤖 Contesto AI"}
           </button>
         }
       />
@@ -93,25 +93,25 @@ export default function DailyListDetailPage(): JSX.Element {
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
           </svg>
-          Chargement des données terrain…
+          Caricamento dati di campo…
         </div>
       ) : null}
 
       {summary ? (
         <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard label="Total" value={summary.total} helper="lignes exploitables" />
-            <StatCard label="Confirmés" value={summary.confirmed} helper={`${summary.confirmed_by_whatsapp} confirmées WhatsApp`} tone="emerald" />
-            <StatCard label="Restants" value={remaining} helper={`${summary.missing_evidence} sans preuve`} tone={remaining > 0 ? "amber" : "neutral"} />
+            <StatCard label="Totale" value={summary.total} helper="righe utilizzabili" />
+            <StatCard label="Confermati" value={summary.confirmed} helper={`${summary.confirmed_by_whatsapp} conferme WhatsApp`} tone="emerald" />
+            <StatCard label="Restanti" value={remaining} helper={`${summary.missing_evidence} senza prova`} tone={remaining > 0 ? "amber" : "neutral"} />
             <StatCard
-              label="Problèmes"
+              label="Problemi"
               value={problemItems.length + partialItems.length}
-              helper={`${zeroPerimeters.length} zone${zeroPerimeters.length > 1 ? "s" : ""} à 0%`}
+              helper={`${zeroPerimeters.length} zone${zeroPerimeters.length > 1 ? "" : ""} a 0%`}
               tone={problemItems.length + partialItems.length > 0 ? "red" : "neutral"}
             />
           </div>
 
-          <Section title="Avancement global" eyebrow="Progression">
+          <Section title="Avanzamento globale" eyebrow="Progressione">
             <div className="rounded-3xl border border-zinc-800 bg-zinc-900/80 p-4">
               <DailyListProgress summary={summary} />
             </div>
@@ -120,14 +120,14 @@ export default function DailyListDetailPage(): JSX.Element {
       ) : null}
 
       {summary && summary.tomorrow_actions.length > 0 ? (
-        <Section title="Actions demain" eyebrow="Priorité terrain" count={summary.tomorrow_actions.length}>
+        <Section title="Azioni domani" eyebrow="Priorita campo" count={summary.tomorrow_actions.length}>
           <div className="space-y-3">
             {summary.tomorrow_actions.map((action) => (
               <article key={`${action.kind}-${action.perimetro ?? "all"}`} className="rounded-3xl border border-amber-500/20 bg-amber-500/10 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-medium text-amber-100">{action.label}</p>
-                    {action.perimetro ? <p className="mt-1 text-xs text-amber-300/80">Zone {action.perimetro}</p> : null}
+                    {action.perimetro ? <p className="mt-1 text-xs text-amber-300/80">Zona {action.perimetro}</p> : null}
                   </div>
                   <Pill tone="amber">{action.count}</Pill>
                 </div>
@@ -149,30 +149,30 @@ export default function DailyListDetailPage(): JSX.Element {
       ) : null}
 
       {missingEvidenceItems.length > 0 ? (
-        <Section title="Sans preuve" eyebrow="À confirmer" count={missingEvidenceItems.length}>
+        <Section title="Senza prova" eyebrow="Da confermare" count={missingEvidenceItems.length}>
           <CableCardGrid items={missingEvidenceItems} accent="amber" onOpen={(item) => navigate(item.cable_story_path)} />
         </Section>
       ) : null}
 
       {partialItems.length > 0 ? (
-        <Section title="Partiels / À vérifier" eyebrow="Contrôle terrain" count={partialItems.length}>
+        <Section title="Parziali / Da verificare" eyebrow="Controllo campo" count={partialItems.length}>
           <CableCardGrid items={partialItems} accent="sky" onOpen={(item) => navigate(item.cable_story_path)} />
         </Section>
       ) : null}
 
       {problemItems.length > 0 || zeroPerimeters.length > 0 ? (
-        <Section title="Bloqués / Problèmes" eyebrow="Risque chantier" count={problemItems.length + zeroPerimeters.length}>
+        <Section title="Bloccati / Problemi" eyebrow="Rischio cantiere" count={problemItems.length + zeroPerimeters.length}>
           <div className="grid gap-3 lg:grid-cols-2">
             <div className="rounded-3xl border border-red-500/20 bg-red-500/10 p-4">
-              <h3 className="text-sm font-semibold text-red-200">Zones critiques</h3>
+              <h3 className="text-sm font-semibold text-red-200">Zone critiche</h3>
               {zeroPerimeters.length === 0 ? (
-                <p className="mt-3 text-sm text-zinc-400">Aucune zone à 0%.</p>
+                <p className="mt-3 text-sm text-zinc-400">Nessuna zona a 0%.</p>
               ) : (
                 <div className="mt-3 space-y-2">
                   {zeroPerimeters.map((zone) => (
                     <div key={zone.perimetro} className="flex items-center justify-between gap-3 rounded-2xl bg-black/20 px-3 py-2">
                       <span className="text-sm font-medium text-red-100">{zone.perimetro}</span>
-                      <span className="text-xs text-red-200">{zone.total} câbles · 0%</span>
+                      <span className="text-xs text-red-200">{zone.total} cavi · 0%</span>
                     </div>
                   ))}
                 </div>
@@ -180,9 +180,9 @@ export default function DailyListDetailPage(): JSX.Element {
             </div>
 
             <div className="rounded-3xl border border-zinc-800 bg-zinc-900/80 p-4">
-              <h3 className="text-sm font-semibold text-zinc-100">Priorités absolues</h3>
+              <h3 className="text-sm font-semibold text-zinc-100">Priorita assolute</h3>
               {absolutePriorities.length === 0 ? (
-                <p className="mt-3 text-sm text-zinc-400">Aucune priorité bloquante détectée.</p>
+                <p className="mt-3 text-sm text-zinc-400">Nessuna priorita bloccante rilevata.</p>
               ) : (
                 <div className="mt-3 space-y-2">
                   {absolutePriorities.map((item) => (
@@ -208,7 +208,7 @@ export default function DailyListDetailPage(): JSX.Element {
       ) : null}
 
       {summary && summary.by_perimeter.length > 0 ? (
-        <Section title="Par zone" eyebrow="Avancement" count={summary.by_perimeter.length}>
+        <Section title="Per zona" eyebrow="Avanzamento" count={summary.by_perimeter.length}>
           <div className="rounded-3xl border border-zinc-800 bg-zinc-900/80 p-4">
             <div className="space-y-3">
               {summary.by_perimeter.map((perimeter) => {
@@ -226,7 +226,7 @@ export default function DailyListDetailPage(): JSX.Element {
                         className={`h-full rounded-full ${pct === 0 ? "bg-zinc-600" : pct < 50 ? "bg-amber-400" : pct < 80 ? "bg-sky-400" : "bg-emerald-500"}`}
                       />
                     </div>
-                    {perimeter.no_evidence > 0 ? <p className="text-[11px] text-amber-300">{perimeter.no_evidence} sans preuve</p> : null}
+                    {perimeter.no_evidence > 0 ? <p className="text-[11px] text-amber-300">{perimeter.no_evidence} senza prova</p> : null}
                   </div>
                 );
               })}
@@ -236,7 +236,7 @@ export default function DailyListDetailPage(): JSX.Element {
       ) : null}
 
       {equipmentImpacts.length > 0 ? (
-        <Section title="Équipements touchés" eyebrow="APP départ / arrivée" count={equipmentImpacts.length}>
+        <Section title="Apparati impattati" eyebrow="APP partenza / arrivo" count={equipmentImpacts.length}>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {equipmentImpacts.slice(0, 18).map((equipment) => (
               <button
@@ -251,7 +251,7 @@ export default function DailyListDetailPage(): JSX.Element {
                   </Pill>
                 </div>
                 <div className="mt-2 text-xs leading-5 text-zinc-500">
-                  {equipment.total_cables} câbles · {equipment.confirmed_by_field} preuves · {equipment.without_field_evidence} sans preuve
+                  {equipment.total_cables} cavi · {equipment.confirmed_by_field} prove · {equipment.without_field_evidence} senza prova
                 </div>
                 {equipment.risk_reasons[0] ? <div className="mt-2 truncate text-xs text-amber-300">{equipment.risk_reasons[0]}</div> : null}
               </button>
@@ -261,20 +261,20 @@ export default function DailyListDetailPage(): JSX.Element {
       ) : null}
 
       {items && items.length > 0 ? (
-        <Section title="Tableau complet" eyebrow="Détail par câble" count={items.length}>
+        <Section title="Tabella completa" eyebrow="Dettaglio per cavo" count={items.length}>
           <DailyListTable items={items} />
         </Section>
       ) : null}
 
       {!isLoading && items && items.length === 0 ? (
-        <EmptyState title="Liste vide" description="Aucun câble exploitable dans cet import." icon="📋" />
+        <EmptyState title="Lista vuota" description="Nessun cavo utilizzabile in questo import." icon="📋" />
       ) : null}
 
       {showBriefing && briefing ? (
-        <Section title="Contexte AI-ready" eyebrow="Debug" count={1}>
+        <Section title="Contesto AI-ready" eyebrow="Debug" count={1}>
           <div className="rounded-3xl border border-zinc-800 bg-zinc-900/80 p-4">
             <p className="mb-3 text-xs text-zinc-500">
-              JSON prêt à transmettre à un AI Advisor. Aucun LLM n'a été appelé ici.
+              JSON pronto da inviare a un AI Advisor. Nessun LLM e stato chiamato qui.
             </p>
             <pre className="max-h-96 overflow-auto rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-[11px] text-zinc-300">
               {JSON.stringify(briefing, null, 2)}

@@ -5,11 +5,9 @@
 -- 1) RAW column (no-loss guarantee)
 ALTER TABLE public.inca_cavi
 ADD COLUMN IF NOT EXISTS raw jsonb NOT NULL DEFAULT '{}'::jsonb;
-
 CREATE INDEX IF NOT EXISTS inca_cavi_raw_gin
 ON public.inca_cavi
 USING gin (raw jsonb_path_ops);
-
 -- 2) SAVED VIEWS
 CREATE TABLE IF NOT EXISTS public.inca_saved_views (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -22,14 +20,11 @@ CREATE TABLE IF NOT EXISTS public.inca_saved_views (
   sort jsonb NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
-
 ALTER TABLE public.inca_saved_views ENABLE ROW LEVEL SECURITY;
-
 CREATE POLICY inca_saved_views_owner_policy
 ON public.inca_saved_views
 FOR ALL
 USING (auth.uid() = owner_user_id);
-
 -- 3) RPC QUERY
 CREATE OR REPLACE FUNCTION public.inca_cockpit_query_v1(
   p_inca_file_id uuid,

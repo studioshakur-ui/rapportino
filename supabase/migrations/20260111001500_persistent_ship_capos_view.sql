@@ -15,5 +15,4 @@ select
 from public.ship_capos sc
 join public.ships s on s.id = sc.ship_id
 where sc.capo_id = auth.uid();
-
 grant select on public.capo_today_ship_assignments_v1 to anon, authenticated, service_role;

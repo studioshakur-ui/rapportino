@@ -9,13 +9,11 @@
 -- - Default behavior is NON-DESTRUCTIVE: do not overwrite non-empty day slots unless p_overwrite=true.
 
 begin;
-
 -- -----------------------------------------------------------------------------
 -- CAPO: team for an explicit day (no CURRENT_DATE ambiguity)
 -- -----------------------------------------------------------------------------
 
 drop function if exists public.capo_my_team_for_date_v1(date);
-
 create or replace function public.capo_my_team_for_date_v1(p_plan_date date)
 returns table(
   operator_id uuid,
@@ -49,23 +47,18 @@ as $$
     and p.status = any (array['PUBLISHED'::public.plan_status, 'FROZEN'::public.plan_status])
     and s.capo_id = auth.uid();
 $$;
-
 alter function public.capo_my_team_for_date_v1(date) owner to postgres;
-
 revoke all on function public.capo_my_team_for_date_v1(date) from public;
 grant all on function public.capo_my_team_for_date_v1(date) to anon;
 grant all on function public.capo_my_team_for_date_v1(date) to authenticated;
 grant all on function public.capo_my_team_for_date_v1(date) to service_role;
-
 comment on function public.capo_my_team_for_date_v1(date)
 is 'CAPO: operators assigned by Manager for a specific DAY plan date (PUBLISHED/FROZEN). Avoids CURRENT_DATE timezone ambiguity.';
-
 -- -----------------------------------------------------------------------------
 -- MANAGER: WEEK template -> DAY plans (Mon-Fri)
 -- -----------------------------------------------------------------------------
 
 drop function if exists public.manager_apply_week_to_days_v1(uuid, boolean);
-
 create or replace function public.manager_apply_week_to_days_v1(
   p_week_plan_id uuid,
   p_overwrite boolean default false
@@ -231,23 +224,18 @@ begin
   );
 end;
 $$;
-
 alter function public.manager_apply_week_to_days_v1(uuid, boolean) owner to postgres;
-
 revoke all on function public.manager_apply_week_to_days_v1(uuid, boolean) from public;
 grant all on function public.manager_apply_week_to_days_v1(uuid, boolean) to anon;
 grant all on function public.manager_apply_week_to_days_v1(uuid, boolean) to authenticated;
 grant all on function public.manager_apply_week_to_days_v1(uuid, boolean) to service_role;
-
 comment on function public.manager_apply_week_to_days_v1(uuid, boolean)
 is 'MANAGER: materialize WEEK plan into DAY plans for Mon-Fri. Default is non-destructive (preserve day overrides unless overwrite=true).';
-
 -- -----------------------------------------------------------------------------
 -- MANAGER: set WEEK status and propagate to Mon-Fri DAY plans
 -- -----------------------------------------------------------------------------
 
 drop function if exists public.manager_set_week_status_v1(uuid, public.plan_status, boolean);
-
 create or replace function public.manager_set_week_status_v1(
   p_week_plan_id uuid,
   p_next_status public.plan_status,
@@ -337,15 +325,11 @@ begin
   );
 end;
 $$;
-
 alter function public.manager_set_week_status_v1(uuid, public.plan_status, boolean) owner to postgres;
-
 revoke all on function public.manager_set_week_status_v1(uuid, public.plan_status, boolean) from public;
 grant all on function public.manager_set_week_status_v1(uuid, public.plan_status, boolean) to anon;
 grant all on function public.manager_set_week_status_v1(uuid, public.plan_status, boolean) to authenticated;
 grant all on function public.manager_set_week_status_v1(uuid, public.plan_status, boolean) to service_role;
-
 comment on function public.manager_set_week_status_v1(uuid, public.plan_status, boolean)
 is 'MANAGER: set WEEK status and propagate to Mon-Fri DAY plans. Calls manager_apply_week_to_days_v1 first.';
-
 commit;

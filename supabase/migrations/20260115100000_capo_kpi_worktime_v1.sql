@@ -1,5 +1,4 @@
 set check_function_bodies = off;
-
 -- KPI #4 (CAPO): Worktime cockpit
 -- Perimetro: rapportini firmati dal Capo (auth.uid())
 -- Scopo: ore totali + straordinario deterministico (max(ore_giorno - 8, 0) Lun–Ven)

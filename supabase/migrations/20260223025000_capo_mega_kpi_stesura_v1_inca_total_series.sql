@@ -1,5 +1,4 @@
 set check_function_bodies = off;
-
 create or replace function public.capo_mega_kpi_stesura_v1(
   p_costr text,
   p_commessa text default null,
@@ -227,5 +226,4 @@ select jsonb_build_object(
   )
 );
 $$;
-
 grant execute on function public.capo_mega_kpi_stesura_v1(text, text, uuid, date, date) to authenticated;

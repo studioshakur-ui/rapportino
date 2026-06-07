@@ -1,6 +1,5 @@
 -- supabase/migrations/20260114170000_capo_mega_kpi_stesura_v1.sql
 set check_function_bodies = off;
-
 -- ============================================================================
 -- CORE / CNCS — Mega KPI CAPO (Stesura + Ripresa), INCA-based scope + offset
 -- Canon rules:
@@ -24,7 +23,6 @@ AS $$
       ELSE 'OTHER'
     END;
 $$;
-
 CREATE OR REPLACE FUNCTION public.capo_mega_kpi_stesura_v1(
   p_costr text,
   p_commessa text DEFAULT NULL,
@@ -40,14 +38,6 @@ WITH
 capo_ctx AS (
   SELECT auth.uid()::uuid AS capo_id
 ),
-
--- Normalizzazione robusta (trim + lowercase) pour éviter mismatch
-norm AS (
-  SELECT
-    NULLIF(lower(btrim(p_costr)), '') AS costr_norm,
-    NULLIF(lower(btrim(p_commessa)), '') AS commessa_norm
-),
-
 inca_pick AS (
   SELECT
     COALESCE(
@@ -55,38 +45,28 @@ inca_pick AS (
       (
         SELECT f.id
         FROM public.inca_files f
-        JOIN norm n ON true
-        WHERE (n.costr_norm IS NULL OR lower(btrim(f.costr)) = n.costr_norm)
-          AND (n.commessa_norm IS NULL OR lower(btrim(f.commessa)) = n.commessa_norm)
+        WHERE (p_costr IS NULL OR f.costr = p_costr)
+          AND (p_commessa IS NULL OR f.commessa = p_commessa)
         ORDER BY f.uploaded_at DESC
         LIMIT 1
       )
     ) AS inca_file_id
 ),
-
 d0 AS (
   SELECT
     MIN(COALESCE(r.report_date, r.data)) AS d0_date
   FROM public.rapportini r
   JOIN capo_ctx c ON true
-  JOIN norm n ON true
   WHERE r.capo_id = c.capo_id
-    AND (n.costr_norm IS NULL OR lower(btrim(r.costr::text)) = n.costr_norm)
-    AND (n.commessa_norm IS NULL OR lower(btrim(r.commessa::text)) = n.commessa_norm)
+    AND (p_costr IS NULL OR r.costr = p_costr OR r.costr = p_costr OR r.cost = p_costr)
+    AND (p_commessa IS NULL OR r.commessa = p_commessa)
     AND (r.superseded_by_rapportino_id IS NULL)
 ),
-
 range_ctx AS (
   SELECT
-    -- ✅ date_from must never be NULL
-    COALESCE(
-      p_date_from,
-      (SELECT d0_date FROM d0),
-      (CURRENT_DATE - INTERVAL '45 days')::date
-    ) AS date_from,
+    COALESCE(p_date_from, (SELECT d0_date FROM d0)) AS date_from,
     COALESCE(p_date_to, CURRENT_DATE) AS date_to
 ),
-
 inca_scope AS (
   SELECT
     ip.inca_file_id,
@@ -94,8 +74,7 @@ inca_scope AS (
     COALESCE(
       SUM(
         CASE
-          -- ✅ FIX: colonne canonique = situazione (pas situazione_cavo)
-          WHEN c.situazione = 'P' THEN
+          WHEN c.situazione_cavo = 'P' THEN
             CASE
               WHEN c.metri_dis IS NOT NULL AND c.metri_dis > 0 THEN c.metri_dis
               ELSE COALESCE(c.metri_teo, 0)
@@ -110,7 +89,6 @@ inca_scope AS (
     ON c.inca_file_id = ip.inca_file_id
   GROUP BY ip.inca_file_id
 ),
-
 rows_base AS (
   SELECT
     COALESCE(r.report_date, r.data) AS report_date,
@@ -118,20 +96,18 @@ rows_base AS (
     COALESCE(ca.descrizione, rr.descrizione) AS descrizione_eff
   FROM public.rapportini r
   JOIN capo_ctx c ON true
-  JOIN norm n ON true
   JOIN range_ctx rg ON true
   JOIN public.rapportino_rows rr
     ON rr.rapportino_id = r.id
   LEFT JOIN public.catalogo_attivita ca
     ON ca.id = rr.activity_id
   WHERE r.capo_id = c.capo_id
-    AND (n.costr_norm IS NULL OR lower(btrim(r.costr::text)) = n.costr_norm)
-    AND (n.commessa_norm IS NULL OR lower(btrim(r.commessa::text)) = n.commessa_norm)
+    AND (p_costr IS NULL OR r.costr = p_costr OR r.costr = p_costr OR r.cost = p_costr)
+    AND (p_commessa IS NULL OR r.commessa = p_commessa)
     AND (r.superseded_by_rapportino_id IS NULL)
     AND COALESCE(r.report_date, r.data) BETWEEN rg.date_from AND rg.date_to
     AND rr.prodotto IS NOT NULL
 ),
-
 daily AS (
   SELECT
     report_date::date AS date,
@@ -141,7 +117,6 @@ daily AS (
   FROM rows_base
   GROUP BY report_date::date
 ),
-
 daily2 AS (
   SELECT
     d.date,
@@ -151,7 +126,6 @@ daily2 AS (
     d.fascettatura_m
   FROM daily d
 ),
-
 daily_cum AS (
   SELECT
     d.*,
@@ -160,7 +134,6 @@ daily_cum AS (
       AS stesura_cum_m
   FROM daily2 d
 ),
-
 headline AS (
   SELECT
     (SELECT date_to FROM range_ctx)::date AS today_date,
@@ -170,7 +143,6 @@ headline AS (
     (SELECT fascettatura_m FROM daily2 WHERE date = (SELECT date_to FROM range_ctx)::date) AS today_fascettatura_m,
     (SELECT COALESCE(stesura_cum_m, (SELECT offset_m FROM inca_scope)) FROM daily_cum ORDER BY date DESC LIMIT 1) AS stesura_cum_m
 )
-
 SELECT jsonb_build_object(
   'meta', jsonb_build_object(
     'costr', p_costr,

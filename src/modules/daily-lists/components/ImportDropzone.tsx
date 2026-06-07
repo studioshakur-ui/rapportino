@@ -52,9 +52,9 @@ export default function ImportDropzone({ onFile, disabled = false }: Props): JSX
       </span>
 
       <span className="space-y-1">
-        <span className="block text-lg font-semibold text-white">Importer liste PDF</span>
+        <span className="block text-lg font-semibold text-white">Importa lista PDF</span>
         <span className="block text-sm leading-6 text-zinc-400">
-          Déposer la liste journalière ici ou toucher pour choisir un fichier.
+          Trascina qui la lista giornaliera o tocca per scegliere un file.
         </span>
       </span>
 

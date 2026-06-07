@@ -1,6 +1,5 @@
 -- supabase/migrations/20260111_150000_fix_capo_ship_attendance_defaults.sql
 begin;
-
 -- Table baseline: capo_ship_attendance n'a PAS de colonne updated_at dans ton schéma.
 -- Donc on ne touche que les colonnes existantes, de manière conditionnelle.
 
@@ -28,5 +27,4 @@ begin
     execute 'alter table public.capo_ship_attendance alter column created_at set default now()';
   end if;
 end$$;
-
 commit;

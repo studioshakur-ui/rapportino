@@ -1,4 +1,4 @@
--- ===================================================================
+﻿-- ===================================================================
 -- MERGED MIGRATION: 20260118 (auto-merged to avoid duplicate versions)
 -- Generated: 2026-01-24T18:23:46
 -- ===================================================================
@@ -25,10 +25,8 @@ create table if not exists public.inca_imports (
   created_by uuid null,
   note text null
 );
-
 create index if not exists inca_imports_inca_file_id_idx on public.inca_imports (inca_file_id);
 create index if not exists inca_imports_imported_at_idx on public.inca_imports (imported_at);
-
 -- ======================================
 -- Extend inca_cavi for sync + observability
 -- ======================================
@@ -43,10 +41,8 @@ alter table public.inca_cavi
   add column if not exists last_rework_at timestamptz null,
   add column if not exists last_eliminated_at timestamptz null,
   add column if not exists last_reinstated_at timestamptz null;
-
 create index if not exists inca_cavi_last_import_id_idx on public.inca_cavi (last_import_id);
 create index if not exists inca_cavi_missing_latest_idx on public.inca_cavi (missing_in_latest_import);
-
 -- =========================
 -- Snapshots per import
 -- =========================
@@ -62,10 +58,8 @@ create table if not exists public.inca_cavi_snapshot (
   created_at timestamptz not null default now(),
   primary key (import_id, codice)
 );
-
 create index if not exists inca_cavi_snapshot_import_id_idx on public.inca_cavi_snapshot (import_id);
 create index if not exists inca_cavi_snapshot_file_codice_idx on public.inca_cavi_snapshot (inca_file_id, codice);
-
 -- =========================
 -- Change events enums
 -- =========================
@@ -92,7 +86,6 @@ do $$ begin
     );
   end if;
 end $$;
-
 -- =========================
 -- Change events table
 -- =========================
@@ -110,11 +103,9 @@ create table if not exists public.inca_change_events (
   payload jsonb null,
   created_at timestamptz not null default now()
 );
-
 create index if not exists inca_change_events_to_import_id_idx on public.inca_change_events (to_import_id);
 create index if not exists inca_change_events_codice_idx on public.inca_change_events (codice);
 create index if not exists inca_change_events_severity_idx on public.inca_change_events (severity);
-
 -- =========================
 -- Import summary (for badge)
 -- =========================
@@ -137,7 +128,6 @@ create table if not exists public.inca_import_summaries (
   block_count int not null default 0,
   created_at timestamptz not null default now()
 );
-
 -- =========================
 -- RPCs to increment counters (optional, used by Edge)
 -- =========================
@@ -152,7 +142,6 @@ begin
   where inca_file_id = p_inca_file_id
     and codice = any(p_codes);
 end $$;
-
 create or replace function public.inca_increment_eliminated(p_inca_file_id uuid, p_codes text[])
 returns void
 language plpgsql
@@ -164,7 +153,6 @@ begin
   where inca_file_id = p_inca_file_id
     and codice = any(p_codes);
 end $$;
-
 create or replace function public.inca_increment_reinstated(p_inca_file_id uuid, p_codes text[])
 returns void
 language plpgsql
@@ -176,13 +164,12 @@ begin
   where inca_file_id = p_inca_file_id
     and codice = any(p_codes);
 end $$;
-
-
-
 -- ------------------------------
 -- SOURCE: 20260118_inca_rpcs.sql
 -- ------------------------------
--- supabase/migrations/20260118_inca_rpcs.ts
+
+// supabase/migrations/20260118_inca_rpcs.ts
+export const INCA_RPCS_SQL = `
 create or replace function public.inca_increment_rework(p_inca_file_id uuid, p_codes text[])
 returns void
 language plpgsql
@@ -194,7 +181,6 @@ begin
   where inca_file_id = p_inca_file_id
     and codice = any(p_codes);
 end $$;
-
 create or replace function public.inca_increment_eliminated(p_inca_file_id uuid, p_codes text[])
 returns void
 language plpgsql
@@ -206,7 +192,6 @@ begin
   where inca_file_id = p_inca_file_id
     and codice = any(p_codes);
 end $$;
-
 create or replace function public.inca_increment_reinstated(p_inca_file_id uuid, p_codes text[])
 returns void
 language plpgsql
@@ -218,5 +203,4 @@ begin
   where inca_file_id = p_inca_file_id
     and codice = any(p_codes);
 end $$;
-
-
+`;

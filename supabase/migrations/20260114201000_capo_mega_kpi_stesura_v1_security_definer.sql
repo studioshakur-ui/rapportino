@@ -1,5 +1,4 @@
 set check_function_bodies = off;
-
 -- Patch: make KPI function SECURITY DEFINER to bypass RLS,
 -- while still enforcing caller scoping via auth.uid().
 
@@ -214,6 +213,5 @@ SELECT
     )
   );
 $$;
-
 -- Important in Supabase: ensure callers can execute (if you manage grants explicitly)
--- GRANT EXECUTE ON FUNCTION public.capo_mega_kpi_stesura_v1(text, text, uuid, date, date) TO authenticated;
+-- GRANT EXECUTE ON FUNCTION public.capo_mega_kpi_stesura_v1(text, text, uuid, date, date) TO authenticated;;

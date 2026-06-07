@@ -30,10 +30,8 @@ left join public.plan_slot_members m on m.slot_id = s.id
 left join public.profiles pm on pm.id = p.manager_id
 left join public.profiles pc on pc.id = s.capo_id
 left join public.operators o on o.id = m.operator_id;
-
 comment on view "public"."admin_planning_overview_v2" is
   'Admin global planning overview: Plan -> CAPO slots -> Operators. Includes profile/operator labels for UI.';
-
 grant all on table "public"."admin_planning_overview_v2" to "anon";
 grant all on table "public"."admin_planning_overview_v2" to "authenticated";
 grant all on table "public"."admin_planning_overview_v2" to "service_role";

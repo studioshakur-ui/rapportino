@@ -1,5 +1,4 @@
 begin;
-
 create or replace function public.is_admin()
 returns boolean
 language sql
@@ -15,10 +14,8 @@ as $$
       and upper(p.app_role::text) = 'ADMIN'
   );
 $$;
-
 revoke all on function public.is_admin() from public;
 grant execute on function public.is_admin() to authenticated;
-
 create or replace function public.core_is_admin()
 returns boolean
 language sql
@@ -28,8 +25,6 @@ set search_path = public
 as $$
   select public.is_admin();
 $$;
-
 revoke all on function public.core_is_admin() from public;
 grant execute on function public.core_is_admin() to authenticated;
-
 commit;

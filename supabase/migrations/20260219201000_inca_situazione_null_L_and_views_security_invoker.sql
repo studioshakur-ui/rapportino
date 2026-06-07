@@ -6,33 +6,26 @@
 -- - Ensure cockpit RPC uses canonical v3 view
 
 begin;
-
 -- 1) DATA FIX: normalize any legacy 'L' to NULL (idempotent)
 update public.inca_cavi
 set situazione = null
 where trim(coalesce(situazione, '')) = 'L';
-
 -- 2) DOMAIN CONSTRAINT: forbid 'L' text, allow NULL + atomic states
 alter table public.inca_cavi
   drop constraint if exists inca_cavi_situazione_check;
-
 alter table public.inca_cavi
   add constraint inca_cavi_situazione_check
   check (
     (situazione is null)
     or (situazione = any (array['T','P','R','B','E']))
   );
-
 comment on column public.inca_cavi.situazione is
   'NULL=L (libero/disponibile). T=tagliato, B=bloccato, R=richiesta, P=posato, E=eliminato. KPI NP = (NULL + T + B + R).';
-
 -- 3) VIEWS: recreate v3 with SECURITY INVOKER; keep v2 as alias (also security invoker)
 -- Drop alias first (depends on v3)
 drop view if exists public.inca_cavi_with_last_posa_and_capo_v2;
-
 -- Then drop base view
 drop view if exists public.inca_cavi_with_last_posa_and_capo_v3;
-
 create or replace view public.inca_cavi_with_last_posa_and_capo_v3
 with (security_invoker = true)
 as
@@ -83,19 +76,15 @@ left join posa
   on posa.codice_norm = regexp_replace(trim(replace(c.codice, chr(160), ' ')), '\\s+', ' ', 'g')
   and posa.costr_cache = c.costr
   and posa.commessa_cache = c.commessa;
-
 comment on view public.inca_cavi_with_last_posa_and_capo_v3 is
   'INCA cables + last POSA date (ric.posa_date) + capo label (via rapportini.capo_id); strict chantier: outputs masked unless situazione = P; SECURITY INVOKER for RLS correctness.';
-
 drop view if exists public.inca_cavi_with_last_posa_and_capo_v2;
 create or replace view public.inca_cavi_with_last_posa_and_capo_v2
 with (security_invoker = true)
 as
 select * from public.inca_cavi_with_last_posa_and_capo_v3;
-
 comment on view public.inca_cavi_with_last_posa_and_capo_v2 is
   'Alias to v3 (strict chantier masking; capo via capo_id; posa_date from rapportino_inca_cavi). SECURITY INVOKER.';
-
 -- 4) RPC: point cockpit query to canonical v3 view (stable semantics)
 create or replace function public.inca_cockpit_query_v1(
   p_inca_file_id uuid,
@@ -133,5 +122,4 @@ begin
   return v_result;
 end;
 $$;
-
 commit;

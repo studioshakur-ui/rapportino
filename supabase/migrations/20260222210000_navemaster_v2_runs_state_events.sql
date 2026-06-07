@@ -8,8 +8,6 @@
 -- - UFFICIO writes are append-only (navemaster_events).
 
 begin;
-
-
 -- 1) New enums
 DO $$
 BEGIN
@@ -42,7 +40,6 @@ BEGIN
     CREATE TYPE public.navemaster_event_type AS ENUM ('R','L','B','E','NOTE');
   END IF;
 END$$;
-
 -- 2) NAVEMASTER V2 core tables
 
 -- 2.1 Runs (immutable compute artifacts)
@@ -60,13 +57,10 @@ CREATE TABLE IF NOT EXISTS public.navemaster_runs (
   created_at timestamptz DEFAULT now() NOT NULL,
   frozen_at timestamptz
 );
-
 CREATE INDEX IF NOT EXISTS navemaster_runs_ship_created_at_idx ON public.navemaster_runs (ship_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS navemaster_runs_ship_frozen_at_idx ON public.navemaster_runs (ship_id, frozen_at DESC);
 CREATE INDEX IF NOT EXISTS navemaster_runs_inca_file_idx ON public.navemaster_runs (inca_file_id);
-
 COMMENT ON TABLE public.navemaster_runs IS 'NAVEMASTER V2 runs: immutable snapshots computed from INCA baseline + APPROVED proofs + UFFICIO events.';
-
 -- 2.2 State rows (1 per cable per run)
 CREATE TABLE IF NOT EXISTS public.navemaster_state_rows (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -113,10 +107,8 @@ CREATE TABLE IF NOT EXISTS public.navemaster_state_rows (
 
   created_at timestamptz DEFAULT now() NOT NULL
 );
-
 -- Uniqueness: one row per (run, codice_norm)
 CREATE UNIQUE INDEX IF NOT EXISTS navemaster_state_rows_run_codice_norm_ux ON public.navemaster_state_rows (run_id, codice_norm);
-
 -- Index-heavy (Excel-grade filters)
 CREATE INDEX IF NOT EXISTS navemaster_state_rows_run_status_idx ON public.navemaster_state_rows (run_id, stato_nav);
 CREATE INDEX IF NOT EXISTS navemaster_state_rows_run_cov_idx ON public.navemaster_state_rows (run_id, coverage);
@@ -125,7 +117,6 @@ CREATE INDEX IF NOT EXISTS navemaster_state_rows_run_delta_idx ON public.navemas
 CREATE INDEX IF NOT EXISTS navemaster_state_rows_run_ref_idx ON public.navemaster_state_rows (run_id, metri_ref);
 CREATE INDEX IF NOT EXISTS navemaster_state_rows_run_pos_idx ON public.navemaster_state_rows (run_id, metri_posati_ref);
 CREATE INDEX IF NOT EXISTS navemaster_state_rows_run_last_proof_idx ON public.navemaster_state_rows (run_id, last_proof_at DESC);
-
 CREATE INDEX IF NOT EXISTS navemaster_state_rows_run_livello_idx ON public.navemaster_state_rows (run_id, livello);
 CREATE INDEX IF NOT EXISTS navemaster_state_rows_run_sezione_idx ON public.navemaster_state_rows (run_id, sezione);
 CREATE INDEX IF NOT EXISTS navemaster_state_rows_run_tipo_idx ON public.navemaster_state_rows (run_id, tipo);
@@ -134,9 +125,7 @@ CREATE INDEX IF NOT EXISTS navemaster_state_rows_run_zona_a_idx ON public.navema
 CREATE INDEX IF NOT EXISTS navemaster_state_rows_run_apparato_da_idx ON public.navemaster_state_rows (run_id, apparato_da);
 CREATE INDEX IF NOT EXISTS navemaster_state_rows_run_apparato_a_idx ON public.navemaster_state_rows (run_id, apparato_a);
 CREATE INDEX IF NOT EXISTS navemaster_state_rows_codice_norm_idx ON public.navemaster_state_rows (codice_norm);
-
 COMMENT ON TABLE public.navemaster_state_rows IS 'NAVEMASTER V2 computed state per cable (per run). Maximised for filtering and audit.';
-
 -- 2.3 Structured blocchi locali (drives B)
 CREATE TABLE IF NOT EXISTS public.blocchi_locali (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -154,13 +143,10 @@ CREATE TABLE IF NOT EXISTS public.blocchi_locali (
   created_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
   created_at timestamptz DEFAULT now() NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS blocchi_locali_ship_commessa_blocked_idx ON public.blocchi_locali (ship_id, commessa, blocked_at DESC);
 CREATE INDEX IF NOT EXISTS blocchi_locali_ship_commessa_open_idx ON public.blocchi_locali (ship_id, commessa) WHERE unblocked_at IS NULL;
 CREATE INDEX IF NOT EXISTS blocchi_locali_locale_idx ON public.blocchi_locali (locale_code);
-
 COMMENT ON TABLE public.blocchi_locali IS 'Blocchi locali strutturati. UFFICIO can create/update (unblock) to drive NAV status B.';
-
 -- 2.4 Append-only events (UFFICIO)
 CREATE TABLE IF NOT EXISTS public.navemaster_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -177,13 +163,10 @@ CREATE TABLE IF NOT EXISTS public.navemaster_events (
   created_at timestamptz DEFAULT now() NOT NULL,
   CONSTRAINT navemaster_events_blocco_required_if_B CHECK ((event_type <> 'B'::public.navemaster_event_type) OR (blocco_locale_id IS NOT NULL))
 );
-
 CREATE INDEX IF NOT EXISTS navemaster_events_ship_commessa_at_idx ON public.navemaster_events (ship_id, commessa, event_at DESC);
 CREATE INDEX IF NOT EXISTS navemaster_events_codice_norm_at_idx ON public.navemaster_events (codice_norm, event_at DESC);
 CREATE INDEX IF NOT EXISTS navemaster_events_type_idx ON public.navemaster_events (event_type);
-
 COMMENT ON TABLE public.navemaster_events IS 'Append-only NAVEMASTER events (UFFICIO). Used to override baseline state: R/L/B/E + NOTE.';
-
 -- 2.5 Alerts (append-only for a run)
 CREATE TABLE IF NOT EXISTS public.navemaster_alerts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -201,14 +184,11 @@ CREATE TABLE IF NOT EXISTS public.navemaster_alerts (
   resolved_at timestamptz,
   created_at timestamptz DEFAULT now() NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS navemaster_alerts_run_sev_idx ON public.navemaster_alerts (run_id, severity);
 CREATE INDEX IF NOT EXISTS navemaster_alerts_run_type_idx ON public.navemaster_alerts (run_id, type);
 CREATE INDEX IF NOT EXISTS navemaster_alerts_status_idx ON public.navemaster_alerts (status);
 CREATE INDEX IF NOT EXISTS navemaster_alerts_codice_norm_idx ON public.navemaster_alerts (codice_norm);
-
 COMMENT ON TABLE public.navemaster_alerts IS 'NAVEMASTER V2 alerts generated per run (typed, severity, evidence).';
-
 -- 3) RLS (CNCS-grade)
 
 ALTER TABLE public.navemaster_runs ENABLE ROW LEVEL SECURITY;
@@ -216,33 +196,27 @@ ALTER TABLE public.navemaster_state_rows ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.blocchi_locali ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.navemaster_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.navemaster_alerts ENABLE ROW LEVEL SECURITY;
-
 -- Read policies: ADMIN / DIREZIONE / UFFICIO (navemaster_can_manage)
 DROP POLICY IF EXISTS navemaster_runs_read_v2 ON public.navemaster_runs;
 CREATE POLICY navemaster_runs_read_v2 ON public.navemaster_runs
   FOR SELECT
   USING (public.navemaster_can_manage());
-
 DROP POLICY IF EXISTS navemaster_state_rows_read_v2 ON public.navemaster_state_rows;
 CREATE POLICY navemaster_state_rows_read_v2 ON public.navemaster_state_rows
   FOR SELECT
   USING (public.navemaster_can_manage());
-
 DROP POLICY IF EXISTS blocchi_locali_read_v2 ON public.blocchi_locali;
 CREATE POLICY blocchi_locali_read_v2 ON public.blocchi_locali
   FOR SELECT
   USING (public.navemaster_can_manage());
-
 DROP POLICY IF EXISTS navemaster_events_read_v2 ON public.navemaster_events;
 CREATE POLICY navemaster_events_read_v2 ON public.navemaster_events
   FOR SELECT
   USING (public.navemaster_can_manage());
-
 DROP POLICY IF EXISTS navemaster_alerts_read_v2 ON public.navemaster_alerts;
 CREATE POLICY navemaster_alerts_read_v2 ON public.navemaster_alerts
   FOR SELECT
   USING (public.navemaster_can_manage());
-
 -- Write policies: UFFICIO/ADMIN only (use navemaster_can_manage but we tighten to UFFICIO+ADMIN)
 -- Reuse existing is_ufficio()/is_admin() helpers if present, otherwise fall back to profiles check.
 CREATE OR REPLACE FUNCTION public.navemaster_is_ufficio_or_admin() RETURNS boolean
@@ -255,60 +229,49 @@ AS $$
       and p.app_role in ('ADMIN','UFFICIO')
   );
 $$;
-
 DROP POLICY IF EXISTS navemaster_runs_write_v2 ON public.navemaster_runs;
 CREATE POLICY navemaster_runs_write_v2 ON public.navemaster_runs
   FOR INSERT
   WITH CHECK (public.navemaster_is_ufficio_or_admin());
-
 -- State rows are written only by SECURITY DEFINER compute function
 DROP POLICY IF EXISTS navemaster_state_rows_write_v2 ON public.navemaster_state_rows;
 CREATE POLICY navemaster_state_rows_write_v2 ON public.navemaster_state_rows
   FOR INSERT
   WITH CHECK (false);
-
 DROP POLICY IF EXISTS navemaster_alerts_write_v2 ON public.navemaster_alerts;
 CREATE POLICY navemaster_alerts_write_v2 ON public.navemaster_alerts
   FOR INSERT
   WITH CHECK (false);
-
 DROP POLICY IF EXISTS blocchi_locali_write_v2 ON public.blocchi_locali;
 CREATE POLICY blocchi_locali_write_v2 ON public.blocchi_locali
   FOR INSERT
   WITH CHECK (public.navemaster_is_ufficio_or_admin());
-
 DROP POLICY IF EXISTS blocchi_locali_update_v2 ON public.blocchi_locali;
 CREATE POLICY blocchi_locali_update_v2 ON public.blocchi_locali
   FOR UPDATE
   USING (public.navemaster_is_ufficio_or_admin())
   WITH CHECK (public.navemaster_is_ufficio_or_admin());
-
 DROP POLICY IF EXISTS navemaster_events_write_v2 ON public.navemaster_events;
 CREATE POLICY navemaster_events_write_v2 ON public.navemaster_events
   FOR INSERT
   WITH CHECK (public.navemaster_is_ufficio_or_admin());
-
 -- Prevent UPDATE/DELETE on events and alerts (append-only)
 DROP POLICY IF EXISTS navemaster_events_no_update_v2 ON public.navemaster_events;
 CREATE POLICY navemaster_events_no_update_v2 ON public.navemaster_events
   FOR UPDATE
   USING (false);
-
 DROP POLICY IF EXISTS navemaster_events_no_delete_v2 ON public.navemaster_events;
 CREATE POLICY navemaster_events_no_delete_v2 ON public.navemaster_events
   FOR DELETE
   USING (false);
-
 DROP POLICY IF EXISTS navemaster_alerts_no_update_v2 ON public.navemaster_alerts;
 CREATE POLICY navemaster_alerts_no_update_v2 ON public.navemaster_alerts
   FOR UPDATE
   USING (false);
-
 DROP POLICY IF EXISTS navemaster_alerts_no_delete_v2 ON public.navemaster_alerts;
 CREATE POLICY navemaster_alerts_no_delete_v2 ON public.navemaster_alerts
   FOR DELETE
   USING (false);
-
 -- 4) Compute function (SECURITY DEFINER)
 -- Creates a run from INCA baseline and computes state rows using:
 -- - baseline inca_cavi (for selected inca_file)
@@ -563,9 +526,7 @@ BEGIN
   RETURN v_run_id;
 END;
 $$;
-
 GRANT EXECUTE ON FUNCTION public.navemaster_compute_run_v2(uuid,uuid,date,date,boolean) TO authenticated;
-
 -- 5) Views (live v2 + KPI rollups)
 
 -- latest frozen run per ship
@@ -575,7 +536,6 @@ SELECT DISTINCT ON (r.ship_id)
 FROM public.navemaster_runs r
 WHERE r.frozen_at IS NOT NULL
 ORDER BY r.ship_id, r.frozen_at DESC, r.created_at DESC;
-
 -- live rows: latest frozen run + state rows
 CREATE OR REPLACE VIEW public.navemaster_live_v2 AS
 SELECT
@@ -588,7 +548,6 @@ FROM public.navemaster_latest_run_v2 lr
 JOIN public.navemaster_state_rows s
   ON s.run_id = lr.id;
 COMMENT ON VIEW public.navemaster_live_v2 IS 'NAVEMASTER V2 live (latest frozen run per ship).';
-
 -- KPI summary per ship (latest frozen run)
 CREATE OR REPLACE VIEW public.navemaster_kpi_v2 AS
 SELECT
@@ -613,9 +572,7 @@ SELECT
 FROM public.navemaster_latest_run_v2 lr
 JOIN public.navemaster_state_rows s ON s.run_id = lr.id
 GROUP BY lr.ship_id, lr.costr, lr.commessa, lr.id, lr.frozen_at, lr.verdict;
-
 COMMENT ON VIEW public.navemaster_kpi_v2 IS 'NAVEMASTER V2 KPI rollup (latest frozen run).';
-
 -- Apply RLS-like guard at view usage via security_invoker views if needed later.
 
 commit;

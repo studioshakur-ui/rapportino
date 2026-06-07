@@ -3,7 +3,6 @@
 -- Robust version: auto-detect schemas + validate required columns + optional is_active
 
 BEGIN;
-
 DO $$
 DECLARE
   ships_schema         text;
@@ -206,5 +205,4 @@ BEGIN
     ships_schema, profiles_schema, ship_capos_schema, ship_managers_schema, has_is_active;
 
 END $$;
-
 COMMIT;

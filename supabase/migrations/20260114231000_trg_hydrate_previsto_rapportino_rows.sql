@@ -1,5 +1,4 @@
 begin;
-
 -- ============================================================================
 -- Helper: resolve ships.id from a commessa by scanning TEXT-like columns
 -- in public.ships (no assumptions about column names like ship_code).
@@ -48,7 +47,6 @@ begin
   return null;
 end;
 $$;
-
 -- ============================================================================
 -- Hydrate activity_id + previsto on rapportino_rows at INSERT/UPDATE
 -- Source of truth:
@@ -150,18 +148,14 @@ begin
   return new;
 end;
 $$;
-
 drop trigger if exists trg_hydrate_rapportino_rows_previsto on public.rapportino_rows;
-
 create trigger trg_hydrate_rapportino_rows_previsto
 before insert or update of descrizione, activity_id, previsto, rapportino_id, categoria
 on public.rapportino_rows
 for each row
 execute function public.fn_hydrate_rapportino_rows_previsto();
-
 -- Backfill: only rows with previsto NULL (will fire trigger)
 update public.rapportino_rows rr
 set previsto = rr.previsto
 where rr.previsto is null;
-
 commit;

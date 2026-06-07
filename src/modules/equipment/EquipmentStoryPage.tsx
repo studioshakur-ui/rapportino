@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { loadEquipmentStory } from "./equipment.repo";
 import { buildEquipmentBriefingContext } from "./equipment.logic";
+import { buildEquipmentIntelligence } from "./equipment.intelligence";
 import { EquipmentCableList } from "./components/EquipmentCableList";
 import type { EquipmentRiskLevel } from "./equipment.types";
 import { AppBar, EmptyState, Pill, Screen, Section, StatCard } from "../../components/command-ui";
@@ -27,11 +28,21 @@ export default function EquipmentStoryPage(): JSX.Element {
   });
 
   const briefing = useMemo(() => data ? buildEquipmentBriefingContext(data) : null, [data]);
+  const intelligence = useMemo(() => {
+    if (!data) return null;
+    return buildEquipmentIntelligence(
+      data.linked_cables.map((item) => ({
+        item,
+        inca: null,
+        priority: undefined,
+      }))
+    ).find((entry) => entry.equipment_code === equipmentCode) ?? null;
+  }, [data, equipmentCode]);
 
   if (!equipmentCode) {
     return (
       <Screen>
-        <EmptyState title="Code équipement manquant" description="Ouvrir un équipement depuis une liste ou une Cable Story." icon="!" />
+        <EmptyState title="Codice apparato mancante" description="Apri un apparato da una lista o da una Cable Story." icon="!" />
       </Screen>
     );
   }
@@ -44,7 +55,7 @@ export default function EquipmentStoryPage(): JSX.Element {
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
           </svg>
-          Chargement Equipment Story…
+          Caricamento Equipment Story…
         </div>
       </Screen>
     );
@@ -54,31 +65,31 @@ export default function EquipmentStoryPage(): JSX.Element {
     return (
       <Screen>
         <div className="rounded-3xl border border-red-500/30 bg-red-500/10 p-5 text-sm text-red-100">
-          Erreur de chargement équipement.
+          Errore di caricamento apparato.
         </div>
       </Screen>
     );
   }
 
   const summary = data.summary;
-  const connectedComplete = data.linked_cables.filter((cable) => cable.inca_status_code === "C").length;
   const posati = data.linked_cables.filter((cable) => cable.inca_status_code === "P").length;
-  const blocked = data.linked_cables.filter((cable) => cable.inca_status_code === "B" || cable.open_blocker_count > 0).length;
+  const blocked = intelligence?.blocked_cables ?? data.linked_cables.filter((cable) => cable.inca_status_code === "B" || cable.open_blocker_count > 0).length;
 
   return (
     <Screen className="max-w-6xl space-y-6">
       <section className="rounded-3xl border border-zinc-800 bg-zinc-950/80 p-5">
         <AppBar
           title={equipmentCode}
-          subtitle={`${summary.completion_rate}% complétion terrain · ${summary.confirmed_by_field} preuves terrain`}
+          subtitle={`${intelligence?.closure_status ?? "OPEN"} · ${summary.confirmed_by_field}/${summary.total_cables} cavi confermati`}
           action={
             <div className="flex flex-wrap gap-2">
-              <Pill tone={riskTone(summary.risk_level)}>Risque {summary.risk_level}</Pill>
+              <Pill tone={riskTone(summary.risk_level)}>Rischio {summary.risk_level}</Pill>
+              {intelligence ? <Pill tone={intelligence.closure_status === "CLOSED" ? "emerald" : intelligence.closure_status === "PARTIAL" ? "amber" : "red"}>{intelligence.closure_status}</Pill> : null}
               <button
                 onClick={() => setShowContext((value) => !value)}
                 className="min-h-10 rounded-xl border border-zinc-800 px-3 text-xs font-medium text-zinc-400 transition hover:border-zinc-700 hover:text-white"
               >
-                {showContext ? "Masquer contexte" : "Contexte AI-ready"}
+                {showContext ? "Nascondi contesto" : "Contesto AI-ready"}
               </button>
             </div>
           }
@@ -86,16 +97,16 @@ export default function EquipmentStoryPage(): JSX.Element {
       </section>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
-        <StatCard label="Entrants" value={summary.incoming_cables} />
-        <StatCard label="Sortants" value={summary.outgoing_cables} />
-        <StatCard label="Confirmés" value={summary.confirmed_by_field} tone="emerald" />
-        <StatCard label="Sans preuve" value={summary.without_field_evidence} tone={summary.without_field_evidence > 0 ? "amber" : "neutral"} />
-        <StatCard label="Bloqués" value={blocked} tone={blocked > 0 ? "red" : "neutral"} />
-        <StatCard label="Câbles liés" value={summary.total_cables} />
+        <StatCard label="Entranti" value={summary.incoming_cables} />
+        <StatCard label="Uscenti" value={summary.outgoing_cables} />
+        <StatCard label="Chiusura" value={intelligence?.closure_status ?? "OPEN"} tone={intelligence?.closure_status === "CLOSED" ? "emerald" : intelligence?.closure_status === "PARTIAL" ? "amber" : blocked > 0 ? "red" : "neutral"} />
+        <StatCard label="Restanti" value={intelligence?.open_cables ?? Math.max(summary.total_cables - summary.confirmed_by_field, 0)} tone={(intelligence?.open_cables ?? 0) > 0 ? "amber" : "neutral"} />
+        <StatCard label="Bloccati" value={blocked} tone={blocked > 0 ? "red" : "neutral"} />
+        <StatCard label="Cavi collegati" value={summary.total_cables} />
       </div>
 
       <section className="grid gap-4 lg:grid-cols-2">
-        <Section title="Avancement INCA" eyebrow="Statuts" className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
+        <Section title="Avanzamento INCA" eyebrow="Stati" className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
           <div className="space-y-2">
             {Object.entries(summary.status_distribution).map(([status, count]) => (
               <div key={status} className="flex items-center justify-between rounded-2xl border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-sm">
@@ -106,26 +117,39 @@ export default function EquipmentStoryPage(): JSX.Element {
           </div>
         </Section>
 
-        <Section title="Preuves terrain" eyebrow="Complétion" className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
+        <Section title="Chiusura apparato" eyebrow="Closure Engine" className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
           <div className="space-y-2 text-sm">
-            <Line label="Confirmés terrain" value={summary.confirmed_by_field} />
-            <Line label="Sans preuve terrain" value={summary.without_field_evidence} />
-            <Line label="Taux de complétion" value={`${summary.completion_rate}%`} />
+            <Line label="Stato" value={intelligence?.closure_status ?? "OPEN"} />
+            <Line label="Confermati terreno" value={summary.confirmed_by_field} />
+            <Line label="Restanti" value={intelligence?.open_cables ?? Math.max(summary.total_cables - summary.confirmed_by_field, 0)} />
             <Line label="Posati INCA" value={posati} />
-            <Line label="Collegati C" value={connectedComplete} />
+            <Line label="Tasso indicativo" value={`${summary.completion_rate}%`} />
           </div>
         </Section>
       </section>
 
+      {intelligence?.critical_path.length ? (
+        <Section title="Percorso critico" eyebrow="Cavi bloccanti" count={intelligence.critical_path.length} className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
+          <div className="space-y-2">
+            {intelligence.critical_path.slice(0, 8).map((blocker) => (
+              <div key={blocker.cable_code} className="rounded-2xl border border-red-500/20 bg-red-500/10 px-3 py-3 text-sm">
+                <span className="font-mono font-semibold text-white">{formatCableDisplay(blocker.cable_code)}</span>
+                <span className="ml-2 text-red-200">{blocker.reason}</span>
+              </div>
+            ))}
+          </div>
+        </Section>
+      ) : null}
+
       <section className="grid gap-4 lg:grid-cols-2">
-        <EquipmentCableList title="Câbles entrants" cables={data.incoming} />
-        <EquipmentCableList title="Câbles sortants" cables={data.outgoing} />
+        <EquipmentCableList title="Cavi entranti" cables={data.incoming} />
+        <EquipmentCableList title="Cavi uscenti" cables={data.outgoing} />
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">
-        <Section title="Problèmes ouverts" eyebrow="Risques" count={data.open_problems.length} className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
+        <Section title="Problemi aperti" eyebrow="Rischi" count={data.open_problems.length} className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
           {data.open_problems.length === 0 ? (
-            <p className="text-sm text-zinc-400">Aucun problème ouvert détecté.</p>
+            <p className="text-sm text-zinc-400">Nessun problema aperto rilevato.</p>
           ) : (
             <div className="space-y-2">
               {data.open_problems.slice(0, 12).map((cable) => (
@@ -138,9 +162,9 @@ export default function EquipmentStoryPage(): JSX.Element {
           )}
         </Section>
 
-        <Section title="Actions recommandées" eyebrow="Terrain" count={summary.recommended_actions.length} className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
+        <Section title="Azioni raccomandate" eyebrow="Campo" count={summary.recommended_actions.length} className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
           {summary.recommended_actions.length === 0 ? (
-            <p className="text-sm text-zinc-400">Aucune action recommandée.</p>
+            <p className="text-sm text-zinc-400">Nessuna azione raccomandata.</p>
           ) : (
             <ul className="space-y-2 text-sm">
               {summary.recommended_actions.map((action) => (
@@ -154,7 +178,7 @@ export default function EquipmentStoryPage(): JSX.Element {
       </section>
 
       {showContext && briefing ? (
-        <Section title="Contexte AI-ready" eyebrow="Debug" className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
+        <Section title="Contesto AI-ready" eyebrow="Debug" className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
           <pre className="max-h-96 overflow-auto rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-[11px] text-zinc-300">
             {JSON.stringify(briefing, null, 2)}
           </pre>

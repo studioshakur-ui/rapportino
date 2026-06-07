@@ -13,12 +13,12 @@ export default function DailyListProgress({ summary }: Props): JSX.Element {
   const pct  = total > 0 ? Math.round((done / total) * 100) : 0;
 
   const segments: BarSegment[] = [
-    { key: "confirmed",    count: confirmed,    color: "bg-emerald-500", label: "Confirmé" },
-    { key: "likely_laid",  count: likely_laid,  color: "bg-sky-400",     label: "Probable" },
-    { key: "to_verify",    count: to_verify,    color: "bg-amber-400",   label: "À vérif." },
-    { key: "no_evidence",  count: no_evidence,  color: "bg-zinc-600",    label: "Sans preuve" },
-    { key: "blocked",      count: blocked,      color: "bg-red-500",     label: "Bloqué" },
-    { key: "outside_inca", count: outside_inca, color: "bg-violet-400",  label: "Hors INCA" },
+    { key: "confirmed",    count: confirmed,    color: "bg-emerald-500", label: "Confermato" },
+    { key: "likely_laid",  count: likely_laid,  color: "bg-sky-400",     label: "Probabile" },
+    { key: "to_verify",    count: to_verify,    color: "bg-amber-400",   label: "Da verificare" },
+    { key: "no_evidence",  count: no_evidence,  color: "bg-zinc-600",    label: "Senza prova" },
+    { key: "blocked",      count: blocked,      color: "bg-red-500",     label: "Bloccato" },
+    { key: "outside_inca", count: outside_inca, color: "bg-violet-400",  label: "Fuori INCA" },
   ].filter((s) => s.count > 0);
 
   return (
@@ -45,7 +45,7 @@ export default function DailyListProgress({ summary }: Props): JSX.Element {
           </span>
         ))}
         <span className="ml-auto flex items-center gap-1 text-xs text-zinc-500">
-          total <strong className="text-zinc-300">{total}</strong>
+          totale <strong className="text-zinc-300">{total}</strong>
         </span>
       </div>
     </div>

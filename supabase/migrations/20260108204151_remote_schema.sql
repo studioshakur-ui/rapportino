@@ -1,5 +1,4 @@
 set check_function_bodies = off;
-
 CREATE OR REPLACE FUNCTION public.capo_returned_summary(p_role text)
  RETURNS TABLE(returned_count bigint, last_id uuid, last_report_date date, last_costr text, last_commessa text, last_updated_at timestamp with time zone)
  LANGUAGE sql
@@ -38,9 +37,7 @@ select
   null::text,
   null::timestamptz
 where not exists (select 1 from last_one);
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.core_drive_emit_upload_event(p_file_id uuid, p_payload jsonb DEFAULT '{}'::jsonb)
  RETURNS uuid
  LANGUAGE plpgsql
@@ -60,9 +57,7 @@ begin
 
   return public.core_drive_append_event(p_file_id, 'UPLOAD', coalesce(p_payload, '{}'::jsonb), null, null);
 end;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.core_drive_soft_delete_file(p_file_id uuid, p_reason text DEFAULT NULL::text)
  RETURNS uuid
  LANGUAGE plpgsql
@@ -101,9 +96,7 @@ begin
 
   return v_event_id;
 end;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.fn_consolidate_inca_on_rapportino_approved()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -155,9 +148,7 @@ begin
 
   return new;
 end;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.fn_rapportino_apply_product(p_rapportino_id uuid)
  RETURNS void
  LANGUAGE plpgsql
@@ -194,9 +185,7 @@ begin
 
   -- Optionnel: tu peux logger plus tard dans une table d’audit si besoin.
 end;
-$function$
-;
-
+$function$;
 create or replace view "public"."kpi_operator_line_previsto_v2" as  SELECT f.report_date,
     f.operator_id,
     COALESCE(NULLIF(TRIM(BOTH FROM concat_ws(' '::text, upper(o.cognome), initcap(o.nome))), ''::text), NULLIF(TRIM(BOTH FROM o.name), ''::text), '—'::text) AS operator_name,
@@ -235,8 +224,6 @@ create or replace view "public"."kpi_operator_line_previsto_v2" as  SELECT f.rep
      JOIN public.operators o ON ((o.id = f.operator_id)))
      LEFT JOIN public.rapportino_rows rr ON ((rr.id = f.rapportino_row_id)))
   WHERE ((f.activity_type = 'QUANTITATIVE'::public.activity_type) AND (f.unit = ANY (ARRAY['MT'::public.activity_unit, 'PZ'::public.activity_unit])) AND (rr.previsto IS NOT NULL) AND (rr.previsto > (0)::numeric) AND (f.tempo_hours IS NOT NULL) AND (f.tempo_hours > (0)::numeric) AND (f.prodotto_alloc IS NOT NULL));
-
-
 create or replace view "public"."kpi_operator_line_v1" as  WITH base AS (
          SELECT rap.id AS rapportino_id,
             rap.report_date,
@@ -283,8 +270,6 @@ create or replace view "public"."kpi_operator_line_v1" as  WITH base AS (
         END AS prodotto_alloc
    FROM (base b
      LEFT JOIN row_totals rt ON ((rt.rapportino_row_id = b.rapportino_row_id)));
-
-
 CREATE OR REPLACE FUNCTION public.manager_my_capi()
  RETURNS TABLE(capo_id uuid, display_name text, email text)
  LANGUAGE sql
@@ -311,9 +296,7 @@ AS $function$
       me.app_role in ('MANAGER','ADMIN')
     )
   order by mca.created_at asc;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.manager_my_capi_v1()
  RETURNS TABLE(capo_id uuid, display_name text, email text)
  LANGUAGE sql
@@ -331,9 +314,7 @@ AS $function$
     and a.active = true
     and p.app_role = 'CAPO'
   order by a.created_at asc;
-$function$
-;
-
+$function$;
 create or replace view "public"."operator_facts_v1" as  WITH rc AS (
          SELECT rapportini_canon_v1.id,
             rapportini_canon_v1.report_date,
@@ -405,8 +386,6 @@ create or replace view "public"."operator_facts_v1" as  WITH rc AS (
      JOIN rc ON ((rc.id = rr.rapportino_id)))
      LEFT JOIN row_hours rh ON ((rh.row_id = rro.row_id)))
      LEFT JOIN ops ON ((ops.operator_id = rro.operator_id)));
-
-
 create or replace view "public"."operators_admin_list_v1" as  SELECT id,
     name AS legacy_name,
     COALESCE(NULLIF(TRIM(BOTH FROM concat_ws(' '::text, cognome, nome)), ''::text), NULLIF(TRIM(BOTH FROM name), ''::text), '—'::text) AS display_name,
@@ -421,8 +400,6 @@ create or replace view "public"."operators_admin_list_v1" as  SELECT id,
     updated_at,
     ((cognome IS NULL) OR (TRIM(BOTH FROM cognome) = ''::text) OR (nome IS NULL) OR (TRIM(BOTH FROM nome) = ''::text) OR (birth_date IS NULL)) AS is_identity_incomplete
    FROM public.operators o;
-
-
 create or replace view "public"."operators_display_v1" as  SELECT id,
     name AS legacy_name,
     roles,
@@ -435,8 +412,6 @@ create or replace view "public"."operators_display_v1" as  SELECT id,
     created_at,
     updated_at
    FROM public.operators o;
-
-
 create or replace view "public"."operators_display_v2" as  SELECT id,
     cognome,
     nome,
@@ -446,8 +421,6 @@ create or replace view "public"."operators_display_v2" as  SELECT id,
     is_normalized,
     COALESCE(NULLIF(TRIM(BOTH FROM ((cognome || ' '::text) || nome)), ''::text), NULLIF(name, ''::text), NULLIF(operator_code, ''::text), NULLIF(operator_key, ''::text), '—'::text) AS display_name
    FROM public.operators o;
-
-
 CREATE OR REPLACE FUNCTION public.percorso_propose_lots(p_document_id uuid, p_min_core_segments integer, p_min_cables integer, p_max_lots integer, p_dry_run boolean)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -497,9 +470,7 @@ begin
     )
   );
 end;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.prevent_update_on_frozen_files()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -510,9 +481,7 @@ begin
   end if;
   return new;
 end;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.trg_auto_tp_from_progress()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -547,9 +516,7 @@ begin
 
   return new;
 end;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.trg_fill_rapportino_inca_cache()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -578,9 +545,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.trg_rapportini_on_status_product()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -610,9 +575,7 @@ begin
 
   return new;
 end;
-$function$
-;
-
+$function$;
 CREATE OR REPLACE FUNCTION public.ufficio_create_correction_rapportino(p_rapportino_id uuid, p_reason text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -891,7 +854,4 @@ begin
     'copied_inca_links', v_copied_inca
   );
 end;
-$function$
-;
-
-
+$function$;

@@ -100,14 +100,14 @@ function buildCableRiskReasons(cable: EquipmentLinkedCable): string[] {
   const reasons: string[] = [];
   const status = getIncaStatusDefinition(cable.situazione_inca ?? cable.stato_collegamento);
 
-  if (status?.code === "B") reasons.push("INCA bloqué");
-  if (status?.code === "P" && cable.missing_evidence) reasons.push("Posato INCA non confirmé terrain");
-  if (cable.has_short_issue) reasons.push("Signal câble court");
-  if (cable.has_missing_issue) reasons.push("Signal câble manquant");
-  if (cable.has_partial_progress) reasons.push("Progression partielle");
-  if (cable.open_blocker_count > 0) reasons.push("Finding bloquant ouvert");
-  if (cable.open_priority_count > 0) reasons.push("Priorité ouverte");
-  if (/blocc|bloqu/i.test(cable.last_message ?? cable.note ?? "")) reasons.push("Message terrain bloquant");
+  if (status?.code === "B") reasons.push("INCA bloccato");
+  if (status?.code === "P" && cable.missing_evidence) reasons.push("Posato INCA non confermato sul campo");
+  if (cable.has_short_issue) reasons.push("Segnale cavo corto");
+  if (cable.has_missing_issue) reasons.push("Segnale cavo mancante");
+  if (cable.has_partial_progress) reasons.push("Avanzamento parziale");
+  if (cable.open_blocker_count > 0) reasons.push("Finding bloccante aperto");
+  if (cable.open_priority_count > 0) reasons.push("Priorita aperta");
+  if (/blocc|bloqu/i.test(cable.last_message ?? cable.note ?? "")) reasons.push("Messaggio di campo bloccante");
 
   return Array.from(new Set(reasons));
 }
@@ -121,7 +121,7 @@ function computeRiskLevel(args: {
 }): EquipmentRiskLevel {
   let risk: EquipmentRiskLevel = "low";
   if (args.withoutFieldEvidence > 0 || args.openPriorities > 0 || args.completionRate < 80) risk = "medium";
-  if (args.openBlockers > 0 || args.riskReasons.some((reason) => /court|manquant|bloqu/i.test(reason))) risk = "high";
+  if (args.openBlockers > 0 || args.riskReasons.some((reason) => /corto|mancant|bloqu|blocc/i.test(reason))) risk = "high";
   if (args.openBlockers >= 2 || args.completionRate < 40) risk = "critical";
   return risk;
 }
@@ -133,12 +133,12 @@ function buildEquipmentActions(cables: EquipmentLinkedCable[], riskLevel: Equipm
   const partial = cables.filter((cable) => cable.has_partial_progress);
   const shortOrMissing = cables.filter((cable) => cable.has_short_issue || cable.has_missing_issue);
 
-  if (blocked.length > 0) actions.push(`Lever les blocages sur ${blocked.length} câble(s) liés`);
-  if (shortOrMissing.length > 0) actions.push(`Contrôler les câbles courts/manquants: ${shortOrMissing.slice(0, 5).map((cable) => cable.cable_code_normalized).join(", ")}`);
-  if (noEvidence.length > 0) actions.push(`Demander preuve terrain pour ${noEvidence.length} câble(s)`);
-  if (partial.length > 0) actions.push(`Confirmer achèvement des progressions partielles`);
-  if (RISK_RANK[riskLevel] >= RISK_RANK.high) actions.push("Mettre cet équipement dans les priorités du briefing chantier");
-  if (actions.length === 0) actions.push("Surveiller uniquement, aucun risque ouvert détecté");
+  if (blocked.length > 0) actions.push(`Rimuovere i blocchi su ${blocked.length} cavo/i collegati`);
+  if (shortOrMissing.length > 0) actions.push(`Controllare i cavi corti/mancanti: ${shortOrMissing.slice(0, 5).map((cable) => cable.cable_code_normalized).join(", ")}`);
+  if (noEvidence.length > 0) actions.push(`Richiedere prova di campo per ${noEvidence.length} cavo/i`);
+  if (partial.length > 0) actions.push("Confermare il completamento degli avanzamenti parziali");
+  if (RISK_RANK[riskLevel] >= RISK_RANK.high) actions.push("Mettere questo apparato tra le priorita del briefing cantiere");
+  if (actions.length === 0) actions.push("Solo monitoraggio, nessun rischio aperto rilevato");
 
   return actions;
 }
@@ -200,11 +200,11 @@ export function buildEquipmentImpactsFromDailyItems(items: DailyListItemVM[]): E
       const riskReasons = Array.from(new Set(cables.flatMap((cable) => {
         const reasons: string[] = [];
         const status = getIncaStatusDefinition(cable.situazione_inca ?? cable.stato_collegamento);
-        if (status?.code === "B") reasons.push("INCA bloqué");
-        if (status?.code === "P" && cable.missing_evidence) reasons.push("Posato INCA non confirmé terrain");
-        if (cable.has_short_issue) reasons.push("Câble court");
-        if (cable.has_missing_issue) reasons.push("Câble manquant");
-        if (cable.has_partial_progress) reasons.push("Progression partielle");
+        if (status?.code === "B") reasons.push("INCA bloccato");
+        if (status?.code === "P" && cable.missing_evidence) reasons.push("Posato INCA non confermato sul campo");
+        if (cable.has_short_issue) reasons.push("Cavo corto");
+        if (cable.has_missing_issue) reasons.push("Cavo mancante");
+        if (cable.has_partial_progress) reasons.push("Avanzamento parziale");
         return reasons;
       })));
       const riskLevel = computeRiskLevel({

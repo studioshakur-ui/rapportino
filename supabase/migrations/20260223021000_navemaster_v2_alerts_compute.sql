@@ -3,11 +3,9 @@
 -- - update navemaster_compute_run_v2 to generate EXTRA/DUPLICATE/STATUS/METRI alerts
 
 begin;
-
 -- 1) Per-run alert dedupe (same type + codice_norm)
 create unique index if not exists navemaster_alerts_run_type_code_ux
   on public.navemaster_alerts (run_id, type, codice_norm);
-
 -- 2) Compute function v2 (alerts + hardened B)
 create or replace function public.navemaster_compute_run_v2(
   p_ship_id uuid,
@@ -431,7 +429,5 @@ begin
   return v_run_id;
 end;
 $$;
-
 grant execute on function public.navemaster_compute_run_v2(uuid,uuid,date,date,boolean) to authenticated;
-
 commit;

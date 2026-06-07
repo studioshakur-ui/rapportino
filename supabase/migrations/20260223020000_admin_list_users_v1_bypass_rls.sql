@@ -1,7 +1,6 @@
 -- Allow admin_list_users_v1 to read profiles despite RLS
 -- NOTE: do not edit previous migrations; apply patch via new migration.
 set check_function_bodies = off;
-
 create or replace function public.admin_list_users_v1(
   p_q text default null,
   p_role text default null
@@ -57,6 +56,5 @@ as $$
   order by
     coalesce(u.last_sign_in_at, u.created_at, p.updated_at, p.created_at) desc nulls last;
 $$;
-
 revoke all on function public.admin_list_users_v1(text, text) from public;
 grant execute on function public.admin_list_users_v1(text, text) to authenticated;

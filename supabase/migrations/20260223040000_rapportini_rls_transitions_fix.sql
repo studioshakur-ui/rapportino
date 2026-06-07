@@ -1,10 +1,8 @@
 -- supabase/migrations/20260223040000_rapportini_rls_transitions_fix.sql
 -- CNCS: fix rapportini transitions for CAPO and UFFICIO + enforce uniqueness
 begin;
-
 -- 1) CAPO update: allow DRAFT + RETURNED, allow status -> VALIDATED_CAPO
 drop policy if exists rapportini_update_capo_own_draft on public.rapportini;
-
 create policy rapportini_update_capo_own_draft_or_returned
 on public.rapportini
 for update
@@ -17,7 +15,6 @@ with check (
   capo_id = auth.uid()
   and status in ('DRAFT','RETURNED','VALIDATED_CAPO')
 );
-
 -- 2) UFFICIO return: allow VALIDATED_CAPO -> RETURNED within scope
 create policy rapportini_update_ufficio_scoped_s2_return
 on public.rapportini
@@ -38,7 +35,6 @@ with check (
   status = 'RETURNED'
   and returned_by_ufficio = auth.uid()
 );
-
 -- 3) Set validated_by_capo_at on transition
 create or replace function public.trg_rapportini_set_validated_at()
 returns trigger language plpgsql as $$
@@ -49,12 +45,10 @@ begin
   return new;
 end;
 $$;
-
 drop trigger if exists rapportini_set_validated_at on public.rapportini;
 create trigger rapportini_set_validated_at
 before update on public.rapportini
 for each row execute function public.trg_rapportini_set_validated_at();
-
 -- 3B) UFFICIO return RPC (authoritative, auditable)
 create or replace function public.ufficio_return_rapportino(
   p_rapportino_id uuid,
@@ -97,7 +91,6 @@ begin
   where r.id = p_rapportino_id;
 end;
 $$;
-
 -- 4) Enforce uniqueness per capo/crew_role/date
 do $$
 begin
@@ -111,9 +104,7 @@ begin
     raise exception 'Duplicate rapportini for (capo_id, crew_role, report_date) exist. Resolve before adding unique index.';
   end if;
 end $$;
-
 create unique index if not exists rapportini_capo_crew_date_unique
 on public.rapportini (capo_id, crew_role, report_date)
 where capo_id is not null and crew_role is not null and report_date is not null;
-
 commit;

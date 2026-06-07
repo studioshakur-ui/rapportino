@@ -1,6 +1,3 @@
-
-
-
 SET statement_timeout = 0;
 SET lock_timeout = 0;
 SET idle_in_transaction_session_timeout = 0;
@@ -11,74 +8,22 @@ SET check_function_bodies = false;
 SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
-
-
-CREATE SCHEMA IF NOT EXISTS "archive";
-
-
-ALTER SCHEMA "archive" OWNER TO "postgres";
-
-
+CREATE SCHEMA IF NOT EXISTS "public";
+ALTER SCHEMA "public" OWNER TO "pg_database_owner";
 COMMENT ON SCHEMA "public" IS 'standard public schema';
-
-
-
-CREATE EXTENSION IF NOT EXISTS "pg_graphql" WITH SCHEMA "graphql";
-
-
-
-
-
-
-CREATE EXTENSION IF NOT EXISTS "pg_stat_statements" WITH SCHEMA "extensions";
-
-
-
-
-
-
-CREATE EXTENSION IF NOT EXISTS "pgcrypto" WITH SCHEMA "extensions";
-
-
-
-
-
-
-CREATE EXTENSION IF NOT EXISTS "supabase_vault" WITH SCHEMA "vault";
-
-
-
-
-
-
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA "extensions";
-
-
-
-
-
-
 CREATE TYPE "public"."activity_type" AS ENUM (
     'QUANTITATIVE',
     'FORFAIT',
     'QUALITATIVE'
 );
-
-
 ALTER TYPE "public"."activity_type" OWNER TO "postgres";
-
-
 CREATE TYPE "public"."activity_unit" AS ENUM (
     'MT',
     'PZ',
     'COEFF',
     'NONE'
 );
-
-
 ALTER TYPE "public"."activity_unit" OWNER TO "postgres";
-
-
 CREATE TYPE "public"."app_role" AS ENUM (
     'CAPO',
     'UFFICIO',
@@ -86,49 +31,29 @@ CREATE TYPE "public"."app_role" AS ENUM (
     'ADMIN',
     'DIREZIONE'
 );
-
-
 ALTER TYPE "public"."app_role" OWNER TO "postgres";
-
-
 CREATE TYPE "public"."attachment_kind" AS ENUM (
     'PHOTO',
     'EXCEL'
 );
-
-
 ALTER TYPE "public"."attachment_kind" OWNER TO "postgres";
-
-
 CREATE TYPE "public"."cavo_step_type" AS ENUM (
     'POSA',
     'RIPRESA'
 );
-
-
 ALTER TYPE "public"."cavo_step_type" OWNER TO "postgres";
-
-
 CREATE TYPE "public"."core_current_profile_type" AS (
 	"user_id" "uuid",
 	"app_role" "text",
 	"allowed_cantieri" "text"[]
 );
-
-
 ALTER TYPE "public"."core_current_profile_type" OWNER TO "postgres";
-
-
 CREATE TYPE "public"."crew_role" AS ENUM (
     'ELETTRICISTA',
     'CARPENTERIA',
     'MONTAGGIO'
 );
-
-
 ALTER TYPE "public"."crew_role" OWNER TO "postgres";
-
-
 CREATE TYPE "public"."doc_categoria" AS ENUM (
     'RAPPORTINO_PDF',
     'RAPPORTINO_ATTACHMENT',
@@ -140,11 +65,7 @@ CREATE TYPE "public"."doc_categoria" AS ENUM (
     'AUDIT',
     'ALTRO'
 );
-
-
 ALTER TYPE "public"."doc_categoria" OWNER TO "postgres";
-
-
 CREATE TYPE "public"."doc_origine" AS ENUM (
     'CAPO',
     'UFFICIO',
@@ -152,41 +73,25 @@ CREATE TYPE "public"."doc_origine" AS ENUM (
     'SYSTEM',
     'ADMIN'
 );
-
-
 ALTER TYPE "public"."doc_origine" OWNER TO "postgres";
-
-
 CREATE TYPE "public"."doc_stato" AS ENUM (
     'BOZZA',
     'VALIDO_INTERNO',
     'CONTRATTUALE',
     'ANNULLATO'
 );
-
-
 ALTER TYPE "public"."doc_stato" OWNER TO "postgres";
-
-
 CREATE TYPE "public"."kpi_period" AS ENUM (
     'DAY',
     'WEEK'
 );
-
-
 ALTER TYPE "public"."kpi_period" OWNER TO "postgres";
-
-
 CREATE TYPE "public"."nav_severity" AS ENUM (
     'CRITICAL',
     'MAJOR',
     'INFO'
 );
-
-
 ALTER TYPE "public"."nav_severity" OWNER TO "postgres";
-
-
 CREATE TYPE "public"."nav_status" AS ENUM (
     'P',
     'R',
@@ -195,82 +100,50 @@ CREATE TYPE "public"."nav_status" AS ENUM (
     'E',
     'NP'
 );
-
-
 ALTER TYPE "public"."nav_status" OWNER TO "postgres";
-
-
 CREATE TYPE "public"."percorso_lot_status" AS ENUM (
     'PROPOSTO',
     'VALID_CAPO',
     'VALIDO',
     'RIFIUTATO'
 );
-
-
 ALTER TYPE "public"."percorso_lot_status" OWNER TO "postgres";
-
-
 CREATE TYPE "public"."percorso_sviluppo_by" AS ENUM (
     'CAPO',
     'UFFICIO'
 );
-
-
 ALTER TYPE "public"."percorso_sviluppo_by" OWNER TO "postgres";
-
-
 CREATE TYPE "public"."plan_period_type" AS ENUM (
     'DAY',
     'WEEK'
 );
-
-
 ALTER TYPE "public"."plan_period_type" OWNER TO "postgres";
-
-
 CREATE TYPE "public"."plan_status" AS ENUM (
     'DRAFT',
     'PUBLISHED',
     'FROZEN'
 );
-
-
 ALTER TYPE "public"."plan_status" OWNER TO "postgres";
-
-
 CREATE TYPE "public"."rapportino_status" AS ENUM (
     'DRAFT',
     'VALIDATED_CAPO',
     'APPROVED_UFFICIO',
     'RETURNED'
 );
-
-
 ALTER TYPE "public"."rapportino_status" OWNER TO "postgres";
-
-
 CREATE TYPE "public"."report_status" AS ENUM (
     'DRAFT',
     'VALIDATED_CAPO',
     'APPROVED_UFFICIO',
     'RETURNED'
 );
-
-
 ALTER TYPE "public"."report_status" OWNER TO "postgres";
-
-
 CREATE TYPE "public"."user_role" AS ENUM (
     'CAPO',
     'UFFICIO',
     'DIREZIONE'
 );
-
-
 ALTER TYPE "public"."user_role" OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."admin_set_manager_for_capo"("p_capo_id" "uuid", "p_manager_id" "uuid") RETURNS json
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -340,11 +213,7 @@ begin
   );
 end;
 $$;
-
-
 ALTER FUNCTION "public"."admin_set_manager_for_capo"("p_capo_id" "uuid", "p_manager_id" "uuid") OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."admin_set_operator_identity"("p_operator_id" "uuid", "p_cognome" "text", "p_nome" "text", "p_birth_date" "date", "p_operator_code" "text" DEFAULT NULL::"text") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -394,11 +263,7 @@ begin
   return jsonb_build_object('ok', true);
 end;
 $$;
-
-
 ALTER FUNCTION "public"."admin_set_operator_identity"("p_operator_id" "uuid", "p_cognome" "text", "p_nome" "text", "p_birth_date" "date", "p_operator_code" "text") OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."capo_my_ships_v1"() RETURNS TABLE("id" "uuid", "code" "text", "name" "text", "yard" "text", "is_active" boolean)
     LANGUAGE "sql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -419,11 +284,7 @@ CREATE OR REPLACE FUNCTION "public"."capo_my_ships_v1"() RETURNS TABLE("id" "uui
     and s.is_active is true
   order by s.code asc;
 $$;
-
-
 ALTER FUNCTION "public"."capo_my_ships_v1"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."capo_owns_rapportino_row"("p_row_id" "uuid") RETURNS boolean
     LANGUAGE "sql" STABLE
     AS $$
@@ -434,11 +295,7 @@ CREATE OR REPLACE FUNCTION "public"."capo_owns_rapportino_row"("p_row_id" "uuid"
     where rr.id = p_row_id and r.capo_id = auth.uid()
   )
 $$;
-
-
 ALTER FUNCTION "public"."capo_owns_rapportino_row"("p_row_id" "uuid") OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."capo_returned_summary"("p_role" "text") RETURNS TABLE("returned_count" bigint, "last_id" "uuid", "last_report_date" "date", "last_costr" "text", "last_commessa" "text", "last_updated_at" timestamp with time zone)
     LANGUAGE "sql" STABLE
     AS $$
@@ -475,11 +332,7 @@ select
   null::timestamptz
 where not exists (select 1 from last_one);
 $$;
-
-
 ALTER FUNCTION "public"."capo_returned_summary"("p_role" "text") OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."capo_returned_summary_debug"("p_capo_id" "uuid", "p_role" "text") RETURNS TABLE("returned_count" bigint, "last_id" "uuid", "last_report_date" "date", "last_costr" "text", "last_commessa" "text", "last_updated_at" timestamp with time zone)
     LANGUAGE "sql" STABLE
     AS $$
@@ -516,11 +369,7 @@ select
   null::timestamptz
 where not exists (select 1 from last_one);
 $$;
-
-
 ALTER FUNCTION "public"."capo_returned_summary_debug"("p_capo_id" "uuid", "p_role" "text") OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."clear_inca_tables"() RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
@@ -528,11 +377,7 @@ begin
   delete from public.inca_percorsi;
   delete from public.inca_cavi;
 end $$;
-
-
 ALTER FUNCTION "public"."clear_inca_tables"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."core_app_role"() RETURNS "text"
     LANGUAGE "sql" STABLE
     AS $$
@@ -542,21 +387,13 @@ CREATE OR REPLACE FUNCTION "public"."core_app_role"() RETURNS "text"
     'CAPO'
   );
 $$;
-
-
 ALTER FUNCTION "public"."core_app_role"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."core_app_role_upper"() RETURNS "text"
     LANGUAGE "sql" STABLE
     AS $$
   select upper(public.core_app_role());
 $$;
-
-
 ALTER FUNCTION "public"."core_app_role_upper"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."core_apply_rapportino_inca_progress"("p_rapportino_id" "uuid") RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -602,11 +439,7 @@ begin
 
 end;
 $$;
-
-
 ALTER FUNCTION "public"."core_apply_rapportino_inca_progress"("p_rapportino_id" "uuid") OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."core_current_profile"() RETURNS "public"."core_current_profile_type"
     LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO 'public', 'auth'
@@ -623,11 +456,7 @@ CREATE OR REPLACE FUNCTION "public"."core_current_profile"() RETURNS "public"."c
     )
   );
 $$;
-
-
 ALTER FUNCTION "public"."core_current_profile"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."core_db_version"() RETURNS "text"
     LANGUAGE "sql" STABLE
     AS $$
@@ -635,11 +464,7 @@ CREATE OR REPLACE FUNCTION "public"."core_db_version"() RETURNS "text"
   from public.core_meta
   where key = 'CORE_DB';
 $$;
-
-
 ALTER FUNCTION "public"."core_db_version"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."core_drive_append_event"("p_file_id" "uuid", "p_event_type" "text", "p_payload" "jsonb" DEFAULT '{}'::"jsonb", "p_note" "text" DEFAULT NULL::"text", "p_prev_event_id" "uuid" DEFAULT NULL::"uuid") RETURNS "uuid"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -654,15 +479,8 @@ begin
   return v_event_id;
 end;
 $$;
-
-
 ALTER FUNCTION "public"."core_drive_append_event"("p_file_id" "uuid", "p_event_type" "text", "p_payload" "jsonb", "p_note" "text", "p_prev_event_id" "uuid") OWNER TO "postgres";
-
-
 COMMENT ON FUNCTION "public"."core_drive_append_event"("p_file_id" "uuid", "p_event_type" "text", "p_payload" "jsonb", "p_note" "text", "p_prev_event_id" "uuid") IS 'CORE Drive â€” append-only: ajoute un event dans core_drive_events et retourne son id.';
-
-
-
 CREATE OR REPLACE FUNCTION "public"."core_drive_assert_role"("allowed" "text"[]) RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -680,15 +498,8 @@ begin
   end if;
 end;
 $$;
-
-
 ALTER FUNCTION "public"."core_drive_assert_role"("allowed" "text"[]) OWNER TO "postgres";
-
-
 COMMENT ON FUNCTION "public"."core_drive_assert_role"("allowed" "text"[]) IS 'CORE Drive â€” bloque si le rÃ´le courant n''est pas dans la liste.';
-
-
-
 CREATE OR REPLACE FUNCTION "public"."core_drive_current_role"() RETURNS "text"
     LANGUAGE "sql" STABLE
     AS $$
@@ -696,15 +507,8 @@ CREATE OR REPLACE FUNCTION "public"."core_drive_current_role"() RETURNS "text"
   from public.profiles p
   where p.id = auth.uid();
 $$;
-
-
 ALTER FUNCTION "public"."core_drive_current_role"() OWNER TO "postgres";
-
-
 COMMENT ON FUNCTION "public"."core_drive_current_role"() IS 'CORE Drive â€” rÃ´le courant (TEXT) via coalesce(profiles.app_role, profiles.role::text).';
-
-
-
 CREATE OR REPLACE FUNCTION "public"."core_drive_emit_upload_event"("p_file_id" "uuid", "p_payload" "jsonb" DEFAULT '{}'::"jsonb") RETURNS "uuid"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -723,15 +527,8 @@ begin
   return public.core_drive_append_event(p_file_id, 'UPLOAD', coalesce(p_payload, '{}'::jsonb), null, null);
 end;
 $$;
-
-
 ALTER FUNCTION "public"."core_drive_emit_upload_event"("p_file_id" "uuid", "p_payload" "jsonb") OWNER TO "postgres";
-
-
 COMMENT ON FUNCTION "public"."core_drive_emit_upload_event"("p_file_id" "uuid", "p_payload" "jsonb") IS 'CORE Drive â€” enregistre un event UPLOAD (appelÃ© par le front aprÃ¨s crÃ©ation core_files).';
-
-
-
 CREATE OR REPLACE FUNCTION "public"."core_drive_events_block_mutations"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -739,11 +536,7 @@ begin
   raise exception 'core_drive_events is append-only: update/delete forbidden';
 end;
 $$;
-
-
 ALTER FUNCTION "public"."core_drive_events_block_mutations"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."core_drive_freeze_file"("p_file_id" "uuid", "p_reason" "text" DEFAULT NULL::"text") RETURNS "uuid"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -774,15 +567,8 @@ begin
   return v_event_id;
 end;
 $$;
-
-
 ALTER FUNCTION "public"."core_drive_freeze_file"("p_file_id" "uuid", "p_reason" "text") OWNER TO "postgres";
-
-
 COMMENT ON FUNCTION "public"."core_drive_freeze_file"("p_file_id" "uuid", "p_reason" "text") IS 'CORE Drive â€” freeze inviolable: set core_files.frozen_at + event FREEZE.';
-
-
-
 CREATE OR REPLACE FUNCTION "public"."core_drive_soft_delete_file"("p_file_id" "uuid", "p_reason" "text" DEFAULT NULL::"text") RETURNS "uuid"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -820,15 +606,8 @@ begin
   return v_event_id;
 end;
 $$;
-
-
 ALTER FUNCTION "public"."core_drive_soft_delete_file"("p_file_id" "uuid", "p_reason" "text") OWNER TO "postgres";
-
-
 COMMENT ON FUNCTION "public"."core_drive_soft_delete_file"("p_file_id" "uuid", "p_reason" "text") IS 'CORE Drive â€” soft delete: set core_files.deleted_at (jamais Storage remove) + event SOFT_DELETE.';
-
-
-
 CREATE OR REPLACE FUNCTION "public"."core_is_admin"() RETURNS boolean
     LANGUAGE "sql" STABLE
     AS $$
@@ -839,11 +618,7 @@ CREATE OR REPLACE FUNCTION "public"."core_is_admin"() RETURNS boolean
       and p.app_role = 'ADMIN'
   );
 $$;
-
-
 ALTER FUNCTION "public"."core_is_admin"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."core_parse_tempo_hours"("p_raw" "text") RETURNS numeric
     LANGUAGE "plpgsql" IMMUTABLE
     AS $_$
@@ -886,11 +661,7 @@ exception when others then
   return null;
 end;
 $_$;
-
-
 ALTER FUNCTION "public"."core_parse_tempo_hours"("p_raw" "text") OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."core_profiles_public_by_ids"("p_ids" "uuid"[]) RETURNS TABLE("id" "uuid", "display_name" "text", "full_name" "text", "email" "text")
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -922,29 +693,16 @@ BEGIN
 
 END;
 $$;
-
-
 ALTER FUNCTION "public"."core_profiles_public_by_ids"("p_ids" "uuid"[]) OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."core_status_text"("v" "anyelement") RETURNS "text"
     LANGUAGE "sql" IMMUTABLE
     AS $$
   select trim(both from (v::text));
 $$;
-
-
 ALTER FUNCTION "public"."core_status_text"("v" "anyelement") OWNER TO "postgres";
-
-
 COMMENT ON FUNCTION "public"."core_status_text"("v" "anyelement") IS 'Return text representation of a status value (works for TEXT or ENUM), trimmed.';
-
-
 SET default_tablespace = '';
-
 SET default_table_access_method = "heap";
-
-
 CREATE TABLE IF NOT EXISTS "public"."profiles" (
     "id" "uuid" NOT NULL,
     "full_name" "text",
@@ -962,11 +720,7 @@ CREATE TABLE IF NOT EXISTS "public"."profiles" (
     CONSTRAINT "profiles_app_role_check" CHECK (("app_role" = ANY (ARRAY['CAPO'::"text", 'UFFICIO'::"text", 'MANAGER'::"text", 'DIREZIONE'::"text", 'ADMIN'::"text"]))),
     CONSTRAINT "profiles_capo_ui_mode_check" CHECK (("capo_ui_mode" = ANY (ARRAY['simple'::"text", 'rich'::"text"])))
 );
-
-
 ALTER TABLE "public"."profiles" OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."current_profile"() RETURNS "public"."profiles"
     LANGUAGE "sql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -975,11 +729,7 @@ CREATE OR REPLACE FUNCTION "public"."current_profile"() RETURNS "public"."profil
   from public.profiles p
   where p.id = auth.uid();
 $$;
-
-
 ALTER FUNCTION "public"."current_profile"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."fn_consolidate_inca_on_rapportino_approved"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -1030,11 +780,7 @@ begin
   return new;
 end;
 $$;
-
-
 ALTER FUNCTION "public"."fn_consolidate_inca_on_rapportino_approved"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."fn_fill_plan_id_on_slot_member"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -1049,11 +795,7 @@ begin
   return new;
 end;
 $$;
-
-
 ALTER FUNCTION "public"."fn_fill_plan_id_on_slot_member"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."fn_hydrate_rapportino_inca_cavi_caches"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -1088,11 +830,7 @@ begin
 
   return new;
 end $$;
-
-
 ALTER FUNCTION "public"."fn_hydrate_rapportino_inca_cavi_caches"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."fn_normalize_commessa_upper"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -1103,11 +841,7 @@ begin
   return new;
 end;
 $$;
-
-
 ALTER FUNCTION "public"."fn_normalize_commessa_upper"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."fn_operator_auto_normalize"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -1121,11 +855,7 @@ begin
   return new;
 end;
 $$;
-
-
 ALTER FUNCTION "public"."fn_operator_auto_normalize"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."fn_operator_identity_required"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -1140,11 +870,7 @@ begin
   return new;
 end;
 $$;
-
-
 ALTER FUNCTION "public"."fn_operator_identity_required"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."fn_operator_key"("cognome" "text", "birth_date" "date") RETURNS "text"
     LANGUAGE "sql" IMMUTABLE
     AS $$
@@ -1154,11 +880,7 @@ CREATE OR REPLACE FUNCTION "public"."fn_operator_key"("cognome" "text", "birth_d
       else lower(trim(cognome)) || '_' || to_char(birth_date, 'YYYYMMDD')
     end
 $$;
-
-
 ALTER FUNCTION "public"."fn_operator_key"("cognome" "text", "birth_date" "date") OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."fn_rapportino_apply_product"("p_rapportino_id" "uuid") RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -1194,15 +916,8 @@ begin
   -- Optionnel: tu peux logger plus tard dans une table dâ€™audit si besoin.
 end;
 $$;
-
-
 ALTER FUNCTION "public"."fn_rapportino_apply_product"("p_rapportino_id" "uuid") OWNER TO "postgres";
-
-
 COMMENT ON FUNCTION "public"."fn_rapportino_apply_product"("p_rapportino_id" "uuid") IS 'Consolidate minimal INCA "product" (situazione=P if progress>=50, default DA side) for cables linked to a rapportino.';
-
-
-
 CREATE OR REPLACE FUNCTION "public"."handle_new_user"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
@@ -1219,11 +934,7 @@ begin
   return new;
 end;
 $$;
-
-
 ALTER FUNCTION "public"."handle_new_user"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."inca_search_cavi_by_nodes"("p_inca_file_id" "uuid", "p_nodes" "text"[]) RETURNS TABLE("id" "uuid")
     LANGUAGE "sql" STABLE
     AS $$
@@ -1245,11 +956,7 @@ CREATE OR REPLACE FUNCTION "public"."inca_search_cavi_by_nodes"("p_inca_file_id"
       )
     );
 $$;
-
-
 ALTER FUNCTION "public"."inca_search_cavi_by_nodes"("p_inca_file_id" "uuid", "p_nodes" "text"[]) OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."is_admin"() RETURNS boolean
     LANGUAGE "sql" STABLE
     AS $$
@@ -1260,11 +967,7 @@ CREATE OR REPLACE FUNCTION "public"."is_admin"() RETURNS boolean
       and p.app_role = 'ADMIN'
   );
 $$;
-
-
 ALTER FUNCTION "public"."is_admin"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."is_admin"("p_uid" "uuid") RETURNS boolean
     LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -1276,11 +979,7 @@ CREATE OR REPLACE FUNCTION "public"."is_admin"("p_uid" "uuid") RETURNS boolean
       and app_role = 'ADMIN'
   );
 $$;
-
-
 ALTER FUNCTION "public"."is_admin"("p_uid" "uuid") OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."is_rapportino_approved"("p_rapportino_id" "uuid") RETURNS boolean
     LANGUAGE "sql" STABLE
     AS $$
@@ -1291,11 +990,7 @@ CREATE OR REPLACE FUNCTION "public"."is_rapportino_approved"("p_rapportino_id" "
       and r.status = 'APPROVED_UFFICIO'
   );
 $$;
-
-
 ALTER FUNCTION "public"."is_rapportino_approved"("p_rapportino_id" "uuid") OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."is_role"("role_text" "text") RETURNS boolean
     LANGUAGE "sql" STABLE
     AS $$
@@ -1306,11 +1001,7 @@ CREATE OR REPLACE FUNCTION "public"."is_role"("role_text" "text") RETURNS boolea
       and upper(pr.app_role::text) = upper(role_text)
   );
 $$;
-
-
 ALTER FUNCTION "public"."is_role"("role_text" "text") OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."is_ufficio"() RETURNS boolean
     LANGUAGE "sql" STABLE
     AS $$
@@ -1319,11 +1010,7 @@ CREATE OR REPLACE FUNCTION "public"."is_ufficio"() RETURNS boolean
     where p.id = auth.uid() and p.app_role = 'UFFICIO'::text
   )
 $$;
-
-
 ALTER FUNCTION "public"."is_ufficio"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."log_core_file_action"("p_core_file_id" "uuid", "p_action" "text", "p_note" "text" DEFAULT NULL::"text") RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
@@ -1349,11 +1036,7 @@ begin
   where p.id = auth.uid();
 end;
 $$;
-
-
 ALTER FUNCTION "public"."log_core_file_action"("p_core_file_id" "uuid", "p_action" "text", "p_note" "text") OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."manager_my_capi"() RETURNS TABLE("capo_id" "uuid", "display_name" "text", "email" "text")
     LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO 'public', 'auth'
@@ -1379,15 +1062,8 @@ CREATE OR REPLACE FUNCTION "public"."manager_my_capi"() RETURNS TABLE("capo_id" 
     )
   order by mca.created_at asc;
 $$;
-
-
 ALTER FUNCTION "public"."manager_my_capi"() OWNER TO "postgres";
-
-
 COMMENT ON FUNCTION "public"."manager_my_capi"() IS 'SECURITY DEFINER: retourne la liste des CAPO assignÃ©s au manager (auth.uid), avec display_name/email. ConÃ§u pour bypass RLS profiles cÃ´tÃ© MANAGER en lecture strictement limitÃ©e au mapping manager_capo_assignments.';
-
-
-
 CREATE OR REPLACE FUNCTION "public"."manager_my_capi_v1"() RETURNS TABLE("capo_id" "uuid", "display_name" "text", "email" "text")
     LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO 'public', 'auth'
@@ -1404,11 +1080,7 @@ CREATE OR REPLACE FUNCTION "public"."manager_my_capi_v1"() RETURNS TABLE("capo_i
     and p.app_role = 'CAPO'
   order by a.created_at asc;
 $$;
-
-
 ALTER FUNCTION "public"."manager_my_capi_v1"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."manager_my_operators_v1"() RETURNS TABLE("operator_id" "uuid", "operator_name" "text", "operator_roles" "text"[], "created_at" timestamp with time zone)
     LANGUAGE "sql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -1427,11 +1099,7 @@ CREATE OR REPLACE FUNCTION "public"."manager_my_operators_v1"() RETURNS TABLE("o
     and coalesce(so.active, true) = true
   order by o.name asc;
 $$;
-
-
 ALTER FUNCTION "public"."manager_my_operators_v1"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."manager_my_ships_v1"() RETURNS TABLE("ship_id" "uuid", "ship_code" "text", "ship_name" "text", "is_active" boolean, "assigned_at" timestamp with time zone)
     LANGUAGE "sql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -1447,11 +1115,7 @@ CREATE OR REPLACE FUNCTION "public"."manager_my_ships_v1"() RETURNS TABLE("ship_
   where sm.manager_id = auth.uid()
   order by sm.created_at desc;
 $$;
-
-
 ALTER FUNCTION "public"."manager_my_ships_v1"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."nav_status_from_text"("x" "text") RETURNS "public"."nav_status"
     LANGUAGE "sql" IMMUTABLE
     AS $$
@@ -1465,11 +1129,7 @@ CREATE OR REPLACE FUNCTION "public"."nav_status_from_text"("x" "text") RETURNS "
     else 'NP'::public.nav_status
   end
 $$;
-
-
 ALTER FUNCTION "public"."nav_status_from_text"("x" "text") OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."navemaster_can_manage"() RETURNS boolean
     LANGUAGE "sql" STABLE
     AS $$
@@ -1480,11 +1140,7 @@ CREATE OR REPLACE FUNCTION "public"."navemaster_can_manage"() RETURNS boolean
       and (p.app_role in ('ADMIN','DIREZIONE','UFFICIO'))
   );
 $$;
-
-
 ALTER FUNCTION "public"."navemaster_can_manage"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."normalize_inca_situazione"("p" "text") RETURNS "text"
     LANGUAGE "sql" IMMUTABLE
     AS $$
@@ -1503,11 +1159,7 @@ CREATE OR REPLACE FUNCTION "public"."normalize_inca_situazione"("p" "text") RETU
         end
     end;
 $$;
-
-
 ALTER FUNCTION "public"."normalize_inca_situazione"("p" "text") OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."percorso_propose_lots"("p_document_id" "uuid", "p_min_core_segments" integer, "p_min_cables" integer, "p_max_lots" integer, "p_dry_run" boolean) RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
@@ -1556,21 +1208,13 @@ begin
   );
 end;
 $$;
-
-
 ALTER FUNCTION "public"."percorso_propose_lots"("p_document_id" "uuid", "p_min_core_segments" integer, "p_min_cables" integer, "p_max_lots" integer, "p_dry_run" boolean) OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."ping"() RETURNS "jsonb"
     LANGUAGE "sql"
     AS $$
   select jsonb_build_object('ok', true, 'ts', now());
 $$;
-
-
 ALTER FUNCTION "public"."ping"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."prevent_update_on_frozen_files"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -1581,11 +1225,7 @@ begin
   return new;
 end;
 $$;
-
-
 ALTER FUNCTION "public"."prevent_update_on_frozen_files"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."recompute_operator_kpi_snapshot"("p_operator_id" "uuid", "p_period" "public"."kpi_period", "p_ref_date" "date", "p_year_iso" integer, "p_week_iso" integer, "p_actor" "uuid") RETURNS "void"
     LANGUAGE "plpgsql"
     AS $$
@@ -1656,11 +1296,7 @@ begin
 
 end;
 $$;
-
-
 ALTER FUNCTION "public"."recompute_operator_kpi_snapshot"("p_operator_id" "uuid", "p_period" "public"."kpi_period", "p_ref_date" "date", "p_year_iso" integer, "p_week_iso" integer, "p_actor" "uuid") OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."replace_core_file_version"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -1682,11 +1318,7 @@ begin
   return new;
 end;
 $$;
-
-
 ALTER FUNCTION "public"."replace_core_file_version"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."set_profile_updated_at"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -1695,11 +1327,7 @@ begin
   return new;
 end;
 $$;
-
-
 ALTER FUNCTION "public"."set_profile_updated_at"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."set_rapportini_capo_id"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
@@ -1710,11 +1338,7 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-
-
 ALTER FUNCTION "public"."set_rapportini_capo_id"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."set_rapportino_row_updated_at"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -1724,11 +1348,7 @@ begin
   return new;
 end;
 $$;
-
-
 ALTER FUNCTION "public"."set_rapportino_row_updated_at"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."set_rapportino_updated_at"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -1737,11 +1357,7 @@ begin
   return new;
 end;
 $$;
-
-
 ALTER FUNCTION "public"."set_rapportino_updated_at"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."set_updated_at"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -1750,11 +1366,7 @@ begin
   return new;
 end;
 $$;
-
-
 ALTER FUNCTION "public"."set_updated_at"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."sync_capo_id_from_user_id"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -1765,11 +1377,7 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-
-
 ALTER FUNCTION "public"."sync_capo_id_from_user_id"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."trg_archive_on_rapportino_approved"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public', 'archive'
@@ -1918,11 +1526,7 @@ begin
   return new;
 end;
 $$;
-
-
 ALTER FUNCTION "public"."trg_archive_on_rapportino_approved"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."trg_auto_tp_from_progress"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -1956,11 +1560,7 @@ begin
   return new;
 end;
 $$;
-
-
 ALTER FUNCTION "public"."trg_auto_tp_from_progress"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."trg_fill_rapportino_inca_cache"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -1989,11 +1589,7 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-
-
 ALTER FUNCTION "public"."trg_fill_rapportino_inca_cache"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."trg_operators_require_identity"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -2017,11 +1613,7 @@ begin
   return new;
 end;
 $$;
-
-
 ALTER FUNCTION "public"."trg_operators_require_identity"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."trg_operators_set_operator_key"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -2030,11 +1622,7 @@ begin
   return new;
 end
 $$;
-
-
 ALTER FUNCTION "public"."trg_operators_set_operator_key"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."trg_rapportini_apply_inca_progress_on_status"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -2053,11 +1641,7 @@ begin
   return new;
 end;
 $$;
-
-
 ALTER FUNCTION "public"."trg_rapportini_apply_inca_progress_on_status"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."trg_rapportini_on_status_product"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -2086,15 +1670,8 @@ begin
   return new;
 end;
 $$;
-
-
 ALTER FUNCTION "public"."trg_rapportini_on_status_product"() OWNER TO "postgres";
-
-
 COMMENT ON FUNCTION "public"."trg_rapportini_on_status_product"() IS 'After rapportini.status change, apply minimal INCA consolidation on VALIDATED_CAPO / APPROVED_UFFICIO. Avoid enum/text comparison issues.';
-
-
-
 CREATE OR REPLACE FUNCTION "public"."ufficio_approve_rapportino"("p_rapportino_id" "uuid") RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -2113,11 +1690,7 @@ begin
     and status = 'VALIDATED_CAPO';
 end;
 $$;
-
-
 ALTER FUNCTION "public"."ufficio_approve_rapportino"("p_rapportino_id" "uuid") OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."ufficio_approve_rapportino"("p_rapportino_id" "uuid", "p_note" "text" DEFAULT NULL::"text") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -2183,11 +1756,7 @@ begin
   );
 end;
 $$;
-
-
 ALTER FUNCTION "public"."ufficio_approve_rapportino"("p_rapportino_id" "uuid", "p_note" "text") OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."ufficio_create_correction_rapportino"("p_rapportino_id" "uuid", "p_reason" "text") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -2465,11 +2034,7 @@ begin
   );
 end;
 $_$;
-
-
 ALTER FUNCTION "public"."ufficio_create_correction_rapportino"("p_rapportino_id" "uuid", "p_reason" "text") OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."updated_at"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -2478,132 +2043,7 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-
-
 ALTER FUNCTION "public"."updated_at"() OWNER TO "postgres";
-
-
-CREATE TABLE IF NOT EXISTS "archive"."rapportini" (
-    "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
-    "data" "date" NOT NULL,
-    "capo_id" "uuid",
-    "capo_name" "text" DEFAULT 'CAPO SCONOSCIUTO'::"text" NOT NULL,
-    "status" "text" DEFAULT 'DRAFT'::"text" NOT NULL,
-    "cost" "text",
-    "commessa" "text",
-    "totale_prodotto" numeric(12,2) DEFAULT 0 NOT NULL,
-    "ufficio_note" "text",
-    "validated_by_capo_at" timestamp with time zone,
-    "approved_by_ufficio_at" timestamp with time zone,
-    "approved_by_ufficio" "uuid",
-    "returned_by_ufficio_at" timestamp with time zone,
-    "returned_by_ufficio" "uuid",
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "user_id" "uuid",
-    "crew_role" "text",
-    "report_date" "date",
-    "prodotto_tot" numeric,
-    "note_ufficio" "text",
-    "costr" "text",
-    "prodotto_totale" numeric,
-    "supersedes_rapportino_id" "uuid",
-    "superseded_by_rapportino_id" "uuid",
-    "correction_reason" "text",
-    "correction_created_by" "uuid",
-    "correction_created_at" timestamp with time zone,
-    CONSTRAINT "rapportini_crew_role_check" CHECK (("crew_role" = ANY (ARRAY['ELETTRICISTA'::"text", 'CARPENTERIA'::"text", 'MONTAGGIO'::"text"]))),
-    CONSTRAINT "rapportini_status_check" CHECK (("status" = ANY (ARRAY['DRAFT'::"text", 'VALIDATED_CAPO'::"text", 'APPROVED_UFFICIO'::"text", 'RETURNED'::"text"])))
-);
-
-
-ALTER TABLE "archive"."rapportini" OWNER TO "postgres";
-
-
-CREATE TABLE IF NOT EXISTS "archive"."rapportino_cavi" (
-    "id" bigint NOT NULL,
-    "rapportino_id" "uuid" NOT NULL,
-    "codice" "text" NOT NULL,
-    "descrizione" "text",
-    "metri_totali" numeric(12,2) DEFAULT 0 NOT NULL,
-    "percentuale" numeric(5,2) DEFAULT 0 NOT NULL,
-    "metri_posati" numeric(12,2) DEFAULT 0 NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "inca_cavo_id" "uuid"
-);
-
-
-ALTER TABLE "archive"."rapportino_cavi" OWNER TO "postgres";
-
-
-CREATE SEQUENCE IF NOT EXISTS "archive"."rapportino_cavi_id_seq"
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER SEQUENCE "archive"."rapportino_cavi_id_seq" OWNER TO "postgres";
-
-
-ALTER SEQUENCE "archive"."rapportino_cavi_id_seq" OWNED BY "archive"."rapportino_cavi"."id";
-
-
-
-CREATE TABLE IF NOT EXISTS "archive"."rapportino_righe" (
-    "id" bigint NOT NULL,
-    "rapportino_id" "uuid" NOT NULL,
-    "idx" integer NOT NULL,
-    "categoria" "text",
-    "descrizione" "text",
-    "previsto" "text",
-    "prodotto" "text",
-    "note" "text",
-    "operai" "jsonb" DEFAULT '[]'::"jsonb" NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
-);
-
-
-ALTER TABLE "archive"."rapportino_righe" OWNER TO "postgres";
-
-
-CREATE SEQUENCE IF NOT EXISTS "archive"."rapportino_righe_id_seq"
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER SEQUENCE "archive"."rapportino_righe_id_seq" OWNER TO "postgres";
-
-
-ALTER SEQUENCE "archive"."rapportino_righe_id_seq" OWNED BY "archive"."rapportino_righe"."id";
-
-
-
-CREATE TABLE IF NOT EXISTS "archive"."rapportino_rows" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "rapportino_id" "uuid" NOT NULL,
-    "row_index" integer DEFAULT 0 NOT NULL,
-    "categoria" "text",
-    "descrizione" "text",
-    "operatori" "text",
-    "tempo" "text",
-    "previsto" numeric,
-    "prodotto" numeric,
-    "note" "text",
-    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()),
-    "updated_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"())
-);
-
-
-ALTER TABLE "archive"."rapportino_rows" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."manager_capo_assignments" (
     "capo_id" "uuid" NOT NULL,
     "manager_id" "uuid" NOT NULL,
@@ -2611,15 +2051,8 @@ CREATE TABLE IF NOT EXISTS "public"."manager_capo_assignments" (
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "created_by" "uuid"
 );
-
-
 ALTER TABLE "public"."manager_capo_assignments" OWNER TO "postgres";
-
-
 COMMENT ON TABLE "public"."manager_capo_assignments" IS 'Assignation CAPO -> MANAGER (1:1). Source de vÃ©ritÃ© pour le pÃ©rimÃ¨tre Manager.';
-
-
-
 CREATE OR REPLACE VIEW "public"."admin_capo_manager_v1" AS
  SELECT "c"."id" AS "capo_id",
     "c"."email" AS "capo_email",
@@ -2634,21 +2067,13 @@ CREATE OR REPLACE VIEW "public"."admin_capo_manager_v1" AS
      LEFT JOIN "public"."manager_capo_assignments" "a" ON (("a"."capo_id" = "c"."id")))
      LEFT JOIN "public"."profiles" "m" ON (("m"."id" = "a"."manager_id")))
   WHERE ("c"."app_role" = 'CAPO'::"text");
-
-
 ALTER VIEW "public"."admin_capo_manager_v1" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."ship_managers" (
     "ship_id" "uuid" NOT NULL,
     "manager_id" "uuid" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
-
-
 ALTER TABLE "public"."ship_managers" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."ships" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "costr" "text" NOT NULL,
@@ -2662,11 +2087,7 @@ CREATE TABLE IF NOT EXISTS "public"."ships" (
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "recent_reports" integer DEFAULT 0
 );
-
-
 ALTER TABLE "public"."ships" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."admin_manager_perimeter_v1" AS
  SELECT "sm"."manager_id",
     "p"."email" AS "manager_email",
@@ -2677,11 +2098,7 @@ CREATE OR REPLACE VIEW "public"."admin_manager_perimeter_v1" AS
    FROM (("public"."ship_managers" "sm"
      JOIN "public"."profiles" "p" ON (("p"."id" = "sm"."manager_id")))
      JOIN "public"."ships" "s" ON (("s"."id" = "sm"."ship_id")));
-
-
 ALTER VIEW "public"."admin_manager_perimeter_v1" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."manager_plans" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "manager_id" "uuid" NOT NULL,
@@ -2696,11 +2113,7 @@ CREATE TABLE IF NOT EXISTS "public"."manager_plans" (
     "created_by" "uuid",
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
-
-
 ALTER TABLE "public"."manager_plans" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."plan_capo_slots" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "plan_id" "uuid" NOT NULL,
@@ -2711,11 +2124,7 @@ CREATE TABLE IF NOT EXISTS "public"."plan_capo_slots" (
     "created_by" "uuid",
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
-
-
 ALTER TABLE "public"."plan_capo_slots" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."plan_slot_members" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "slot_id" "uuid" NOT NULL,
@@ -2728,11 +2137,7 @@ CREATE TABLE IF NOT EXISTS "public"."plan_slot_members" (
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "plan_id" "uuid"
 );
-
-
 ALTER TABLE "public"."plan_slot_members" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."admin_planning_overview_v1" AS
  SELECT "p"."id" AS "plan_id",
     "p"."manager_id",
@@ -2751,26 +2156,15 @@ CREATE OR REPLACE VIEW "public"."admin_planning_overview_v1" AS
    FROM (("public"."manager_plans" "p"
      JOIN "public"."plan_capo_slots" "s" ON (("s"."plan_id" = "p"."id")))
      LEFT JOIN "public"."plan_slot_members" "m" ON (("m"."slot_id" = "s"."id")));
-
-
 ALTER VIEW "public"."admin_planning_overview_v1" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."admin_planning_overview_v1" IS 'Admin global planning overview: Plan -> CAPO slots -> Operators. Join to profiles/operators for labels in UI.';
-
-
-
 CREATE TABLE IF NOT EXISTS "public"."ship_capos" (
     "ship_id" "uuid" NOT NULL,
     "capo_id" "uuid" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "created_by" "uuid"
 );
-
-
 ALTER TABLE "public"."ship_capos" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."admin_ship_capos_v1" AS
  SELECT "sc"."ship_id",
     "s"."code" AS "ship_code",
@@ -2782,11 +2176,7 @@ CREATE OR REPLACE VIEW "public"."admin_ship_capos_v1" AS
    FROM (("public"."ship_capos" "sc"
      JOIN "public"."ships" "s" ON (("s"."id" = "sc"."ship_id")))
      JOIN "public"."profiles" "p" ON (("p"."id" = "sc"."capo_id")));
-
-
 ALTER VIEW "public"."admin_ship_capos_v1" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."operators" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "name" "text" NOT NULL,
@@ -2801,11 +2191,7 @@ CREATE TABLE IF NOT EXISTS "public"."operators" (
     "operator_code" "text",
     "is_normalized" boolean DEFAULT false NOT NULL
 );
-
-
 ALTER TABLE "public"."operators" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."ship_operators" (
     "ship_id" "uuid" NOT NULL,
     "operator_id" "uuid" NOT NULL,
@@ -2814,11 +2200,7 @@ CREATE TABLE IF NOT EXISTS "public"."ship_operators" (
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
-
-
 ALTER TABLE "public"."ship_operators" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."admin_ship_operators_v1" AS
  SELECT "so"."ship_id",
     "s"."code" AS "ship_code",
@@ -2832,11 +2214,7 @@ CREATE OR REPLACE VIEW "public"."admin_ship_operators_v1" AS
    FROM (("public"."ship_operators" "so"
      JOIN "public"."ships" "s" ON (("s"."id" = "so"."ship_id")))
      JOIN "public"."operators" "o" ON (("o"."id" = "so"."operator_id")));
-
-
 ALTER VIEW "public"."admin_ship_operators_v1" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."rapportini" (
     "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
     "data" "date" NOT NULL,
@@ -2869,11 +2247,7 @@ CREATE TABLE IF NOT EXISTS "public"."rapportini" (
     CONSTRAINT "rapportini_no_self_supersede" CHECK (((("supersedes_rapportino_id" IS NULL) OR ("supersedes_rapportino_id" <> "id")) AND (("superseded_by_rapportino_id" IS NULL) OR ("superseded_by_rapportino_id" <> "id")))),
     CONSTRAINT "rapportini_versioning_one_direction" CHECK ((NOT (("supersedes_rapportino_id" IS NOT NULL) AND ("superseded_by_rapportino_id" IS NOT NULL))))
 );
-
-
 ALTER TABLE "public"."rapportini" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."rapportini_norm_v1" AS
  SELECT "id" AS "rapportino_id",
     "report_date",
@@ -2884,15 +2258,8 @@ CREATE OR REPLACE VIEW "public"."rapportini_norm_v1" AS
     NULLIF(NULLIF(TRIM(BOTH FROM "commessa"), ''::"text"), '-'::"text") AS "commessa_norm",
     NULLIF(TRIM(BOTH FROM "costr"), ''::"text") AS "costr_norm"
    FROM "public"."rapportini" "r";
-
-
 ALTER VIEW "public"."rapportini_norm_v1" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."rapportini_norm_v1" IS 'Rapportini normalisÃ©s (commessa ''-'' ou vide => NULL).';
-
-
-
 CREATE OR REPLACE VIEW "public"."ships_norm_v1" AS
  SELECT "id" AS "ship_id",
     NULLIF(TRIM(BOTH FROM "costr"), ''::"text") AS "costr_raw",
@@ -2904,15 +2271,8 @@ CREATE OR REPLACE VIEW "public"."ships_norm_v1" AS
     "is_active",
     "created_at"
    FROM "public"."ships" "s";
-
-
 ALTER VIEW "public"."ships_norm_v1" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."ships_norm_v1" IS 'Ships normalisÃ©s (commessa ''-'' ou vide => NULL). Source canonique pour la rÃ©solution ship.';
-
-
-
 CREATE OR REPLACE VIEW "public"."rapportini_ship_resolution_v1" AS
  WITH "rap" AS (
          SELECT "r"."rapportino_id",
@@ -3003,15 +2363,8 @@ CREATE OR REPLACE VIEW "public"."rapportini_ship_resolution_v1" AS
      LEFT JOIN "strict_one" "so" ON (("so"."rapportino_id" = "rap"."rapportino_id")))
      LEFT JOIN "costr_one" "co" ON (("co"."rapportino_id" = "rap"."rapportino_id")))
      LEFT JOIN "counts" "c" ON (("c"."rapportino_id" = "rap"."rapportino_id")));
-
-
 ALTER VIEW "public"."rapportini_ship_resolution_v1" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."rapportini_ship_resolution_v1" IS 'RÃ©solution ship en 2 passes (STRICT puis COSTR_ONLY non ambigu). Expose ship_match_mode + counts.';
-
-
-
 CREATE OR REPLACE VIEW "public"."admin_ship_resolution_anomalies_v1" AS
  SELECT "report_date",
     "rapportino_id",
@@ -3024,15 +2377,8 @@ CREATE OR REPLACE VIEW "public"."admin_ship_resolution_anomalies_v1" AS
     "costr_active_n"
    FROM "public"."rapportini_ship_resolution_v1" "r"
   WHERE (("ship_id" IS NULL) OR ("ship_match_mode" = ANY (ARRAY['AMBIGUOUS_STRICT'::"text", 'AMBIGUOUS_COSTR'::"text", 'NOT_FOUND'::"text", 'UNKNOWN'::"text"])));
-
-
 ALTER VIEW "public"."admin_ship_resolution_anomalies_v1" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."admin_ship_resolution_anomalies_v1" IS 'Anomalies de rÃ©solution ship (ambiguous/not_found). Source Admin/Manager pour correction data.';
-
-
-
 CREATE OR REPLACE VIEW "public"."archive_rapportini_v1" AS
  SELECT "id",
     "data",
@@ -3058,11 +2404,7 @@ CREATE OR REPLACE VIEW "public"."archive_rapportini_v1" AS
     "costr",
     "prodotto_totale"
    FROM "archive"."rapportini";
-
-
 ALTER VIEW "public"."archive_rapportini_v1" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."archive_rapportino_cavi_v1" AS
  SELECT "id",
     "rapportino_id",
@@ -3075,11 +2417,7 @@ CREATE OR REPLACE VIEW "public"."archive_rapportino_cavi_v1" AS
     "updated_at",
     "inca_cavo_id"
    FROM "archive"."rapportino_cavi";
-
-
 ALTER VIEW "public"."archive_rapportino_cavi_v1" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."inca_cavi" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "inca_file_id" "uuid",
@@ -3125,39 +2463,14 @@ CREATE TABLE IF NOT EXISTS "public"."inca_cavi" (
     CONSTRAINT "inca_cavi_progress_side_check" CHECK ((("progress_side" IS NULL) OR ("progress_side" = ANY (ARRAY['DA'::"text", 'A'::"text"])))),
     CONSTRAINT "inca_cavi_situazione_check" CHECK ((("situazione" IS NULL) OR ("situazione" = ANY (ARRAY['T'::"text", 'P'::"text", 'R'::"text", 'B'::"text", 'E'::"text"]))))
 );
-
-
 ALTER TABLE "public"."inca_cavi" OWNER TO "postgres";
-
-
 COMMENT ON TABLE "public"."inca_cavi" IS 'Cavi (ligne par ligne) importÃ©s depuis INCA.';
-
-
-
 COMMENT ON COLUMN "public"."inca_cavi"."codice" IS 'Codice cavo INCA.';
-
-
-
 COMMENT ON COLUMN "public"."inca_cavi"."situazione" IS 'P = posato, T = da posare, etc.';
-
-
-
 COMMENT ON COLUMN "public"."inca_cavi"."from_file_id" IS 'Fichier INCA dâ€™origine (inca_files.id).';
-
-
-
 COMMENT ON COLUMN "public"."inca_cavi"."metri_previsti" IS 'Metri previsti pour ce cavo (copie de metri_totali).';
-
-
-
 COMMENT ON COLUMN "public"."inca_cavi"."metri_posati_teorici" IS 'Metri considÃ©rÃ©s comme posÃ©s selon INCA (100% si P, 0 si T, etc.).';
-
-
-
 COMMENT ON COLUMN "public"."inca_cavi"."metri_totali" IS 'MLF / Metri totali du cavo.';
-
-
-
 CREATE TABLE IF NOT EXISTS "public"."rapportino_inca_cavi" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "rapportino_id" "uuid" NOT NULL,
@@ -3180,15 +2493,8 @@ CREATE TABLE IF NOT EXISTS "public"."rapportino_inca_cavi" (
     CONSTRAINT "rapportino_inca_ripresa_100_check" CHECK ((("step_type" <> 'RIPRESA'::"public"."cavo_step_type") OR ("progress_percent" = (100)::numeric))),
     CONSTRAINT "rapportino_inca_step_check" CHECK (("step_type" = ANY (ARRAY['POSA'::"public"."cavo_step_type", 'RIPRESA'::"public"."cavo_step_type"])))
 );
-
-
 ALTER TABLE "public"."rapportino_inca_cavi" OWNER TO "postgres";
-
-
 COMMENT ON COLUMN "public"."rapportino_inca_cavi"."step_type" IS 'Step del cavo nel rapportino. PuÃ² essere NULL al momento del collegamento; viene valorizzato in fase di compilazione.';
-
-
-
 CREATE OR REPLACE VIEW "public"."archive_rapportino_inca_cavi_v1" AS
  SELECT "ric"."id" AS "link_id",
     "ric"."rapportino_id",
@@ -3220,11 +2526,7 @@ CREATE OR REPLACE VIEW "public"."archive_rapportino_inca_cavi_v1" AS
    FROM (("public"."rapportino_inca_cavi" "ric"
      JOIN "public"."rapportini" "r" ON (("r"."id" = "ric"."rapportino_id")))
      LEFT JOIN "public"."inca_cavi" "c" ON (("c"."id" = "ric"."inca_cavo_id")));
-
-
 ALTER VIEW "public"."archive_rapportino_inca_cavi_v1" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."catalogo_attivita" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "categoria" "text" NOT NULL,
@@ -3237,11 +2539,7 @@ CREATE TABLE IF NOT EXISTS "public"."catalogo_attivita" (
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
-
-
 ALTER TABLE "public"."catalogo_attivita" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."rapportino_rows" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "rapportino_id" "uuid" NOT NULL,
@@ -3257,11 +2555,7 @@ CREATE TABLE IF NOT EXISTS "public"."rapportino_rows" (
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "activity_id" "uuid"
 );
-
-
 ALTER TABLE "public"."rapportino_rows" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."archive_rapportino_rows_v1" AS
  SELECT "r"."id",
     "r"."rapportino_id",
@@ -3282,11 +2576,7 @@ CREATE OR REPLACE VIEW "public"."archive_rapportino_rows_v1" AS
     "a"."is_active" AS "catalog_is_active"
    FROM ("public"."rapportino_rows" "r"
      LEFT JOIN "public"."catalogo_attivita" "a" ON (("a"."id" = "r"."activity_id")));
-
-
 ALTER VIEW "public"."archive_rapportino_rows_v1" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."capo_ship_expected_operators" (
     "plan_date" "date" NOT NULL,
     "capo_id" "uuid" NOT NULL,
@@ -3298,11 +2588,7 @@ CREATE TABLE IF NOT EXISTS "public"."capo_ship_expected_operators" (
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "created_by" "uuid"
 );
-
-
 ALTER TABLE "public"."capo_ship_expected_operators" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."capo_expected_operators_today_v1" AS
  SELECT "e"."plan_date",
     "e"."ship_id",
@@ -3312,11 +2598,7 @@ CREATE OR REPLACE VIEW "public"."capo_expected_operators_today_v1" AS
    FROM ("public"."capo_ship_expected_operators" "e"
      JOIN "public"."operators" "o" ON (("o"."id" = "e"."operator_id")))
   WHERE ("e"."capo_id" = "auth"."uid"());
-
-
 ALTER VIEW "public"."capo_expected_operators_today_v1" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."capo_my_team_v1" AS
  SELECT "m"."operator_id",
     "s"."capo_id",
@@ -3329,15 +2611,8 @@ CREATE OR REPLACE VIEW "public"."capo_my_team_v1" AS
      JOIN "public"."plan_slot_members" "m" ON (("m"."slot_id" = "s"."id")))
      JOIN "public"."operators" "o" ON (("o"."id" = "m"."operator_id")))
   WHERE (("p"."period_type" = 'DAY'::"public"."plan_period_type") AND ("p"."plan_date" = CURRENT_DATE) AND ("p"."status" = ANY (ARRAY['PUBLISHED'::"public"."plan_status", 'FROZEN'::"public"."plan_status"])) AND ("s"."capo_id" = "auth"."uid"()));
-
-
 ALTER VIEW "public"."capo_my_team_v1" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."capo_my_team_v1" IS 'CAPO: operators assigned by Manager for today (DAY plan) for statuses PUBLISHED or FROZEN.';
-
-
-
 CREATE OR REPLACE VIEW "public"."operators_display_v1" AS
  SELECT "id",
     "name" AS "legacy_name",
@@ -3351,15 +2626,8 @@ CREATE OR REPLACE VIEW "public"."operators_display_v1" AS
     "created_at",
     "updated_at"
    FROM "public"."operators" "o";
-
-
 ALTER VIEW "public"."operators_display_v1" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."operators_display_v1" IS 'Operators canonical display: prefer cognome+nome; fallback name. operator_code expected as cognome_YYYYMMDD (manual).';
-
-
-
 CREATE OR REPLACE VIEW "public"."capo_my_team_v2" AS
  SELECT "m"."operator_id",
     "s"."capo_id",
@@ -3374,15 +2642,8 @@ CREATE OR REPLACE VIEW "public"."capo_my_team_v2" AS
      JOIN "public"."plan_slot_members" "m" ON (("m"."slot_id" = "s"."id")))
      JOIN "public"."operators_display_v1" "od" ON (("od"."id" = "m"."operator_id")))
   WHERE (("p"."period_type" = 'DAY'::"public"."plan_period_type") AND ("p"."plan_date" = CURRENT_DATE) AND ("p"."status" = ANY (ARRAY['PUBLISHED'::"public"."plan_status", 'FROZEN'::"public"."plan_status"])) AND ("s"."capo_id" = "auth"."uid"()));
-
-
 ALTER VIEW "public"."capo_my_team_v2" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."capo_my_team_v2" IS 'CAPO perimeter: operators assigned today (manager plan), canonical operator_id + display_name; filtered by auth.uid() = capo_id.';
-
-
-
 CREATE OR REPLACE VIEW "public"."capo_returned_inbox_v1" AS
  SELECT "id",
     "capo_id",
@@ -3393,11 +2654,7 @@ CREATE OR REPLACE VIEW "public"."capo_returned_inbox_v1" AS
     "updated_at"
    FROM "public"."rapportini"
   WHERE ("status" = 'RETURNED'::"text");
-
-
 ALTER VIEW "public"."capo_returned_inbox_v1" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."capo_ship_assignments" (
     "plan_date" "date" NOT NULL,
     "capo_id" "uuid" NOT NULL,
@@ -3409,11 +2666,7 @@ CREATE TABLE IF NOT EXISTS "public"."capo_ship_assignments" (
     "created_by" "uuid",
     CONSTRAINT "capo_ship_assignments_position_check" CHECK (("position" = ANY (ARRAY[1, 2])))
 );
-
-
 ALTER TABLE "public"."capo_ship_assignments" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."capo_ship_attendance" (
     "plan_date" "date" NOT NULL,
     "ship_id" "uuid" NOT NULL,
@@ -3424,11 +2677,7 @@ CREATE TABLE IF NOT EXISTS "public"."capo_ship_attendance" (
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     CONSTRAINT "capo_ship_attendance_status_check" CHECK (("status" = ANY (ARRAY['PRESENT'::"text", 'ABSENT'::"text", 'LATE'::"text"])))
 );
-
-
 ALTER TABLE "public"."capo_ship_attendance" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."capo_today_ship_assignments_v1" AS
  SELECT "a"."plan_date",
     "a"."ship_id",
@@ -3440,11 +2689,7 @@ CREATE OR REPLACE VIEW "public"."capo_today_ship_assignments_v1" AS
    FROM ("public"."capo_ship_assignments" "a"
      JOIN "public"."ships" "s" ON (("s"."id" = "a"."ship_id")))
   WHERE ("a"."capo_id" = "auth"."uid"());
-
-
 ALTER VIEW "public"."capo_today_ship_assignments_v1" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."catalogo_ship_commessa_attivita" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "ship_id" "uuid" NOT NULL,
@@ -3458,11 +2703,7 @@ CREATE TABLE IF NOT EXISTS "public"."catalogo_ship_commessa_attivita" (
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
-
-
 ALTER TABLE "public"."catalogo_ship_commessa_attivita" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."catalogo_ship_commessa_attivita_public_v1" AS
  SELECT "csca"."id" AS "catalogo_item_id",
     "csca"."ship_id",
@@ -3484,11 +2725,7 @@ CREATE OR REPLACE VIEW "public"."catalogo_ship_commessa_attivita_public_v1" AS
    FROM (("public"."catalogo_ship_commessa_attivita" "csca"
      JOIN "public"."catalogo_attivita" "ca" ON (("ca"."id" = "csca"."activity_id")))
      JOIN "public"."ships" "s" ON (("s"."id" = "csca"."ship_id")));
-
-
 ALTER VIEW "public"."catalogo_ship_commessa_attivita_public_v1" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."core_drive_events" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
@@ -3501,19 +2738,9 @@ CREATE TABLE IF NOT EXISTS "public"."core_drive_events" (
     "prev_event_id" "uuid",
     CONSTRAINT "core_drive_events_event_type_check" CHECK (("event_type" = ANY (ARRAY['UPLOAD'::"text", 'SOFT_DELETE'::"text", 'FREEZE'::"text", 'NOTE'::"text", 'TAG'::"text"])))
 );
-
-
 ALTER TABLE "public"."core_drive_events" OWNER TO "postgres";
-
-
 COMMENT ON TABLE "public"."core_drive_events" IS 'CORE Drive â€” registre canonique append-only (naval-grade).';
-
-
-
 COMMENT ON COLUMN "public"."core_drive_events"."event_type" IS 'Exemples: UPLOAD, SOFT_DELETE, RESTORE, FREEZE, UNFREEZE, TAG, NOTE, MOVE, SIGNED_URL_ISSUED.';
-
-
-
 CREATE TABLE IF NOT EXISTS "public"."core_file_audit" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "core_file_id" "uuid" NOT NULL,
@@ -3525,11 +2752,7 @@ CREATE TABLE IF NOT EXISTS "public"."core_file_audit" (
     "user_agent" "text",
     "note" "text"
 );
-
-
 ALTER TABLE "public"."core_file_audit" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."core_files" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "storage_bucket" "text" DEFAULT 'core-drive'::"text" NOT NULL,
@@ -3563,39 +2786,14 @@ CREATE TABLE IF NOT EXISTS "public"."core_files" (
     "anomaly_code" "text",
     "claim_id" "text"
 );
-
-
 ALTER TABLE "public"."core_files" OWNER TO "postgres";
-
-
 COMMENT ON COLUMN "public"."core_files"."kpi_ref" IS 'RÃ©fÃ©rence KPI Direction';
-
-
-
 COMMENT ON COLUMN "public"."core_files"."version_num" IS 'Version du document (1,2,3â€¦)';
-
-
-
 COMMENT ON COLUMN "public"."core_files"."version_of" IS 'RÃ©fÃ©rence vers la version prÃ©cÃ©dente';
-
-
-
 COMMENT ON COLUMN "public"."core_files"."frozen_at" IS 'Date de gel juridique (plus aucune modification)';
-
-
-
 COMMENT ON COLUMN "public"."core_files"."retention_until" IS 'Date minimum de conservation lÃ©gale';
-
-
-
 COMMENT ON COLUMN "public"."core_files"."anomaly_code" IS 'Code anomalie qualitÃ©';
-
-
-
 COMMENT ON COLUMN "public"."core_files"."claim_id" IS 'Identifiant rÃ©clamation / extra';
-
-
-
 CREATE TABLE IF NOT EXISTS "public"."core_meta" (
     "key" "text" DEFAULT 'CORE_DB'::"text" NOT NULL,
     "db_version" "text" NOT NULL,
@@ -3603,11 +2801,7 @@ CREATE TABLE IF NOT EXISTS "public"."core_meta" (
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_by" "uuid"
 );
-
-
 ALTER TABLE "public"."core_meta" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."inca_files" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "costr" "text",
@@ -3622,39 +2816,14 @@ CREATE TABLE IF NOT EXISTS "public"."inca_files" (
     "ship_id" "uuid",
     CONSTRAINT "inca_files_file_type_check" CHECK (("file_type" = ANY (ARRAY['PDF'::"text", 'XLSX'::"text"])))
 );
-
-
 ALTER TABLE "public"."inca_files" OWNER TO "postgres";
-
-
 COMMENT ON TABLE "public"."inca_files" IS 'Fichiers INCA importÃ©s (PDF/Excel/photo).';
-
-
-
-COMMENT ON COLUMN "public"."inca_files"."costr" IS 'Costruttore / nave (ex: 1234).';
-
-
-
-COMMENT ON COLUMN "public"."inca_files"."commessa" IS 'Commessa (ex: COMM-001).';
-
-
-
-COMMENT ON COLUMN "public"."inca_files"."file_name" IS 'Nom du fichier original (ex: rapportino_20251124.pdf)';
-
-
-
+COMMENT ON COLUMN "public"."inca_files"."costr" IS 'Costruttore / nave (ex: 6368).';
+COMMENT ON COLUMN "public"."inca_files"."commessa" IS 'Commessa (ex: SDC).';
+COMMENT ON COLUMN "public"."inca_files"."file_name" IS 'Nom du fichier original (ex: 6368_20251124_INSTRADAMENTO_SDC.pdf)';
 COMMENT ON COLUMN "public"."inca_files"."file_type" IS 'Type MIME (application/pdf, application/vnd.ms-excel, image/png, â€¦)';
-
-
-
 COMMENT ON COLUMN "public"."inca_files"."uploaded_at" IS 'Date/heure import INCA.';
-
-
-
 COMMENT ON COLUMN "public"."inca_files"."file_path" IS 'Chemin dans le storage Supabase.';
-
-
-
 CREATE OR REPLACE VIEW "public"."direzione_inca_teorico" AS
  WITH "base" AS (
          SELECT "f"."id" AS "inca_file_id",
@@ -3712,15 +2881,8 @@ CREATE OR REPLACE VIEW "public"."direzione_inca_teorico" AS
     "pct_previsti_compilati",
     "pct_realizzati_compilati"
    FROM "agg";
-
-
 ALTER VIEW "public"."direzione_inca_teorico" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."direzione_inca_teorico" IS 'Direzione: agrÃ©gation INCA par fichier (previsti/realizzati/posati) + indicateurs de complÃ©tude. Source: inca_files + inca_cavi.';
-
-
-
 CREATE OR REPLACE VIEW "public"."direzione_inca_vs_rapportini" AS
  SELECT "c"."id" AS "inca_cavo_id",
     "c"."codice" AS "codice_cavo",
@@ -3733,15 +2895,8 @@ CREATE OR REPLACE VIEW "public"."direzione_inca_vs_rapportini" AS
    FROM ("public"."inca_cavi" "c"
      LEFT JOIN "archive"."rapportino_cavi" "rc" ON (("rc"."inca_cavo_id" = "c"."id")))
   GROUP BY "c"."id", "c"."codice", "c"."descrizione", "c"."metri_previsti", "c"."situazione", "c"."metri_posati_teorici";
-
-
 ALTER VIEW "public"."direzione_inca_vs_rapportini" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."direzione_inca_vs_rapportini" IS 'Comparaison INCA (teorico/posato) vs metri posati remontÃ©s par les rapportini (rapportino_cavi).';
-
-
-
 CREATE TABLE IF NOT EXISTS "public"."rapportino_row_operators" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "rapportino_row_id" "uuid" NOT NULL,
@@ -3752,11 +2907,7 @@ CREATE TABLE IF NOT EXISTS "public"."rapportino_row_operators" (
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
-
-
 ALTER TABLE "public"."rapportino_row_operators" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."direzione_operator_facts_v3" AS
  WITH "rap" AS (
          SELECT "r"."id" AS "rapportino_id",
@@ -3929,11 +3080,7 @@ CREATE OR REPLACE VIEW "public"."direzione_operator_facts_v3" AS
      JOIN "ops" "o" ON (("o"."rapportino_row_id" = "rr"."rapportino_row_id")))
      LEFT JOIN "line_hours" "lh" ON (("lh"."rapportino_row_id" = "rr"."rapportino_row_id")))
      LEFT JOIN "ship_mgr" "mgr" ON (("mgr"."ship_id" = "rws"."ship_id")));
-
-
 ALTER VIEW "public"."direzione_operator_facts_v3" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."direzione_operator_facts_v2" AS
  SELECT "report_date",
     "rapportino_id",
@@ -3965,15 +3112,8 @@ CREATE OR REPLACE VIEW "public"."direzione_operator_facts_v2" AS
     "prodotto_alloc",
     "previsto_alloc"
    FROM "public"."direzione_operator_facts_v3";
-
-
 ALTER VIEW "public"."direzione_operator_facts_v2" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."direzione_operator_facts_v2" IS 'Facts opÃ©rateurs (alloc produit+previsto prorata tempo). RÃ©solution ship via rapportini_ship_resolution_v1 (STRICT/COSTR_ONLY/non ambigu).';
-
-
-
 CREATE OR REPLACE VIEW "public"."direzione_operator_daily_v3" AS
  SELECT "report_date",
     "operator_id",
@@ -3996,15 +3136,8 @@ CREATE OR REPLACE VIEW "public"."direzione_operator_daily_v3" AS
    FROM "public"."direzione_operator_facts_v2" "f"
   WHERE ("unit" = ANY (ARRAY['MT'::"public"."activity_unit", 'PZ'::"public"."activity_unit"]))
   GROUP BY "report_date", "operator_id", "capo_id", "manager_id", "ship_id", "costr", "commessa", "unit";
-
-
 ALTER VIEW "public"."direzione_operator_daily_v3" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."direzione_operator_daily_v3" IS 'Daily opÃ©rateur: somme des allocs (previsto_alloc/prodotto_alloc) + productivity_pct. Ship rÃ©solu en v2.';
-
-
-
 CREATE OR REPLACE VIEW "public"."direzione_operator_facts_v1" AS
  WITH "rap" AS (
          SELECT "r"."id" AS "rapportino_id",
@@ -4106,15 +3239,8 @@ CREATE OR REPLACE VIEW "public"."direzione_operator_facts_v1" AS
      JOIN "ops" "o" ON (("o"."rapportino_row_id" = "rr"."rapportino_row_id")))
      LEFT JOIN "line_hours" "lh" ON (("lh"."rapportino_row_id" = "rr"."rapportino_row_id")))
      LEFT JOIN "ship_mgr" "mgr" ON (("mgr"."ship_id" = "rws"."ship_id")));
-
-
 ALTER VIEW "public"."direzione_operator_facts_v1" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."direzione_operator_facts_v1" IS 'Direction operator facts: approved rapportini -> rows -> row_operators; prodotto_alloc prorata tempo_hours; ship via ships(costr,commessa); manager via ship_managers(ship_id).';
-
-
-
 CREATE OR REPLACE VIEW "public"."direzione_operator_facts_v4" AS
  WITH "rap" AS (
          SELECT "r"."id" AS "rapportino_id",
@@ -4266,15 +3392,8 @@ CREATE OR REPLACE VIEW "public"."direzione_operator_facts_v4" AS
      LEFT JOIN "line_hours" "lh" ON (("lh"."rapportino_row_id" = "rr"."rapportino_row_id")))
      LEFT JOIN "ship_dim" "sd" ON (("sd"."ship_id" = "rws"."ship_id")))
      LEFT JOIN "ship_mgr" "mgr" ON (("mgr"."ship_id" = "rws"."ship_id")));
-
-
 ALTER VIEW "public"."direzione_operator_facts_v4" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."direzione_operator_facts_v4" IS 'Facts v4: ship matching strict + fallback safe; alloc prodotto/previsto prorata tempo_hours.';
-
-
-
 CREATE OR REPLACE VIEW "public"."direzione_operator_kpi_day_v1" AS
  WITH "op_line" AS (
          SELECT "f"."report_date",
@@ -4314,15 +3433,8 @@ CREATE OR REPLACE VIEW "public"."direzione_operator_kpi_day_v1" AS
     "sum"("n_tokens_total") AS "tempo_total_tokens"
    FROM "op_line"
   GROUP BY "report_date", "operator_id", "manager_id", "ship_id", "costr", "commessa", "capo_id", "unit";
-
-
 ALTER VIEW "public"."direzione_operator_kpi_day_v1" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."direzione_operator_kpi_day_v1" IS 'Direction KPI day per operator with quality counters; unit MT/PZ only; n_tokens de-duplicated per line.';
-
-
-
 CREATE OR REPLACE VIEW "public"."direzione_operator_kpi_day_v2" AS
  WITH "op_line" AS (
          SELECT "f"."report_date",
@@ -4373,11 +3485,7 @@ CREATE OR REPLACE VIEW "public"."direzione_operator_kpi_day_v2" AS
     "max"("operator_key") AS "operator_key"
    FROM "op_line"
   GROUP BY "report_date", "operator_id", "manager_id", "ship_id", "costr", "commessa", "capo_id", "unit";
-
-
 ALTER VIEW "public"."direzione_operator_kpi_day_v2" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."direzione_operator_kpi_day_v3" AS
  WITH "f" AS (
          SELECT "direzione_operator_facts_v4"."report_date",
@@ -4432,15 +3540,8 @@ CREATE OR REPLACE VIEW "public"."direzione_operator_kpi_day_v3" AS
             ELSE ("pct_weighted_sum" / "pct_weight")
         END AS "productivity_pct"
    FROM "tokens";
-
-
 ALTER VIEW "public"."direzione_operator_kpi_day_v3" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."direzione_operator_kpi_day_v3" IS 'KPI Day v3: productivity_pct = moyenne pondÃ©rÃ©e (tempo_hours) des pct token (prodotto_alloc/previsto_alloc), pas ratio des sommes.';
-
-
-
 CREATE OR REPLACE VIEW "public"."direzione_operator_kpi_day_v3_manager_safe" AS
  WITH "base" AS (
          SELECT "f"."report_date",
@@ -4490,15 +3591,8 @@ CREATE OR REPLACE VIEW "public"."direzione_operator_kpi_day_v3_manager_safe" AS
         END AS "productivity_pct"
    FROM "base" "b"
   GROUP BY "report_date", "operator_id", "capo_id", "manager_id", "ship_id", "ship_code", "ship_name", "ship_match_mode", "costr", "commessa", "unit";
-
-
 ALTER VIEW "public"."direzione_operator_kpi_day_v3_manager_safe" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."direzione_operator_kpi_day_v3_manager_safe" IS 'DIREZIONE KPI DAY V3 (manager-safe). Group by unit pour Ã©viter tout mÃ©lange (MT vs PZ). Expose capo_id et manager_id.';
-
-
-
 CREATE OR REPLACE VIEW "public"."direzione_operator_kpi_day_v4_manager_safe" AS
  SELECT "report_date",
     "operator_id",
@@ -4536,15 +3630,8 @@ CREATE OR REPLACE VIEW "public"."direzione_operator_kpi_day_v4_manager_safe" AS
             ELSE ((100)::numeric * (("prodotto_alloc_sum" / NULLIF("previsto_alloc_sum", (0)::numeric)) - (1)::numeric))
         END AS "delta_vs_previsto_pct_points"
    FROM "public"."direzione_operator_kpi_day_v3_manager_safe" "v3";
-
-
 ALTER VIEW "public"."direzione_operator_kpi_day_v4_manager_safe" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."direzione_operator_kpi_day_v4_manager_safe" IS 'DIREZIONE KPI DAY V4 (manager-safe). Ajoute ratio_vs_previsto + delta centrÃ© (ratio-1) sans casser V3.';
-
-
-
 CREATE OR REPLACE VIEW "public"."direzione_operator_kpi_month_v1" AS
  WITH "base" AS (
          SELECT ("date_trunc"('month'::"text", ("f"."report_date")::timestamp with time zone))::"date" AS "month_start",
@@ -4615,15 +3702,8 @@ CREATE OR REPLACE VIEW "public"."direzione_operator_kpi_month_v1" AS
     "sum"("n_tokens_total") AS "tempo_total_tokens"
    FROM "op_line"
   GROUP BY "month_start", "month_end", "operator_id", "manager_id", "ship_id", "costr", "commessa", "capo_id", "unit";
-
-
 ALTER VIEW "public"."direzione_operator_kpi_month_v1" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."direzione_operator_kpi_month_v1" IS 'Direction KPI month (civil) per operator; unit MT/PZ only; n_tokens de-duplicated per line.';
-
-
-
 CREATE OR REPLACE VIEW "public"."direzione_operator_kpi_month_v2" AS
  WITH "base" AS (
          SELECT ("date_trunc"('month'::"text", ("f"."report_date")::timestamp with time zone))::"date" AS "month_start",
@@ -4705,11 +3785,7 @@ CREATE OR REPLACE VIEW "public"."direzione_operator_kpi_month_v2" AS
     "max"("operator_key") AS "operator_key"
    FROM "op_line"
   GROUP BY "month_start", "month_end", "operator_id", "manager_id", "ship_id", "costr", "commessa", "capo_id", "unit";
-
-
 ALTER VIEW "public"."direzione_operator_kpi_month_v2" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."direzione_operator_kpi_month_v3" AS
  WITH "base" AS (
          SELECT ("date_trunc"('month'::"text", ("direzione_operator_facts_v4"."report_date")::timestamp without time zone))::"date" AS "month_start",
@@ -4768,15 +3844,8 @@ CREATE OR REPLACE VIEW "public"."direzione_operator_kpi_month_v3" AS
             ELSE ("pct_weighted_sum" / "pct_weight")
         END AS "productivity_pct"
    FROM "agg";
-
-
 ALTER VIEW "public"."direzione_operator_kpi_month_v3" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."direzione_operator_kpi_month_v3" IS 'KPI Month v3: moyenne pondÃ©rÃ©e tempo_hours des pct token (pas ratio des sommes).';
-
-
-
 CREATE OR REPLACE VIEW "public"."direzione_operator_kpi_week_v1" AS
  WITH "base" AS (
          SELECT ("date_trunc"('week'::"text", ("f"."report_date")::timestamp with time zone))::"date" AS "week_start",
@@ -4852,15 +3921,8 @@ CREATE OR REPLACE VIEW "public"."direzione_operator_kpi_week_v1" AS
     "sum"("n_tokens_total") AS "tempo_total_tokens"
    FROM "op_line"
   GROUP BY "week_start", "week_end", "operator_id", "manager_id", "ship_id", "costr", "commessa", "capo_id", "unit";
-
-
 ALTER VIEW "public"."direzione_operator_kpi_week_v1" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."direzione_operator_kpi_week_v1" IS 'Direction KPI week (Mon-Sun) per operator + Saturday breakdown; unit MT/PZ only; n_tokens de-duplicated per line.';
-
-
-
 CREATE OR REPLACE VIEW "public"."direzione_operator_kpi_week_v2" AS
  WITH "base" AS (
          SELECT ("date_trunc"('week'::"text", ("f"."report_date")::timestamp with time zone))::"date" AS "week_start",
@@ -4947,11 +4009,7 @@ CREATE OR REPLACE VIEW "public"."direzione_operator_kpi_week_v2" AS
     "max"("operator_key") AS "operator_key"
    FROM "op_line"
   GROUP BY "week_start", "week_end", "operator_id", "manager_id", "ship_id", "costr", "commessa", "capo_id", "unit";
-
-
 ALTER VIEW "public"."direzione_operator_kpi_week_v2" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."direzione_operator_kpi_week_v3" AS
  WITH "base" AS (
          SELECT ("date_trunc"('week'::"text", ("direzione_operator_facts_v4"."report_date")::timestamp without time zone))::"date" AS "week_start",
@@ -5010,15 +4068,8 @@ CREATE OR REPLACE VIEW "public"."direzione_operator_kpi_week_v3" AS
             ELSE ("pct_weighted_sum" / "pct_weight")
         END AS "productivity_pct"
    FROM "agg";
-
-
 ALTER VIEW "public"."direzione_operator_kpi_week_v3" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."direzione_operator_kpi_week_v3" IS 'KPI Week v3: moyenne pondÃ©rÃ©e tempo_hours des pct token (pas ratio des sommes).';
-
-
-
 CREATE OR REPLACE VIEW "public"."direzione_operator_kpi_year_v1" AS
  WITH "base" AS (
          SELECT (EXTRACT(year FROM "f"."report_date"))::integer AS "year",
@@ -5086,15 +4137,8 @@ CREATE OR REPLACE VIEW "public"."direzione_operator_kpi_year_v1" AS
     "sum"("n_tokens_total") AS "tempo_total_tokens"
    FROM "op_line"
   GROUP BY "year", "operator_id", "manager_id", "ship_id", "costr", "commessa", "capo_id", "unit";
-
-
 ALTER VIEW "public"."direzione_operator_kpi_year_v1" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."direzione_operator_kpi_year_v1" IS 'Direction KPI year (civil) per operator; unit MT/PZ only; n_tokens de-duplicated per line.';
-
-
-
 CREATE OR REPLACE VIEW "public"."direzione_operator_kpi_year_v2" AS
  WITH "base" AS (
          SELECT (EXTRACT(year FROM "f"."report_date"))::integer AS "year",
@@ -5173,11 +4217,7 @@ CREATE OR REPLACE VIEW "public"."direzione_operator_kpi_year_v2" AS
     "max"("operator_key") AS "operator_key"
    FROM "op_line"
   GROUP BY "year", "operator_id", "manager_id", "ship_id", "costr", "commessa", "capo_id", "unit";
-
-
 ALTER VIEW "public"."direzione_operator_kpi_year_v2" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."direzione_operator_kpi_year_v3" AS
  WITH "base" AS (
          SELECT (EXTRACT(year FROM "direzione_operator_facts_v4"."report_date"))::integer AS "year",
@@ -5233,15 +4273,8 @@ CREATE OR REPLACE VIEW "public"."direzione_operator_kpi_year_v3" AS
             ELSE ("pct_weighted_sum" / "pct_weight")
         END AS "productivity_pct"
    FROM "agg";
-
-
 ALTER VIEW "public"."direzione_operator_kpi_year_v3" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."direzione_operator_kpi_year_v3" IS 'KPI Year v3: moyenne pondÃ©rÃ©e tempo_hours des pct token (pas ratio des sommes).';
-
-
-
 CREATE TABLE IF NOT EXISTS "public"."impianti" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "ship_id" "uuid" NOT NULL,
@@ -5251,11 +4284,7 @@ CREATE TABLE IF NOT EXISTS "public"."impianti" (
     "note" "text",
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
-
-
 ALTER TABLE "public"."impianti" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."impianto_capi" (
     "impianto_id" "uuid" NOT NULL,
     "capo_id" "uuid" NOT NULL,
@@ -5263,11 +4292,7 @@ CREATE TABLE IF NOT EXISTS "public"."impianto_capi" (
     "note" "text",
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
-
-
 ALTER TABLE "public"."impianto_capi" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."inca_latest_file_by_ship_v1" AS
  SELECT DISTINCT ON ("ship_id") "ship_id",
     "id" AS "inca_file_id",
@@ -5275,11 +4300,7 @@ CREATE OR REPLACE VIEW "public"."inca_latest_file_by_ship_v1" AS
    FROM "public"."inca_files" "f"
   WHERE ("ship_id" IS NOT NULL)
   ORDER BY "ship_id", "uploaded_at" DESC NULLS LAST, "id" DESC;
-
-
 ALTER VIEW "public"."inca_latest_file_by_ship_v1" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."inca_cavi_live_by_ship_v1" AS
  SELECT "lf"."ship_id",
     "c"."id",
@@ -5324,11 +4345,7 @@ CREATE OR REPLACE VIEW "public"."inca_cavi_live_by_ship_v1" AS
     "c"."progress_side"
    FROM ("public"."inca_latest_file_by_ship_v1" "lf"
      JOIN "public"."inca_cavi" "c" ON (("c"."inca_file_id" = "lf"."inca_file_id")));
-
-
 ALTER VIEW "public"."inca_cavi_live_by_ship_v1" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."inca_cavi_with_data_posa_v1" AS
  WITH "posed" AS (
          SELECT "ric"."inca_cavo_id",
@@ -5381,11 +4398,7 @@ CREATE OR REPLACE VIEW "public"."inca_cavi_with_data_posa_v1" AS
     "posed"."data_posa"
    FROM ("public"."inca_cavi" "c"
      LEFT JOIN "posed" ON (("posed"."inca_cavo_id" = "c"."id")));
-
-
 ALTER VIEW "public"."inca_cavi_with_data_posa_v1" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."inca_cavi_with_last_posa_and_capo_v1" AS
  SELECT "c"."id",
     "c"."inca_file_id",
@@ -5439,11 +4452,7 @@ CREATE OR REPLACE VIEW "public"."inca_cavi_with_last_posa_and_capo_v1" AS
          LIMIT 1) "lp" ON (true))
      LEFT JOIN "public"."rapportini" "r" ON (("r"."id" = "lp"."rapportino_id")))
      LEFT JOIN "public"."profiles" "p" ON (("p"."id" = "r"."capo_id")));
-
-
 ALTER VIEW "public"."inca_cavi_with_last_posa_and_capo_v1" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."inca_cavi_with_last_posa_v1" AS
  SELECT "c"."id",
     "c"."inca_file_id",
@@ -5492,11 +4501,7 @@ CREATE OR REPLACE VIEW "public"."inca_cavi_with_last_posa_v1" AS
            FROM "public"."rapportino_inca_cavi" "ric"
           WHERE (("ric"."posa_date" IS NOT NULL) AND ("ric"."step_type" = 'POSA'::"public"."cavo_step_type"))
           GROUP BY "ric"."inca_cavo_id") "lp" ON (("lp"."inca_cavo_id" = "c"."id")));
-
-
 ALTER VIEW "public"."inca_cavi_with_last_posa_v1" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."rapportino_cavi" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "rapportino_id" "uuid" NOT NULL,
@@ -5507,11 +4512,7 @@ CREATE TABLE IF NOT EXISTS "public"."rapportino_cavi" (
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "created_by" "uuid"
 );
-
-
 ALTER TABLE "public"."rapportino_cavi" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."inca_cavi_with_last_rapportino_v1" AS
  SELECT "c"."id",
     "c"."inca_file_id",
@@ -5564,15 +4565,8 @@ CREATE OR REPLACE VIEW "public"."inca_cavi_with_last_rapportino_v1" AS
           WHERE ("rc"."inca_cavo_id" = "c"."id")
           ORDER BY "r"."report_date" DESC NULLS LAST, "r"."updated_at" DESC NULLS LAST, "r"."created_at" DESC NULLS LAST
          LIMIT 1) "lr" ON (true));
-
-
 ALTER VIEW "public"."inca_cavi_with_last_rapportino_v1" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."inca_cavi_with_last_rapportino_v1" IS 'INCA cables enriched with last rapportino occurrence (Option B): last_report_date + last_capo_name.';
-
-
-
 CREATE TABLE IF NOT EXISTS "public"."inca_percorsi" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "inca_cavo_id" "uuid" NOT NULL,
@@ -5582,11 +4576,7 @@ CREATE TABLE IF NOT EXISTS "public"."inca_percorsi" (
     "page" integer,
     "raw_kind" "text"
 );
-
-
 ALTER TABLE "public"."inca_percorsi" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."inca_cavi_with_path" AS
  SELECT "c"."id",
     "c"."inca_file_id",
@@ -5617,11 +4607,7 @@ CREATE OR REPLACE VIEW "public"."inca_cavi_with_path" AS
      LEFT JOIN LATERAL ( SELECT "array_agg"("ip"."nodo" ORDER BY "ip"."ordine") AS "percorso_supports"
            FROM "public"."inca_percorsi" "ip"
           WHERE ("ip"."inca_cavo_id" = "c"."id")) "p" ON (true));
-
-
 ALTER VIEW "public"."inca_cavi_with_path" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."inca_prev_file_by_ship_v1" AS
  WITH "ranked" AS (
          SELECT "f"."ship_id",
@@ -5637,11 +4623,7 @@ CREATE OR REPLACE VIEW "public"."inca_prev_file_by_ship_v1" AS
    FROM ("ranked" "a"
      LEFT JOIN "ranked" "b" ON ((("b"."ship_id" = "a"."ship_id") AND ("b"."rn" = 2))))
   WHERE ("a"."rn" = 1);
-
-
 ALTER VIEW "public"."inca_prev_file_by_ship_v1" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."navemaster_imports" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "ship_id" "uuid" NOT NULL,
@@ -5656,11 +4638,7 @@ CREATE TABLE IF NOT EXISTS "public"."navemaster_imports" (
     "imported_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "is_active" boolean DEFAULT true NOT NULL
 );
-
-
 ALTER TABLE "public"."navemaster_imports" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."navemaster_latest_import_v1" AS
  SELECT "id",
     "ship_id",
@@ -5676,11 +4654,7 @@ CREATE OR REPLACE VIEW "public"."navemaster_latest_import_v1" AS
     "is_active"
    FROM "public"."navemaster_imports" "i"
   WHERE ("is_active" = true);
-
-
 ALTER VIEW "public"."navemaster_latest_import_v1" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."navemaster_rows" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "navemaster_import_id" "uuid" NOT NULL,
@@ -5699,11 +4673,7 @@ CREATE TABLE IF NOT EXISTS "public"."navemaster_rows" (
     "payload" "jsonb" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
-
-
 ALTER TABLE "public"."navemaster_rows" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."navemaster_live_v1" AS
  SELECT "nm"."ship_id",
     "nm"."id" AS "navemaster_import_id",
@@ -5731,11 +4701,7 @@ CREATE OR REPLACE VIEW "public"."navemaster_live_v1" AS
    FROM (("public"."navemaster_latest_import_v1" "nm"
      JOIN "public"."navemaster_rows" "r" ON (("r"."navemaster_import_id" = "nm"."id")))
      LEFT JOIN "public"."inca_cavi_live_by_ship_v1" "ic" ON ((("ic"."ship_id" = "nm"."ship_id") AND ("ic"."codice" = "r"."marcacavo"))));
-
-
 ALTER VIEW "public"."navemaster_live_v1" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."inca_diff_last_import_v1" AS
  WITH "files" AS (
          SELECT "inca_prev_file_by_ship_v1"."ship_id",
@@ -5801,11 +4767,7 @@ CREATE OR REPLACE VIEW "public"."inca_diff_last_import_v1" AS
         END AS "severity"
    FROM ("u"
      LEFT JOIN "nm" ON ((("nm"."ship_id" = "u"."ship_id") AND ("nm"."marcacavo" = "u"."codice"))));
-
-
 ALTER VIEW "public"."inca_diff_last_import_v1" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."inca_export_ufficio_v1" AS
  WITH "events" AS (
          SELECT "ric"."costr_cache" AS "costr",
@@ -5873,11 +4835,7 @@ CREATE OR REPLACE VIEW "public"."inca_export_ufficio_v1" AS
     "e"."ripresa_count"
    FROM ("public"."inca_cavi" "c"
      LEFT JOIN "events" "e" ON ((("e"."costr" = "c"."costr") AND ((("e"."commessa" IS NULL) AND ("c"."commessa" IS NULL)) OR ("e"."commessa" = "c"."commessa")) AND ("e"."codice" = "c"."codice"))));
-
-
 ALTER VIEW "public"."inca_export_ufficio_v1" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."inca_percorsi_nodes_v1" AS
  SELECT "upper"("btrim"("nodo")) AS "nodo",
     ("count"(*))::integer AS "occorrenze"
@@ -5885,11 +4843,7 @@ CREATE OR REPLACE VIEW "public"."inca_percorsi_nodes_v1" AS
   WHERE (("nodo" IS NOT NULL) AND ("btrim"("nodo") <> ''::"text"))
   GROUP BY ("upper"("btrim"("nodo")))
   ORDER BY (("count"(*))::integer) DESC, ("upper"("btrim"("nodo")));
-
-
 ALTER VIEW "public"."inca_percorsi_nodes_v1" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."inca_percorsi_v1" AS
  SELECT "id",
     "inca_cavo_id",
@@ -5899,11 +4853,7 @@ CREATE OR REPLACE VIEW "public"."inca_percorsi_v1" AS
     "raw_kind",
     "created_at"
    FROM "public"."inca_percorsi";
-
-
 ALTER VIEW "public"."inca_percorsi_v1" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."inca_rows" AS
  SELECT "id",
     "inca_file_id",
@@ -5927,11 +4877,7 @@ CREATE OR REPLACE VIEW "public"."inca_rows" AS
     "descrizione",
     "updated_at"
    FROM "public"."inca_cavi" "c";
-
-
 ALTER VIEW "public"."inca_rows" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."kpi_operator_daily_v1" AS
  SELECT "f"."report_date",
     "f"."operator_id",
@@ -5953,11 +4899,7 @@ CREATE OR REPLACE VIEW "public"."kpi_operator_daily_v1" AS
      JOIN "public"."operators" "o" ON (("o"."id" = "f"."operator_id")))
   WHERE ("f"."unit" = ANY (ARRAY['MT'::"public"."activity_unit", 'PZ'::"public"."activity_unit"]))
   GROUP BY "f"."report_date", "f"."operator_id", "o"."cognome", "o"."nome";
-
-
 ALTER VIEW "public"."kpi_operator_daily_v1" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."kpi_operator_day_v1" AS
  SELECT "f"."report_date",
     "f"."operator_id",
@@ -5972,11 +4914,7 @@ CREATE OR REPLACE VIEW "public"."kpi_operator_day_v1" AS
    FROM ("public"."direzione_operator_facts_v1" "f"
      JOIN "public"."operators_display_v1" "od" ON (("od"."id" = "f"."operator_id")))
   GROUP BY "f"."report_date", "f"."operator_id", "od"."cognome", "od"."nome";
-
-
 ALTER VIEW "public"."kpi_operator_day_v1" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."kpi_operator_line_previsto_v2" AS
  SELECT "f"."report_date",
     "f"."operator_id",
@@ -6016,15 +4954,8 @@ CREATE OR REPLACE VIEW "public"."kpi_operator_line_previsto_v2" AS
      JOIN "public"."operators" "o" ON (("o"."id" = "f"."operator_id")))
      LEFT JOIN "public"."rapportino_rows" "rr" ON (("rr"."id" = "f"."rapportino_row_id")))
   WHERE (("f"."activity_type" = 'QUANTITATIVE'::"public"."activity_type") AND ("f"."unit" = ANY (ARRAY['MT'::"public"."activity_unit", 'PZ'::"public"."activity_unit"])) AND ("rr"."previsto" IS NOT NULL) AND ("rr"."previsto" > (0)::numeric) AND ("f"."tempo_hours" IS NOT NULL) AND ("f"."tempo_hours" > (0)::numeric) AND ("f"."prodotto_alloc" IS NOT NULL));
-
-
 ALTER VIEW "public"."kpi_operator_line_previsto_v2" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."kpi_operator_line_previsto_v2" IS 'Line-level canonique: previsto_eff = previsto*(tempo/8). Indice line = prodotto_alloc/previsto_eff. Base = direzione_operator_facts_v1 (APPROVED_UFFICIO).';
-
-
-
 CREATE OR REPLACE VIEW "public"."kpi_operator_family_day_v2" AS
  SELECT "report_date",
     "operator_id",
@@ -6044,15 +4975,8 @@ CREATE OR REPLACE VIEW "public"."kpi_operator_family_day_v2" AS
         END AS "productivity_index"
    FROM "public"."kpi_operator_line_previsto_v2" "l"
   GROUP BY "report_date", "operator_id", "operator_name", "manager_id", "costr", "commessa", "categoria", "descrizione";
-
-
 ALTER VIEW "public"."kpi_operator_family_day_v2" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."kpi_operator_family_day_v2" IS 'Indice par famille (categoria+descrizione) par jour: Î£(prodotto_alloc) / Î£(previsto_eff).';
-
-
-
 CREATE OR REPLACE VIEW "public"."kpi_operator_family_day_v3" AS
  SELECT "report_date",
     "operator_id",
@@ -6073,15 +4997,8 @@ CREATE OR REPLACE VIEW "public"."kpi_operator_family_day_v3" AS
         END AS "productivity_index"
    FROM "public"."kpi_operator_line_previsto_v2" "l"
   GROUP BY "report_date", "operator_id", "operator_name", "manager_id", "capo_id", "costr", "commessa", "categoria", "descrizione";
-
-
 ALTER VIEW "public"."kpi_operator_family_day_v3" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."kpi_operator_family_day_v3" IS 'Family day v3 (categoria+descrizione): Î£(prodotto_alloc)/Î£(previsto_eff).';
-
-
-
 CREATE OR REPLACE VIEW "public"."kpi_operator_family_day_v3_capo_safe" AS
  SELECT "report_date",
     "operator_id",
@@ -6099,11 +5016,7 @@ CREATE OR REPLACE VIEW "public"."kpi_operator_family_day_v3_capo_safe" AS
     "productivity_index"
    FROM "public"."kpi_operator_family_day_v3"
   WHERE ("capo_id" = "auth"."uid"());
-
-
 ALTER VIEW "public"."kpi_operator_family_day_v3_capo_safe" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."kpi_operator_family_day_v3_manager_safe" AS
  SELECT "report_date",
     "operator_id",
@@ -6121,11 +5034,7 @@ CREATE OR REPLACE VIEW "public"."kpi_operator_family_day_v3_manager_safe" AS
     "productivity_index"
    FROM "public"."kpi_operator_family_day_v3"
   WHERE ("manager_id" = "auth"."uid"());
-
-
 ALTER VIEW "public"."kpi_operator_family_day_v3_manager_safe" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."kpi_operator_global_day_v2" AS
  SELECT "report_date",
     "operator_id",
@@ -6143,15 +5052,8 @@ CREATE OR REPLACE VIEW "public"."kpi_operator_global_day_v2" AS
         END AS "productivity_index"
    FROM "public"."kpi_operator_line_previsto_v2" "l"
   GROUP BY "report_date", "operator_id", "operator_name", "manager_id", "costr", "commessa";
-
-
 ALTER VIEW "public"."kpi_operator_global_day_v2" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."kpi_operator_global_day_v2" IS 'Indice unique (global) par jour: Î£(prodotto_alloc) / Î£(previsto_eff). Includes costr/commessa/manager_id for filtering.';
-
-
-
 CREATE OR REPLACE VIEW "public"."kpi_operator_global_day_v3" AS
  SELECT "report_date",
     "operator_id",
@@ -6170,15 +5072,8 @@ CREATE OR REPLACE VIEW "public"."kpi_operator_global_day_v3" AS
         END AS "productivity_index"
    FROM "public"."kpi_operator_line_previsto_v2" "l"
   GROUP BY "report_date", "operator_id", "operator_name", "manager_id", "capo_id", "costr", "commessa";
-
-
 ALTER VIEW "public"."kpi_operator_global_day_v3" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."kpi_operator_global_day_v3" IS 'Global day v3: Î£(prodotto_alloc)/Î£(previsto_eff). Includes manager_id/capo_id/costr/commessa for filtering.';
-
-
-
 CREATE OR REPLACE VIEW "public"."kpi_operator_global_day_v3_capo_safe" AS
  SELECT "report_date",
     "operator_id",
@@ -6194,11 +5089,7 @@ CREATE OR REPLACE VIEW "public"."kpi_operator_global_day_v3_capo_safe" AS
     "productivity_index"
    FROM "public"."kpi_operator_global_day_v3"
   WHERE ("capo_id" = "auth"."uid"());
-
-
 ALTER VIEW "public"."kpi_operator_global_day_v3_capo_safe" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."kpi_operator_global_day_v3_manager_safe" AS
  SELECT "report_date",
     "operator_id",
@@ -6214,11 +5105,7 @@ CREATE OR REPLACE VIEW "public"."kpi_operator_global_day_v3_manager_safe" AS
     "productivity_index"
    FROM "public"."kpi_operator_global_day_v3"
   WHERE ("manager_id" = "auth"."uid"());
-
-
 ALTER VIEW "public"."kpi_operator_global_day_v3_manager_safe" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."kpi_operator_line_v1" AS
  WITH "base" AS (
          SELECT "rap"."id" AS "rapportino_id",
@@ -6266,11 +5153,7 @@ CREATE OR REPLACE VIEW "public"."kpi_operator_line_v1" AS
         END AS "prodotto_alloc"
    FROM ("base" "b"
      LEFT JOIN "row_totals" "rt" ON (("rt"."rapportino_row_id" = "b"."rapportino_row_id")));
-
-
 ALTER VIEW "public"."kpi_operator_line_v1" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."kpi_operator_productivity_daily_v1" AS
  WITH "line" AS (
          SELECT "l"."report_date",
@@ -6340,11 +5223,7 @@ CREATE OR REPLACE VIEW "public"."kpi_operator_productivity_daily_v1" AS
         END AS "productivity_pct"
    FROM "with_mgr"
   GROUP BY "report_date", "operator_id", "manager_id", "costr", "commessa";
-
-
 ALTER VIEW "public"."kpi_operator_productivity_daily_v1" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."rapportini_canon_v1" AS
  SELECT "id",
     COALESCE("report_date", "data") AS "report_date",
@@ -6357,15 +5236,8 @@ CREATE OR REPLACE VIEW "public"."rapportini_canon_v1" AS
     "created_at",
     "updated_at"
    FROM "public"."rapportini" "r";
-
-
 ALTER VIEW "public"."rapportini_canon_v1" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."rapportini_canon_v1" IS 'Rapportini canon: report_date=coalesce(report_date,data). prodotto_totale=coalesce(prodotto_totale,prodotto_tot,totale_prodotto).';
-
-
-
 CREATE OR REPLACE VIEW "public"."operator_facts_v1" AS
  WITH "rc" AS (
          SELECT "rapportini_canon_v1"."id",
@@ -6438,15 +5310,8 @@ CREATE OR REPLACE VIEW "public"."operator_facts_v1" AS
      JOIN "rc" ON (("rc"."id" = "rr"."rapportino_id")))
      LEFT JOIN "row_hours" "rh" ON (("rh"."row_id" = "rro"."row_id")))
      LEFT JOIN "ops" ON (("ops"."operator_id" = "rro"."operator_id")));
-
-
 ALTER VIEW "public"."operator_facts_v1" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."operator_facts_v1" IS 'Facts: 1 token=(row_operator). prodotto_alloc prorata tempo_hours/sum_row_hours.';
-
-
-
 CREATE OR REPLACE VIEW "public"."kpi_operatori_day_v1" AS
  SELECT "f"."report_date",
     "f"."operator_id",
@@ -6465,15 +5330,8 @@ CREATE OR REPLACE VIEW "public"."kpi_operatori_day_v1" AS
    FROM ("public"."operator_facts_v1" "f"
      LEFT JOIN "public"."operators" "o" ON (("o"."id" = "f"."operator_id")))
   GROUP BY "f"."report_date", "f"."operator_id";
-
-
 ALTER VIEW "public"."kpi_operatori_day_v1" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."kpi_operatori_day_v1" IS 'KPI Day per operatore: indice = sum(prodotto_alloc)/sum(ore).';
-
-
-
 CREATE OR REPLACE VIEW "public"."kpi_operatori_day_v2" AS
  SELECT "f"."report_date",
     "f"."operator_id",
@@ -6492,11 +5350,7 @@ CREATE OR REPLACE VIEW "public"."kpi_operatori_day_v2" AS
    FROM ("public"."operator_facts_v1" "f"
      LEFT JOIN "public"."operators" "o" ON (("o"."id" = "f"."operator_id")))
   GROUP BY "f"."report_date", "f"."operator_id";
-
-
 ALTER VIEW "public"."kpi_operatori_day_v2" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."kpi_operatori_month_v1" AS
  SELECT (EXTRACT(year FROM "report_date"))::integer AS "year",
     (EXTRACT(month FROM "report_date"))::integer AS "month",
@@ -6516,11 +5370,7 @@ CREATE OR REPLACE VIEW "public"."kpi_operatori_month_v1" AS
         END AS "indice"
    FROM "public"."kpi_operatori_day_v1" "d"
   GROUP BY (EXTRACT(year FROM "report_date")), (EXTRACT(month FROM "report_date")), (("date_trunc"('month'::"text", ("report_date")::timestamp without time zone))::"date"), "operator_id";
-
-
 ALTER VIEW "public"."kpi_operatori_month_v1" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."kpi_operatori_week_v1" AS
  SELECT (EXTRACT(isoyear FROM "report_date"))::integer AS "iso_year",
     (EXTRACT(week FROM "report_date"))::integer AS "iso_week",
@@ -6540,11 +5390,7 @@ CREATE OR REPLACE VIEW "public"."kpi_operatori_week_v1" AS
         END AS "indice"
    FROM "public"."kpi_operatori_day_v1" "d"
   GROUP BY (EXTRACT(isoyear FROM "report_date")), (EXTRACT(week FROM "report_date")), (("date_trunc"('week'::"text", ("report_date")::timestamp without time zone))::"date"), "operator_id";
-
-
 ALTER VIEW "public"."kpi_operatori_week_v1" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."kpi_operatori_year_v1" AS
  SELECT (EXTRACT(year FROM "report_date"))::integer AS "year",
     "operator_id",
@@ -6562,11 +5408,7 @@ CREATE OR REPLACE VIEW "public"."kpi_operatori_year_v1" AS
         END AS "indice"
    FROM "public"."kpi_operatori_day_v1" "d"
   GROUP BY (EXTRACT(year FROM "report_date")), "operator_id";
-
-
 ALTER VIEW "public"."kpi_operatori_year_v1" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."manager_capo_scope" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "manager_id" "uuid" NOT NULL,
@@ -6576,11 +5418,7 @@ CREATE TABLE IF NOT EXISTS "public"."manager_capo_scope" (
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "created_by" "uuid"
 );
-
-
 ALTER TABLE "public"."manager_capo_scope" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."manager_my_capi_v1" AS
  SELECT "c"."id" AS "capo_id",
     "c"."email" AS "capo_email",
@@ -6589,11 +5427,7 @@ CREATE OR REPLACE VIEW "public"."manager_my_capi_v1" AS
    FROM ("public"."manager_capo_assignments" "a"
      JOIN "public"."profiles" "c" ON (("c"."id" = "a"."capo_id")))
   WHERE (("a"."active" = true) AND ("a"."manager_id" = "auth"."uid"()) AND ("c"."app_role" = 'CAPO'::"text"));
-
-
 ALTER VIEW "public"."manager_my_capi_v1" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."models" (
     "id" bigint NOT NULL,
     "capo_id" "uuid" NOT NULL,
@@ -6603,26 +5437,15 @@ CREATE TABLE IF NOT EXISTS "public"."models" (
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     CONSTRAINT "models_role_check" CHECK (("role" = ANY (ARRAY['ELETTRICISTA'::"text", 'CARPENTERIA'::"text", 'MONTAGGIO'::"text"])))
 );
-
-
 ALTER TABLE "public"."models" OWNER TO "postgres";
-
-
 CREATE SEQUENCE IF NOT EXISTS "public"."models_id_seq"
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
     CACHE 1;
-
-
 ALTER SEQUENCE "public"."models_id_seq" OWNER TO "postgres";
-
-
 ALTER SEQUENCE "public"."models_id_seq" OWNED BY "public"."models"."id";
-
-
-
 CREATE OR REPLACE VIEW "public"."navemaster_active_inca_file_v1" AS
  WITH "ranked" AS (
          SELECT "inca_files"."ship_id",
@@ -6640,11 +5463,7 @@ CREATE OR REPLACE VIEW "public"."navemaster_active_inca_file_v1" AS
    FROM ("ranked" "r1"
      LEFT JOIN "ranked" "r2" ON ((("r2"."ship_id" = "r1"."ship_id") AND ("r2"."rn" = 2))))
   WHERE ("r1"."rn" = 1);
-
-
 ALTER VIEW "public"."navemaster_active_inca_file_v1" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."navemaster_inca_alerts" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "ship_id" "uuid" NOT NULL,
@@ -6658,11 +5477,7 @@ CREATE TABLE IF NOT EXISTS "public"."navemaster_inca_alerts" (
     "meta" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
     CONSTRAINT "navemaster_inca_alerts_severity_check" CHECK (("severity" = ANY (ARRAY['CRITICAL'::"text", 'MAJOR'::"text", 'INFO'::"text"])))
 );
-
-
 ALTER TABLE "public"."navemaster_inca_alerts" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."navemaster_inca_cavi_current_v1" AS
  WITH "latest" AS (
          SELECT DISTINCT ON ("inca_files"."ship_id", "inca_files"."costr", "inca_files"."commessa") "inca_files"."id" AS "inca_file_id",
@@ -6696,11 +5511,7 @@ CREATE OR REPLACE VIEW "public"."navemaster_inca_cavi_current_v1" AS
     "c"."stato_cantiere"
    FROM ("latest" "l"
      JOIN "public"."inca_cavi" "c" ON (("c"."inca_file_id" = "l"."inca_file_id")));
-
-
 ALTER VIEW "public"."navemaster_inca_cavi_current_v1" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."navemaster_inca_diff" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "ship_id" "uuid" NOT NULL,
@@ -6719,11 +5530,7 @@ CREATE TABLE IF NOT EXISTS "public"."navemaster_inca_diff" (
     "meta" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
     CONSTRAINT "navemaster_inca_diff_severity_check" CHECK (("severity" = ANY (ARRAY['CRITICAL'::"text", 'MAJOR'::"text", 'INFO'::"text"])))
 );
-
-
 ALTER TABLE "public"."navemaster_inca_diff" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."navemaster_inca_latest_file_v1" AS
  SELECT DISTINCT ON ("ship_id", "costr", "commessa") "id" AS "inca_file_id",
     "ship_id",
@@ -6736,11 +5543,7 @@ CREATE OR REPLACE VIEW "public"."navemaster_inca_latest_file_v1" AS
    FROM "public"."inca_files"
   WHERE (("file_type" IS NULL) OR ("file_type" = 'XLSX'::"text"))
   ORDER BY "ship_id", "costr", "commessa", "uploaded_at" DESC NULLS LAST, "id" DESC;
-
-
 ALTER VIEW "public"."navemaster_inca_latest_file_v1" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."navemaster_inca_latest_alerts_v1" AS
  SELECT "lf"."ship_id",
     "lf"."costr",
@@ -6756,11 +5559,7 @@ CREATE OR REPLACE VIEW "public"."navemaster_inca_latest_alerts_v1" AS
     "a"."inca_state"
    FROM ("public"."navemaster_inca_latest_file_v1" "lf"
      JOIN "public"."navemaster_inca_alerts" "a" ON (("a"."inca_file_id" = "lf"."inca_file_id")));
-
-
 ALTER VIEW "public"."navemaster_inca_latest_alerts_v1" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."navemaster_inca_latest_diff_v1" AS
  SELECT "lf"."ship_id",
     "lf"."costr",
@@ -6781,11 +5580,7 @@ CREATE OR REPLACE VIEW "public"."navemaster_inca_latest_diff_v1" AS
     "d"."match_new"
    FROM ("public"."navemaster_inca_latest_file_v1" "lf"
      JOIN "public"."navemaster_inca_diff" "d" ON (("d"."inca_file_id" = "lf"."inca_file_id")));
-
-
 ALTER VIEW "public"."navemaster_inca_latest_diff_v1" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."navemaster_inca_live_by_file_v1" AS
  WITH "files" AS (
          SELECT "f"."id" AS "inca_file_id",
@@ -6841,11 +5636,7 @@ UNION ALL
   WHERE (("f"."prev_inca_file_id" IS NOT NULL) AND (NOT (EXISTS ( SELECT 1
            FROM "public"."inca_cavi" "cc"
           WHERE (("cc"."inca_file_id" = "f"."inca_file_id") AND ("cc"."codice" = "pc"."codice"))))));
-
-
 ALTER VIEW "public"."navemaster_inca_live_by_file_v1" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."navemaster_inca_live_v1" AS
  WITH "active" AS (
          SELECT "navemaster_active_inca_file_v1"."ship_id",
@@ -6897,11 +5688,7 @@ UNION ALL
   WHERE (("a"."prev_inca_file_id" IS NOT NULL) AND (NOT (EXISTS ( SELECT 1
            FROM "public"."inca_cavi" "cc"
           WHERE (("cc"."inca_file_id" = "a"."inca_file_id") AND ("cc"."codice" = "pc"."codice"))))));
-
-
 ALTER VIEW "public"."navemaster_inca_live_v1" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."objectives" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "created_by" "uuid" NOT NULL,
@@ -6910,11 +5697,7 @@ CREATE TABLE IF NOT EXISTS "public"."objectives" (
     "end_date" "date" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
-
-
 ALTER TABLE "public"."objectives" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."operator_kpi_facts" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "operator_id" "uuid" NOT NULL,
@@ -6933,11 +5716,7 @@ CREATE TABLE IF NOT EXISTS "public"."operator_kpi_facts" (
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "created_by" "uuid"
 );
-
-
 ALTER TABLE "public"."operator_kpi_facts" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."operator_kpi_snapshots" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "operator_id" "uuid" NOT NULL,
@@ -6957,11 +5736,7 @@ CREATE TABLE IF NOT EXISTS "public"."operator_kpi_snapshots" (
     "computed_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "computed_by" "uuid"
 );
-
-
 ALTER TABLE "public"."operator_kpi_snapshots" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."operator_ship_attendance" (
     "plan_date" "date" NOT NULL,
     "ship_id" "uuid" NOT NULL,
@@ -6973,11 +5748,7 @@ CREATE TABLE IF NOT EXISTS "public"."operator_ship_attendance" (
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     CONSTRAINT "operator_ship_attendance_status_check" CHECK (("status" = ANY (ARRAY['PRESENT'::"text", 'ABSENT'::"text", 'LATE'::"text", 'REPLACED'::"text", 'UNKNOWN'::"text"])))
 );
-
-
 ALTER TABLE "public"."operator_ship_attendance" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."operators_admin_list_v1" AS
  SELECT "id",
     "name" AS "legacy_name",
@@ -6993,11 +5764,7 @@ CREATE OR REPLACE VIEW "public"."operators_admin_list_v1" AS
     "updated_at",
     (("cognome" IS NULL) OR (TRIM(BOTH FROM "cognome") = ''::"text") OR ("nome" IS NULL) OR (TRIM(BOTH FROM "nome") = ''::"text") OR ("birth_date" IS NULL)) AS "is_identity_incomplete"
    FROM "public"."operators" "o";
-
-
 ALTER VIEW "public"."operators_admin_list_v1" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."operators_display_v2" AS
  SELECT "id",
     "cognome",
@@ -7008,11 +5775,7 @@ CREATE OR REPLACE VIEW "public"."operators_display_v2" AS
     "is_normalized",
     COALESCE(NULLIF(TRIM(BOTH FROM (("cognome" || ' '::"text") || "nome")), ''::"text"), NULLIF("name", ''::"text"), NULLIF("operator_code", ''::"text"), NULLIF("operator_key", ''::"text"), 'â€”'::"text") AS "display_name"
    FROM "public"."operators" "o";
-
-
 ALTER VIEW "public"."operators_display_v2" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."patterns" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "capo_id" "uuid" NOT NULL,
@@ -7024,22 +5787,14 @@ CREATE TABLE IF NOT EXISTS "public"."patterns" (
     "ops" "text"[] DEFAULT '{}'::"text"[] NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
-
-
 ALTER TABLE "public"."patterns" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."percorso_cable_segments" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "cable_id" "uuid" NOT NULL,
     "seq" integer NOT NULL,
     "inca_code" "text" NOT NULL
 );
-
-
 ALTER TABLE "public"."percorso_cable_segments" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."percorso_cables" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "document_id" "uuid" NOT NULL,
@@ -7048,11 +5803,7 @@ CREATE TABLE IF NOT EXISTS "public"."percorso_cables" (
     "source_to" "text",
     "created_at" timestamp with time zone DEFAULT "now"()
 );
-
-
 ALTER TABLE "public"."percorso_cables" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."percorso_documents" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "ship_code" "text" NOT NULL,
@@ -7063,11 +5814,7 @@ CREATE TABLE IF NOT EXISTS "public"."percorso_documents" (
     "note" "text",
     "inca_file_id" "uuid"
 );
-
-
 ALTER TABLE "public"."percorso_documents" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."percorso_documents_stats_v1" AS
  SELECT "d"."id" AS "document_id",
     "count"(DISTINCT "c"."id") AS "cables_count",
@@ -7076,29 +5823,17 @@ CREATE OR REPLACE VIEW "public"."percorso_documents_stats_v1" AS
      LEFT JOIN "public"."percorso_cables" "c" ON (("c"."document_id" = "d"."id")))
      LEFT JOIN "public"."percorso_cable_segments" "s" ON (("s"."cable_id" = "c"."id")))
   GROUP BY "d"."id";
-
-
 ALTER VIEW "public"."percorso_documents_stats_v1" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."percorso_lot_cables" (
     "lot_id" "uuid" NOT NULL,
     "cable_id" "uuid" NOT NULL
 );
-
-
 ALTER TABLE "public"."percorso_lot_cables" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."percorso_lot_segments" (
     "lot_id" "uuid" NOT NULL,
     "inca_code" "text" NOT NULL
 );
-
-
 ALTER TABLE "public"."percorso_lot_segments" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."percorso_lot_validations" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "lot_id" "uuid" NOT NULL,
@@ -7110,11 +5845,7 @@ CREATE TABLE IF NOT EXISTS "public"."percorso_lot_validations" (
     CONSTRAINT "percorso_lot_validations_decision_check" CHECK (("decision" = ANY (ARRAY['APPROVA'::"text", 'RIFIUTA'::"text"]))),
     CONSTRAINT "percorso_lot_validations_role_check" CHECK (("role" = ANY (ARRAY['CAPO'::"text", 'UFFICIO'::"text"])))
 );
-
-
 ALTER TABLE "public"."percorso_lot_validations" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."percorso_lots" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "document_id" "uuid" NOT NULL,
@@ -7124,11 +5855,7 @@ CREATE TABLE IF NOT EXISTS "public"."percorso_lots" (
     "created_by" "uuid",
     "comment" "text"
 );
-
-
 ALTER TABLE "public"."percorso_lots" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."planning_audit" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "plan_id" "uuid",
@@ -7139,11 +5866,7 @@ CREATE TABLE IF NOT EXISTS "public"."planning_audit" (
     "payload" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
-
-
 ALTER TABLE "public"."planning_audit" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."rapportini_corrections_audit" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "old_rapportino_id" "uuid" NOT NULL,
@@ -7152,11 +5875,7 @@ CREATE TABLE IF NOT EXISTS "public"."rapportini_corrections_audit" (
     "created_by" "uuid" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
-
-
 ALTER TABLE "public"."rapportini_corrections_audit" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."rapportini_with_capo_v1" AS
  SELECT "r"."id",
     "r"."data",
@@ -7186,15 +5905,8 @@ CREATE OR REPLACE VIEW "public"."rapportini_with_capo_v1" AS
     "p"."app_role" AS "capo_app_role"
    FROM ("public"."rapportini" "r"
      LEFT JOIN "public"."profiles" "p" ON (("p"."id" = "r"."capo_id")));
-
-
 ALTER VIEW "public"."rapportini_with_capo_v1" OWNER TO "postgres";
-
-
 COMMENT ON VIEW "public"."rapportini_with_capo_v1" IS 'Vue canonique: rapportini enrichi avec le CAPO rÃ©solu via profiles (capo_display_name/email/app_role). Ne pas dÃ©pendre de capo_name legacy.';
-
-
-
 CREATE OR REPLACE VIEW "public"."ufficio_rapportini_list_v1" AS
  SELECT "r"."id",
     "r"."report_date",
@@ -7217,2033 +5929,649 @@ CREATE OR REPLACE VIEW "public"."ufficio_rapportini_list_v1" AS
     "p"."app_role" AS "capo_app_role"
    FROM ("public"."rapportini" "r"
      LEFT JOIN "public"."profiles" "p" ON (("p"."id" = "r"."capo_id")));
-
-
 ALTER VIEW "public"."ufficio_rapportini_list_v1" OWNER TO "postgres";
-
-
-ALTER TABLE ONLY "archive"."rapportino_cavi" ALTER COLUMN "id" SET DEFAULT "nextval"('"archive"."rapportino_cavi_id_seq"'::"regclass");
-
-
-
-ALTER TABLE ONLY "archive"."rapportino_righe" ALTER COLUMN "id" SET DEFAULT "nextval"('"archive"."rapportino_righe_id_seq"'::"regclass");
-
-
-
 ALTER TABLE ONLY "public"."models" ALTER COLUMN "id" SET DEFAULT "nextval"('"public"."models_id_seq"'::"regclass");
-
-
-
-ALTER TABLE ONLY "archive"."rapportini"
-    ADD CONSTRAINT "rapportini_pkey" PRIMARY KEY ("id");
-
-
-
-ALTER TABLE ONLY "archive"."rapportini"
-    ADD CONSTRAINT "rapportini_user_crew_date_key" UNIQUE ("user_id", "crew_role", "report_date");
-
-
-
-ALTER TABLE ONLY "archive"."rapportino_cavi"
-    ADD CONSTRAINT "rapportino_cavi_pkey" PRIMARY KEY ("id");
-
-
-
-ALTER TABLE ONLY "archive"."rapportino_righe"
-    ADD CONSTRAINT "rapportino_righe_pkey" PRIMARY KEY ("id");
-
-
-
-ALTER TABLE ONLY "archive"."rapportino_righe"
-    ADD CONSTRAINT "rapportino_righe_rapportino_id_idx_key" UNIQUE ("rapportino_id", "idx");
-
-
-
-ALTER TABLE ONLY "archive"."rapportino_rows"
-    ADD CONSTRAINT "rapportino_rows_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."catalogo_attivita"
     ADD CONSTRAINT "catalogo_attivita_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."catalogo_ship_commessa_attivita"
     ADD CONSTRAINT "catalogo_ship_commessa_attivita_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."catalogo_ship_commessa_attivita"
     ADD CONSTRAINT "catalogo_ship_commessa_attivita_unique" UNIQUE ("ship_id", "commessa", "activity_id");
-
-
-
 ALTER TABLE ONLY "public"."core_drive_events"
     ADD CONSTRAINT "core_drive_events_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."core_file_audit"
     ADD CONSTRAINT "core_file_audit_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."core_files"
     ADD CONSTRAINT "core_files_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."core_meta"
     ADD CONSTRAINT "core_meta_pkey" PRIMARY KEY ("key");
-
-
-
 ALTER TABLE ONLY "public"."impianti"
     ADD CONSTRAINT "impianti_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."impianto_capi"
     ADD CONSTRAINT "impianto_capi_pkey" PRIMARY KEY ("impianto_id", "capo_id", "week");
-
-
-
 ALTER TABLE ONLY "public"."inca_cavi"
     ADD CONSTRAINT "inca_cavi_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."inca_files"
     ADD CONSTRAINT "inca_files_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."inca_percorsi"
     ADD CONSTRAINT "inca_percorsi_cavo_ordine_unique" UNIQUE ("inca_cavo_id", "ordine");
-
-
-
 ALTER TABLE ONLY "public"."inca_percorsi"
     ADD CONSTRAINT "inca_percorsi_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."manager_capo_assignments"
     ADD CONSTRAINT "manager_capo_assignments_pkey" PRIMARY KEY ("capo_id");
-
-
-
 ALTER TABLE ONLY "public"."manager_capo_scope"
     ADD CONSTRAINT "manager_capo_scope_manager_id_capo_id_key" UNIQUE ("manager_id", "capo_id");
-
-
-
 ALTER TABLE ONLY "public"."manager_capo_scope"
     ADD CONSTRAINT "manager_capo_scope_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."manager_plans"
     ADD CONSTRAINT "manager_plans_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."models"
     ADD CONSTRAINT "models_capo_id_role_key" UNIQUE ("capo_id", "role");
-
-
-
 ALTER TABLE ONLY "public"."models"
     ADD CONSTRAINT "models_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."navemaster_imports"
     ADD CONSTRAINT "navemaster_imports_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."navemaster_inca_alerts"
     ADD CONSTRAINT "navemaster_inca_alerts_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."navemaster_inca_diff"
     ADD CONSTRAINT "navemaster_inca_diff_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."navemaster_rows"
     ADD CONSTRAINT "navemaster_rows_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."navemaster_rows"
     ADD CONSTRAINT "navemaster_rows_unique_import_codice" UNIQUE ("navemaster_import_id", "marcacavo");
-
-
-
 ALTER TABLE ONLY "public"."objectives"
     ADD CONSTRAINT "objectives_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."operator_kpi_facts"
     ADD CONSTRAINT "operator_kpi_facts_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."operator_kpi_snapshots"
     ADD CONSTRAINT "operator_kpi_snapshots_operator_id_period_ref_date_year_iso_key" UNIQUE ("operator_id", "period", "ref_date", "year_iso", "week_iso");
-
-
-
 ALTER TABLE ONLY "public"."operator_kpi_snapshots"
     ADD CONSTRAINT "operator_kpi_snapshots_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."operators"
     ADD CONSTRAINT "operators_name_key" UNIQUE ("name");
-
-
-
 ALTER TABLE ONLY "public"."operators"
     ADD CONSTRAINT "operators_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."patterns"
     ADD CONSTRAINT "patterns_capo_id_role_key_commessa_descrizione_ops_key_key" UNIQUE ("capo_id", "role_key", "commessa", "descrizione", "ops_key");
-
-
-
 ALTER TABLE ONLY "public"."patterns"
     ADD CONSTRAINT "patterns_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."percorso_cable_segments"
     ADD CONSTRAINT "percorso_cable_segments_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."percorso_cables"
     ADD CONSTRAINT "percorso_cables_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."percorso_documents"
     ADD CONSTRAINT "percorso_documents_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."percorso_lot_cables"
     ADD CONSTRAINT "percorso_lot_cables_pkey" PRIMARY KEY ("lot_id", "cable_id");
-
-
-
 ALTER TABLE ONLY "public"."percorso_lot_segments"
     ADD CONSTRAINT "percorso_lot_segments_pkey" PRIMARY KEY ("lot_id", "inca_code");
-
-
-
 ALTER TABLE ONLY "public"."percorso_lot_validations"
     ADD CONSTRAINT "percorso_lot_validations_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."percorso_lots"
     ADD CONSTRAINT "percorso_lots_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."plan_capo_slots"
     ADD CONSTRAINT "plan_capo_slots_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."plan_capo_slots"
     ADD CONSTRAINT "plan_capo_slots_plan_id_capo_id_key" UNIQUE ("plan_id", "capo_id");
-
-
-
 ALTER TABLE ONLY "public"."plan_slot_members"
     ADD CONSTRAINT "plan_slot_members_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."planning_audit"
     ADD CONSTRAINT "planning_audit_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."profiles"
     ADD CONSTRAINT "profiles_email_key" UNIQUE ("email");
-
-
-
 ALTER TABLE ONLY "public"."profiles"
     ADD CONSTRAINT "profiles_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."rapportini_corrections_audit"
     ADD CONSTRAINT "rapportini_corrections_audit_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."rapportini"
     ADD CONSTRAINT "rapportini_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."rapportino_cavi"
     ADD CONSTRAINT "rapportino_cavi_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."rapportino_inca_cavi"
     ADD CONSTRAINT "rapportino_inca_cavi_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."rapportino_row_operators"
     ADD CONSTRAINT "rapportino_row_operators_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."rapportino_rows"
     ADD CONSTRAINT "rapportino_rows_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."ship_capos"
     ADD CONSTRAINT "ship_capos_pkey" PRIMARY KEY ("ship_id", "capo_id");
-
-
-
 ALTER TABLE ONLY "public"."ship_managers"
     ADD CONSTRAINT "ship_managers_pkey" PRIMARY KEY ("ship_id", "manager_id");
-
-
-
 ALTER TABLE ONLY "public"."ship_operators"
     ADD CONSTRAINT "ship_operators_pkey" PRIMARY KEY ("ship_id", "operator_id");
-
-
-
 ALTER TABLE ONLY "public"."ships"
     ADD CONSTRAINT "ships_pkey" PRIMARY KEY ("id");
-
-
-
-CREATE INDEX "cavi_rapportino_idx" ON "archive"."rapportino_cavi" USING "btree" ("rapportino_id");
-
-
-
-CREATE INDEX "rapportini_capo_date_idx" ON "archive"."rapportini" USING "btree" ("capo_id", "data" DESC);
-
-
-
-CREATE INDEX "rapportino_cavi_inca_cavo_idx" ON "archive"."rapportino_cavi" USING "btree" ("inca_cavo_id");
-
-
-
 CREATE UNIQUE INDEX "capo_ship_assignments_no_dup_ship" ON "public"."capo_ship_assignments" USING "btree" ("plan_date", "capo_id", "ship_id");
-
-
-
 CREATE UNIQUE INDEX "capo_ship_assignments_unique" ON "public"."capo_ship_assignments" USING "btree" ("plan_date", "capo_id", "position");
-
-
-
 CREATE UNIQUE INDEX "capo_ship_attendance_unique" ON "public"."capo_ship_attendance" USING "btree" ("plan_date", "ship_id", "capo_id");
-
-
-
 CREATE UNIQUE INDEX "capo_ship_expected_operators_unique" ON "public"."capo_ship_expected_operators" USING "btree" ("plan_date", "ship_id", "operator_id");
-
-
-
 CREATE INDEX "catalogo_attivita_categoria_idx" ON "public"."catalogo_attivita" USING "btree" ("categoria");
-
-
-
 CREATE INDEX "catalogo_attivita_descrizione_idx" ON "public"."catalogo_attivita" USING "btree" ("descrizione");
-
-
-
 CREATE INDEX "catalogo_attivita_is_active_idx" ON "public"."catalogo_attivita" USING "btree" ("is_active");
-
-
-
 CREATE INDEX "catalogo_attivita_search_idx" ON "public"."catalogo_attivita" USING "btree" ("lower"(TRIM(BOTH FROM "descrizione")));
-
-
-
 CREATE INDEX "catalogo_attivita_synonyms_gin" ON "public"."catalogo_attivita" USING "gin" ("synonyms");
-
-
-
 CREATE UNIQUE INDEX "catalogo_attivita_unique_cat_desc" ON "public"."catalogo_attivita" USING "btree" ("lower"(TRIM(BOTH FROM "categoria")), "lower"(TRIM(BOTH FROM "descrizione")));
-
-
-
 CREATE UNIQUE INDEX "catalogo_attivita_unique_cat_desc_unit" ON "public"."catalogo_attivita" USING "btree" ("categoria", "descrizione", "unit");
-
-
-
 CREATE INDEX "core_drive_events_created_by_idx" ON "public"."core_drive_events" USING "btree" ("created_by");
-
-
-
 CREATE INDEX "core_drive_events_event_type_idx" ON "public"."core_drive_events" USING "btree" ("event_type");
-
-
-
 CREATE INDEX "core_drive_events_file_created_idx" ON "public"."core_drive_events" USING "btree" ("file_id", "created_at" DESC);
-
-
-
 CREATE INDEX "core_drive_events_file_id_created_at_idx" ON "public"."core_drive_events" USING "btree" ("file_id", "created_at" DESC);
-
-
-
 CREATE INDEX "core_drive_events_request_id_idx" ON "public"."core_drive_events" USING "btree" ("request_id");
-
-
-
 CREATE INDEX "core_file_audit_file_idx" ON "public"."core_file_audit" USING "btree" ("core_file_id");
-
-
-
 CREATE INDEX "core_file_audit_time_idx" ON "public"."core_file_audit" USING "btree" ("performed_at" DESC);
-
-
-
 CREATE UNIQUE INDEX "core_files_bucket_path_key" ON "public"."core_files" USING "btree" ("storage_bucket", "storage_path");
-
-
-
 CREATE INDEX "core_files_cantiere_categoria_idx" ON "public"."core_files" USING "btree" ("cantiere", "categoria", "created_at" DESC);
-
-
-
 CREATE INDEX "core_files_claim_idx" ON "public"."core_files" USING "btree" ("claim_id");
-
-
-
 CREATE INDEX "core_files_inca_idx" ON "public"."core_files" USING "btree" ("inca_file_id", "inca_cavo_id");
-
-
-
 CREATE INDEX "core_files_kpi_idx" ON "public"."core_files" USING "btree" ("kpi_ref");
-
-
-
 CREATE INDEX "core_files_rapportino_id_idx" ON "public"."core_files" USING "btree" ("rapportino_id");
-
-
-
 CREATE INDEX "core_files_rapportino_idx" ON "public"."core_files" USING "btree" ("rapportino_id");
-
-
-
 CREATE INDEX "core_files_version_idx" ON "public"."core_files" USING "btree" ("version_of", "version_num");
-
-
-
 CREATE INDEX "idx_catalogo_ship_commessa_attivita_active" ON "public"."catalogo_ship_commessa_attivita" USING "btree" ("is_active");
-
-
-
 CREATE INDEX "idx_catalogo_ship_commessa_attivita_activity" ON "public"."catalogo_ship_commessa_attivita" USING "btree" ("activity_id");
-
-
-
 CREATE INDEX "idx_catalogo_ship_commessa_attivita_ship_commessa" ON "public"."catalogo_ship_commessa_attivita" USING "btree" ("ship_id", "commessa");
-
-
-
 CREATE INDEX "idx_rapportino_inca_codice" ON "public"."rapportino_inca_cavi" USING "btree" ("costr_cache", "codice_cache");
-
-
-
 CREATE INDEX "idx_rapportino_inca_lookup" ON "public"."rapportino_inca_cavi" USING "btree" ("rapportino_id");
-
-
-
 CREATE UNIQUE INDEX "impianti_ship_code_uq" ON "public"."impianti" USING "btree" ("ship_id", "code");
-
-
-
 CREATE INDEX "inca_cavi_codice_inca_idx" ON "public"."inca_cavi" USING "btree" ("codice_inca");
-
-
-
 CREATE INDEX "inca_cavi_commessa_idx" ON "public"."inca_cavi" USING "btree" ("commessa");
-
-
-
 CREATE UNIQUE INDEX "inca_cavi_file_codice_unique" ON "public"."inca_cavi" USING "btree" ("inca_file_id", "codice");
-
-
-
 CREATE INDEX "inca_cavi_file_idx" ON "public"."inca_cavi" USING "btree" ("inca_file_id");
-
-
-
 CREATE INDEX "inca_cavi_file_stato_idx" ON "public"."inca_cavi" USING "btree" ("inca_file_id", "stato_inca");
-
-
-
 CREATE INDEX "inca_cavi_from_file_idx" ON "public"."inca_cavi" USING "btree" ("from_file_id");
-
-
-
 CREATE INDEX "inca_cavi_progress_idx" ON "public"."inca_cavi" USING "btree" ("inca_file_id", "progress_percent", "progress_side");
-
-
-
 CREATE INDEX "inca_files_costr_commessa_idx" ON "public"."inca_files" USING "btree" ("costr", "commessa");
-
-
-
 CREATE INDEX "inca_files_project_idx" ON "public"."inca_files" USING "btree" ("costr", "commessa", "project_code");
-
-
-
 CREATE INDEX "inca_files_ship_id_idx" ON "public"."inca_files" USING "btree" ("ship_id");
-
-
-
 CREATE INDEX "inca_percorsi_cavo_ordine_idx" ON "public"."inca_percorsi" USING "btree" ("inca_cavo_id", "ordine");
-
-
-
 CREATE INDEX "inca_percorsi_nodo_idx" ON "public"."inca_percorsi" USING "btree" ("nodo");
-
-
-
 CREATE INDEX "manager_capo_assignments_active_idx" ON "public"."manager_capo_assignments" USING "btree" ("active");
-
-
-
 CREATE INDEX "manager_capo_assignments_manager_id_idx" ON "public"."manager_capo_assignments" USING "btree" ("manager_id");
-
-
-
 CREATE INDEX "manager_capo_scope_capo_idx" ON "public"."manager_capo_scope" USING "btree" ("capo_id");
-
-
-
 CREATE INDEX "manager_capo_scope_manager_idx" ON "public"."manager_capo_scope" USING "btree" ("manager_id");
-
-
-
 CREATE INDEX "manager_plans_date_idx" ON "public"."manager_plans" USING "btree" ("plan_date");
-
-
-
 CREATE INDEX "manager_plans_manager_idx" ON "public"."manager_plans" USING "btree" ("manager_id");
-
-
-
 CREATE INDEX "manager_plans_status_idx" ON "public"."manager_plans" USING "btree" ("status");
-
-
-
 CREATE UNIQUE INDEX "manager_plans_unique_day" ON "public"."manager_plans" USING "btree" ("manager_id", "plan_date") WHERE ("period_type" = 'DAY'::"public"."plan_period_type");
-
-
-
 CREATE UNIQUE INDEX "manager_plans_unique_week" ON "public"."manager_plans" USING "btree" ("manager_id", "year_iso", "week_iso") WHERE ("period_type" = 'WEEK'::"public"."plan_period_type");
-
-
-
 CREATE INDEX "manager_plans_week_idx" ON "public"."manager_plans" USING "btree" ("year_iso", "week_iso");
-
-
-
 CREATE UNIQUE INDEX "navemaster_imports_one_active_per_ship_idx" ON "public"."navemaster_imports" USING "btree" ("ship_id") WHERE ("is_active" = true);
-
-
-
 CREATE INDEX "navemaster_imports_ship_active_idx" ON "public"."navemaster_imports" USING "btree" ("ship_id", "is_active", "imported_at" DESC);
-
-
-
 CREATE INDEX "navemaster_imports_ship_idx" ON "public"."navemaster_imports" USING "btree" ("ship_id");
-
-
-
 CREATE INDEX "navemaster_inca_alerts_inca_rule_sev_idx" ON "public"."navemaster_inca_alerts" USING "btree" ("inca_file_id", "rule", "severity");
-
-
-
 CREATE INDEX "navemaster_inca_alerts_ship_idx" ON "public"."navemaster_inca_alerts" USING "btree" ("ship_id", "created_at" DESC);
-
-
-
 CREATE INDEX "navemaster_inca_diff_inca_idx" ON "public"."navemaster_inca_diff" USING "btree" ("inca_file_id");
-
-
-
 CREATE INDEX "navemaster_inca_diff_inca_rule_sev_idx" ON "public"."navemaster_inca_diff" USING "btree" ("inca_file_id", "rule", "severity");
-
-
-
 CREATE INDEX "navemaster_inca_diff_ship_idx" ON "public"."navemaster_inca_diff" USING "btree" ("ship_id", "created_at" DESC);
-
-
-
 CREATE UNIQUE INDEX "navemaster_one_active_per_ship" ON "public"."navemaster_imports" USING "btree" ("ship_id") WHERE "is_active";
-
-
-
 CREATE INDEX "navemaster_rows_import_id_idx" ON "public"."navemaster_rows" USING "btree" ("navemaster_import_id");
-
-
-
 CREATE INDEX "navemaster_rows_import_idx" ON "public"."navemaster_rows" USING "btree" ("navemaster_import_id");
-
-
-
 CREATE INDEX "navemaster_rows_marcacavo_idx" ON "public"."navemaster_rows" USING "btree" ("marcacavo");
-
-
-
 CREATE UNIQUE INDEX "navemaster_rows_unique_codice" ON "public"."navemaster_rows" USING "btree" ("navemaster_import_id", "marcacavo");
-
-
-
 CREATE INDEX "operator_kpi_facts_operator_idx" ON "public"."operator_kpi_facts" USING "btree" ("operator_id");
-
-
-
 CREATE INDEX "operator_kpi_facts_plan_idx" ON "public"."operator_kpi_facts" USING "btree" ("plan_id");
-
-
-
 CREATE INDEX "operator_kpi_facts_ref_date_idx" ON "public"."operator_kpi_facts" USING "btree" ("ref_date");
-
-
-
 CREATE INDEX "operator_kpi_facts_slot_idx" ON "public"."operator_kpi_facts" USING "btree" ("slot_id");
-
-
-
 CREATE INDEX "operator_kpi_facts_week_idx" ON "public"."operator_kpi_facts" USING "btree" ("year_iso", "week_iso");
-
-
-
 CREATE INDEX "operator_kpi_snapshots_operator_idx" ON "public"."operator_kpi_snapshots" USING "btree" ("operator_id");
-
-
-
 CREATE INDEX "operator_kpi_snapshots_ref_date_idx" ON "public"."operator_kpi_snapshots" USING "btree" ("ref_date");
-
-
-
 CREATE INDEX "operator_kpi_snapshots_week_idx" ON "public"."operator_kpi_snapshots" USING "btree" ("year_iso", "week_iso");
-
-
-
 CREATE UNIQUE INDEX "operator_ship_attendance_unique" ON "public"."operator_ship_attendance" USING "btree" ("plan_date", "ship_id", "operator_id");
-
-
-
 CREATE INDEX "operators_cognome_nome_search_idx" ON "public"."operators" USING "btree" ("lower"(TRIM(BOTH FROM COALESCE("cognome", ''::"text"))), "lower"(TRIM(BOTH FROM COALESCE("nome", ''::"text"))));
-
-
-
 CREATE UNIQUE INDEX "operators_name_unique" ON "public"."operators" USING "btree" ("name");
-
-
-
 CREATE UNIQUE INDEX "operators_operator_code_unique" ON "public"."operators" USING "btree" ("lower"(TRIM(BOTH FROM "operator_code"))) WHERE (("operator_code" IS NOT NULL) AND ("length"(TRIM(BOTH FROM "operator_code")) > 0));
-
-
-
 CREATE UNIQUE INDEX "operators_operator_key_unique" ON "public"."operators" USING "btree" ("operator_key") WHERE ("operator_key" IS NOT NULL);
-
-
-
 CREATE INDEX "percorso_cable_segments_cable_id_seq_idx" ON "public"."percorso_cable_segments" USING "btree" ("cable_id", "seq");
-
-
-
 CREATE INDEX "percorso_cable_segments_inca_code_idx" ON "public"."percorso_cable_segments" USING "btree" ("inca_code");
-
-
-
 CREATE INDEX "percorso_documents_inca_file_id_idx" ON "public"."percorso_documents" USING "btree" ("inca_file_id");
-
-
-
 CREATE INDEX "plan_capo_slots_capo_idx" ON "public"."plan_capo_slots" USING "btree" ("capo_id");
-
-
-
 CREATE INDEX "plan_capo_slots_plan_idx" ON "public"."plan_capo_slots" USING "btree" ("plan_id");
-
-
-
 CREATE INDEX "plan_slot_members_operator_idx" ON "public"."plan_slot_members" USING "btree" ("operator_id");
-
-
-
 CREATE INDEX "plan_slot_members_slot_idx" ON "public"."plan_slot_members" USING "btree" ("slot_id");
-
-
-
 CREATE UNIQUE INDEX "plan_slot_members_unique_plan_operator" ON "public"."plan_slot_members" USING "btree" ("plan_id", "operator_id");
-
-
-
 CREATE INDEX "planning_audit_actor_idx" ON "public"."planning_audit" USING "btree" ("actor_id");
-
-
-
 CREATE INDEX "planning_audit_created_idx" ON "public"."planning_audit" USING "btree" ("created_at");
-
-
-
 CREATE INDEX "planning_audit_plan_idx" ON "public"."planning_audit" USING "btree" ("plan_id");
-
-
-
 CREATE INDEX "rapportini_capo_date_idx" ON "public"."rapportini" USING "btree" ("capo_id", "data" DESC);
-
-
-
 CREATE INDEX "rapportini_corrections_audit_new_idx" ON "public"."rapportini_corrections_audit" USING "btree" ("new_rapportino_id");
-
-
-
 CREATE INDEX "rapportini_corrections_audit_old_idx" ON "public"."rapportini_corrections_audit" USING "btree" ("old_rapportino_id");
-
-
-
 CREATE INDEX "rapportini_costr_commessa_idx" ON "public"."rapportini" USING "btree" ("costr", "commessa");
-
-
-
 CREATE INDEX "rapportini_report_date_idx" ON "public"."rapportini" USING "btree" ("report_date");
-
-
-
 CREATE INDEX "rapportini_returned_inbox_idx" ON "public"."rapportini" USING "btree" ("capo_id", "crew_role", "updated_at" DESC) WHERE ("status" = 'RETURNED'::"text");
-
-
-
 CREATE INDEX "rapportini_superseded_by_idx" ON "public"."rapportini" USING "btree" ("superseded_by_rapportino_id");
-
-
-
 CREATE INDEX "rapportini_supersedes_idx" ON "public"."rapportini" USING "btree" ("supersedes_rapportino_id");
-
-
-
 CREATE UNIQUE INDEX "rapportini_user_crew_date_key" ON "public"."rapportini" USING "btree" ("user_id", "crew_role", "report_date");
-
-
-
 CREATE INDEX "rapportino_cavi_by_cavo" ON "public"."rapportino_cavi" USING "btree" ("inca_cavo_id");
-
-
-
 CREATE INDEX "rapportino_cavi_by_rapportino" ON "public"."rapportino_cavi" USING "btree" ("rapportino_id");
-
-
-
 CREATE INDEX "rapportino_cavi_inca_cavo_id_idx" ON "public"."rapportino_cavi" USING "btree" ("inca_cavo_id");
-
-
-
 CREATE INDEX "rapportino_cavi_inca_cavo_id_rapportino_id_idx" ON "public"."rapportino_cavi" USING "btree" ("inca_cavo_id", "rapportino_id");
-
-
-
 CREATE UNIQUE INDEX "rapportino_cavi_unique" ON "public"."rapportino_cavi" USING "btree" ("rapportino_id", "inca_cavo_id");
-
-
-
 CREATE INDEX "rapportino_inca_cavi_inca_idx" ON "public"."rapportino_inca_cavi" USING "btree" ("inca_cavo_id");
-
-
-
 CREATE UNIQUE INDEX "rapportino_inca_cavi_ripresa_unique_by_codice" ON "public"."rapportino_inca_cavi" USING "btree" ("costr_cache", "commessa_cache", "codice_cache") WHERE ("step_type" = 'RIPRESA'::"public"."cavo_step_type");
-
-
-
 CREATE UNIQUE INDEX "rapportino_inca_cavi_unique" ON "public"."rapportino_inca_cavi" USING "btree" ("rapportino_id", "inca_cavo_id");
-
-
-
 CREATE INDEX "rapportino_rows_activity_id_idx" ON "public"."rapportino_rows" USING "btree" ("activity_id");
-
-
-
 CREATE INDEX "rapportino_rows_rapportino_id_idx" ON "public"."rapportino_rows" USING "btree" ("rapportino_id");
-
-
-
 CREATE INDEX "rro_operator_id_idx" ON "public"."rapportino_row_operators" USING "btree" ("operator_id");
-
-
-
 CREATE INDEX "rro_row_id_idx" ON "public"."rapportino_row_operators" USING "btree" ("rapportino_row_id");
-
-
-
 CREATE UNIQUE INDEX "rro_row_line_unique" ON "public"."rapportino_row_operators" USING "btree" ("rapportino_row_id", "line_index");
-
-
-
 CREATE UNIQUE INDEX "rro_row_operator_unique" ON "public"."rapportino_row_operators" USING "btree" ("rapportino_row_id", "operator_id");
-
-
-
 CREATE INDEX "ship_capos_capo_id_idx" ON "public"."ship_capos" USING "btree" ("capo_id");
-
-
-
 CREATE INDEX "ship_capos_ship_id_idx" ON "public"."ship_capos" USING "btree" ("ship_id");
-
-
-
 CREATE INDEX "ship_operators_operator_id_idx" ON "public"."ship_operators" USING "btree" ("operator_id");
-
-
-
 CREATE INDEX "ship_operators_ship_id_active_idx" ON "public"."ship_operators" USING "btree" ("ship_id", "active");
-
-
-
 CREATE INDEX "ships_ship_code_idx" ON "public"."ships" USING "btree" ("code");
-
-
-
 CREATE UNIQUE INDEX "uniq_ripresa_per_cavo" ON "public"."rapportino_inca_cavi" USING "btree" ("costr_cache", "codice_cache") WHERE ("step_type" = 'RIPRESA'::"public"."cavo_step_type");
-
-
-
-CREATE OR REPLACE TRIGGER "set_rapportino_row_updated_at" BEFORE UPDATE ON "archive"."rapportino_rows" FOR EACH ROW EXECUTE FUNCTION "public"."set_rapportino_row_updated_at"();
-
-
-
-CREATE OR REPLACE TRIGGER "set_rapportino_updated_at" BEFORE UPDATE ON "archive"."rapportini" FOR EACH ROW EXECUTE FUNCTION "public"."set_rapportino_updated_at"();
-
-
-
-CREATE OR REPLACE TRIGGER "set_updated_at_cavi" BEFORE UPDATE ON "archive"."rapportino_cavi" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
-
-
-
-CREATE OR REPLACE TRIGGER "set_updated_at_rapportini" BEFORE UPDATE ON "archive"."rapportini" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
-
-
-
-CREATE OR REPLACE TRIGGER "set_updated_at_righe" BEFORE UPDATE ON "archive"."rapportino_righe" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
-
-
-
-CREATE OR REPLACE TRIGGER "sync_capo_id_from_user_id_trg" BEFORE INSERT OR UPDATE ON "archive"."rapportini" FOR EACH ROW EXECUTE FUNCTION "public"."sync_capo_id_from_user_id"();
-
-
-
 CREATE OR REPLACE TRIGGER "before_ins_rapportino_inca_cache" BEFORE INSERT ON "public"."rapportino_inca_cavi" FOR EACH ROW EXECUTE FUNCTION "public"."trg_fill_rapportino_inca_cache"();
-
-
-
 CREATE OR REPLACE TRIGGER "operators_require_identity" BEFORE INSERT OR UPDATE ON "public"."operators" FOR EACH ROW EXECUTE FUNCTION "public"."trg_operators_require_identity"();
-
-
-
 CREATE OR REPLACE TRIGGER "rapportini_apply_inca_progress_on_status" AFTER UPDATE OF "status" ON "public"."rapportini" FOR EACH ROW EXECUTE FUNCTION "public"."trg_rapportini_apply_inca_progress_on_status"();
-
-
-
 CREATE OR REPLACE TRIGGER "rapportini_status_product_trg" AFTER UPDATE OF "status" ON "public"."rapportini" FOR EACH ROW EXECUTE FUNCTION "public"."trg_rapportini_on_status_product"();
-
-
-
 CREATE OR REPLACE TRIGGER "set_profile_updated_at" BEFORE UPDATE ON "public"."profiles" FOR EACH ROW EXECUTE FUNCTION "public"."set_profile_updated_at"();
-
-
-
 CREATE OR REPLACE TRIGGER "set_updated_at_models" BEFORE UPDATE ON "public"."models" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
-
-
-
 CREATE OR REPLACE TRIGGER "set_updated_at_operators" BEFORE UPDATE ON "public"."operators" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
-
-
-
 CREATE OR REPLACE TRIGGER "set_updated_at_patterns" BEFORE UPDATE ON "public"."patterns" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
-
-
-
 CREATE OR REPLACE TRIGGER "set_updated_at_profiles" BEFORE UPDATE ON "public"."profiles" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
-
-
-
 CREATE OR REPLACE TRIGGER "t_archive_on_rapportino_approved" AFTER UPDATE OF "status" ON "public"."rapportini" FOR EACH ROW EXECUTE FUNCTION "public"."trg_archive_on_rapportino_approved"();
-
-
-
 CREATE OR REPLACE TRIGGER "trg_catalogo_attivita_updated_at" BEFORE UPDATE ON "public"."catalogo_attivita" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
-
-
-
 CREATE OR REPLACE TRIGGER "trg_catalogo_ship_commessa_attivita_updated_at" BEFORE UPDATE ON "public"."catalogo_ship_commessa_attivita" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
-
-
-
 CREATE OR REPLACE TRIGGER "trg_consolidate_inca_on_rapportino_approved" AFTER UPDATE OF "status" ON "public"."rapportini" FOR EACH ROW EXECUTE FUNCTION "public"."fn_consolidate_inca_on_rapportino_approved"();
-
-
-
 CREATE OR REPLACE TRIGGER "trg_core_drive_events_block_delete" BEFORE DELETE ON "public"."core_drive_events" FOR EACH ROW EXECUTE FUNCTION "public"."core_drive_events_block_mutations"();
-
-
-
 CREATE OR REPLACE TRIGGER "trg_core_drive_events_block_update" BEFORE UPDATE ON "public"."core_drive_events" FOR EACH ROW EXECUTE FUNCTION "public"."core_drive_events_block_mutations"();
-
-
-
 CREATE OR REPLACE TRIGGER "trg_core_file_versioning" BEFORE INSERT ON "public"."core_files" FOR EACH ROW EXECUTE FUNCTION "public"."replace_core_file_version"();
-
-
-
 CREATE OR REPLACE TRIGGER "trg_fill_plan_id_on_slot_member" BEFORE INSERT OR UPDATE OF "slot_id" ON "public"."plan_slot_members" FOR EACH ROW EXECUTE FUNCTION "public"."fn_fill_plan_id_on_slot_member"();
-
-
-
 CREATE OR REPLACE TRIGGER "trg_hydrate_rapportino_inca_cavi_caches" BEFORE INSERT OR UPDATE OF "rapportino_id", "inca_cavo_id" ON "public"."rapportino_inca_cavi" FOR EACH ROW EXECUTE FUNCTION "public"."fn_hydrate_rapportino_inca_cavi_caches"();
-
-
-
 CREATE OR REPLACE TRIGGER "trg_manager_plans_updated_at" BEFORE UPDATE ON "public"."manager_plans" FOR EACH ROW EXECUTE FUNCTION "public"."updated_at"();
-
-
-
 CREATE OR REPLACE TRIGGER "trg_norm_commessa_inca_cavi" BEFORE INSERT OR UPDATE ON "public"."inca_cavi" FOR EACH ROW EXECUTE FUNCTION "public"."fn_normalize_commessa_upper"();
-
-
-
 CREATE OR REPLACE TRIGGER "trg_norm_commessa_inca_files" BEFORE INSERT OR UPDATE ON "public"."inca_files" FOR EACH ROW EXECUTE FUNCTION "public"."fn_normalize_commessa_upper"();
-
-
-
 CREATE OR REPLACE TRIGGER "trg_norm_commessa_rapportini" BEFORE INSERT OR UPDATE ON "public"."rapportini" FOR EACH ROW EXECUTE FUNCTION "public"."fn_normalize_commessa_upper"();
-
-
-
 CREATE OR REPLACE TRIGGER "trg_operator_auto_normalize" BEFORE INSERT OR UPDATE ON "public"."operators" FOR EACH ROW EXECUTE FUNCTION "public"."fn_operator_auto_normalize"();
-
-
-
 CREATE OR REPLACE TRIGGER "trg_operators_set_operator_key" BEFORE INSERT OR UPDATE OF "cognome", "birth_date" ON "public"."operators" FOR EACH ROW EXECUTE FUNCTION "public"."trg_operators_set_operator_key"();
-
-
-
 CREATE OR REPLACE TRIGGER "trg_plan_capo_slots_updated_at" BEFORE UPDATE ON "public"."plan_capo_slots" FOR EACH ROW EXECUTE FUNCTION "public"."updated_at"();
-
-
-
 CREATE OR REPLACE TRIGGER "trg_plan_slot_members_updated_at" BEFORE UPDATE ON "public"."plan_slot_members" FOR EACH ROW EXECUTE FUNCTION "public"."updated_at"();
-
-
-
 CREATE OR REPLACE TRIGGER "trg_prevent_frozen_update" BEFORE DELETE OR UPDATE ON "public"."core_files" FOR EACH ROW EXECUTE FUNCTION "public"."prevent_update_on_frozen_files"();
-
-
-
 CREATE OR REPLACE TRIGGER "trg_rapportino_inca_cavi_auto_tp" AFTER INSERT OR UPDATE OF "metri_posati" ON "public"."rapportino_inca_cavi" FOR EACH ROW EXECUTE FUNCTION "public"."trg_auto_tp_from_progress"();
-
-
-
 CREATE OR REPLACE TRIGGER "trg_rro_updated_at" BEFORE UPDATE ON "public"."rapportino_row_operators" FOR EACH ROW EXECUTE FUNCTION "public"."updated_at"();
-
-
-
 CREATE OR REPLACE TRIGGER "trg_ship_operators_updated_at" BEFORE UPDATE ON "public"."ship_operators" FOR EACH ROW EXECUTE FUNCTION "public"."updated_at"();
-
-
-
-ALTER TABLE ONLY "archive"."rapportini"
-    ADD CONSTRAINT "rapportini_approved_by_ufficio_fkey" FOREIGN KEY ("approved_by_ufficio") REFERENCES "auth"."users"("id");
-
-
-
-ALTER TABLE ONLY "archive"."rapportini"
-    ADD CONSTRAINT "rapportini_capo_id_fkey" FOREIGN KEY ("capo_id") REFERENCES "auth"."users"("id");
-
-
-
-ALTER TABLE ONLY "archive"."rapportini"
-    ADD CONSTRAINT "rapportini_returned_by_ufficio_fkey" FOREIGN KEY ("returned_by_ufficio") REFERENCES "auth"."users"("id");
-
-
-
-ALTER TABLE ONLY "archive"."rapportini"
-    ADD CONSTRAINT "rapportini_user_fk" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "archive"."rapportino_cavi"
-    ADD CONSTRAINT "rapportino_cavi_inca_cavo_id_fkey" FOREIGN KEY ("inca_cavo_id") REFERENCES "public"."inca_cavi"("id") ON DELETE SET NULL;
-
-
-
-ALTER TABLE ONLY "archive"."rapportino_cavi"
-    ADD CONSTRAINT "rapportino_cavi_rapportino_id_fkey" FOREIGN KEY ("rapportino_id") REFERENCES "archive"."rapportini"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "archive"."rapportino_righe"
-    ADD CONSTRAINT "rapportino_righe_rapportino_id_fkey" FOREIGN KEY ("rapportino_id") REFERENCES "archive"."rapportini"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "archive"."rapportino_rows"
-    ADD CONSTRAINT "rapportino_rows_rapportino_id_fkey" FOREIGN KEY ("rapportino_id") REFERENCES "archive"."rapportini"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."capo_ship_assignments"
     ADD CONSTRAINT "capo_ship_assignments_capo_id_fkey" FOREIGN KEY ("capo_id") REFERENCES "public"."profiles"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."capo_ship_assignments"
     ADD CONSTRAINT "capo_ship_assignments_manager_id_fkey" FOREIGN KEY ("manager_id") REFERENCES "public"."profiles"("id") ON DELETE RESTRICT;
-
-
-
 ALTER TABLE ONLY "public"."capo_ship_assignments"
     ADD CONSTRAINT "capo_ship_assignments_ship_id_fkey" FOREIGN KEY ("ship_id") REFERENCES "public"."ships"("id") ON DELETE RESTRICT;
-
-
-
 ALTER TABLE ONLY "public"."capo_ship_attendance"
     ADD CONSTRAINT "capo_ship_attendance_capo_id_fkey" FOREIGN KEY ("capo_id") REFERENCES "public"."profiles"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."capo_ship_attendance"
     ADD CONSTRAINT "capo_ship_attendance_ship_id_fkey" FOREIGN KEY ("ship_id") REFERENCES "public"."ships"("id") ON DELETE RESTRICT;
-
-
-
 ALTER TABLE ONLY "public"."capo_ship_expected_operators"
     ADD CONSTRAINT "capo_ship_expected_operators_capo_id_fkey" FOREIGN KEY ("capo_id") REFERENCES "public"."profiles"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."capo_ship_expected_operators"
     ADD CONSTRAINT "capo_ship_expected_operators_manager_id_fkey" FOREIGN KEY ("manager_id") REFERENCES "public"."profiles"("id") ON DELETE RESTRICT;
-
-
-
 ALTER TABLE ONLY "public"."capo_ship_expected_operators"
     ADD CONSTRAINT "capo_ship_expected_operators_operator_id_fkey" FOREIGN KEY ("operator_id") REFERENCES "public"."operators"("id") ON DELETE RESTRICT;
-
-
-
 ALTER TABLE ONLY "public"."capo_ship_expected_operators"
     ADD CONSTRAINT "capo_ship_expected_operators_ship_id_fkey" FOREIGN KEY ("ship_id") REFERENCES "public"."ships"("id") ON DELETE RESTRICT;
-
-
-
 ALTER TABLE ONLY "public"."catalogo_ship_commessa_attivita"
     ADD CONSTRAINT "catalogo_ship_commessa_attivita_activity_id_fkey" FOREIGN KEY ("activity_id") REFERENCES "public"."catalogo_attivita"("id") ON DELETE RESTRICT;
-
-
-
 ALTER TABLE ONLY "public"."catalogo_ship_commessa_attivita"
     ADD CONSTRAINT "catalogo_ship_commessa_attivita_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "public"."profiles"("id");
-
-
-
 ALTER TABLE ONLY "public"."catalogo_ship_commessa_attivita"
     ADD CONSTRAINT "catalogo_ship_commessa_attivita_ship_id_fkey" FOREIGN KEY ("ship_id") REFERENCES "public"."ships"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."core_drive_events"
     ADD CONSTRAINT "core_drive_events_file_id_fkey" FOREIGN KEY ("file_id") REFERENCES "public"."core_files"("id") ON DELETE RESTRICT;
-
-
-
 ALTER TABLE ONLY "public"."core_drive_events"
     ADD CONSTRAINT "core_drive_events_prev_event_id_fkey" FOREIGN KEY ("prev_event_id") REFERENCES "public"."core_drive_events"("id") ON DELETE SET NULL;
-
-
-
 ALTER TABLE ONLY "public"."core_file_audit"
     ADD CONSTRAINT "core_file_audit_core_file_id_fkey" FOREIGN KEY ("core_file_id") REFERENCES "public"."core_files"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."core_file_audit"
     ADD CONSTRAINT "core_file_audit_performed_by_fkey" FOREIGN KEY ("performed_by") REFERENCES "public"."profiles"("id") ON DELETE SET NULL;
-
-
-
 ALTER TABLE ONLY "public"."core_files"
     ADD CONSTRAINT "core_files_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "public"."profiles"("id") ON DELETE RESTRICT;
-
-
-
 ALTER TABLE ONLY "public"."core_files"
     ADD CONSTRAINT "core_files_inca_cavo_id_fkey" FOREIGN KEY ("inca_cavo_id") REFERENCES "public"."inca_cavi"("id") ON DELETE SET NULL;
-
-
-
 ALTER TABLE ONLY "public"."core_files"
     ADD CONSTRAINT "core_files_inca_file_id_fkey" FOREIGN KEY ("inca_file_id") REFERENCES "public"."inca_files"("id") ON DELETE SET NULL;
-
-
-
 ALTER TABLE ONLY "public"."core_files"
     ADD CONSTRAINT "core_files_operator_id_fkey" FOREIGN KEY ("operator_id") REFERENCES "public"."operators"("id") ON DELETE SET NULL;
-
-
-
 ALTER TABLE ONLY "public"."core_files"
     ADD CONSTRAINT "core_files_rapportino_id_fkey" FOREIGN KEY ("rapportino_id") REFERENCES "public"."rapportini"("id") ON DELETE SET NULL;
-
-
-
 ALTER TABLE ONLY "public"."core_files"
     ADD CONSTRAINT "core_files_version_of_fkey" FOREIGN KEY ("version_of") REFERENCES "public"."core_files"("id") ON DELETE SET NULL;
-
-
-
 ALTER TABLE ONLY "public"."core_meta"
     ADD CONSTRAINT "core_meta_updated_by_fkey" FOREIGN KEY ("updated_by") REFERENCES "public"."profiles"("id") ON DELETE SET NULL;
-
-
-
 ALTER TABLE ONLY "public"."impianti"
     ADD CONSTRAINT "impianti_ship_id_fkey" FOREIGN KEY ("ship_id") REFERENCES "public"."ships"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."impianto_capi"
     ADD CONSTRAINT "impianto_capi_capo_id_fkey" FOREIGN KEY ("capo_id") REFERENCES "public"."profiles"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."impianto_capi"
     ADD CONSTRAINT "impianto_capi_impianto_id_fkey" FOREIGN KEY ("impianto_id") REFERENCES "public"."impianti"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."inca_cavi"
     ADD CONSTRAINT "inca_cavi_from_file_id_fkey" FOREIGN KEY ("from_file_id") REFERENCES "public"."inca_files"("id");
-
-
-
 ALTER TABLE ONLY "public"."inca_cavi"
     ADD CONSTRAINT "inca_cavi_inca_file_id_fkey" FOREIGN KEY ("inca_file_id") REFERENCES "public"."inca_files"("id") ON DELETE SET NULL;
-
-
-
 ALTER TABLE ONLY "public"."inca_files"
     ADD CONSTRAINT "inca_files_ship_id_fkey" FOREIGN KEY ("ship_id") REFERENCES "public"."ships"("id") ON DELETE SET NULL;
-
-
-
 ALTER TABLE ONLY "public"."inca_files"
     ADD CONSTRAINT "inca_files_uploaded_by_fkey" FOREIGN KEY ("uploaded_by") REFERENCES "public"."profiles"("id") ON DELETE SET NULL;
-
-
-
 ALTER TABLE ONLY "public"."inca_percorsi"
     ADD CONSTRAINT "inca_percorsi_cavo_id_fkey" FOREIGN KEY ("inca_cavo_id") REFERENCES "public"."inca_cavi"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."manager_capo_assignments"
     ADD CONSTRAINT "manager_capo_assignments_capo_fk" FOREIGN KEY ("capo_id") REFERENCES "public"."profiles"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."manager_capo_assignments"
     ADD CONSTRAINT "manager_capo_assignments_manager_fk" FOREIGN KEY ("manager_id") REFERENCES "public"."profiles"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."manager_capo_scope"
     ADD CONSTRAINT "manager_capo_scope_capo_id_fkey" FOREIGN KEY ("capo_id") REFERENCES "public"."profiles"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."manager_capo_scope"
     ADD CONSTRAINT "manager_capo_scope_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "public"."profiles"("id");
-
-
-
 ALTER TABLE ONLY "public"."manager_capo_scope"
     ADD CONSTRAINT "manager_capo_scope_manager_id_fkey" FOREIGN KEY ("manager_id") REFERENCES "public"."profiles"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."manager_plans"
     ADD CONSTRAINT "manager_plans_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "public"."profiles"("id");
-
-
-
 ALTER TABLE ONLY "public"."manager_plans"
     ADD CONSTRAINT "manager_plans_manager_id_fkey" FOREIGN KEY ("manager_id") REFERENCES "public"."profiles"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."models"
     ADD CONSTRAINT "models_capo_id_fkey" FOREIGN KEY ("capo_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."navemaster_imports"
     ADD CONSTRAINT "navemaster_imports_imported_by_fkey" FOREIGN KEY ("imported_by") REFERENCES "public"."profiles"("id") ON DELETE SET NULL;
-
-
-
 ALTER TABLE ONLY "public"."navemaster_imports"
     ADD CONSTRAINT "navemaster_imports_ship_id_fkey" FOREIGN KEY ("ship_id") REFERENCES "public"."ships"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."navemaster_inca_alerts"
     ADD CONSTRAINT "navemaster_inca_alerts_inca_file_id_fkey" FOREIGN KEY ("inca_file_id") REFERENCES "public"."inca_files"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."navemaster_inca_alerts"
     ADD CONSTRAINT "navemaster_inca_alerts_ship_id_fkey" FOREIGN KEY ("ship_id") REFERENCES "public"."ships"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."navemaster_inca_diff"
     ADD CONSTRAINT "navemaster_inca_diff_inca_file_id_fkey" FOREIGN KEY ("inca_file_id") REFERENCES "public"."inca_files"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."navemaster_inca_diff"
     ADD CONSTRAINT "navemaster_inca_diff_ship_id_fkey" FOREIGN KEY ("ship_id") REFERENCES "public"."ships"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."navemaster_rows"
     ADD CONSTRAINT "navemaster_rows_navemaster_import_id_fkey" FOREIGN KEY ("navemaster_import_id") REFERENCES "public"."navemaster_imports"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."objectives"
     ADD CONSTRAINT "objectives_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "public"."profiles"("id");
-
-
-
 ALTER TABLE ONLY "public"."operator_kpi_facts"
     ADD CONSTRAINT "operator_kpi_facts_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "public"."profiles"("id");
-
-
-
 ALTER TABLE ONLY "public"."operator_kpi_facts"
     ADD CONSTRAINT "operator_kpi_facts_operator_id_fkey" FOREIGN KEY ("operator_id") REFERENCES "public"."operators"("id") ON DELETE RESTRICT;
-
-
-
 ALTER TABLE ONLY "public"."operator_kpi_facts"
     ADD CONSTRAINT "operator_kpi_facts_plan_id_fkey" FOREIGN KEY ("plan_id") REFERENCES "public"."manager_plans"("id") ON DELETE SET NULL;
-
-
-
 ALTER TABLE ONLY "public"."operator_kpi_facts"
     ADD CONSTRAINT "operator_kpi_facts_slot_id_fkey" FOREIGN KEY ("slot_id") REFERENCES "public"."plan_capo_slots"("id") ON DELETE SET NULL;
-
-
-
 ALTER TABLE ONLY "public"."operator_kpi_snapshots"
     ADD CONSTRAINT "operator_kpi_snapshots_computed_by_fkey" FOREIGN KEY ("computed_by") REFERENCES "public"."profiles"("id");
-
-
-
 ALTER TABLE ONLY "public"."operator_kpi_snapshots"
     ADD CONSTRAINT "operator_kpi_snapshots_operator_id_fkey" FOREIGN KEY ("operator_id") REFERENCES "public"."operators"("id") ON DELETE RESTRICT;
-
-
-
 ALTER TABLE ONLY "public"."operator_ship_attendance"
     ADD CONSTRAINT "operator_ship_attendance_operator_id_fkey" FOREIGN KEY ("operator_id") REFERENCES "public"."operators"("id") ON DELETE RESTRICT;
-
-
-
 ALTER TABLE ONLY "public"."operator_ship_attendance"
     ADD CONSTRAINT "operator_ship_attendance_ship_id_fkey" FOREIGN KEY ("ship_id") REFERENCES "public"."ships"("id") ON DELETE RESTRICT;
-
-
-
 ALTER TABLE ONLY "public"."operators"
     ADD CONSTRAINT "operators_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "public"."profiles"("id");
-
-
-
 ALTER TABLE ONLY "public"."patterns"
     ADD CONSTRAINT "patterns_capo_id_fkey" FOREIGN KEY ("capo_id") REFERENCES "public"."profiles"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."percorso_cable_segments"
     ADD CONSTRAINT "percorso_cable_segments_cable_id_fkey" FOREIGN KEY ("cable_id") REFERENCES "public"."percorso_cables"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."percorso_cables"
     ADD CONSTRAINT "percorso_cables_document_id_fkey" FOREIGN KEY ("document_id") REFERENCES "public"."percorso_documents"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."percorso_documents"
     ADD CONSTRAINT "percorso_documents_inca_file_id_fkey" FOREIGN KEY ("inca_file_id") REFERENCES "public"."inca_files"("id") ON DELETE SET NULL;
-
-
-
 ALTER TABLE ONLY "public"."percorso_documents"
     ADD CONSTRAINT "percorso_documents_uploaded_by_fkey" FOREIGN KEY ("uploaded_by") REFERENCES "auth"."users"("id");
-
-
-
 ALTER TABLE ONLY "public"."percorso_lot_cables"
     ADD CONSTRAINT "percorso_lot_cables_cable_id_fkey" FOREIGN KEY ("cable_id") REFERENCES "public"."percorso_cables"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."percorso_lot_cables"
     ADD CONSTRAINT "percorso_lot_cables_lot_id_fkey" FOREIGN KEY ("lot_id") REFERENCES "public"."percorso_lots"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."percorso_lot_segments"
     ADD CONSTRAINT "percorso_lot_segments_lot_id_fkey" FOREIGN KEY ("lot_id") REFERENCES "public"."percorso_lots"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."percorso_lot_validations"
     ADD CONSTRAINT "percorso_lot_validations_lot_id_fkey" FOREIGN KEY ("lot_id") REFERENCES "public"."percorso_lots"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."percorso_lot_validations"
     ADD CONSTRAINT "percorso_lot_validations_validated_by_fkey" FOREIGN KEY ("validated_by") REFERENCES "auth"."users"("id");
-
-
-
 ALTER TABLE ONLY "public"."percorso_lots"
     ADD CONSTRAINT "percorso_lots_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "auth"."users"("id");
-
-
-
 ALTER TABLE ONLY "public"."percorso_lots"
     ADD CONSTRAINT "percorso_lots_document_id_fkey" FOREIGN KEY ("document_id") REFERENCES "public"."percorso_documents"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."plan_capo_slots"
     ADD CONSTRAINT "plan_capo_slots_capo_id_fkey" FOREIGN KEY ("capo_id") REFERENCES "public"."profiles"("id") ON DELETE RESTRICT;
-
-
-
 ALTER TABLE ONLY "public"."plan_capo_slots"
     ADD CONSTRAINT "plan_capo_slots_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "public"."profiles"("id");
-
-
-
 ALTER TABLE ONLY "public"."plan_capo_slots"
     ADD CONSTRAINT "plan_capo_slots_plan_id_fkey" FOREIGN KEY ("plan_id") REFERENCES "public"."manager_plans"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."plan_slot_members"
     ADD CONSTRAINT "plan_slot_members_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "public"."profiles"("id");
-
-
-
 ALTER TABLE ONLY "public"."plan_slot_members"
     ADD CONSTRAINT "plan_slot_members_operator_id_fkey" FOREIGN KEY ("operator_id") REFERENCES "public"."operators"("id") ON DELETE RESTRICT;
-
-
-
 ALTER TABLE ONLY "public"."plan_slot_members"
     ADD CONSTRAINT "plan_slot_members_slot_id_fkey" FOREIGN KEY ("slot_id") REFERENCES "public"."plan_capo_slots"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."planning_audit"
     ADD CONSTRAINT "planning_audit_actor_id_fkey" FOREIGN KEY ("actor_id") REFERENCES "public"."profiles"("id");
-
-
-
 ALTER TABLE ONLY "public"."planning_audit"
     ADD CONSTRAINT "planning_audit_plan_id_fkey" FOREIGN KEY ("plan_id") REFERENCES "public"."manager_plans"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."profiles"
     ADD CONSTRAINT "profiles_id_fkey" FOREIGN KEY ("id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."rapportino_cavi"
     ADD CONSTRAINT "rapportino_cavi_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "public"."profiles"("id");
-
-
-
 ALTER TABLE ONLY "public"."rapportino_cavi"
     ADD CONSTRAINT "rapportino_cavi_inca_cavo_id_fkey" FOREIGN KEY ("inca_cavo_id") REFERENCES "public"."inca_cavi"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."rapportino_cavi"
     ADD CONSTRAINT "rapportino_cavi_rapportino_id_fkey" FOREIGN KEY ("rapportino_id") REFERENCES "public"."rapportini"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."rapportino_inca_cavi"
     ADD CONSTRAINT "rapportino_inca_cavi_inca_cavo_id_fkey" FOREIGN KEY ("inca_cavo_id") REFERENCES "public"."inca_cavi"("id") ON DELETE RESTRICT;
-
-
-
 ALTER TABLE ONLY "public"."rapportino_inca_cavi"
     ADD CONSTRAINT "rapportino_inca_cavi_rapportino_id_fkey" FOREIGN KEY ("rapportino_id") REFERENCES "public"."rapportini"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."rapportino_row_operators"
     ADD CONSTRAINT "rapportino_row_operators_operator_id_fkey" FOREIGN KEY ("operator_id") REFERENCES "public"."operators"("id") ON DELETE RESTRICT;
-
-
-
 ALTER TABLE ONLY "public"."rapportino_row_operators"
     ADD CONSTRAINT "rapportino_row_operators_rapportino_row_id_fkey" FOREIGN KEY ("rapportino_row_id") REFERENCES "public"."rapportino_rows"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."rapportino_rows"
     ADD CONSTRAINT "rapportino_rows_activity_id_fkey" FOREIGN KEY ("activity_id") REFERENCES "public"."catalogo_attivita"("id") ON DELETE SET NULL;
-
-
-
 ALTER TABLE ONLY "public"."rapportino_rows"
     ADD CONSTRAINT "rapportino_rows_rapportino_id_fkey" FOREIGN KEY ("rapportino_id") REFERENCES "public"."rapportini"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."ship_capos"
     ADD CONSTRAINT "ship_capos_capo_id_fkey" FOREIGN KEY ("capo_id") REFERENCES "public"."profiles"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."ship_capos"
     ADD CONSTRAINT "ship_capos_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "public"."profiles"("id");
-
-
-
 ALTER TABLE ONLY "public"."ship_capos"
     ADD CONSTRAINT "ship_capos_ship_id_fkey" FOREIGN KEY ("ship_id") REFERENCES "public"."ships"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."ship_managers"
     ADD CONSTRAINT "ship_managers_manager_id_fkey" FOREIGN KEY ("manager_id") REFERENCES "public"."profiles"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."ship_managers"
     ADD CONSTRAINT "ship_managers_ship_id_fkey" FOREIGN KEY ("ship_id") REFERENCES "public"."ships"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."ship_operators"
     ADD CONSTRAINT "ship_operators_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "public"."profiles"("id");
-
-
-
 ALTER TABLE ONLY "public"."ship_operators"
     ADD CONSTRAINT "ship_operators_operator_id_fkey" FOREIGN KEY ("operator_id") REFERENCES "public"."operators"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."ship_operators"
     ADD CONSTRAINT "ship_operators_ship_id_fkey" FOREIGN KEY ("ship_id") REFERENCES "public"."ships"("id") ON DELETE CASCADE;
-
-
-
-CREATE POLICY "capo own cavi CRUD" ON "archive"."rapportino_cavi" TO "authenticated" USING ((EXISTS ( SELECT 1
-   FROM "archive"."rapportini" "r"
-  WHERE (("r"."id" = "rapportino_cavi"."rapportino_id") AND (("r"."capo_id" = "auth"."uid"()) OR "public"."is_admin"()))))) WITH CHECK ((EXISTS ( SELECT 1
-   FROM "archive"."rapportini" "r"
-  WHERE (("r"."id" = "rapportino_cavi"."rapportino_id") AND (("r"."capo_id" = "auth"."uid"()) OR "public"."is_admin"())))));
-
-
-
-CREATE POLICY "capo own rapportini CRUD" ON "archive"."rapportini" TO "authenticated" USING ((("capo_id" = "auth"."uid"()) OR "public"."is_admin"())) WITH CHECK ((("capo_id" = "auth"."uid"()) OR "public"."is_admin"()));
-
-
-
-CREATE POLICY "capo own righe CRUD" ON "archive"."rapportino_righe" TO "authenticated" USING ((EXISTS ( SELECT 1
-   FROM "archive"."rapportini" "r"
-  WHERE (("r"."id" = "rapportino_righe"."rapportino_id") AND (("r"."capo_id" = "auth"."uid"()) OR "public"."is_admin"()))))) WITH CHECK ((EXISTS ( SELECT 1
-   FROM "archive"."rapportini" "r"
-  WHERE (("r"."id" = "rapportino_righe"."rapportino_id") AND (("r"."capo_id" = "auth"."uid"()) OR "public"."is_admin"())))));
-
-
-
-CREATE POLICY "capo_manage_rapportino_rows" ON "archive"."rapportino_rows" USING ((EXISTS ( SELECT 1
-   FROM "archive"."rapportini" "r"
-  WHERE (("r"."id" = "rapportino_rows"."rapportino_id") AND ("r"."capo_id" = "auth"."uid"()))))) WITH CHECK ((EXISTS ( SELECT 1
-   FROM "archive"."rapportini" "r"
-  WHERE (("r"."id" = "rapportino_rows"."rapportino_id") AND ("r"."capo_id" = "auth"."uid"())))));
-
-
-
-ALTER TABLE "archive"."rapportini" ENABLE ROW LEVEL SECURITY;
-
-
-CREATE POLICY "rapportini_modify_own" ON "archive"."rapportini" USING (("auth"."uid"() = "user_id")) WITH CHECK (("auth"."uid"() = "user_id"));
-
-
-
-CREATE POLICY "rapportini_select_own" ON "archive"."rapportini" FOR SELECT USING (("auth"."uid"() = "user_id"));
-
-
-
-ALTER TABLE "archive"."rapportino_cavi" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "archive"."rapportino_righe" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "archive"."rapportino_rows" ENABLE ROW LEVEL SECURITY;
-
-
-CREATE POLICY "rapportino_rows_via_own_rapportino" ON "archive"."rapportino_rows" USING ((EXISTS ( SELECT 1
-   FROM "archive"."rapportini" "r"
-  WHERE (("r"."id" = "rapportino_rows"."rapportino_id") AND ("r"."user_id" = "auth"."uid"()))))) WITH CHECK ((EXISTS ( SELECT 1
-   FROM "archive"."rapportini" "r"
-  WHERE (("r"."id" = "rapportino_rows"."rapportino_id") AND ("r"."user_id" = "auth"."uid"())))));
-
-
-
-CREATE POLICY "ufficio can read validated" ON "archive"."rapportini" FOR SELECT TO "authenticated" USING (("public"."is_ufficio"() AND ("status" = ANY (ARRAY['VALIDATED_CAPO'::"text", 'APPROVED_UFFICIO'::"text", 'RETURNED'::"text"]))));
-
-
-
-CREATE POLICY "ufficio can update status" ON "archive"."rapportini" FOR UPDATE TO "authenticated" USING ("public"."is_ufficio"()) WITH CHECK ("public"."is_ufficio"());
-
-
-
-CREATE POLICY "ufficio read cavi for validated" ON "archive"."rapportino_cavi" FOR SELECT TO "authenticated" USING (("public"."is_ufficio"() AND (EXISTS ( SELECT 1
-   FROM "archive"."rapportini" "r"
-  WHERE (("r"."id" = "rapportino_cavi"."rapportino_id") AND ("r"."status" = ANY (ARRAY['VALIDATED_CAPO'::"text", 'APPROVED_UFFICIO'::"text", 'RETURNED'::"text"])))))));
-
-
-
-CREATE POLICY "ufficio read righe for validated" ON "archive"."rapportino_righe" FOR SELECT TO "authenticated" USING (("public"."is_ufficio"() AND (EXISTS ( SELECT 1
-   FROM "archive"."rapportini" "r"
-  WHERE (("r"."id" = "rapportino_righe"."rapportino_id") AND ("r"."status" = ANY (ARRAY['VALIDATED_CAPO'::"text", 'APPROVED_UFFICIO'::"text", 'RETURNED'::"text"])))))));
-
-
-
 CREATE POLICY "Profiles are insertable by owner" ON "public"."profiles" FOR INSERT WITH CHECK (("auth"."uid"() = "id"));
-
-
-
 CREATE POLICY "Profiles are updatable by owner" ON "public"."profiles" FOR UPDATE USING (("auth"."uid"() = "id")) WITH CHECK (("auth"."uid"() = "id"));
-
-
-
 CREATE POLICY "admin_read_all_kpi_facts" ON "public"."operator_kpi_facts" FOR SELECT USING ("public"."is_role"('ADMIN'::"text"));
-
-
-
 CREATE POLICY "admin_read_all_kpi_snapshots" ON "public"."operator_kpi_snapshots" FOR SELECT USING ("public"."is_role"('ADMIN'::"text"));
-
-
-
 CREATE POLICY "admin_read_all_manager_capo_scope" ON "public"."manager_capo_scope" FOR SELECT USING ("public"."is_role"('ADMIN'::"text"));
-
-
-
 CREATE POLICY "admin_read_all_manager_plans" ON "public"."manager_plans" FOR SELECT USING ("public"."is_role"('ADMIN'::"text"));
-
-
-
 CREATE POLICY "admin_read_all_plan_capo_slots" ON "public"."plan_capo_slots" FOR SELECT USING ("public"."is_role"('ADMIN'::"text"));
-
-
-
 CREATE POLICY "admin_read_all_plan_slot_members" ON "public"."plan_slot_members" FOR SELECT USING ("public"."is_role"('ADMIN'::"text"));
-
-
-
 CREATE POLICY "admin_read_all_planning_audit" ON "public"."planning_audit" FOR SELECT USING ("public"."is_role"('ADMIN'::"text"));
-
-
-
 CREATE POLICY "audit_select_direzione" ON "public"."core_file_audit" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."app_role" = ANY (ARRAY['DIREZIONE'::"text", 'ADMIN'::"text"]))))));
-
-
-
 CREATE POLICY "capo can insert rapportini" ON "public"."rapportini" FOR INSERT TO "authenticated" WITH CHECK (("capo_id" = "auth"."uid"()));
-
-
-
 CREATE POLICY "capo can manage rows" ON "public"."rapportino_rows" TO "authenticated" USING (("rapportino_id" IN ( SELECT "rapportini"."id"
    FROM "public"."rapportini"
   WHERE ("rapportini"."capo_id" = "auth"."uid"())))) WITH CHECK (("rapportino_id" IN ( SELECT "rapportini"."id"
    FROM "public"."rapportini"
   WHERE ("rapportini"."capo_id" = "auth"."uid"()))));
-
-
-
 CREATE POLICY "capo can update rapportini" ON "public"."rapportini" FOR UPDATE TO "authenticated" USING (("capo_id" = "auth"."uid"()));
-
-
-
 CREATE POLICY "capo own models CRUD" ON "public"."models" TO "authenticated" USING ((("capo_id" = "auth"."uid"()) OR "public"."is_admin"())) WITH CHECK ((("capo_id" = "auth"."uid"()) OR "public"."is_admin"()));
-
-
-
 CREATE POLICY "capo_delete_rapportini_own" ON "public"."rapportini" FOR DELETE TO "authenticated" USING (("capo_id" = "auth"."uid"()));
-
-
-
 CREATE POLICY "capo_delete_rapportino_inca" ON "public"."rapportino_inca_cavi" FOR DELETE TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."rapportini" "r"
   WHERE (("r"."id" = "rapportino_inca_cavi"."rapportino_id") AND ("r"."capo_id" = "auth"."uid"()) AND ("r"."status" <> 'APPROVED_UFFICIO'::"text")))));
-
-
-
 CREATE POLICY "capo_delete_rows_own" ON "public"."rapportino_rows" FOR DELETE TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."rapportini" "r"
   WHERE (("r"."id" = "rapportino_rows"."rapportino_id") AND ("r"."capo_id" = "auth"."uid"()) AND ("r"."status" <> 'APPROVED_UFFICIO'::"text")))));
-
-
-
 CREATE POLICY "capo_insert_operator_attendance_for_assigned_ship" ON "public"."operator_ship_attendance" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."capo_ship_assignments" "a"
   WHERE (("a"."capo_id" = "auth"."uid"()) AND ("a"."plan_date" = "operator_ship_attendance"."plan_date") AND ("a"."ship_id" = "operator_ship_attendance"."ship_id")))));
-
-
-
 CREATE POLICY "capo_insert_own_ship_attendance" ON "public"."capo_ship_attendance" FOR INSERT WITH CHECK ((("capo_id" = "auth"."uid"()) AND (EXISTS ( SELECT 1
    FROM "public"."capo_ship_assignments" "a"
   WHERE (("a"."capo_id" = "auth"."uid"()) AND ("a"."plan_date" = "capo_ship_attendance"."plan_date") AND ("a"."ship_id" = "capo_ship_attendance"."ship_id"))))));
-
-
-
 CREATE POLICY "capo_insert_rapportini_own" ON "public"."rapportini" FOR INSERT TO "authenticated" WITH CHECK (("capo_id" = "auth"."uid"()));
-
-
-
 CREATE POLICY "capo_insert_rapportino_cavi" ON "public"."rapportino_cavi" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."rapportini" "r"
   WHERE (("r"."id" = "rapportino_cavi"."rapportino_id") AND ("r"."capo_id" = "auth"."uid"()) AND ("r"."status" <> 'APPROVED_UFFICIO'::"text")))));
-
-
-
 CREATE POLICY "capo_insert_rapportino_inca" ON "public"."rapportino_inca_cavi" FOR INSERT TO "authenticated" WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."rapportini" "r"
   WHERE (("r"."id" = "rapportino_inca_cavi"."rapportino_id") AND ("r"."capo_id" = "auth"."uid"()) AND ("r"."status" <> 'APPROVED_UFFICIO'::"text")))));
-
-
-
 CREATE POLICY "capo_insert_rows_own" ON "public"."rapportino_rows" FOR INSERT TO "authenticated" WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."rapportini" "r"
   WHERE (("r"."id" = "rapportino_rows"."rapportino_id") AND ("r"."capo_id" = "auth"."uid"()) AND ("r"."status" <> 'APPROVED_UFFICIO'::"text")))));
-
-
-
 CREATE POLICY "capo_read_own_expected_operators" ON "public"."capo_ship_expected_operators" FOR SELECT USING (("capo_id" = "auth"."uid"()));
-
-
-
 CREATE POLICY "capo_read_own_members" ON "public"."plan_slot_members" FOR SELECT USING ((EXISTS ( SELECT 1
    FROM "public"."plan_capo_slots" "s"
   WHERE (("s"."id" = "plan_slot_members"."slot_id") AND ("s"."capo_id" = "auth"."uid"())))));
-
-
-
 CREATE POLICY "capo_read_own_ship_assignments" ON "public"."capo_ship_assignments" FOR SELECT USING (("capo_id" = "auth"."uid"()));
-
-
-
 CREATE POLICY "capo_read_own_slots" ON "public"."plan_capo_slots" FOR SELECT USING (("capo_id" = "auth"."uid"()));
-
-
-
 CREATE POLICY "capo_select_rapportini_own" ON "public"."rapportini" FOR SELECT TO "authenticated" USING (("capo_id" = "auth"."uid"()));
-
-
-
 CREATE POLICY "capo_select_rapportino_cavi" ON "public"."rapportino_cavi" FOR SELECT USING ((EXISTS ( SELECT 1
    FROM "public"."rapportini" "r"
   WHERE (("r"."id" = "rapportino_cavi"."rapportino_id") AND ("r"."capo_id" = "auth"."uid"())))));
-
-
-
 CREATE POLICY "capo_select_rapportino_inca" ON "public"."rapportino_inca_cavi" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."rapportini" "r"
   WHERE (("r"."id" = "rapportino_inca_cavi"."rapportino_id") AND ("r"."capo_id" = "auth"."uid"())))));
-
-
-
 CREATE POLICY "capo_select_rows_own" ON "public"."rapportino_rows" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."rapportini" "r"
   WHERE (("r"."id" = "rapportino_rows"."rapportino_id") AND ("r"."capo_id" = "auth"."uid"())))));
-
-
-
 ALTER TABLE "public"."capo_ship_assignments" ENABLE ROW LEVEL SECURITY;
-
-
 ALTER TABLE "public"."capo_ship_attendance" ENABLE ROW LEVEL SECURITY;
-
-
 ALTER TABLE "public"."capo_ship_expected_operators" ENABLE ROW LEVEL SECURITY;
-
-
 CREATE POLICY "capo_update_operator_attendance_for_assigned_ship" ON "public"."operator_ship_attendance" FOR UPDATE USING ((EXISTS ( SELECT 1
    FROM "public"."capo_ship_assignments" "a"
   WHERE (("a"."capo_id" = "auth"."uid"()) AND ("a"."plan_date" = "operator_ship_attendance"."plan_date") AND ("a"."ship_id" = "operator_ship_attendance"."ship_id"))))) WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."capo_ship_assignments" "a"
   WHERE (("a"."capo_id" = "auth"."uid"()) AND ("a"."plan_date" = "operator_ship_attendance"."plan_date") AND ("a"."ship_id" = "operator_ship_attendance"."ship_id")))));
-
-
-
 CREATE POLICY "capo_update_own_ship_attendance" ON "public"."capo_ship_attendance" FOR UPDATE USING (("capo_id" = "auth"."uid"())) WITH CHECK (("capo_id" = "auth"."uid"()));
-
-
-
 CREATE POLICY "capo_update_rapportini_own" ON "public"."rapportini" FOR UPDATE TO "authenticated" USING (("capo_id" = "auth"."uid"())) WITH CHECK (("capo_id" = "auth"."uid"()));
-
-
-
 CREATE POLICY "capo_update_rapportino_cavi" ON "public"."rapportino_cavi" FOR UPDATE USING ((EXISTS ( SELECT 1
    FROM "public"."rapportini" "r"
   WHERE (("r"."id" = "rapportino_cavi"."rapportino_id") AND ("r"."capo_id" = "auth"."uid"()) AND ("r"."status" <> 'APPROVED_UFFICIO'::"text"))))) WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."rapportini" "r"
   WHERE (("r"."id" = "rapportino_cavi"."rapportino_id") AND ("r"."capo_id" = "auth"."uid"()) AND ("r"."status" <> 'APPROVED_UFFICIO'::"text")))));
-
-
-
 CREATE POLICY "capo_update_rapportino_inca" ON "public"."rapportino_inca_cavi" FOR UPDATE TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."rapportini" "r"
   WHERE (("r"."id" = "rapportino_inca_cavi"."rapportino_id") AND ("r"."capo_id" = "auth"."uid"()) AND ("r"."status" <> 'APPROVED_UFFICIO'::"text"))))) WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."rapportini" "r"
   WHERE (("r"."id" = "rapportino_inca_cavi"."rapportino_id") AND ("r"."capo_id" = "auth"."uid"()) AND ("r"."status" <> 'APPROVED_UFFICIO'::"text")))));
-
-
-
 CREATE POLICY "capo_update_rows_own" ON "public"."rapportino_rows" FOR UPDATE TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."rapportini" "r"
   WHERE (("r"."id" = "rapportino_rows"."rapportino_id") AND ("r"."capo_id" = "auth"."uid"()) AND ("r"."status" <> 'APPROVED_UFFICIO'::"text"))))) WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."rapportini" "r"
   WHERE (("r"."id" = "rapportino_rows"."rapportino_id") AND ("r"."capo_id" = "auth"."uid"()) AND ("r"."status" <> 'APPROVED_UFFICIO'::"text")))));
-
-
-
 CREATE POLICY "capo_validate" ON "public"."percorso_lot_validations" FOR INSERT WITH CHECK ((("role" = 'CAPO'::"text") AND (EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."role" = 'CAPO'::"public"."app_role"))))));
-
-
-
 ALTER TABLE "public"."catalogo_attivita" ENABLE ROW LEVEL SECURITY;
-
-
 CREATE POLICY "catalogo_attivita_delete_admin" ON "public"."catalogo_attivita" FOR DELETE TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."role" = 'ADMIN'::"public"."app_role")))));
-
-
-
 CREATE POLICY "catalogo_attivita_insert_admin" ON "public"."catalogo_attivita" FOR INSERT TO "authenticated" WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."role" = 'ADMIN'::"public"."app_role")))));
-
-
-
 CREATE POLICY "catalogo_attivita_read" ON "public"."catalogo_attivita" FOR SELECT TO "authenticated" USING (true);
-
-
-
 CREATE POLICY "catalogo_attivita_select_authenticated" ON "public"."catalogo_attivita" FOR SELECT TO "authenticated" USING (true);
-
-
-
 CREATE POLICY "catalogo_attivita_update_admin" ON "public"."catalogo_attivita" FOR UPDATE TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."role" = 'ADMIN'::"public"."app_role"))))) WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."role" = 'ADMIN'::"public"."app_role")))));
-
-
-
 CREATE POLICY "catalogo_attivita_write_admin" ON "public"."catalogo_attivita" TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."app_role" = 'ADMIN'::"text"))))) WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."app_role" = 'ADMIN'::"text")))));
-
-
-
 ALTER TABLE "public"."catalogo_ship_commessa_attivita" ENABLE ROW LEVEL SECURITY;
-
-
 CREATE POLICY "catalogo_ship_commessa_read" ON "public"."catalogo_ship_commessa_attivita" FOR SELECT TO "authenticated" USING (true);
-
-
-
 CREATE POLICY "catalogo_ship_commessa_write_admin" ON "public"."catalogo_ship_commessa_attivita" TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."role" = 'ADMIN'::"public"."app_role"))))) WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."role" = 'ADMIN'::"public"."app_role")))));
-
-
-
 ALTER TABLE "public"."core_drive_events" ENABLE ROW LEVEL SECURITY;
-
-
 CREATE POLICY "core_drive_events_select_via_core_files" ON "public"."core_drive_events" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."core_files" "f"
   WHERE ("f"."id" = "core_drive_events"."file_id"))));
-
-
-
 ALTER TABLE "public"."core_file_audit" ENABLE ROW LEVEL SECURITY;
-
-
 ALTER TABLE "public"."core_files" ENABLE ROW LEVEL SECURITY;
-
-
 CREATE POLICY "core_files_delete_direzione" ON "public"."core_files" FOR DELETE TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."app_role" = ANY (ARRAY['DIREZIONE'::"text", 'ADMIN'::"text"]))))));
-
-
-
 CREATE POLICY "core_files_insert" ON "public"."core_files" FOR INSERT TO "authenticated" WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."app_role" = ANY (ARRAY['CAPO'::"text", 'UFFICIO'::"text", 'MANAGER'::"text", 'DIREZIONE'::"text", 'ADMIN'::"text"])) AND (("p"."app_role" = ANY (ARRAY['DIREZIONE'::"text", 'ADMIN'::"text"])) OR ("core_files"."cantiere" = COALESCE("p"."default_costr", "core_files"."cantiere")) OR (("to_jsonb"("p".*) ? 'allowed_cantieri'::"text") AND ("core_files"."cantiere" = ANY (COALESCE("p"."allowed_cantieri", ARRAY[]::"text"[])))))))));
-
-
-
 CREATE POLICY "core_files_select" ON "public"."core_files" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND (("p"."app_role" = ANY (ARRAY['DIREZIONE'::"text", 'ADMIN'::"text"])) OR ("core_files"."cantiere" = COALESCE("p"."default_costr", "core_files"."cantiere")) OR (("to_jsonb"("p".*) ? 'allowed_cantieri'::"text") AND ("core_files"."cantiere" = ANY (COALESCE("p"."allowed_cantieri", ARRAY[]::"text"[])))))))));
-
-
-
 CREATE POLICY "core_files_update" ON "public"."core_files" FOR UPDATE TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND (("p"."app_role" = ANY (ARRAY['DIREZIONE'::"text", 'ADMIN'::"text"])) OR ("core_files"."created_by" = "auth"."uid"())))))) WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND (("p"."app_role" = ANY (ARRAY['DIREZIONE'::"text", 'ADMIN'::"text"])) OR ("core_files"."created_by" = "auth"."uid"()))))));
-
-
-
 CREATE POLICY "create_lots" ON "public"."percorso_lots" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."role" = ANY (ARRAY['CAPO'::"public"."app_role", 'UFFICIO'::"public"."app_role"]))))));
-
-
-
 ALTER TABLE "public"."impianti" ENABLE ROW LEVEL SECURITY;
-
-
 CREATE POLICY "impianti_admin_all" ON "public"."impianti" TO "authenticated" USING ("public"."is_admin"()) WITH CHECK ("public"."is_admin"());
-
-
-
 CREATE POLICY "impianti_manager_read_perimeter" ON "public"."impianti" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."ship_managers" "sm"
   WHERE (("sm"."ship_id" = "impianti"."ship_id") AND ("sm"."manager_id" = "auth"."uid"())))));
-
-
-
 ALTER TABLE "public"."impianto_capi" ENABLE ROW LEVEL SECURITY;
-
-
 CREATE POLICY "impianto_capi_admin_all" ON "public"."impianto_capi" TO "authenticated" USING ("public"."is_admin"()) WITH CHECK ("public"."is_admin"());
-
-
-
 CREATE POLICY "impianto_capi_manager_read_perimeter" ON "public"."impianto_capi" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM ("public"."impianti" "i"
      JOIN "public"."ship_managers" "sm" ON (("sm"."ship_id" = "i"."ship_id")))
   WHERE (("i"."id" = "impianto_capi"."impianto_id") AND ("sm"."manager_id" = "auth"."uid"())))));
-
-
-
 ALTER TABLE "public"."inca_cavi" ENABLE ROW LEVEL SECURITY;
-
-
 CREATE POLICY "inca_cavi_capo_select" ON "public"."inca_cavi" FOR SELECT USING (((("public"."core_current_profile"())."app_role" = 'CAPO'::"text") AND (("costr" = ANY (("public"."core_current_profile"())."allowed_cantieri")) OR (("public"."core_current_profile"())."allowed_cantieri" = ARRAY[]::"text"[]))));
-
-
-
 CREATE POLICY "inca_cavi_direzione_select" ON "public"."inca_cavi" FOR SELECT USING ((("public"."core_current_profile"())."app_role" = 'DIREZIONE'::"text"));
-
-
-
 CREATE POLICY "inca_cavi_manager_select" ON "public"."inca_cavi" FOR SELECT USING (((("public"."core_current_profile"())."app_role" = 'MANAGER'::"text") AND (("costr" = ANY (("public"."core_current_profile"())."allowed_cantieri")) OR (("public"."core_current_profile"())."allowed_cantieri" = ARRAY[]::"text"[]))));
-
-
-
 CREATE POLICY "inca_cavi_read_auth" ON "public"."inca_cavi" FOR SELECT USING (("auth"."role"() = 'authenticated'::"text"));
-
-
-
 CREATE POLICY "inca_cavi_select_staff" ON "public"."inca_cavi" FOR SELECT TO "authenticated" USING ((("public"."core_current_profile"())."app_role" = ANY (ARRAY['UFFICIO'::"text", 'DIREZIONE'::"text", 'ADMIN'::"text"])));
-
-
-
 CREATE POLICY "inca_cavi_ufficio_mutate" ON "public"."inca_cavi" USING (((("public"."core_current_profile"())."app_role" = 'UFFICIO'::"text") AND (("costr" = ANY (("public"."core_current_profile"())."allowed_cantieri")) OR (("public"."core_current_profile"())."allowed_cantieri" = ARRAY[]::"text"[])))) WITH CHECK (((("public"."core_current_profile"())."app_role" = 'UFFICIO'::"text") AND (("costr" = ANY (("public"."core_current_profile"())."allowed_cantieri")) OR (("public"."core_current_profile"())."allowed_cantieri" = ARRAY[]::"text"[]))));
-
-
-
 CREATE POLICY "inca_cavi_ufficio_select" ON "public"."inca_cavi" FOR SELECT USING (((("public"."core_current_profile"())."app_role" = 'UFFICIO'::"text") AND (("costr" = ANY (("public"."core_current_profile"())."allowed_cantieri")) OR (("public"."core_current_profile"())."allowed_cantieri" = ARRAY[]::"text"[]))));
-
-
-
 CREATE POLICY "inca_cavi_write_ufficio_admin" ON "public"."inca_cavi" USING (("public"."is_ufficio"() OR "public"."is_admin"())) WITH CHECK (("public"."is_ufficio"() OR "public"."is_admin"()));
-
-
-
 ALTER TABLE "public"."inca_files" ENABLE ROW LEVEL SECURITY;
-
-
 CREATE POLICY "inca_files_capo_select" ON "public"."inca_files" FOR SELECT USING (((("public"."core_current_profile"())."app_role" = 'CAPO'::"text") AND (("costr" = ANY (("public"."core_current_profile"())."allowed_cantieri")) OR (("public"."core_current_profile"())."allowed_cantieri" = ARRAY[]::"text"[]))));
-
-
-
 CREATE POLICY "inca_files_direzione_select" ON "public"."inca_files" FOR SELECT USING ((("public"."core_current_profile"())."app_role" = 'DIREZIONE'::"text"));
-
-
-
 CREATE POLICY "inca_files_insert" ON "public"."inca_files" FOR INSERT WITH CHECK (("auth"."role"() = 'authenticated'::"text"));
-
-
-
 CREATE POLICY "inca_files_insert_staff" ON "public"."inca_files" FOR INSERT TO "authenticated" WITH CHECK ((("public"."core_current_profile"())."app_role" = ANY (ARRAY['UFFICIO'::"text", 'DIREZIONE'::"text", 'ADMIN'::"text"])));
-
-
-
 CREATE POLICY "inca_files_manager_select" ON "public"."inca_files" FOR SELECT USING (((("public"."core_current_profile"())."app_role" = 'MANAGER'::"text") AND (("costr" = ANY (("public"."core_current_profile"())."allowed_cantieri")) OR (("public"."core_current_profile"())."allowed_cantieri" = ARRAY[]::"text"[]))));
-
-
-
 CREATE POLICY "inca_files_read_auth" ON "public"."inca_files" FOR SELECT USING (("auth"."role"() = 'authenticated'::"text"));
-
-
-
 CREATE POLICY "inca_files_select" ON "public"."inca_files" FOR SELECT USING (("auth"."role"() = 'authenticated'::"text"));
-
-
-
 CREATE POLICY "inca_files_select_staff" ON "public"."inca_files" FOR SELECT TO "authenticated" USING ((("public"."core_current_profile"())."app_role" = ANY (ARRAY['UFFICIO'::"text", 'DIREZIONE'::"text", 'ADMIN'::"text"])));
-
-
-
 CREATE POLICY "inca_files_ufficio_mutate" ON "public"."inca_files" USING (((("public"."core_current_profile"())."app_role" = 'UFFICIO'::"text") AND (("costr" = ANY (("public"."core_current_profile"())."allowed_cantieri")) OR (("public"."core_current_profile"())."allowed_cantieri" = ARRAY[]::"text"[])))) WITH CHECK (((("public"."core_current_profile"())."app_role" = 'UFFICIO'::"text") AND (("costr" = ANY (("public"."core_current_profile"())."allowed_cantieri")) OR (("public"."core_current_profile"())."allowed_cantieri" = ARRAY[]::"text"[]))));
-
-
-
 CREATE POLICY "inca_files_ufficio_select" ON "public"."inca_files" FOR SELECT USING (((("public"."core_current_profile"())."app_role" = 'UFFICIO'::"text") AND (("costr" = ANY (("public"."core_current_profile"())."allowed_cantieri")) OR (("public"."core_current_profile"())."allowed_cantieri" = ARRAY[]::"text"[]))));
-
-
-
 CREATE POLICY "inca_files_update" ON "public"."inca_files" FOR UPDATE USING (("auth"."role"() = 'authenticated'::"text")) WITH CHECK (("auth"."role"() = 'authenticated'::"text"));
-
-
-
 CREATE POLICY "inca_files_write_ufficio_admin" ON "public"."inca_files" USING (("public"."is_ufficio"() OR "public"."is_admin"())) WITH CHECK (("public"."is_ufficio"() OR "public"."is_admin"()));
-
-
-
 ALTER TABLE "public"."inca_percorsi" ENABLE ROW LEVEL SECURITY;
-
-
 CREATE POLICY "inca_percorsi_read_auth" ON "public"."inca_percorsi" FOR SELECT USING (("auth"."role"() = 'authenticated'::"text"));
-
-
-
 CREATE POLICY "inca_percorsi_write_ufficio_admin" ON "public"."inca_percorsi" USING (("public"."is_ufficio"() OR "public"."is_admin"())) WITH CHECK (("public"."is_ufficio"() OR "public"."is_admin"()));
-
-
-
 CREATE POLICY "insert_own_inca_cavi" ON "public"."inca_cavi" FOR INSERT TO "authenticated" WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."inca_files" "f"
   WHERE (("f"."id" = "inca_cavi"."inca_file_id") AND ("f"."uploaded_by" = "auth"."uid"())))));
-
-
-
 ALTER TABLE "public"."manager_capo_assignments" ENABLE ROW LEVEL SECURITY;
-
-
 ALTER TABLE "public"."manager_capo_scope" ENABLE ROW LEVEL SECURITY;
-
-
 CREATE POLICY "manager_insert_audit" ON "public"."planning_audit" FOR INSERT WITH CHECK (("actor_id" = "auth"."uid"()));
-
-
-
 CREATE POLICY "manager_insert_expected_operators" ON "public"."capo_ship_expected_operators" FOR INSERT WITH CHECK (((EXISTS ( SELECT 1
    FROM "public"."manager_capo_assignments" "mca"
   WHERE (("mca"."manager_id" = "auth"."uid"()) AND ("mca"."capo_id" = "capo_ship_expected_operators"."capo_id") AND ("mca"."active" = true)))) AND (EXISTS ( SELECT 1
    FROM "public"."ship_managers" "sm"
   WHERE (("sm"."manager_id" = "auth"."uid"()) AND ("sm"."ship_id" = "capo_ship_expected_operators"."ship_id"))))));
-
-
-
 CREATE POLICY "manager_insert_ship_assignments" ON "public"."capo_ship_assignments" FOR INSERT WITH CHECK (((EXISTS ( SELECT 1
    FROM "public"."manager_capo_assignments" "mca"
   WHERE (("mca"."manager_id" = "auth"."uid"()) AND ("mca"."capo_id" = "capo_ship_assignments"."capo_id") AND ("mca"."active" = true)))) AND (EXISTS ( SELECT 1
    FROM "public"."ship_managers" "sm"
   WHERE (("sm"."manager_id" = "auth"."uid"()) AND ("sm"."ship_id" = "capo_ship_assignments"."ship_id"))))));
-
-
-
 ALTER TABLE "public"."manager_plans" ENABLE ROW LEVEL SECURITY;
-
-
 CREATE POLICY "manager_read_own_assignments" ON "public"."manager_capo_assignments" FOR SELECT TO "authenticated" USING (("manager_id" = "auth"."uid"()));
-
-
-
 CREATE POLICY "manager_read_own_audit" ON "public"."planning_audit" FOR SELECT USING (("actor_id" = "auth"."uid"()));
-
-
-
 CREATE POLICY "manager_read_own_plans" ON "public"."manager_plans" FOR SELECT USING (("manager_id" = "auth"."uid"()));
-
-
-
 CREATE POLICY "manager_read_own_scope" ON "public"."manager_capo_scope" FOR SELECT USING (("manager_id" = "auth"."uid"()));
-
-
-
 CREATE POLICY "manager_rw_members_via_plan" ON "public"."plan_slot_members" USING ((EXISTS ( SELECT 1
    FROM ("public"."plan_capo_slots" "s"
      JOIN "public"."manager_plans" "p" ON (("p"."id" = "s"."plan_id")))
@@ -9251,1941 +6579,812 @@ CREATE POLICY "manager_rw_members_via_plan" ON "public"."plan_slot_members" USIN
    FROM ("public"."plan_capo_slots" "s"
      JOIN "public"."manager_plans" "p" ON (("p"."id" = "s"."plan_id")))
   WHERE (("s"."id" = "plan_slot_members"."slot_id") AND ("p"."manager_id" = "auth"."uid"())))));
-
-
-
 CREATE POLICY "manager_rw_slots_via_plan" ON "public"."plan_capo_slots" USING ((EXISTS ( SELECT 1
    FROM "public"."manager_plans" "p"
   WHERE (("p"."id" = "plan_capo_slots"."plan_id") AND ("p"."manager_id" = "auth"."uid"()))))) WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."manager_plans" "p"
   WHERE (("p"."id" = "plan_capo_slots"."plan_id") AND ("p"."manager_id" = "auth"."uid"())))));
-
-
-
 CREATE POLICY "manager_update_expected_operators" ON "public"."capo_ship_expected_operators" FOR UPDATE USING ((EXISTS ( SELECT 1
    FROM "public"."manager_capo_assignments" "mca"
   WHERE (("mca"."manager_id" = "auth"."uid"()) AND ("mca"."capo_id" = "capo_ship_expected_operators"."capo_id") AND ("mca"."active" = true))))) WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."manager_capo_assignments" "mca"
   WHERE (("mca"."manager_id" = "auth"."uid"()) AND ("mca"."capo_id" = "capo_ship_expected_operators"."capo_id") AND ("mca"."active" = true)))));
-
-
-
 CREATE POLICY "manager_update_ship_assignments" ON "public"."capo_ship_assignments" FOR UPDATE USING ((EXISTS ( SELECT 1
    FROM "public"."manager_capo_assignments" "mca"
   WHERE (("mca"."manager_id" = "auth"."uid"()) AND ("mca"."capo_id" = "capo_ship_assignments"."capo_id") AND ("mca"."active" = true))))) WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."manager_capo_assignments" "mca"
   WHERE (("mca"."manager_id" = "auth"."uid"()) AND ("mca"."capo_id" = "capo_ship_assignments"."capo_id") AND ("mca"."active" = true)))));
-
-
-
 CREATE POLICY "manager_write_own_plans" ON "public"."manager_plans" USING (("manager_id" = "auth"."uid"())) WITH CHECK (("manager_id" = "auth"."uid"()));
-
-
-
 CREATE POLICY "manager_write_own_scope" ON "public"."manager_capo_scope" USING (("manager_id" = "auth"."uid"())) WITH CHECK (("manager_id" = "auth"."uid"()));
-
-
-
 CREATE POLICY "mca_admin_all" ON "public"."manager_capo_assignments" TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."app_role" = 'ADMIN'::"text"))))) WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."app_role" = 'ADMIN'::"text")))));
-
-
-
 CREATE POLICY "mca_manager_read_own" ON "public"."manager_capo_assignments" FOR SELECT TO "authenticated" USING ((("active" = true) AND ("manager_id" = "auth"."uid"())));
-
-
-
 ALTER TABLE "public"."models" ENABLE ROW LEVEL SECURITY;
-
-
 CREATE POLICY "models_select_owner_or_direction" ON "public"."models" FOR SELECT USING ((("capo_id" = "auth"."uid"()) OR (EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."app_role" = 'DIREZIONE'::"text"))))));
-
-
-
 CREATE POLICY "models_update_owner_only" ON "public"."models" FOR UPDATE USING (("capo_id" = "auth"."uid"()));
-
-
-
 CREATE POLICY "models_upsert_owner_only" ON "public"."models" FOR INSERT WITH CHECK (("capo_id" = "auth"."uid"()));
-
-
-
 ALTER TABLE "public"."navemaster_imports" ENABLE ROW LEVEL SECURITY;
-
-
 CREATE POLICY "navemaster_imports_read" ON "public"."navemaster_imports" FOR SELECT TO "authenticated" USING (true);
-
-
-
 CREATE POLICY "navemaster_imports_write" ON "public"."navemaster_imports" TO "authenticated" USING ("public"."navemaster_can_manage"()) WITH CHECK ("public"."navemaster_can_manage"());
-
-
-
 ALTER TABLE "public"."navemaster_rows" ENABLE ROW LEVEL SECURITY;
-
-
 CREATE POLICY "navemaster_rows_read" ON "public"."navemaster_rows" FOR SELECT TO "authenticated" USING (true);
-
-
-
 CREATE POLICY "navemaster_rows_write" ON "public"."navemaster_rows" TO "authenticated" USING ("public"."navemaster_can_manage"()) WITH CHECK ("public"."navemaster_can_manage"());
-
-
-
 ALTER TABLE "public"."objectives" ENABLE ROW LEVEL SECURITY;
-
-
 CREATE POLICY "objectives_select_all_for_direction" ON "public"."objectives" FOR SELECT USING ((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."app_role" = 'DIREZIONE'::"text")))));
-
-
-
 CREATE POLICY "objectives_write_direction" ON "public"."objectives" USING ((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."app_role" = 'DIREZIONE'::"text"))))) WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."app_role" = 'DIREZIONE'::"text")))));
-
-
-
 ALTER TABLE "public"."operator_kpi_facts" ENABLE ROW LEVEL SECURITY;
-
-
 ALTER TABLE "public"."operator_kpi_snapshots" ENABLE ROW LEVEL SECURITY;
-
-
 ALTER TABLE "public"."operator_ship_attendance" ENABLE ROW LEVEL SECURITY;
-
-
 ALTER TABLE "public"."operators" ENABLE ROW LEVEL SECURITY;
-
-
 CREATE POLICY "operators_admin_all" ON "public"."operators" TO "authenticated" USING ("public"."core_is_admin"()) WITH CHECK ("public"."core_is_admin"());
-
-
-
 CREATE POLICY "operators_read_all_for_logged" ON "public"."operators" FOR SELECT TO "authenticated" USING (("auth"."role"() = 'authenticated'::"text"));
-
-
-
 CREATE POLICY "owner_rapportino_can_crud" ON "public"."rapportino_inca_cavi" USING ((EXISTS ( SELECT 1
    FROM "public"."rapportini" "r"
   WHERE (("r"."id" = "rapportino_inca_cavi"."rapportino_id") AND ("r"."capo_id" = "auth"."uid"()))))) WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."rapportini" "r"
   WHERE (("r"."id" = "rapportino_inca_cavi"."rapportino_id") AND ("r"."capo_id" = "auth"."uid"())))));
-
-
-
 ALTER TABLE "public"."patterns" ENABLE ROW LEVEL SECURITY;
-
-
 CREATE POLICY "patterns_select_owner_only" ON "public"."patterns" FOR SELECT USING (("capo_id" = "auth"."uid"()));
-
-
-
 CREATE POLICY "patterns_write_owner_only" ON "public"."patterns" USING (("capo_id" = "auth"."uid"())) WITH CHECK (("capo_id" = "auth"."uid"()));
-
-
-
 ALTER TABLE "public"."percorso_cable_segments" ENABLE ROW LEVEL SECURITY;
-
-
 ALTER TABLE "public"."percorso_cables" ENABLE ROW LEVEL SECURITY;
-
-
 ALTER TABLE "public"."percorso_documents" ENABLE ROW LEVEL SECURITY;
-
-
 CREATE POLICY "percorso_documents_insert_service_role" ON "public"."percorso_documents" FOR INSERT TO "service_role" WITH CHECK (true);
-
-
-
 CREATE POLICY "percorso_documents_insert_ufficio" ON "public"."percorso_documents" FOR INSERT TO "authenticated" WITH CHECK (true);
-
-
-
 CREATE POLICY "percorso_documents_select_authenticated" ON "public"."percorso_documents" FOR SELECT TO "authenticated" USING (true);
-
-
-
 ALTER TABLE "public"."percorso_lot_cables" ENABLE ROW LEVEL SECURITY;
-
-
 ALTER TABLE "public"."percorso_lot_segments" ENABLE ROW LEVEL SECURITY;
-
-
 ALTER TABLE "public"."percorso_lot_validations" ENABLE ROW LEVEL SECURITY;
-
-
 ALTER TABLE "public"."percorso_lots" ENABLE ROW LEVEL SECURITY;
-
-
 ALTER TABLE "public"."plan_capo_slots" ENABLE ROW LEVEL SECURITY;
-
-
 ALTER TABLE "public"."plan_slot_members" ENABLE ROW LEVEL SECURITY;
-
-
 ALTER TABLE "public"."planning_audit" ENABLE ROW LEVEL SECURITY;
-
-
 ALTER TABLE "public"."profiles" ENABLE ROW LEVEL SECURITY;
-
-
 CREATE POLICY "profiles self update" ON "public"."profiles" FOR UPDATE TO "authenticated" USING (("id" = "auth"."uid"())) WITH CHECK (("id" = "auth"."uid"()));
-
-
-
 CREATE POLICY "profiles_admin_select_all" ON "public"."profiles" FOR SELECT TO "authenticated" USING ("public"."is_admin"("auth"."uid"()));
-
-
-
 CREATE POLICY "profiles_insert_own" ON "public"."profiles" FOR INSERT TO "authenticated" WITH CHECK (("id" = "auth"."uid"()));
-
-
-
 CREATE POLICY "profiles_self_select" ON "public"."profiles" FOR SELECT TO "authenticated" USING (("id" = "auth"."uid"()));
-
-
-
 CREATE POLICY "profiles_self_update" ON "public"."profiles" FOR UPDATE TO "authenticated" USING (("id" = "auth"."uid"())) WITH CHECK (("id" = "auth"."uid"()));
-
-
-
 CREATE POLICY "profiles_update_own" ON "public"."profiles" FOR UPDATE TO "authenticated" USING (("id" = "auth"."uid"())) WITH CHECK (("id" = "auth"."uid"()));
-
-
-
 ALTER TABLE "public"."rapportini" ENABLE ROW LEVEL SECURITY;
-
-
 CREATE POLICY "rapportini_capo_insert" ON "public"."rapportini" FOR INSERT WITH CHECK (((("public"."core_current_profile"())."app_role" = 'CAPO'::"text") AND ("capo_id" = "auth"."uid"()) AND (("costr" = ANY (("public"."core_current_profile"())."allowed_cantieri")) OR (("public"."core_current_profile"())."allowed_cantieri" = ARRAY[]::"text"[]))));
-
-
-
 CREATE POLICY "rapportini_capo_update" ON "public"."rapportini" FOR UPDATE USING (((("public"."core_current_profile"())."app_role" = 'CAPO'::"text") AND ("capo_id" = "auth"."uid"()) AND ("status" <> 'APPROVED_UFFICIO'::"text") AND (("costr" = ANY (("public"."core_current_profile"())."allowed_cantieri")) OR (("public"."core_current_profile"())."allowed_cantieri" = ARRAY[]::"text"[])))) WITH CHECK (((("public"."core_current_profile"())."app_role" = 'CAPO'::"text") AND ("capo_id" = "auth"."uid"()) AND ("status" <> 'APPROVED_UFFICIO'::"text") AND (("costr" = ANY (("public"."core_current_profile"())."allowed_cantieri")) OR (("public"."core_current_profile"())."allowed_cantieri" = ARRAY[]::"text"[]))));
-
-
-
 CREATE POLICY "rapportini_direzione_select" ON "public"."rapportini" FOR SELECT USING ((("public"."core_current_profile"())."app_role" = 'DIREZIONE'::"text"));
-
-
-
 CREATE POLICY "rapportini_manager_select" ON "public"."rapportini" FOR SELECT USING (((("public"."core_current_profile"())."app_role" = 'MANAGER'::"text") AND (("costr" = ANY (("public"."core_current_profile"())."allowed_cantieri")) OR (("public"."core_current_profile"())."allowed_cantieri" = ARRAY[]::"text"[]))));
-
-
-
 CREATE POLICY "rapportini_manager_select_perimeter" ON "public"."rapportini" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM ("public"."ship_managers" "sm"
      JOIN "public"."ships" "s" ON (("s"."id" = "sm"."ship_id")))
   WHERE (("sm"."manager_id" = "auth"."uid"()) AND ("s"."code" = "rapportini"."costr")))));
-
-
-
 CREATE POLICY "rapportini_select_ufficio" ON "public"."rapportini" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."app_role" = 'UFFICIO'::"text")))));
-
-
-
 CREATE POLICY "rapportini_ufficio_select" ON "public"."rapportini" FOR SELECT USING (((("public"."core_current_profile"())."app_role" = 'UFFICIO'::"text") AND (("costr" = ANY (("public"."core_current_profile"())."allowed_cantieri")) OR (("public"."core_current_profile"())."allowed_cantieri" = ARRAY[]::"text"[]))));
-
-
-
 CREATE POLICY "rapportini_ufficio_update" ON "public"."rapportini" FOR UPDATE USING (((("public"."core_current_profile"())."app_role" = 'UFFICIO'::"text") AND (("costr" = ANY (("public"."core_current_profile"())."allowed_cantieri")) OR (("public"."core_current_profile"())."allowed_cantieri" = ARRAY[]::"text"[])))) WITH CHECK (((("public"."core_current_profile"())."app_role" = 'UFFICIO'::"text") AND (("costr" = ANY (("public"."core_current_profile"())."allowed_cantieri")) OR (("public"."core_current_profile"())."allowed_cantieri" = ARRAY[]::"text"[]))));
-
-
-
 CREATE POLICY "rapportini_update_ufficio" ON "public"."rapportini" FOR UPDATE TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."app_role" = 'UFFICIO'::"text"))))) WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."app_role" = 'UFFICIO'::"text")))));
-
-
-
 ALTER TABLE "public"."rapportino_cavi" ENABLE ROW LEVEL SECURITY;
-
-
 ALTER TABLE "public"."rapportino_inca_cavi" ENABLE ROW LEVEL SECURITY;
-
-
 ALTER TABLE "public"."rapportino_row_operators" ENABLE ROW LEVEL SECURITY;
-
-
 ALTER TABLE "public"."rapportino_rows" ENABLE ROW LEVEL SECURITY;
-
-
 CREATE POLICY "rapportino_rows_backoffice_select_fast" ON "public"."rapportino_rows" FOR SELECT USING ((("public"."core_current_profile"())."app_role" = ANY (ARRAY['UFFICIO'::"text", 'DIREZIONE'::"text", 'MANAGER'::"text", 'ADMIN'::"text"])));
-
-
-
 CREATE POLICY "read_all_docs" ON "public"."percorso_documents" FOR SELECT USING (true);
-
-
-
 CREATE POLICY "rro_delete" ON "public"."rapportino_row_operators" FOR DELETE TO "authenticated" USING (("public"."is_admin"() OR "public"."capo_owns_rapportino_row"("rapportino_row_id")));
-
-
-
 CREATE POLICY "rro_insert" ON "public"."rapportino_row_operators" FOR INSERT TO "authenticated" WITH CHECK (("public"."is_admin"() OR "public"."capo_owns_rapportino_row"("rapportino_row_id")));
-
-
-
 CREATE POLICY "rro_select" ON "public"."rapportino_row_operators" FOR SELECT TO "authenticated" USING (("public"."is_admin"() OR "public"."is_ufficio"() OR "public"."capo_owns_rapportino_row"("rapportino_row_id")));
-
-
-
 CREATE POLICY "rro_update" ON "public"."rapportino_row_operators" FOR UPDATE TO "authenticated" USING (("public"."is_admin"() OR "public"."capo_owns_rapportino_row"("rapportino_row_id"))) WITH CHECK (("public"."is_admin"() OR "public"."capo_owns_rapportino_row"("rapportino_row_id")));
-
-
-
 CREATE POLICY "select_own_inca_cavi" ON "public"."inca_cavi" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."inca_files" "f"
   WHERE (("f"."id" = "inca_cavi"."inca_file_id") AND ("f"."uploaded_by" = "auth"."uid"())))));
-
-
-
 ALTER TABLE "public"."ship_capos" ENABLE ROW LEVEL SECURITY;
-
-
 CREATE POLICY "ship_capos_admin_all" ON "public"."ship_capos" TO "authenticated" USING ("public"."is_admin"("auth"."uid"())) WITH CHECK ("public"."is_admin"("auth"."uid"()));
-
-
-
 CREATE POLICY "ship_capos_capo_select_own" ON "public"."ship_capos" FOR SELECT TO "authenticated" USING (("capo_id" = "auth"."uid"()));
-
-
-
 CREATE POLICY "ship_capos_manager_select_perimeter" ON "public"."ship_capos" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."ship_managers" "sm"
   WHERE (("sm"."ship_id" = "ship_capos"."ship_id") AND ("sm"."manager_id" = "auth"."uid"())))));
-
-
-
 ALTER TABLE "public"."ship_managers" ENABLE ROW LEVEL SECURITY;
-
-
 CREATE POLICY "ship_managers_admin_all" ON "public"."ship_managers" TO "authenticated" USING ("public"."is_admin"()) WITH CHECK ("public"."is_admin"());
-
-
-
 CREATE POLICY "ship_managers_manager_select_own" ON "public"."ship_managers" FOR SELECT TO "authenticated" USING (("manager_id" = "auth"."uid"()));
-
-
-
 ALTER TABLE "public"."ship_operators" ENABLE ROW LEVEL SECURITY;
-
-
 CREATE POLICY "ship_operators_admin_all" ON "public"."ship_operators" TO "authenticated" USING ("public"."is_admin"()) WITH CHECK ("public"."is_admin"());
-
-
-
 CREATE POLICY "ship_operators_admin_insert" ON "public"."ship_operators" FOR INSERT TO "authenticated" WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."app_role" = 'ADMIN'::"text")))));
-
-
-
 CREATE POLICY "ship_operators_admin_select" ON "public"."ship_operators" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."app_role" = 'ADMIN'::"text")))));
-
-
-
 CREATE POLICY "ship_operators_admin_update" ON "public"."ship_operators" FOR UPDATE TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."app_role" = 'ADMIN'::"text"))))) WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."app_role" = 'ADMIN'::"text")))));
-
-
-
 CREATE POLICY "ship_operators_manager_select_perimeter" ON "public"."ship_operators" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."ship_managers" "sm"
   WHERE (("sm"."ship_id" = "ship_operators"."ship_id") AND ("sm"."manager_id" = "auth"."uid"())))));
-
-
-
 ALTER TABLE "public"."ships" ENABLE ROW LEVEL SECURITY;
-
-
 CREATE POLICY "ships_admin_select" ON "public"."ships" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."app_role" = 'ADMIN'::"text")))));
-
-
-
 CREATE POLICY "ships_capo_select_assigned" ON "public"."ships" FOR SELECT TO "authenticated" USING (((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."app_role" = 'CAPO'::"text")))) AND ("is_active" = true) AND (EXISTS ( SELECT 1
    FROM "public"."ship_capos" "sc"
   WHERE (("sc"."ship_id" = "ships"."id") AND ("sc"."capo_id" = "auth"."uid"()))))));
-
-
-
 CREATE POLICY "ships_manager_select_perimeter" ON "public"."ships" FOR SELECT TO "authenticated" USING (((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."app_role" = 'MANAGER'::"text")))) AND ("is_active" = true) AND (EXISTS ( SELECT 1
    FROM "public"."ship_managers" "sm"
   WHERE (("sm"."ship_id" = "ships"."id") AND ("sm"."manager_id" = "auth"."uid"()))))));
-
-
-
 CREATE POLICY "ships_office_select" ON "public"."ships" FOR SELECT TO "authenticated" USING (((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."app_role" = ANY (ARRAY['UFFICIO'::"text", 'DIREZIONE'::"text", 'ADMIN'::"text"]))))) AND ("is_active" = true)));
-
-
-
 CREATE POLICY "ufficio_direzione_select_rapportino_cavi" ON "public"."rapportino_cavi" FOR SELECT USING ((EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."app_role" = ANY (ARRAY['UFFICIO'::"text", 'DIREZIONE'::"text"]))))));
-
-
-
 CREATE POLICY "ufficio_validate" ON "public"."percorso_lot_validations" FOR INSERT WITH CHECK ((("role" = 'UFFICIO'::"text") AND (EXISTS ( SELECT 1
    FROM "public"."profiles" "p"
   WHERE (("p"."id" = "auth"."uid"()) AND ("p"."role" = 'UFFICIO'::"public"."app_role"))))));
-
-
-
-
-
-ALTER PUBLICATION "supabase_realtime" OWNER TO "postgres";
-
-
 GRANT USAGE ON SCHEMA "public" TO "postgres";
 GRANT USAGE ON SCHEMA "public" TO "anon";
 GRANT USAGE ON SCHEMA "public" TO "authenticated";
 GRANT USAGE ON SCHEMA "public" TO "service_role";
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 GRANT ALL ON FUNCTION "public"."admin_set_manager_for_capo"("p_capo_id" "uuid", "p_manager_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."admin_set_manager_for_capo"("p_capo_id" "uuid", "p_manager_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."admin_set_manager_for_capo"("p_capo_id" "uuid", "p_manager_id" "uuid") TO "service_role";
-
-
-
 REVOKE ALL ON FUNCTION "public"."admin_set_operator_identity"("p_operator_id" "uuid", "p_cognome" "text", "p_nome" "text", "p_birth_date" "date", "p_operator_code" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."admin_set_operator_identity"("p_operator_id" "uuid", "p_cognome" "text", "p_nome" "text", "p_birth_date" "date", "p_operator_code" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."admin_set_operator_identity"("p_operator_id" "uuid", "p_cognome" "text", "p_nome" "text", "p_birth_date" "date", "p_operator_code" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."admin_set_operator_identity"("p_operator_id" "uuid", "p_cognome" "text", "p_nome" "text", "p_birth_date" "date", "p_operator_code" "text") TO "service_role";
-
-
-
 REVOKE ALL ON FUNCTION "public"."capo_my_ships_v1"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."capo_my_ships_v1"() TO "anon";
 GRANT ALL ON FUNCTION "public"."capo_my_ships_v1"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."capo_my_ships_v1"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."capo_owns_rapportino_row"("p_row_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."capo_owns_rapportino_row"("p_row_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."capo_owns_rapportino_row"("p_row_id" "uuid") TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."capo_returned_summary"("p_role" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."capo_returned_summary"("p_role" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."capo_returned_summary"("p_role" "text") TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."capo_returned_summary_debug"("p_capo_id" "uuid", "p_role" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."capo_returned_summary_debug"("p_capo_id" "uuid", "p_role" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."capo_returned_summary_debug"("p_capo_id" "uuid", "p_role" "text") TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."clear_inca_tables"() TO "anon";
 GRANT ALL ON FUNCTION "public"."clear_inca_tables"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."clear_inca_tables"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."core_app_role"() TO "anon";
 GRANT ALL ON FUNCTION "public"."core_app_role"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."core_app_role"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."core_app_role_upper"() TO "anon";
 GRANT ALL ON FUNCTION "public"."core_app_role_upper"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."core_app_role_upper"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."core_apply_rapportino_inca_progress"("p_rapportino_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."core_apply_rapportino_inca_progress"("p_rapportino_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."core_apply_rapportino_inca_progress"("p_rapportino_id" "uuid") TO "service_role";
-
-
-
 REVOKE ALL ON FUNCTION "public"."core_current_profile"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."core_current_profile"() TO "anon";
 GRANT ALL ON FUNCTION "public"."core_current_profile"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."core_current_profile"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."core_db_version"() TO "anon";
 GRANT ALL ON FUNCTION "public"."core_db_version"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."core_db_version"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."core_drive_append_event"("p_file_id" "uuid", "p_event_type" "text", "p_payload" "jsonb", "p_note" "text", "p_prev_event_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."core_drive_append_event"("p_file_id" "uuid", "p_event_type" "text", "p_payload" "jsonb", "p_note" "text", "p_prev_event_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."core_drive_append_event"("p_file_id" "uuid", "p_event_type" "text", "p_payload" "jsonb", "p_note" "text", "p_prev_event_id" "uuid") TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."core_drive_assert_role"("allowed" "text"[]) TO "anon";
 GRANT ALL ON FUNCTION "public"."core_drive_assert_role"("allowed" "text"[]) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."core_drive_assert_role"("allowed" "text"[]) TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."core_drive_current_role"() TO "anon";
 GRANT ALL ON FUNCTION "public"."core_drive_current_role"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."core_drive_current_role"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."core_drive_emit_upload_event"("p_file_id" "uuid", "p_payload" "jsonb") TO "anon";
 GRANT ALL ON FUNCTION "public"."core_drive_emit_upload_event"("p_file_id" "uuid", "p_payload" "jsonb") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."core_drive_emit_upload_event"("p_file_id" "uuid", "p_payload" "jsonb") TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."core_drive_events_block_mutations"() TO "anon";
 GRANT ALL ON FUNCTION "public"."core_drive_events_block_mutations"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."core_drive_events_block_mutations"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."core_drive_freeze_file"("p_file_id" "uuid", "p_reason" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."core_drive_freeze_file"("p_file_id" "uuid", "p_reason" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."core_drive_freeze_file"("p_file_id" "uuid", "p_reason" "text") TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."core_drive_soft_delete_file"("p_file_id" "uuid", "p_reason" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."core_drive_soft_delete_file"("p_file_id" "uuid", "p_reason" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."core_drive_soft_delete_file"("p_file_id" "uuid", "p_reason" "text") TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."core_is_admin"() TO "anon";
 GRANT ALL ON FUNCTION "public"."core_is_admin"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."core_is_admin"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."core_parse_tempo_hours"("p_raw" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."core_parse_tempo_hours"("p_raw" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."core_parse_tempo_hours"("p_raw" "text") TO "service_role";
-
-
-
 REVOKE ALL ON FUNCTION "public"."core_profiles_public_by_ids"("p_ids" "uuid"[]) FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."core_profiles_public_by_ids"("p_ids" "uuid"[]) TO "anon";
 GRANT ALL ON FUNCTION "public"."core_profiles_public_by_ids"("p_ids" "uuid"[]) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."core_profiles_public_by_ids"("p_ids" "uuid"[]) TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."core_status_text"("v" "anyelement") TO "anon";
 GRANT ALL ON FUNCTION "public"."core_status_text"("v" "anyelement") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."core_status_text"("v" "anyelement") TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."profiles" TO "anon";
 GRANT ALL ON TABLE "public"."profiles" TO "authenticated";
 GRANT ALL ON TABLE "public"."profiles" TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."current_profile"() TO "anon";
 GRANT ALL ON FUNCTION "public"."current_profile"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."current_profile"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."fn_consolidate_inca_on_rapportino_approved"() TO "anon";
 GRANT ALL ON FUNCTION "public"."fn_consolidate_inca_on_rapportino_approved"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."fn_consolidate_inca_on_rapportino_approved"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."fn_fill_plan_id_on_slot_member"() TO "anon";
 GRANT ALL ON FUNCTION "public"."fn_fill_plan_id_on_slot_member"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."fn_fill_plan_id_on_slot_member"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."fn_hydrate_rapportino_inca_cavi_caches"() TO "anon";
 GRANT ALL ON FUNCTION "public"."fn_hydrate_rapportino_inca_cavi_caches"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."fn_hydrate_rapportino_inca_cavi_caches"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."fn_normalize_commessa_upper"() TO "anon";
 GRANT ALL ON FUNCTION "public"."fn_normalize_commessa_upper"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."fn_normalize_commessa_upper"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."fn_operator_auto_normalize"() TO "anon";
 GRANT ALL ON FUNCTION "public"."fn_operator_auto_normalize"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."fn_operator_auto_normalize"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."fn_operator_identity_required"() TO "anon";
 GRANT ALL ON FUNCTION "public"."fn_operator_identity_required"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."fn_operator_identity_required"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."fn_operator_key"("cognome" "text", "birth_date" "date") TO "anon";
 GRANT ALL ON FUNCTION "public"."fn_operator_key"("cognome" "text", "birth_date" "date") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."fn_operator_key"("cognome" "text", "birth_date" "date") TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."fn_rapportino_apply_product"("p_rapportino_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."fn_rapportino_apply_product"("p_rapportino_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."fn_rapportino_apply_product"("p_rapportino_id" "uuid") TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "anon";
 GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."inca_search_cavi_by_nodes"("p_inca_file_id" "uuid", "p_nodes" "text"[]) TO "anon";
 GRANT ALL ON FUNCTION "public"."inca_search_cavi_by_nodes"("p_inca_file_id" "uuid", "p_nodes" "text"[]) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."inca_search_cavi_by_nodes"("p_inca_file_id" "uuid", "p_nodes" "text"[]) TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."is_admin"() TO "anon";
 GRANT ALL ON FUNCTION "public"."is_admin"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."is_admin"() TO "service_role";
-
-
-
 REVOKE ALL ON FUNCTION "public"."is_admin"("p_uid" "uuid") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."is_admin"("p_uid" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."is_admin"("p_uid" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."is_admin"("p_uid" "uuid") TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."is_rapportino_approved"("p_rapportino_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."is_rapportino_approved"("p_rapportino_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."is_rapportino_approved"("p_rapportino_id" "uuid") TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."is_role"("role_text" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."is_role"("role_text" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."is_role"("role_text" "text") TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."is_ufficio"() TO "anon";
 GRANT ALL ON FUNCTION "public"."is_ufficio"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."is_ufficio"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."log_core_file_action"("p_core_file_id" "uuid", "p_action" "text", "p_note" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."log_core_file_action"("p_core_file_id" "uuid", "p_action" "text", "p_note" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."log_core_file_action"("p_core_file_id" "uuid", "p_action" "text", "p_note" "text") TO "service_role";
-
-
-
 REVOKE ALL ON FUNCTION "public"."manager_my_capi"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."manager_my_capi"() TO "anon";
 GRANT ALL ON FUNCTION "public"."manager_my_capi"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."manager_my_capi"() TO "service_role";
-
-
-
 REVOKE ALL ON FUNCTION "public"."manager_my_capi_v1"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."manager_my_capi_v1"() TO "anon";
 GRANT ALL ON FUNCTION "public"."manager_my_capi_v1"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."manager_my_capi_v1"() TO "service_role";
-
-
-
 REVOKE ALL ON FUNCTION "public"."manager_my_operators_v1"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."manager_my_operators_v1"() TO "anon";
 GRANT ALL ON FUNCTION "public"."manager_my_operators_v1"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."manager_my_operators_v1"() TO "service_role";
-
-
-
 REVOKE ALL ON FUNCTION "public"."manager_my_ships_v1"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."manager_my_ships_v1"() TO "anon";
 GRANT ALL ON FUNCTION "public"."manager_my_ships_v1"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."manager_my_ships_v1"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."nav_status_from_text"("x" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."nav_status_from_text"("x" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."nav_status_from_text"("x" "text") TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."navemaster_can_manage"() TO "anon";
 GRANT ALL ON FUNCTION "public"."navemaster_can_manage"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."navemaster_can_manage"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."normalize_inca_situazione"("p" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."normalize_inca_situazione"("p" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."normalize_inca_situazione"("p" "text") TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."percorso_propose_lots"("p_document_id" "uuid", "p_min_core_segments" integer, "p_min_cables" integer, "p_max_lots" integer, "p_dry_run" boolean) TO "anon";
 GRANT ALL ON FUNCTION "public"."percorso_propose_lots"("p_document_id" "uuid", "p_min_core_segments" integer, "p_min_cables" integer, "p_max_lots" integer, "p_dry_run" boolean) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."percorso_propose_lots"("p_document_id" "uuid", "p_min_core_segments" integer, "p_min_cables" integer, "p_max_lots" integer, "p_dry_run" boolean) TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."ping"() TO "anon";
 GRANT ALL ON FUNCTION "public"."ping"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."ping"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."prevent_update_on_frozen_files"() TO "anon";
 GRANT ALL ON FUNCTION "public"."prevent_update_on_frozen_files"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."prevent_update_on_frozen_files"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."recompute_operator_kpi_snapshot"("p_operator_id" "uuid", "p_period" "public"."kpi_period", "p_ref_date" "date", "p_year_iso" integer, "p_week_iso" integer, "p_actor" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."recompute_operator_kpi_snapshot"("p_operator_id" "uuid", "p_period" "public"."kpi_period", "p_ref_date" "date", "p_year_iso" integer, "p_week_iso" integer, "p_actor" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."recompute_operator_kpi_snapshot"("p_operator_id" "uuid", "p_period" "public"."kpi_period", "p_ref_date" "date", "p_year_iso" integer, "p_week_iso" integer, "p_actor" "uuid") TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."replace_core_file_version"() TO "anon";
 GRANT ALL ON FUNCTION "public"."replace_core_file_version"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."replace_core_file_version"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."set_profile_updated_at"() TO "anon";
 GRANT ALL ON FUNCTION "public"."set_profile_updated_at"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."set_profile_updated_at"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."set_rapportini_capo_id"() TO "anon";
 GRANT ALL ON FUNCTION "public"."set_rapportini_capo_id"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."set_rapportini_capo_id"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."set_rapportino_row_updated_at"() TO "anon";
 GRANT ALL ON FUNCTION "public"."set_rapportino_row_updated_at"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."set_rapportino_row_updated_at"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."set_rapportino_updated_at"() TO "anon";
 GRANT ALL ON FUNCTION "public"."set_rapportino_updated_at"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."set_rapportino_updated_at"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."set_updated_at"() TO "anon";
 GRANT ALL ON FUNCTION "public"."set_updated_at"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."set_updated_at"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."sync_capo_id_from_user_id"() TO "anon";
 GRANT ALL ON FUNCTION "public"."sync_capo_id_from_user_id"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."sync_capo_id_from_user_id"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."trg_archive_on_rapportino_approved"() TO "anon";
 GRANT ALL ON FUNCTION "public"."trg_archive_on_rapportino_approved"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."trg_archive_on_rapportino_approved"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."trg_auto_tp_from_progress"() TO "anon";
 GRANT ALL ON FUNCTION "public"."trg_auto_tp_from_progress"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."trg_auto_tp_from_progress"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."trg_fill_rapportino_inca_cache"() TO "anon";
 GRANT ALL ON FUNCTION "public"."trg_fill_rapportino_inca_cache"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."trg_fill_rapportino_inca_cache"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."trg_operators_require_identity"() TO "anon";
 GRANT ALL ON FUNCTION "public"."trg_operators_require_identity"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."trg_operators_require_identity"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."trg_operators_set_operator_key"() TO "anon";
 GRANT ALL ON FUNCTION "public"."trg_operators_set_operator_key"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."trg_operators_set_operator_key"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."trg_rapportini_apply_inca_progress_on_status"() TO "anon";
 GRANT ALL ON FUNCTION "public"."trg_rapportini_apply_inca_progress_on_status"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."trg_rapportini_apply_inca_progress_on_status"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."trg_rapportini_on_status_product"() TO "anon";
 GRANT ALL ON FUNCTION "public"."trg_rapportini_on_status_product"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."trg_rapportini_on_status_product"() TO "service_role";
-
-
-
 REVOKE ALL ON FUNCTION "public"."ufficio_approve_rapportino"("p_rapportino_id" "uuid") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."ufficio_approve_rapportino"("p_rapportino_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."ufficio_approve_rapportino"("p_rapportino_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."ufficio_approve_rapportino"("p_rapportino_id" "uuid") TO "service_role";
-
-
-
 REVOKE ALL ON FUNCTION "public"."ufficio_approve_rapportino"("p_rapportino_id" "uuid", "p_note" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."ufficio_approve_rapportino"("p_rapportino_id" "uuid", "p_note" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."ufficio_approve_rapportino"("p_rapportino_id" "uuid", "p_note" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."ufficio_approve_rapportino"("p_rapportino_id" "uuid", "p_note" "text") TO "service_role";
-
-
-
 REVOKE ALL ON FUNCTION "public"."ufficio_create_correction_rapportino"("p_rapportino_id" "uuid", "p_reason" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."ufficio_create_correction_rapportino"("p_rapportino_id" "uuid", "p_reason" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."ufficio_create_correction_rapportino"("p_rapportino_id" "uuid", "p_reason" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."ufficio_create_correction_rapportino"("p_rapportino_id" "uuid", "p_reason" "text") TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."updated_at"() TO "anon";
 GRANT ALL ON FUNCTION "public"."updated_at"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."updated_at"() TO "service_role";
-
-
-
-
-
-
-
-
-
-
-
-
-GRANT ALL ON TABLE "archive"."rapportini" TO "anon";
-GRANT ALL ON TABLE "archive"."rapportini" TO "authenticated";
-GRANT ALL ON TABLE "archive"."rapportini" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "archive"."rapportino_cavi" TO "anon";
-GRANT ALL ON TABLE "archive"."rapportino_cavi" TO "authenticated";
-GRANT ALL ON TABLE "archive"."rapportino_cavi" TO "service_role";
-
-
-
-GRANT ALL ON SEQUENCE "archive"."rapportino_cavi_id_seq" TO "anon";
-GRANT ALL ON SEQUENCE "archive"."rapportino_cavi_id_seq" TO "authenticated";
-GRANT ALL ON SEQUENCE "archive"."rapportino_cavi_id_seq" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "archive"."rapportino_righe" TO "anon";
-GRANT ALL ON TABLE "archive"."rapportino_righe" TO "authenticated";
-GRANT ALL ON TABLE "archive"."rapportino_righe" TO "service_role";
-
-
-
-GRANT ALL ON SEQUENCE "archive"."rapportino_righe_id_seq" TO "anon";
-GRANT ALL ON SEQUENCE "archive"."rapportino_righe_id_seq" TO "authenticated";
-GRANT ALL ON SEQUENCE "archive"."rapportino_righe_id_seq" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "archive"."rapportino_rows" TO "anon";
-GRANT ALL ON TABLE "archive"."rapportino_rows" TO "authenticated";
-GRANT ALL ON TABLE "archive"."rapportino_rows" TO "service_role";
-
-
-
-
-
-
-
-
-
 GRANT ALL ON TABLE "public"."manager_capo_assignments" TO "anon";
 GRANT ALL ON TABLE "public"."manager_capo_assignments" TO "authenticated";
 GRANT ALL ON TABLE "public"."manager_capo_assignments" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."admin_capo_manager_v1" TO "anon";
 GRANT ALL ON TABLE "public"."admin_capo_manager_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."admin_capo_manager_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."ship_managers" TO "anon";
 GRANT ALL ON TABLE "public"."ship_managers" TO "authenticated";
 GRANT ALL ON TABLE "public"."ship_managers" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."ships" TO "anon";
 GRANT ALL ON TABLE "public"."ships" TO "authenticated";
 GRANT ALL ON TABLE "public"."ships" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."admin_manager_perimeter_v1" TO "anon";
 GRANT ALL ON TABLE "public"."admin_manager_perimeter_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."admin_manager_perimeter_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."manager_plans" TO "anon";
 GRANT ALL ON TABLE "public"."manager_plans" TO "authenticated";
 GRANT ALL ON TABLE "public"."manager_plans" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."plan_capo_slots" TO "anon";
 GRANT ALL ON TABLE "public"."plan_capo_slots" TO "authenticated";
 GRANT ALL ON TABLE "public"."plan_capo_slots" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."plan_slot_members" TO "anon";
 GRANT ALL ON TABLE "public"."plan_slot_members" TO "authenticated";
 GRANT ALL ON TABLE "public"."plan_slot_members" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."admin_planning_overview_v1" TO "anon";
 GRANT ALL ON TABLE "public"."admin_planning_overview_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."admin_planning_overview_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."ship_capos" TO "anon";
 GRANT ALL ON TABLE "public"."ship_capos" TO "authenticated";
 GRANT ALL ON TABLE "public"."ship_capos" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."admin_ship_capos_v1" TO "anon";
 GRANT ALL ON TABLE "public"."admin_ship_capos_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."admin_ship_capos_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."operators" TO "authenticated";
 GRANT ALL ON TABLE "public"."operators" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."ship_operators" TO "anon";
 GRANT ALL ON TABLE "public"."ship_operators" TO "authenticated";
 GRANT ALL ON TABLE "public"."ship_operators" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."admin_ship_operators_v1" TO "anon";
 GRANT ALL ON TABLE "public"."admin_ship_operators_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."admin_ship_operators_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."rapportini" TO "anon";
 GRANT ALL ON TABLE "public"."rapportini" TO "authenticated";
 GRANT ALL ON TABLE "public"."rapportini" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."rapportini_norm_v1" TO "anon";
 GRANT ALL ON TABLE "public"."rapportini_norm_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."rapportini_norm_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."ships_norm_v1" TO "anon";
 GRANT ALL ON TABLE "public"."ships_norm_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."ships_norm_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."rapportini_ship_resolution_v1" TO "anon";
 GRANT ALL ON TABLE "public"."rapportini_ship_resolution_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."rapportini_ship_resolution_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."admin_ship_resolution_anomalies_v1" TO "anon";
 GRANT ALL ON TABLE "public"."admin_ship_resolution_anomalies_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."admin_ship_resolution_anomalies_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."archive_rapportini_v1" TO "anon";
 GRANT ALL ON TABLE "public"."archive_rapportini_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."archive_rapportini_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."archive_rapportino_cavi_v1" TO "anon";
 GRANT ALL ON TABLE "public"."archive_rapportino_cavi_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."archive_rapportino_cavi_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."inca_cavi" TO "anon";
 GRANT ALL ON TABLE "public"."inca_cavi" TO "authenticated";
 GRANT ALL ON TABLE "public"."inca_cavi" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."rapportino_inca_cavi" TO "anon";
 GRANT ALL ON TABLE "public"."rapportino_inca_cavi" TO "authenticated";
 GRANT ALL ON TABLE "public"."rapportino_inca_cavi" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."archive_rapportino_inca_cavi_v1" TO "anon";
 GRANT ALL ON TABLE "public"."archive_rapportino_inca_cavi_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."archive_rapportino_inca_cavi_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."catalogo_attivita" TO "anon";
 GRANT ALL ON TABLE "public"."catalogo_attivita" TO "authenticated";
 GRANT ALL ON TABLE "public"."catalogo_attivita" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."rapportino_rows" TO "anon";
 GRANT ALL ON TABLE "public"."rapportino_rows" TO "authenticated";
 GRANT ALL ON TABLE "public"."rapportino_rows" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."archive_rapportino_rows_v1" TO "anon";
 GRANT ALL ON TABLE "public"."archive_rapportino_rows_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."archive_rapportino_rows_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."capo_ship_expected_operators" TO "anon";
 GRANT ALL ON TABLE "public"."capo_ship_expected_operators" TO "authenticated";
 GRANT ALL ON TABLE "public"."capo_ship_expected_operators" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."capo_expected_operators_today_v1" TO "anon";
 GRANT ALL ON TABLE "public"."capo_expected_operators_today_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."capo_expected_operators_today_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."capo_my_team_v1" TO "anon";
 GRANT ALL ON TABLE "public"."capo_my_team_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."capo_my_team_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."operators_display_v1" TO "anon";
 GRANT ALL ON TABLE "public"."operators_display_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."operators_display_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."capo_my_team_v2" TO "anon";
 GRANT ALL ON TABLE "public"."capo_my_team_v2" TO "authenticated";
 GRANT ALL ON TABLE "public"."capo_my_team_v2" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."capo_returned_inbox_v1" TO "anon";
 GRANT ALL ON TABLE "public"."capo_returned_inbox_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."capo_returned_inbox_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."capo_ship_assignments" TO "anon";
 GRANT ALL ON TABLE "public"."capo_ship_assignments" TO "authenticated";
 GRANT ALL ON TABLE "public"."capo_ship_assignments" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."capo_ship_attendance" TO "anon";
 GRANT ALL ON TABLE "public"."capo_ship_attendance" TO "authenticated";
 GRANT ALL ON TABLE "public"."capo_ship_attendance" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."capo_today_ship_assignments_v1" TO "anon";
 GRANT ALL ON TABLE "public"."capo_today_ship_assignments_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."capo_today_ship_assignments_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."catalogo_ship_commessa_attivita" TO "anon";
 GRANT ALL ON TABLE "public"."catalogo_ship_commessa_attivita" TO "authenticated";
 GRANT ALL ON TABLE "public"."catalogo_ship_commessa_attivita" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."catalogo_ship_commessa_attivita_public_v1" TO "anon";
 GRANT ALL ON TABLE "public"."catalogo_ship_commessa_attivita_public_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."catalogo_ship_commessa_attivita_public_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."core_drive_events" TO "anon";
 GRANT ALL ON TABLE "public"."core_drive_events" TO "authenticated";
 GRANT ALL ON TABLE "public"."core_drive_events" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."core_file_audit" TO "anon";
 GRANT ALL ON TABLE "public"."core_file_audit" TO "authenticated";
 GRANT ALL ON TABLE "public"."core_file_audit" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."core_files" TO "anon";
 GRANT ALL ON TABLE "public"."core_files" TO "authenticated";
 GRANT ALL ON TABLE "public"."core_files" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."core_meta" TO "anon";
 GRANT ALL ON TABLE "public"."core_meta" TO "authenticated";
 GRANT ALL ON TABLE "public"."core_meta" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."inca_files" TO "anon";
 GRANT SELECT,INSERT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."inca_files" TO "authenticated";
 GRANT ALL ON TABLE "public"."inca_files" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."direzione_inca_teorico" TO "anon";
 GRANT ALL ON TABLE "public"."direzione_inca_teorico" TO "authenticated";
 GRANT ALL ON TABLE "public"."direzione_inca_teorico" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."direzione_inca_vs_rapportini" TO "anon";
 GRANT ALL ON TABLE "public"."direzione_inca_vs_rapportini" TO "authenticated";
 GRANT ALL ON TABLE "public"."direzione_inca_vs_rapportini" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."rapportino_row_operators" TO "anon";
 GRANT ALL ON TABLE "public"."rapportino_row_operators" TO "authenticated";
 GRANT ALL ON TABLE "public"."rapportino_row_operators" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."direzione_operator_facts_v3" TO "anon";
 GRANT ALL ON TABLE "public"."direzione_operator_facts_v3" TO "authenticated";
 GRANT ALL ON TABLE "public"."direzione_operator_facts_v3" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."direzione_operator_facts_v2" TO "anon";
 GRANT ALL ON TABLE "public"."direzione_operator_facts_v2" TO "authenticated";
 GRANT ALL ON TABLE "public"."direzione_operator_facts_v2" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."direzione_operator_daily_v3" TO "anon";
 GRANT ALL ON TABLE "public"."direzione_operator_daily_v3" TO "authenticated";
 GRANT ALL ON TABLE "public"."direzione_operator_daily_v3" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."direzione_operator_facts_v1" TO "anon";
 GRANT ALL ON TABLE "public"."direzione_operator_facts_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."direzione_operator_facts_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."direzione_operator_facts_v4" TO "anon";
 GRANT ALL ON TABLE "public"."direzione_operator_facts_v4" TO "authenticated";
 GRANT ALL ON TABLE "public"."direzione_operator_facts_v4" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_day_v1" TO "anon";
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_day_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_day_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_day_v2" TO "anon";
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_day_v2" TO "authenticated";
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_day_v2" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_day_v3" TO "anon";
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_day_v3" TO "authenticated";
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_day_v3" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_day_v3_manager_safe" TO "anon";
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_day_v3_manager_safe" TO "authenticated";
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_day_v3_manager_safe" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_day_v4_manager_safe" TO "anon";
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_day_v4_manager_safe" TO "authenticated";
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_day_v4_manager_safe" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_month_v1" TO "anon";
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_month_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_month_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_month_v2" TO "anon";
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_month_v2" TO "authenticated";
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_month_v2" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_month_v3" TO "anon";
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_month_v3" TO "authenticated";
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_month_v3" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_week_v1" TO "anon";
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_week_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_week_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_week_v2" TO "anon";
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_week_v2" TO "authenticated";
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_week_v2" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_week_v3" TO "anon";
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_week_v3" TO "authenticated";
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_week_v3" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_year_v1" TO "anon";
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_year_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_year_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_year_v2" TO "anon";
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_year_v2" TO "authenticated";
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_year_v2" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_year_v3" TO "anon";
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_year_v3" TO "authenticated";
 GRANT ALL ON TABLE "public"."direzione_operator_kpi_year_v3" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."impianti" TO "anon";
 GRANT ALL ON TABLE "public"."impianti" TO "authenticated";
 GRANT ALL ON TABLE "public"."impianti" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."impianto_capi" TO "anon";
 GRANT ALL ON TABLE "public"."impianto_capi" TO "authenticated";
 GRANT ALL ON TABLE "public"."impianto_capi" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."inca_latest_file_by_ship_v1" TO "anon";
 GRANT ALL ON TABLE "public"."inca_latest_file_by_ship_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."inca_latest_file_by_ship_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."inca_cavi_live_by_ship_v1" TO "anon";
 GRANT ALL ON TABLE "public"."inca_cavi_live_by_ship_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."inca_cavi_live_by_ship_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."inca_cavi_with_data_posa_v1" TO "anon";
 GRANT ALL ON TABLE "public"."inca_cavi_with_data_posa_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."inca_cavi_with_data_posa_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."inca_cavi_with_last_posa_and_capo_v1" TO "anon";
 GRANT ALL ON TABLE "public"."inca_cavi_with_last_posa_and_capo_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."inca_cavi_with_last_posa_and_capo_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."inca_cavi_with_last_posa_v1" TO "anon";
 GRANT ALL ON TABLE "public"."inca_cavi_with_last_posa_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."inca_cavi_with_last_posa_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."rapportino_cavi" TO "anon";
 GRANT ALL ON TABLE "public"."rapportino_cavi" TO "authenticated";
 GRANT ALL ON TABLE "public"."rapportino_cavi" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."inca_cavi_with_last_rapportino_v1" TO "anon";
 GRANT ALL ON TABLE "public"."inca_cavi_with_last_rapportino_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."inca_cavi_with_last_rapportino_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."inca_percorsi" TO "anon";
 GRANT ALL ON TABLE "public"."inca_percorsi" TO "authenticated";
 GRANT ALL ON TABLE "public"."inca_percorsi" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."inca_cavi_with_path" TO "anon";
 GRANT ALL ON TABLE "public"."inca_cavi_with_path" TO "authenticated";
 GRANT ALL ON TABLE "public"."inca_cavi_with_path" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."inca_prev_file_by_ship_v1" TO "anon";
 GRANT ALL ON TABLE "public"."inca_prev_file_by_ship_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."inca_prev_file_by_ship_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."navemaster_imports" TO "anon";
 GRANT ALL ON TABLE "public"."navemaster_imports" TO "authenticated";
 GRANT ALL ON TABLE "public"."navemaster_imports" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."navemaster_latest_import_v1" TO "anon";
 GRANT ALL ON TABLE "public"."navemaster_latest_import_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."navemaster_latest_import_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."navemaster_rows" TO "anon";
 GRANT ALL ON TABLE "public"."navemaster_rows" TO "authenticated";
 GRANT ALL ON TABLE "public"."navemaster_rows" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."navemaster_live_v1" TO "anon";
 GRANT ALL ON TABLE "public"."navemaster_live_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."navemaster_live_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."inca_diff_last_import_v1" TO "anon";
 GRANT ALL ON TABLE "public"."inca_diff_last_import_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."inca_diff_last_import_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."inca_export_ufficio_v1" TO "anon";
 GRANT ALL ON TABLE "public"."inca_export_ufficio_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."inca_export_ufficio_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."inca_percorsi_nodes_v1" TO "anon";
 GRANT ALL ON TABLE "public"."inca_percorsi_nodes_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."inca_percorsi_nodes_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."inca_percorsi_v1" TO "anon";
 GRANT ALL ON TABLE "public"."inca_percorsi_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."inca_percorsi_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."inca_rows" TO "anon";
 GRANT ALL ON TABLE "public"."inca_rows" TO "authenticated";
 GRANT ALL ON TABLE "public"."inca_rows" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."kpi_operator_daily_v1" TO "anon";
 GRANT ALL ON TABLE "public"."kpi_operator_daily_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."kpi_operator_daily_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."kpi_operator_day_v1" TO "anon";
 GRANT ALL ON TABLE "public"."kpi_operator_day_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."kpi_operator_day_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."kpi_operator_line_previsto_v2" TO "anon";
 GRANT ALL ON TABLE "public"."kpi_operator_line_previsto_v2" TO "authenticated";
 GRANT ALL ON TABLE "public"."kpi_operator_line_previsto_v2" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."kpi_operator_family_day_v2" TO "anon";
 GRANT ALL ON TABLE "public"."kpi_operator_family_day_v2" TO "authenticated";
 GRANT ALL ON TABLE "public"."kpi_operator_family_day_v2" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."kpi_operator_family_day_v3" TO "anon";
 GRANT ALL ON TABLE "public"."kpi_operator_family_day_v3" TO "authenticated";
 GRANT ALL ON TABLE "public"."kpi_operator_family_day_v3" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."kpi_operator_family_day_v3_capo_safe" TO "anon";
 GRANT ALL ON TABLE "public"."kpi_operator_family_day_v3_capo_safe" TO "authenticated";
 GRANT ALL ON TABLE "public"."kpi_operator_family_day_v3_capo_safe" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."kpi_operator_family_day_v3_manager_safe" TO "anon";
 GRANT ALL ON TABLE "public"."kpi_operator_family_day_v3_manager_safe" TO "authenticated";
 GRANT ALL ON TABLE "public"."kpi_operator_family_day_v3_manager_safe" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."kpi_operator_global_day_v2" TO "anon";
 GRANT ALL ON TABLE "public"."kpi_operator_global_day_v2" TO "authenticated";
 GRANT ALL ON TABLE "public"."kpi_operator_global_day_v2" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."kpi_operator_global_day_v3" TO "anon";
 GRANT ALL ON TABLE "public"."kpi_operator_global_day_v3" TO "authenticated";
 GRANT ALL ON TABLE "public"."kpi_operator_global_day_v3" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."kpi_operator_global_day_v3_capo_safe" TO "anon";
 GRANT ALL ON TABLE "public"."kpi_operator_global_day_v3_capo_safe" TO "authenticated";
 GRANT ALL ON TABLE "public"."kpi_operator_global_day_v3_capo_safe" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."kpi_operator_global_day_v3_manager_safe" TO "anon";
 GRANT ALL ON TABLE "public"."kpi_operator_global_day_v3_manager_safe" TO "authenticated";
 GRANT ALL ON TABLE "public"."kpi_operator_global_day_v3_manager_safe" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."kpi_operator_line_v1" TO "anon";
 GRANT ALL ON TABLE "public"."kpi_operator_line_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."kpi_operator_line_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."kpi_operator_productivity_daily_v1" TO "anon";
 GRANT ALL ON TABLE "public"."kpi_operator_productivity_daily_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."kpi_operator_productivity_daily_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."rapportini_canon_v1" TO "anon";
 GRANT ALL ON TABLE "public"."rapportini_canon_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."rapportini_canon_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."operator_facts_v1" TO "anon";
 GRANT ALL ON TABLE "public"."operator_facts_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."operator_facts_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."kpi_operatori_day_v1" TO "anon";
 GRANT ALL ON TABLE "public"."kpi_operatori_day_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."kpi_operatori_day_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."kpi_operatori_day_v2" TO "anon";
 GRANT ALL ON TABLE "public"."kpi_operatori_day_v2" TO "authenticated";
 GRANT ALL ON TABLE "public"."kpi_operatori_day_v2" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."kpi_operatori_month_v1" TO "anon";
 GRANT ALL ON TABLE "public"."kpi_operatori_month_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."kpi_operatori_month_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."kpi_operatori_week_v1" TO "anon";
 GRANT ALL ON TABLE "public"."kpi_operatori_week_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."kpi_operatori_week_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."kpi_operatori_year_v1" TO "anon";
 GRANT ALL ON TABLE "public"."kpi_operatori_year_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."kpi_operatori_year_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."manager_capo_scope" TO "anon";
 GRANT ALL ON TABLE "public"."manager_capo_scope" TO "authenticated";
 GRANT ALL ON TABLE "public"."manager_capo_scope" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."manager_my_capi_v1" TO "anon";
 GRANT ALL ON TABLE "public"."manager_my_capi_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."manager_my_capi_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."models" TO "anon";
 GRANT ALL ON TABLE "public"."models" TO "authenticated";
 GRANT ALL ON TABLE "public"."models" TO "service_role";
-
-
-
 GRANT ALL ON SEQUENCE "public"."models_id_seq" TO "anon";
 GRANT ALL ON SEQUENCE "public"."models_id_seq" TO "authenticated";
 GRANT ALL ON SEQUENCE "public"."models_id_seq" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."navemaster_active_inca_file_v1" TO "anon";
 GRANT ALL ON TABLE "public"."navemaster_active_inca_file_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."navemaster_active_inca_file_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."navemaster_inca_alerts" TO "anon";
 GRANT ALL ON TABLE "public"."navemaster_inca_alerts" TO "authenticated";
 GRANT ALL ON TABLE "public"."navemaster_inca_alerts" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."navemaster_inca_cavi_current_v1" TO "anon";
 GRANT ALL ON TABLE "public"."navemaster_inca_cavi_current_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."navemaster_inca_cavi_current_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."navemaster_inca_diff" TO "anon";
 GRANT ALL ON TABLE "public"."navemaster_inca_diff" TO "authenticated";
 GRANT ALL ON TABLE "public"."navemaster_inca_diff" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."navemaster_inca_latest_file_v1" TO "anon";
 GRANT ALL ON TABLE "public"."navemaster_inca_latest_file_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."navemaster_inca_latest_file_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."navemaster_inca_latest_alerts_v1" TO "anon";
 GRANT ALL ON TABLE "public"."navemaster_inca_latest_alerts_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."navemaster_inca_latest_alerts_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."navemaster_inca_latest_diff_v1" TO "anon";
 GRANT ALL ON TABLE "public"."navemaster_inca_latest_diff_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."navemaster_inca_latest_diff_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."navemaster_inca_live_by_file_v1" TO "anon";
 GRANT ALL ON TABLE "public"."navemaster_inca_live_by_file_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."navemaster_inca_live_by_file_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."navemaster_inca_live_v1" TO "anon";
 GRANT ALL ON TABLE "public"."navemaster_inca_live_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."navemaster_inca_live_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."objectives" TO "anon";
 GRANT ALL ON TABLE "public"."objectives" TO "authenticated";
 GRANT ALL ON TABLE "public"."objectives" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."operator_kpi_facts" TO "anon";
 GRANT ALL ON TABLE "public"."operator_kpi_facts" TO "authenticated";
 GRANT ALL ON TABLE "public"."operator_kpi_facts" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."operator_kpi_snapshots" TO "anon";
 GRANT ALL ON TABLE "public"."operator_kpi_snapshots" TO "authenticated";
 GRANT ALL ON TABLE "public"."operator_kpi_snapshots" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."operator_ship_attendance" TO "anon";
 GRANT ALL ON TABLE "public"."operator_ship_attendance" TO "authenticated";
 GRANT ALL ON TABLE "public"."operator_ship_attendance" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."operators_admin_list_v1" TO "anon";
 GRANT ALL ON TABLE "public"."operators_admin_list_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."operators_admin_list_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."operators_display_v2" TO "anon";
 GRANT ALL ON TABLE "public"."operators_display_v2" TO "authenticated";
 GRANT ALL ON TABLE "public"."operators_display_v2" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."patterns" TO "anon";
 GRANT ALL ON TABLE "public"."patterns" TO "authenticated";
 GRANT ALL ON TABLE "public"."patterns" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."percorso_cable_segments" TO "anon";
 GRANT ALL ON TABLE "public"."percorso_cable_segments" TO "authenticated";
 GRANT ALL ON TABLE "public"."percorso_cable_segments" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."percorso_cables" TO "anon";
 GRANT ALL ON TABLE "public"."percorso_cables" TO "authenticated";
 GRANT ALL ON TABLE "public"."percorso_cables" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."percorso_documents" TO "anon";
 GRANT ALL ON TABLE "public"."percorso_documents" TO "authenticated";
 GRANT ALL ON TABLE "public"."percorso_documents" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."percorso_documents_stats_v1" TO "anon";
 GRANT ALL ON TABLE "public"."percorso_documents_stats_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."percorso_documents_stats_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."percorso_lot_cables" TO "anon";
 GRANT ALL ON TABLE "public"."percorso_lot_cables" TO "authenticated";
 GRANT ALL ON TABLE "public"."percorso_lot_cables" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."percorso_lot_segments" TO "anon";
 GRANT ALL ON TABLE "public"."percorso_lot_segments" TO "authenticated";
 GRANT ALL ON TABLE "public"."percorso_lot_segments" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."percorso_lot_validations" TO "anon";
 GRANT ALL ON TABLE "public"."percorso_lot_validations" TO "authenticated";
 GRANT ALL ON TABLE "public"."percorso_lot_validations" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."percorso_lots" TO "anon";
 GRANT ALL ON TABLE "public"."percorso_lots" TO "authenticated";
 GRANT ALL ON TABLE "public"."percorso_lots" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."planning_audit" TO "anon";
 GRANT ALL ON TABLE "public"."planning_audit" TO "authenticated";
 GRANT ALL ON TABLE "public"."planning_audit" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."rapportini_corrections_audit" TO "anon";
 GRANT ALL ON TABLE "public"."rapportini_corrections_audit" TO "authenticated";
 GRANT ALL ON TABLE "public"."rapportini_corrections_audit" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."rapportini_with_capo_v1" TO "anon";
 GRANT ALL ON TABLE "public"."rapportini_with_capo_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."rapportini_with_capo_v1" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."ufficio_rapportini_list_v1" TO "anon";
 GRANT ALL ON TABLE "public"."ufficio_rapportini_list_v1" TO "authenticated";
 GRANT ALL ON TABLE "public"."ufficio_rapportini_list_v1" TO "service_role";
-
-
-
-
-
-
-
-
-
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "postgres";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "anon";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "authenticated";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "service_role";
-
-
-
-
-
-
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON FUNCTIONS TO "postgres";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON FUNCTIONS TO "anon";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON FUNCTIONS TO "authenticated";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON FUNCTIONS TO "service_role";
-
-
-
-
-
-
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "postgres";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "anon";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "authenticated";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "service_role";
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

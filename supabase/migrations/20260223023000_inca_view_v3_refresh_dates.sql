@@ -2,11 +2,9 @@
 -- NOTE: c.* in view captures columns at CREATE time; this migration refreshes v3/v2.
 
 BEGIN;
-
 -- Drop v2 first (depends on v3)
 DROP VIEW IF EXISTS public.inca_cavi_with_last_posa_and_capo_v2;
 DROP VIEW IF EXISTS public.inca_cavi_with_last_posa_and_capo_v3;
-
 CREATE OR REPLACE VIEW public.inca_cavi_with_last_posa_and_capo_v3 AS
 WITH posa AS (
   SELECT DISTINCT ON (
@@ -55,23 +53,17 @@ LEFT JOIN posa
   ON posa.codice_norm = regexp_replace(trim(replace(c.codice, chr(160), ' ')), '\s+', ' ', 'g')
   AND posa.costr_cache = c.costr
   AND posa.commessa_cache = c.commessa;
-
 COMMENT ON VIEW public.inca_cavi_with_last_posa_and_capo_v3 IS
   'INCA cables + last POSA date (ric.posa_date) + capo label (via rapportini.capo_id) stable across INCA re-imports via caches; strict chantier: outputs masked unless situazione = P.';
-
 -- Backward-compatible alias
 CREATE OR REPLACE VIEW public.inca_cavi_with_last_posa_and_capo_v2 AS
 SELECT * FROM public.inca_cavi_with_last_posa_and_capo_v3;
-
 COMMENT ON VIEW public.inca_cavi_with_last_posa_and_capo_v2 IS
   'Alias to v3 (strict chantier masking; capo via capo_id; posa_date from rapportino_inca_cavi).';
-
 GRANT ALL ON TABLE public.inca_cavi_with_last_posa_and_capo_v3 TO anon;
 GRANT ALL ON TABLE public.inca_cavi_with_last_posa_and_capo_v3 TO authenticated;
 GRANT ALL ON TABLE public.inca_cavi_with_last_posa_and_capo_v3 TO service_role;
-
 GRANT ALL ON TABLE public.inca_cavi_with_last_posa_and_capo_v2 TO anon;
 GRANT ALL ON TABLE public.inca_cavi_with_last_posa_and_capo_v2 TO authenticated;
 GRANT ALL ON TABLE public.inca_cavi_with_last_posa_and_capo_v2 TO service_role;
-
 COMMIT;

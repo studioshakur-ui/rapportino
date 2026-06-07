@@ -2,7 +2,6 @@
 -- instead of view owner. Supabase/PostgREST best practice.
 
 begin;
-
 -- Recreate the view with security_invoker so auth.role()/JWT-based RLS works.
 create or replace view public.inca_cavi_with_last_posa_and_capo_v1
 with (security_invoker = true)
@@ -70,7 +69,6 @@ left join lateral (
 ) lp on true
 left join public.rapportini r on r.id = lp.rapportino_id
 left join public.profiles p on p.id = r.capo_id;
-
 -- Optional but recommended: keep sibling views consistent if you use them from the client.
 create or replace view public.inca_cavi_with_last_posa_v1
 with (security_invoker = true)
@@ -127,5 +125,4 @@ left join (
     and ric.step_type = 'POSA'::public.cavo_step_type
   group by ric.inca_cavo_id
 ) lp on lp.inca_cavo_id = c.id;
-
 commit;

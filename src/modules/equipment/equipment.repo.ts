@@ -26,6 +26,11 @@ function normalizeEquipmentCode(code: string): string {
   return code.trim().toUpperCase();
 }
 
+function normalizeEswbsEquipmentCode(code: string): string {
+  const normalized = normalizeEquipmentCode(code);
+  return /^\d{12}$/.test(normalized) ? normalized : "";
+}
+
 function toEquipmentCable(
   item: DailyListItem,
   direction: EquipmentCableDirection,
@@ -49,7 +54,7 @@ function toEquipmentCable(
 }
 
 export async function loadEquipmentStory(equipmentCode: string): Promise<EquipmentStoryVM> {
-  const code = normalizeEquipmentCode(equipmentCode);
+  const code = normalizeEswbsEquipmentCode(equipmentCode);
   if (!code) return buildEquipmentStory(code, []);
 
   const { data: items, error } = await supabase
@@ -77,7 +82,7 @@ export async function loadEquipmentStory(equipmentCode: string): Promise<Equipme
     const officialStatus = item.inca_cavo_id ? incaStatusMap.get(item.inca_cavo_id) ?? null : null;
     const effectiveItem = officialStatus ? { ...item, situazione_inca: officialStatus } : item;
     const direction: EquipmentCableDirection =
-      normalizeEquipmentCode(effectiveItem.app_partenza ?? "") === code ? "outgoing" : "incoming";
+      normalizeEswbsEquipmentCode(effectiveItem.app_partenza ?? "") === code ? "outgoing" : "incoming";
     return toEquipmentCable(
       effectiveItem,
       direction,

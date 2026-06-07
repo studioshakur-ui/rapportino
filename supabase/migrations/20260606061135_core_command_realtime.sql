@@ -1,10 +1,7 @@
 -- P3.2 — Live Field Reaction Engine
 -- Enable Supabase Realtime (INSERT streaming) on the ingestion tables so the UI
 -- reacts to a Telegram/WhatsApp message instantly instead of polling.
---
--- INCA tables (inca_cavi, …) are intentionally EXCLUDED: they are read-only and
--- never streamed. This migration only touches the realtime publication, no DDL
--- on data tables.
+-- INCA tables (inca_cavi, …) are intentionally EXCLUDED: read-only, never streamed.
 
 do $$
 declare
@@ -21,7 +18,6 @@ declare
     'agent_findings'
   ];
 begin
-  -- The publication is created by Supabase; guard in case it is absent.
   if not exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
     create publication supabase_realtime;
   end if;
@@ -40,4 +36,4 @@ begin
       execute format('alter publication supabase_realtime add table public.%I', t);
     end if;
   end loop;
-end $$;
+end $$;;

@@ -12,13 +12,11 @@
 -- ============================================================================
 
 BEGIN;
-
 -- ---------------------------------------------------------------------------
 -- Extensions (idempotent)
 -- ---------------------------------------------------------------------------
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
-
 -- ---------------------------------------------------------------------------
 -- Helper: updated_at trigger (namespaced cc_ pour éviter collision avec
 -- le set_updated_at legacy existant)
@@ -32,7 +30,6 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-
 -- ---------------------------------------------------------------------------
 -- 1. core_operators
 --    Renommé (collision avec public.operators legacy actif dans src/)
@@ -47,11 +44,9 @@ CREATE TABLE IF NOT EXISTS public.core_operators (
   created_at      timestamptz NOT NULL DEFAULT now(),
   updated_at      timestamptz NOT NULL DEFAULT now()
 );
-
-CREATE OR REPLACE TRIGGER trg_core_operators_updated_at
+CREATE TRIGGER trg_core_operators_updated_at
   BEFORE UPDATE ON public.core_operators
   FOR EACH ROW EXECUTE FUNCTION public.cc_set_updated_at();
-
 -- ---------------------------------------------------------------------------
 -- 2. whatsapp_imports
 -- ---------------------------------------------------------------------------
@@ -66,7 +61,6 @@ CREATE TABLE IF NOT EXISTS public.whatsapp_imports (
   raw_metadata  jsonb       NOT NULL DEFAULT '{}'::jsonb,
   created_at    timestamptz NOT NULL DEFAULT now()
 );
-
 -- ---------------------------------------------------------------------------
 -- 3. whatsapp_messages
 -- ---------------------------------------------------------------------------
@@ -85,7 +79,6 @@ CREATE TABLE IF NOT EXISTS public.whatsapp_messages (
   message_hash       text        UNIQUE,
   created_at         timestamptz NOT NULL DEFAULT now()
 );
-
 -- ---------------------------------------------------------------------------
 -- 4. core_events  (CORE Memory — vérité opérationnelle)
 --    FK inca_cavo_id → inca_cavi(id) ON DELETE SET NULL :
@@ -120,7 +113,6 @@ CREATE TABLE IF NOT EXISTS public.core_events (
   validated_at          timestamptz,
   validated_by          uuid
 );
-
 -- ---------------------------------------------------------------------------
 -- 5. cable_events  (événements validés sur câble — promotion depuis core_events)
 -- ---------------------------------------------------------------------------
@@ -144,7 +136,6 @@ CREATE TABLE IF NOT EXISTS public.cable_events (
   note              text,
   created_at        timestamptz NOT NULL DEFAULT now()
 );
-
 -- ---------------------------------------------------------------------------
 -- 6. cable_priorities
 -- ---------------------------------------------------------------------------
@@ -163,7 +154,6 @@ CREATE TABLE IF NOT EXISTS public.cable_priorities (
   created_at      timestamptz NOT NULL DEFAULT now(),
   closed_at       timestamptz
 );
-
 -- ---------------------------------------------------------------------------
 -- 7. agent_findings
 -- ---------------------------------------------------------------------------
@@ -185,7 +175,6 @@ CREATE TABLE IF NOT EXISTS public.agent_findings (
   created_at     timestamptz NOT NULL DEFAULT now(),
   resolved_at    timestamptz
 );
-
 -- ---------------------------------------------------------------------------
 -- 8. production_daily_kpis
 -- ---------------------------------------------------------------------------
@@ -202,21 +191,17 @@ CREATE TABLE IF NOT EXISTS public.production_daily_kpis (
   created_at             timestamptz NOT NULL DEFAULT now(),
   updated_at             timestamptz NOT NULL DEFAULT now()
 );
-
 -- UNIQUE(day, commessa) avec gestion des NULL :
 -- Postgres ne considère pas deux NULL comme égaux dans un index UNIQUE standard.
 CREATE UNIQUE INDEX IF NOT EXISTS uq_prod_kpis_day_commessa
   ON public.production_daily_kpis (day, commessa)
   WHERE commessa IS NOT NULL;
-
 CREATE UNIQUE INDEX IF NOT EXISTS uq_prod_kpis_day_null_commessa
   ON public.production_daily_kpis (day)
   WHERE commessa IS NULL;
-
-CREATE OR REPLACE TRIGGER trg_production_daily_kpis_updated_at
+CREATE TRIGGER trg_production_daily_kpis_updated_at
   BEFORE UPDATE ON public.production_daily_kpis
   FOR EACH ROW EXECUTE FUNCTION public.cc_set_updated_at();
-
 -- ============================================================================
 -- INDEXES
 -- ============================================================================
@@ -225,69 +210,52 @@ CREATE OR REPLACE TRIGGER trg_production_daily_kpis_updated_at
 CREATE INDEX IF NOT EXISTS idx_core_events_inca_cavo_occurred
   ON public.core_events (inca_cavo_id, occurred_at DESC)
   WHERE inca_cavo_id IS NOT NULL;
-
 CREATE INDEX IF NOT EXISTS idx_core_events_cable_norm_occurred
   ON public.core_events (cable_code_normalized, occurred_at DESC)
   WHERE cable_code_normalized IS NOT NULL;
-
 CREATE INDEX IF NOT EXISTS idx_cable_events_inca_cavo_occurred
   ON public.cable_events (inca_cavo_id, occurred_at DESC)
   WHERE inca_cavo_id IS NOT NULL;
-
 CREATE INDEX IF NOT EXISTS idx_cable_events_cable_code_occurred
   ON public.cable_events (cable_code, occurred_at DESC);
-
 -- Timeline opérateur / zone / commessa / jour
 CREATE INDEX IF NOT EXISTS idx_core_events_operator_occurred
   ON public.core_events (operator_id, occurred_at DESC);
-
 CREATE INDEX IF NOT EXISTS idx_core_events_zone_occurred
   ON public.core_events (zone, occurred_at DESC);
-
 CREATE INDEX IF NOT EXISTS idx_core_events_commessa_occurred
   ON public.core_events (commessa, occurred_at DESC);
-
 -- occurred_at::date n'est pas IMMUTABLE (timezone-dependent) — index sur timestamptz brut.
 -- Requêtes jour : WHERE occurred_at >= 'YYYY-MM-DD' AND occurred_at < 'YYYY-MM-DD'::date + 1
 CREATE INDEX IF NOT EXISTS idx_core_events_day
   ON public.core_events (occurred_at DESC);
-
 -- WhatsApp recherche
 CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_import_ts
   ON public.whatsapp_messages (import_id, message_ts);
-
 CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_author_ts
   ON public.whatsapp_messages (author, message_ts DESC);
-
 CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_raw_trgm
   ON public.whatsapp_messages USING gin (raw_message gin_trgm_ops);
-
 CREATE INDEX IF NOT EXISTS idx_core_events_source_message
   ON public.core_events (source_message_id)
   WHERE source_message_id IS NOT NULL;
-
 -- Pending validations
 CREATE INDEX IF NOT EXISTS idx_core_events_pending
   ON public.core_events (validation_status, occurred_at DESC)
   WHERE validation_status = 'pending';
-
 -- Priorities ouvertes
 CREATE INDEX IF NOT EXISTS idx_cable_priorities_open
   ON public.cable_priorities (status, priority, created_at DESC)
   WHERE status = 'open';
-
 -- Agent findings ouverts
 CREATE INDEX IF NOT EXISTS idx_agent_findings_open
   ON public.agent_findings (status, severity, created_at DESC)
   WHERE status = 'open';
-
 CREATE INDEX IF NOT EXISTS idx_agent_findings_entity
   ON public.agent_findings (entity_type, entity_id);
-
 -- KPI jour
 CREATE INDEX IF NOT EXISTS idx_production_daily_kpis_day
   ON public.production_daily_kpis (day DESC);
-
 -- ============================================================================
 -- RLS — NON ACTIVÉE EN P0 (dev single-user)
 -- À appliquer en migration séparée avant prod :
