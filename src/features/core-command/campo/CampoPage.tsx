@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { AppBar, EmptyState, Pill, Screen, Section, StatCard } from "../../../components/command-ui";
 import { formatCableDisplay } from "../../../core/cable/cableDisplay";
 import { loadCoreEngineSnapshot } from "../../../domain/core-engine";
+import { formatFieldStatusLabel, resolveFieldStatus } from "../../../domain/core-engine/fieldVerification";
 
 function formatDate(value: string | null): string {
   if (!value) return "data sconosciuta";
@@ -45,8 +46,8 @@ export default function CampoPage(): JSX.Element {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard label="Import recenti" value={field.imports.length} tone="neutral" />
             <StatCard label="Priorità" value={field.priority_items.length} tone={field.priority_items.length > 0 ? "red" : "neutral"} />
-            <StatCard label="Senza prova" value={field.missing_evidence_items.length} tone={field.missing_evidence_items.length > 0 ? "amber" : "neutral"} />
-            <StatCard label="Parziali" value={field.partial_items.length} tone={field.partial_items.length > 0 ? "sky" : "neutral"} />
+            <StatCard label="Prove mancanti" value={field.missing_evidence_items.length} tone={field.missing_evidence_items.length > 0 ? "amber" : "neutral"} />
+            <StatCard label="Da verificare" value={field.partial_items.length} tone={field.partial_items.length > 0 ? "amber" : "neutral"} />
           </div>
 
           {summary ? (
@@ -78,7 +79,7 @@ export default function CampoPage(): JSX.Element {
               onOpen={(code) => navigate(code)}
             />
             <EvidenceList
-              title="Senza prova"
+              title="Prove mancanti"
               count={field.missing_evidence_items.length}
               items={field.missing_evidence_items}
               onOpen={(code) => navigate(code)}
@@ -87,7 +88,7 @@ export default function CampoPage(): JSX.Element {
 
           <section className="grid gap-4 lg:grid-cols-2">
             <EvidenceList
-              title="Parziali / da verificare"
+              title="Da verificare"
               count={field.partial_items.length}
               items={field.partial_items}
               onOpen={(code) => navigate(code)}
@@ -164,7 +165,7 @@ function EvidenceList({
               className="w-full rounded-[24px] border border-stone-200 bg-white p-4 text-left shadow-sm transition hover:border-sky-300"
             >
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
+              <div className="min-w-0">
                   <p className="font-mono text-sm font-semibold text-stone-950">{formatCableDisplay(item.cable_code)}</p>
                   <p className="mt-1 text-xs text-stone-500">
                     {item.perimetro ?? "—"} · {item.evidence_count} prove · {item.last_event_at ? formatDate(item.last_event_at) : "senza data"}
@@ -172,8 +173,12 @@ function EvidenceList({
                   {item.last_actor ? <p className="mt-2 text-xs text-stone-600">{item.last_actor}</p> : null}
                   {item.last_message ? <p className="mt-1 text-xs leading-5 text-stone-600">{item.last_message}</p> : null}
                 </div>
-                <Pill tone={item.computed_status === "blocked" ? "red" : item.computed_status === "no_evidence" ? "amber" : "sky"}>
-                  {item.computed_status}
+                <Pill tone={translateTone(item.computed_status)}>
+                  {formatFieldStatusLabel(resolveFieldStatus({
+                    hasVerificationProof: item.computed_status === "confirmed_field" || item.computed_status === "likely_laid",
+                    hasCriticalFinding: item.computed_status === "blocked",
+                    hasTechnicalAnomaly: false,
+                  }))}
                 </Pill>
               </div>
               <p className="mt-3 text-xs leading-5 text-stone-600">{item.recommended_action}</p>
@@ -183,4 +188,10 @@ function EvidenceList({
       )}
     </Section>
   );
+}
+
+function translateTone(status: string): "red" | "amber" | "emerald" {
+  if (status === "blocked") return "red";
+  if (status === "no_evidence" || status === "to_verify") return "amber";
+  return "emerald";
 }

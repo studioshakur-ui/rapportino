@@ -88,8 +88,8 @@ function buildCableReason(item: DailyListItemVM): string {
   if (item.has_missing_issue) return "cavo mancante";
   if (item.has_short_issue) return "cavo corto";
   if (item.has_partial_progress) return "avanzamento parziale";
-  if (item.missing_evidence) return "senza prova";
-  return "non confermato";
+  if (item.missing_evidence) return "prova campo mancante";
+  return "non confermato sul campo";
 }
 
 function toCriticalPathCable(

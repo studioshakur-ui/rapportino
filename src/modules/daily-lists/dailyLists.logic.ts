@@ -31,6 +31,7 @@ export function extractProgressPercent(note: string | null): number | null {
 // cable_events store raw kinds ("CABLE_POSATO"); core_events store the mapped
 // story type ("POSED_REPORTED", "RESOLVED"). Both must count as field proof.
 const POSED_EVENT_KINDS = new Set(["CABLE_POSATO", "POSED_REPORTED", "RESOLVED"]);
+const VERIFIED_FIELD_EVENT_KINDS = new Set(["FIELD_VERIFIED"]);
 
 function isPosedEvent(eventKind: string | null | undefined): boolean {
   return eventKind ? POSED_EVENT_KINDS.has(eventKind) : false;
@@ -53,6 +54,10 @@ export function computeItemStatus(
   // every item collapsed to "outside_inca" — dropping the list to 0% even with
   // real terrain proof. Field evidence must be evaluated before INCA matching.
   if (safeEvidence.length > 0) {
+    if (safeEvidence.some((e) => e.source_type === "manual" || VERIFIED_FIELD_EVENT_KINDS.has(e.event_kind))) {
+      return "confirmed_field";
+    }
+
     // Explicit 100% or a posed/confirmed event → confirmed terrain.
     const confirmed100 = safeEvidence.some((e) => {
       const pct = extractProgressPercent(e.raw_note) ?? e.progress_percent;

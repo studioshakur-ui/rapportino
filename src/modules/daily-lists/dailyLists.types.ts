@@ -67,7 +67,7 @@ export interface DailyItemEvidence {
   cable_event_id: string | null;
   core_event_id: string | null;
   whatsapp_message_id: string | null;
-  source_type: "cable_event" | "core_event" | "whatsapp_message";
+  source_type: "cable_event" | "core_event" | "whatsapp_message" | "manual";
   event_kind: string;
   occurred_at: string;
   actor_label: string | null;

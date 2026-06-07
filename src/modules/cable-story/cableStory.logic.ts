@@ -8,6 +8,7 @@ import type {
 } from "./cableStory.types";
 import { ensureArray } from "../../core/utils/array";
 import { translateIncaStatus } from "../../domain/core-engine/incaStatus";
+import { resolveFieldStatus } from "../../domain/core-engine/fieldVerification";
 
 type StoryStatus =
   | "Pose confirmée"
@@ -23,6 +24,7 @@ const EVENT_SUMMARY: Record<string, string> = {
   MATCHED: "Match INCA détecté",
   MATCHED_INCA_EVENT: "Match INCA détecté",
   POSED_REPORTED: "Signalé posé",
+  FIELD_VERIFIED: "Vérifié terrain",
   SHORT_REPORTED: "Signalé court",
   MISSING_REPORTED: "Signalé manquant",
   BLOCKED_REPORTED: "Signalé à vérifier",
@@ -49,6 +51,8 @@ export function mapStoryEventType(rawType: string): string {
     case "CABLE_MENTION":
     case "GENERAL_MESSAGE":
       return "MENTIONED";
+    case "FIELD_VERIFIED":
+      return "FIELD_VERIFIED";
     case "validated":
       return "CONFIRMED";
     case "resolved":
@@ -157,6 +161,19 @@ export function computeStoryStatus(args: {
   const safeTimeline = ensureArray(timeline, "cableStory.computeStoryStatus.timeline");
   const safeFindings = ensureArray(findings, "cableStory.computeStoryStatus.findings");
   const topPriority = highestPriority(priorities);
+  const hasVerifiedFieldProof = safeTimeline.some(
+    (item) => item.event_type === "POSED_REPORTED" || item.event_type === "RESOLVED" || item.event_type === "FIELD_VERIFIED" || item.event_type === "CONFIRMED"
+  );
+  const hasCriticalFinding = Boolean(
+    safeFindings.find((finding) => finding.status === "open" && finding.severity === "block")
+  );
+  const fieldStatus = resolveFieldStatus({
+    hasCriticalFinding: hasCriticalFinding || topPriority?.status === "open" && (topPriority.priority === "critical" || /bloqu|contr[oô]l/i.test(topPriority.reason ?? "")),
+    hasVerificationProof: hasVerifiedFieldProof,
+  });
+
+  if (fieldStatus === "BLOCKED") return "Bloqué";
+  if (fieldStatus === "VERIFIED") return "Pose confirmée";
 
   if (topPriority?.status === "open") {
     if (topPriority.priority === "critical" || topPriority.priority === "high") return "À vérifier";
@@ -169,7 +186,7 @@ export function computeStoryStatus(args: {
     .sort((left, right) => right.event_at.localeCompare(left.event_at))[0];
 
   if (latestEvent) {
-    if (latestEvent.event_type === "POSED_REPORTED" || latestEvent.event_type === "RESOLVED") return "Pose confirmée";
+    if (latestEvent.event_type === "POSED_REPORTED" || latestEvent.event_type === "RESOLVED" || latestEvent.event_type === "FIELD_VERIFIED") return "Pose confirmée";
     if (latestEvent.event_type === "SHORT_REPORTED") return "Court";
     if (latestEvent.event_type === "BLOCKED_REPORTED") return "Bloqué";
     if (latestEvent.event_type === "MISSING_REPORTED") return "À vérifier";

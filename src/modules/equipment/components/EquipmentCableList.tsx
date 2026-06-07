@@ -37,12 +37,12 @@ export function EquipmentCableList({
                   <span className="font-mono text-base font-semibold text-white">{formatCableDisplay(cable.cable_code_normalized)}</span>
                   <div className="mt-1 text-xs text-zinc-500">{cable.perimetro ?? "—"}</div>
                 </div>
-                <Pill tone={statusTone(cable)}>{cable.confirmed_by_whatsapp ? "prova" : "senza prova"}</Pill>
+                <Pill tone={statusTone(cable)}>{cable.confirmed_by_whatsapp ? "Verificato" : "Da verificare"}</Pill>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 <Pill tone="neutral">{cable.inca_status_label}</Pill>
-                {cable.open_blocker_count > 0 ? <Pill tone="red">{cable.open_blocker_count} bloccato</Pill> : null}
-                {cable.open_priority_count > 0 ? <Pill tone="amber">{cable.open_priority_count} priorita</Pill> : null}
+                {cable.open_blocker_count > 0 ? <Pill tone="red">{cable.open_blocker_count} Bloccato</Pill> : null}
+                {cable.open_priority_count > 0 ? <Pill tone="amber">{cable.open_priority_count} Priorità</Pill> : null}
               </div>
               <div className="mt-3 text-xs leading-5 text-zinc-400">
                 {cable.risk_reasons[0] ?? cable.recommended_action}

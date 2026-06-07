@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../../../lib/supabaseClient";
 import { formatCableDisplay } from "../../../core/cable/cableDisplay";
 import { Pill, Screen, EmptyState } from "../../../components/command-ui";
+import { formatFieldStatusLabel, resolveFieldStatus } from "../../../domain/core-engine/fieldVerification";
 import type { CableEvent } from "../types";
 
 // Normalize cable code for DB lookup: "C CS 102" or "CCS102" → "CCS 102"
@@ -39,7 +40,7 @@ async function fetchCableDetail(raw: string) {
   const normalized = normalizeForQuery(raw);
   const compact    = raw.replace(/\s+/g, "").toUpperCase();
 
-  const [eventsRes, listRes, priRes] = await Promise.all([
+  const [eventsRes, listRes, priRes, coreRes] = await Promise.all([
     supabase
       .from("cable_events")
       .select("*")
@@ -60,7 +61,7 @@ async function fetchCableDetail(raw: string) {
 
     supabase
       .from("cable_priorities")
-      .select("id, reason, priority, created_at")
+      .select("id, reason, priority, status, created_at")
       .or([
         `cable_code.eq.${normalized}`,
         `cable_code.eq.${compact}`,
@@ -68,6 +69,18 @@ async function fetchCableDetail(raw: string) {
       ].join(","))
       .eq("status", "open")
       .order("created_at", { ascending: false }),
+
+    supabase
+      .from("core_events")
+      .select("id,event_type,validation_status,occurred_at,confidence,raw_text,source_message_id,payload")
+      .or([
+        `cable_code_normalized.eq.${normalized}`,
+        `cable_code_normalized.eq.${compact}`,
+        `cable_code_raw.ilike.%${normalized}%`,
+        `cable_code_raw.ilike.%${compact}%`,
+      ].join(","))
+      .order("occurred_at", { ascending: false })
+      .limit(100),
   ]);
 
   const listItems = (listRes.data ?? []).map((item: any) => ({
@@ -79,7 +92,17 @@ async function fetchCableDetail(raw: string) {
   return {
     events:    (eventsRes.data ?? []) as CableEvent[],
     listItems,
-    priorities: priRes.data ?? [] as Array<{ id: string; reason: string | null; priority: string; created_at: string }>,
+    priorities: priRes.data ?? [] as Array<{ id: string; reason: string | null; priority: string; status: string; created_at: string }>,
+    fieldEvents: (coreRes.data ?? []) as Array<{
+      id: string;
+      event_type: string;
+      validation_status: string | null;
+      occurred_at: string;
+      confidence: number | null;
+      raw_text: string | null;
+      source_message_id: string | null;
+      payload: Record<string, unknown> | null;
+    }>,
   };
 }
 
@@ -99,8 +122,13 @@ export default function CableDetailPage() {
   const events     = data?.events     ?? [];
   const listItems  = data?.listItems  ?? [];
   const priorities = data?.priorities ?? [];
+  const fieldEvents = data?.fieldEvents ?? [];
   const lastEvent  = events[0];
-  const isConfirmed = lastEvent?.event_kind === "CABLE_POSATO" || lastEvent?.event_kind === "posa";
+  const latestFieldEvent = fieldEvents.find((event) => event.event_type === "FIELD_VERIFIED" || event.event_type === "POSED_REPORTED" || event.event_type === "RESOLVED" || event.event_type === "CONFIRMED") ?? null;
+  const fieldStatus = resolveFieldStatus({
+    hasCriticalFinding: fieldEvents.some((event) => event.event_type === "BLOCKED_REPORTED"),
+    hasVerificationProof: Boolean(latestFieldEvent || lastEvent?.event_kind === "CABLE_POSATO" || lastEvent?.event_kind === "posa"),
+  });
 
   return (
     <Screen className="space-y-6">
@@ -124,8 +152,9 @@ export default function CableDetailPage() {
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2 pt-1">
           {!isLoading && (
-            isConfirmed ? <Pill tone="emerald">Posé ✓</Pill>
-            : events.length > 0 ? <Pill tone="amber">{kindMeta(lastEvent!.event_kind).label}</Pill>
+            fieldStatus === "VERIFIED" ? <Pill tone="emerald">{formatFieldStatusLabel(fieldStatus)}</Pill>
+            : fieldStatus === "BLOCKED" ? <Pill tone="red">{formatFieldStatusLabel(fieldStatus)}</Pill>
+            : events.length > 0 ? <Pill tone="amber">{formatFieldStatusLabel(fieldStatus)}</Pill>
             : null
           )}
           <button

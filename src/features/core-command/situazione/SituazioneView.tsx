@@ -43,7 +43,7 @@ export function SituazioneView({ situation }: { situation: DailySituationView | 
         <StatCard label="Da verificare" value={situation.totals.toVerifyCables} tone={situation.totals.toVerifyCables > 0 ? "amber" : "emerald"} />
         <StatCard label="Restanti" value={situation.totals.remainingCables} tone={situation.totals.remainingCables > 0 ? "amber" : "emerald"} />
         <StatCard label="Bloccati INCA" value={situation.totals.blockedCables} tone={situation.totals.blockedCables > 0 ? "red" : "neutral"} />
-        <StatCard label="Senza prova campo" value={situation.totals.withoutFieldEvidence} tone={situation.totals.withoutFieldEvidence > 0 ? "amber" : "emerald"} />
+        <StatCard label="Prove mancanti" value={situation.totals.withoutFieldEvidence} tone={situation.totals.withoutFieldEvidence > 0 ? "amber" : "emerald"} />
       </div>
 
       <Section title="Cavi da verificare" eyebrow="Situazione" count={situation.toVerifyCables.length}>
@@ -116,9 +116,9 @@ export function SituazioneView({ situation }: { situation: DailySituationView | 
         )}
       </Section>
 
-      <Section title="Bloccanti reali" eyebrow="Situazione" count={situation.realBlockers.length}>
+      <Section title="Blocchi reali" eyebrow="Situazione" count={situation.realBlockers.length}>
         {situation.realBlockers.length === 0 ? (
-          <EmptyState title="Nessun bloccante INCA dichiarato" icon="✓" />
+          <EmptyState title="Nessun blocco reale dichiarato" icon="✓" />
         ) : (
           <div className="space-y-3">
             {situation.realBlockers.map((blocker) => (
@@ -130,7 +130,7 @@ export function SituazioneView({ situation }: { situation: DailySituationView | 
                       {[blocker.apparatusCode, blocker.system].filter(Boolean).join(" · ") || "Contesto non disponibile"}
                     </p>
                   </div>
-                  <Pill tone="red">Blocco</Pill>
+                  <Pill tone="red">Blocco reale</Pill>
                 </div>
                 <p className="mt-2 text-sm text-stone-700">{blocker.reason}</p>
               </article>

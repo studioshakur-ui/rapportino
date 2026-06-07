@@ -496,7 +496,7 @@ describe("buildDailySituationView", () => {
       withoutFieldEvidence: 0,
       toVerifyCables: 0,
     });
-    expect(result.messageToSend).toContain("Nessun bloccante INCA dichiarato.");
+    expect(result.messageToSend).toContain("Nessun blocco reale dichiarato.");
     expect(result.messageToSend).toContain("Nessuna prova campo disponibile");
   });
 });

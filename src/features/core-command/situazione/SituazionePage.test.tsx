@@ -98,7 +98,7 @@ describe("SituazioneView", () => {
     expect(html).toContain("Testo pronto da inviare");
     expect(html).toContain("SITUAZIONE ORE 16:30");
     expect(html).toContain("Cavi da verificare");
-    expect(html).toContain("Bloccanti reali");
+    expect(html).toContain("Blocchi reali");
     expect(html).toContain("Prove campo");
   });
 });

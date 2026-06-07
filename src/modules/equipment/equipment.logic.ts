@@ -108,9 +108,9 @@ function buildCableRiskReasons(cable: EquipmentLinkedCable): string[] {
   if (cable.has_short_issue) reasons.push("Segnale cavo corto");
   if (cable.has_missing_issue) reasons.push("Segnale cavo mancante");
   if (cable.has_partial_progress) reasons.push("Progressione parziale");
-  if (cable.open_blocker_count > 0) reasons.push("Anomalia bloccante aperta");
+  if (cable.open_blocker_count > 0) reasons.push("Anomalia aperta");
   if (cable.open_priority_count > 0) reasons.push("Priorità aperta");
-  if (/blocc|bloqu/i.test(cable.last_message ?? cable.note ?? "")) reasons.push("Messaggio terreno bloccante");
+  if (/blocc|bloqu/i.test(cable.last_message ?? cable.note ?? "")) reasons.push("Messaggio terreno critico");
 
   return Array.from(new Set(reasons));
 }

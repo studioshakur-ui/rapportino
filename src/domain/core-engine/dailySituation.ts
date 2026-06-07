@@ -1,5 +1,6 @@
 import { ensureArray } from "../../core/utils/array";
 import { translateIncaStatus } from "./incaStatus";
+import { resolveFieldStatus } from "./fieldVerification";
 import {
   buildSdcCableLookup,
   findSdcCableRecord,
@@ -284,7 +285,13 @@ function buildListName(input: DailySituationInput): string | null {
 
 function isRealBlocker(card: FieldEvidenceCard): boolean {
   const status = translateIncaStatus(card.situazione_inca ?? card.stato_collegamento);
-  return status.status === "BLOCCATO" || card.computed_status === "blocked";
+  return (
+    resolveFieldStatus({
+      hasCriticalFinding: status.isBlocked,
+      hasTechnicalAnomaly: card.computed_status === "blocked",
+      hasVerificationProof: card.confirmed_by_whatsapp || card.computed_status === "confirmed_field",
+    }) === "BLOCKED"
+  );
 }
 
 function buildToVerifyCables(
@@ -451,7 +458,7 @@ function buildRecommendedActions(
 
   if (toVerifyCables.length > 0) actions.push("completare verifiche campo sui cavi restanti");
   if (impactedApparatus.length > 0) actions.push("verificare apparati non chiusi");
-  if (realBlockers.length > 0) actions.push("risolvere i bloccanti reali");
+  if (realBlockers.length > 0) actions.push("risolvere i blocchi reali");
   if (fieldEvidenceGroups.length > 0) actions.push("allineare le prove campo con Telegram");
 
   return dedupeBy(actions, (action) => action);
@@ -505,14 +512,14 @@ function buildMessageToSend(situation: DailySituationView): string {
       reason: `${item.openCables} aperti`,
     }))),
     "",
-    "Bloccanti reali:",
+    "Blocchi reali:",
     ...(situation.realBlockers.length > 0
       ? formatCableList(situation.realBlockers.map((item) => ({
           displayCableCode: item.displayCableCode,
           system: item.system,
           reason: item.reason,
         })))
-      : ["Nessun bloccante INCA dichiarato."]),
+      : ["Nessun blocco reale dichiarato."]),
     "",
     "Prove campo:",
     ...formatEvidenceList(situation.fieldEvidenceGroups),

@@ -128,7 +128,7 @@ export default function OggiPage(): JSX.Element {
                 <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
                   <StatCard label="Confermati" value={summary.confirmed + summary.likely_laid} tone="emerald" />
                   <StatCard label="Da verificare" value={summary.to_verify} tone="amber" />
-                  <StatCard label="Senza prova" value={summary.no_evidence} tone="amber" />
+                  <StatCard label="Prove mancanti" value={summary.no_evidence} tone="amber" />
                   <StatCard label="Bloccati" value={summary.blocked} tone="red" />
                   <StatCard label="Fuori INCA" value={summary.outside_inca} tone="violet" />
                   <StatCard label="Import" value={today.latest_import?.rows_count ?? 0} tone="neutral" />

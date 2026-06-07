@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { EmptyState, Pill, ProgressBar, Screen, Section, StatCard } from "../../components/command-ui";
+import { useAuth } from "../../auth/AuthProvider";
 import { formatCableDisplay } from "../../core/cable/cableDisplay";
-import { loadCoreEngineSnapshot, type CoreEngineSnapshot } from "../../domain/core-engine";
+import { formatFieldStatusLabel, loadCoreEngineSnapshot, resolveFieldStatus, type CoreEngineSnapshot } from "../../domain/core-engine";
 import { translateIncaStatus } from "../../domain/core-engine/incaStatus";
+import { recordFieldVerification } from "../../features/core-command/api/fieldVerification.api";
 
 type Direction = "incoming" | "outgoing";
 
@@ -21,6 +23,7 @@ type CableCard = {
   reason: string;
   note: string | null;
   confirmedHere: boolean;
+  fieldStatus: "VERIFIED" | "TO_VERIFY" | "BLOCKED";
 };
 
 function normalizeKey(value: string | null | undefined): string {
@@ -54,6 +57,11 @@ function buildCableCards(snapshot: CoreEngineSnapshot | null, equipmentCode: str
 
     const inca = translateIncaStatus(row.situazione_inca ?? row.stato_collegamento);
     const confirmedHere = confirmedCodes.has(cableCode) || row.confirmed_by_whatsapp || row.computed_status === "confirmed_field";
+    const fieldStatus = resolveFieldStatus({
+      hasVerificationProof: confirmedHere,
+      hasCriticalFinding: row.computed_status === "blocked" || inca.isBlocked,
+      hasTechnicalAnomaly: false,
+    });
 
     cards.push({
       cableCode,
@@ -64,16 +72,11 @@ function buildCableCards(snapshot: CoreEngineSnapshot | null, equipmentCode: str
       system: row.perimetro ?? null,
       area: row.note ?? null,
       incaStatus: inca.raw ?? row.situazione_inca ?? row.stato_collegamento,
-      terrainStatus: confirmedHere
-        ? "Verificato"
-        : row.computed_status === "blocked"
-          ? "Bloccante"
-          : row.computed_status === "to_verify"
-            ? "Non verificato"
-            : "Da verificare",
+      terrainStatus: formatFieldStatusLabel(fieldStatus),
       reason: row.recommended_action,
       note: row.last_message ?? row.note,
       confirmedHere,
+      fieldStatus,
     });
     seen.add(cableCode);
   }
@@ -92,11 +95,14 @@ function statusTone(status: string | null | undefined): "neutral" | "emerald" | 
 export default function EquipmentStoryPage(): JSX.Element {
   const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { uid } = useAuth();
   const equipmentCode = code ? decodeURIComponent(code) : "";
   const [selectedCable, setSelectedCable] = useState<string | null>(null);
   const [confirmedCodes, setConfirmedCodes] = useState<Set<string>>(new Set());
   const [showContext, setShowContext] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [verificationNote, setVerificationNote] = useState("");
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["core_engine_snapshot", "equipment_story", equipmentCode],
@@ -127,15 +133,40 @@ export default function EquipmentStoryPage(): JSX.Element {
   const completionRate = totalCables > 0 ? Math.round((activeConfirmed / totalCables) * 100) : 0;
   const riskLevel = equipment?.risk_level ?? "low";
 
-  const handleConfirm = () => {
+  const openVerification = (cableCode: string) => {
+    setSelectedCable(cableCode);
+    setVerificationNote("");
+  };
+
+  const handleConfirm = async () => {
     if (!selected) return;
-    setConfirmedCodes((current) => {
-      const next = new Set(current);
-      next.add(selected.cableCode);
-      return next;
-    });
-    setSelectedCable(null);
-    setFeedback("Verifica registrata");
+    if (!uid) {
+      setFeedback("Utente non autenticato");
+      return;
+    }
+    if (selected.fieldStatus !== "TO_VERIFY") {
+      setFeedback("Solo i cavi da verificare possono essere confermati manualmente");
+      return;
+    }
+
+    try {
+      await recordFieldVerification({
+        cableCodeRaw: selected.displayCableCode,
+        cableCodeNormalized: selected.cableCode,
+        verificationSource: "manual",
+        verifiedBy: uid,
+        note: verificationNote.trim() || null,
+      });
+      setConfirmedCodes((current) => new Set(current).add(selected.cableCode));
+      setSelectedCable(null);
+      setVerificationNote("");
+      setFeedback("Verifica manuale registrata");
+      await queryClient.invalidateQueries({ queryKey: ["core_engine_snapshot"] });
+      await queryClient.invalidateQueries({ queryKey: ["core_events"] });
+      await queryClient.invalidateQueries({ queryKey: ["cable_events"] });
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Errore durante la conferma");
+    }
   };
 
   if (!equipmentCode) {
@@ -299,7 +330,7 @@ export default function EquipmentStoryPage(): JSX.Element {
               .map((item) => (
                 <button
                   key={item.cableCode}
-                  onClick={() => setSelectedCable(item.cableCode)}
+                  onClick={() => openVerification(item.cableCode)}
                   className="w-full rounded-[22px] border border-stone-200 bg-stone-50 px-4 py-3 text-left transition hover:border-emerald-300 hover:bg-white"
                 >
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -307,7 +338,7 @@ export default function EquipmentStoryPage(): JSX.Element {
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-mono text-sm font-semibold text-stone-950">{item.displayCableCode}</span>
                         <Pill tone={statusTone(item.incaStatus)}>{item.incaStatus ?? "—"}</Pill>
-                        <Pill tone={item.terrainStatus === "Bloccante" ? "red" : item.terrainStatus === "Non verificato" ? "amber" : "sky"}>
+                        <Pill tone={item.fieldStatus === "BLOCKED" ? "red" : item.fieldStatus === "TO_VERIFY" ? "amber" : "sky"}>
                           {item.terrainStatus}
                         </Pill>
                       </div>
@@ -327,7 +358,7 @@ export default function EquipmentStoryPage(): JSX.Element {
 
         <div className="flex flex-wrap items-center gap-2 pt-2 text-xs">
           <Pill tone="red">B = Bloccato INCA</Pill>
-          <Pill tone="amber">Non verificato = Da verificare sul campo</Pill>
+          <Pill tone="amber">Da verificare = Nessuna prova campo</Pill>
           <Pill tone="emerald">Verificato = Confermato sul campo</Pill>
           {feedback ? <span className="ml-auto text-emerald-700">{feedback}</span> : null}
         </div>
@@ -339,14 +370,14 @@ export default function EquipmentStoryPage(): JSX.Element {
           cables={incoming}
           emptyTitle="Nessun cavo entrante"
           emptyDescription="Nessun cavo collegato in questa direzione."
-          onPick={setSelectedCable}
+          onPick={openVerification}
         />
         <MiniCableSection
           title="Cavi uscenti"
           cables={outgoing}
           emptyTitle="Nessun cavo uscente"
           emptyDescription="Nessun cavo collegato in questa direzione."
-          onPick={setSelectedCable}
+          onPick={openVerification}
         />
       </section>
 
@@ -421,6 +452,8 @@ export default function EquipmentStoryPage(): JSX.Element {
                 <p className="text-sm font-medium text-stone-900">Nota (facoltativa)</p>
                 <textarea
                   rows={4}
+                  value={verificationNote}
+                  onChange={(event) => setVerificationNote(event.target.value)}
                   className="mt-2 w-full rounded-2xl border border-stone-200 bg-stone-50 p-3 text-sm outline-none placeholder:text-stone-400 focus:border-emerald-300"
                   placeholder="Es. Foto scattata, cavo identificato, operatore..."
                 />
@@ -437,7 +470,8 @@ export default function EquipmentStoryPage(): JSX.Element {
                 </button>
                 <button
                   onClick={handleConfirm}
-                  className="min-h-11 flex-1 rounded-2xl border border-emerald-600 bg-emerald-600 px-4 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(16,185,129,0.22)] transition hover:bg-emerald-700"
+                  disabled={!uid || selected.fieldStatus !== "TO_VERIFY"}
+                  className="min-h-11 flex-1 rounded-2xl border border-emerald-600 bg-emerald-600 px-4 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(16,185,129,0.22)] transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-200 disabled:text-zinc-500"
                 >
                   Conferma verifica
                 </button>

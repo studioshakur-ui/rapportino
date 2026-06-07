@@ -35,6 +35,7 @@ interface CoreEventEvidenceRow {
   confidence: number | null;
   raw_text: string | null;
   source_message_id: string | null;
+  payload?: Record<string, unknown> | null;
 }
 
 interface WhatsAppEvidenceRow {
@@ -283,7 +284,7 @@ async function appendCoreEventEvidence(
 ): Promise<void> {
   const { data, error } = await supabase
     .from("core_events")
-    .select("id,cable_code_normalized,cable_code_raw,event_type,occurred_at,confidence,raw_text,source_message_id")
+    .select("id,cable_code_normalized,cable_code_raw,event_type,occurred_at,confidence,raw_text,source_message_id,payload")
     .in("cable_code_normalized", codes)
     .order("occurred_at", { ascending: false })
     .limit(2000);
@@ -317,7 +318,11 @@ async function appendCoreEventEvidence(
       cable_event_id: null,
       core_event_id: row.id,
       whatsapp_message_id: row.source_message_id,
-      source_type: "core_event",
+      source_type:
+        row.event_type === "FIELD_VERIFIED" ||
+        String((row.payload ?? null)?.verification_source ?? "").toLowerCase() === "manual"
+          ? "manual"
+          : "core_event",
       event_kind: row.event_type,
       occurred_at: row.occurred_at,
       actor_label: message?.author ?? null,
