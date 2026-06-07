@@ -122,14 +122,14 @@ export function buildRecommendedAction(
     hasPartialProgress: boolean;
   }
 ): string {
-  if (status === "outside_inca") return "Verificare il codice INCA prima dell'azione di campo";
-  if (status === "blocked") return "Rimuovere il blocco aperto prima della chiusura";
-  if (flags.hasShortIssue) return "Controllare la lunghezza e rilanciare la correzione del cavo corto";
-  if (flags.hasMissingIssue) return "Localizzare il cavo mancante e confermare su WhatsApp";
-  if (flags.hasPartialProgress) return "Richiedere percentuale finale e prova di posa";
-  if (status === "no_evidence") return "Richiedere conferma WhatsApp con foto o messaggio chiaro";
+  if (status === "outside_inca") return "Verificare il codice INCA prima di procedere sul terreno";
+  if (status === "blocked") return "Risolvere il blocco aperto prima della chiusura";
+  if (flags.hasShortIssue) return "Controllare lunghezza e avviare correzione cavo corto";
+  if (flags.hasMissingIssue) return "Localizzare cavo mancante e confermare su Telegram/WhatsApp";
+  if (flags.hasPartialProgress) return "Richiedere percentuale finale ed evidenza di posa";
+  if (status === "no_evidence") return "Richiedere conferma Telegram/WhatsApp con foto o messaggio chiaro";
   if (status === "to_verify") return "Validare il completamento prima della chiusura lista";
-  return "Archiviare come elemento sfruttabile nella Cable Story";
+  return "Archiviare come utilizzabile in Cable Story";
 }
 
 // ── Build ItemVM from DB rows ──────────────────────────────────────────────
@@ -263,7 +263,7 @@ export function buildTomorrowActions(
   if (missingEvidence.length > 0) {
     actions.push({
       kind: "missing_evidence",
-      label: "Trattare i cavi senza prova WhatsApp",
+      label: "Trattare i cavi senza evidenza Telegram/WhatsApp",
       count: missingEvidence.length,
       cable_codes: missingEvidence.slice(0, 10).map((i) => i.cable_code_normalized),
       perimetro: null,
@@ -274,7 +274,7 @@ export function buildTomorrowActions(
   if (qualityIssues.length > 0) {
     actions.push({
       kind: "quality_issue",
-      label: "Trattare cavi corti, mancanti e avanzamenti parziali",
+      label: "Trattare cavi corti, mancanti e progressioni parziali",
       count: qualityIssues.length,
       cable_codes: qualityIssues.slice(0, 10).map((i) => i.cable_code_normalized),
       perimetro: null,
@@ -380,32 +380,31 @@ export function buildDailyBriefingContext(
   const recommended_actions_deterministic: string[] = [];
   if (no_evidence > 0) {
     recommended_actions_deterministic.push(
-      `${no_evidence} câble(s) sans preuve terrain — demander confirmation WhatsApp pour: ${
+      `${no_evidence} cav${no_evidence === 1 ? "o" : "i"} senza evidenza terreno — richiedere conferma Telegram/WhatsApp per: ${
         missing_evidence_items.slice(0, 5).map((i) => i.cable_code).join(", ")
       }...`
     );
   }
   if (to_verify > 0) {
     recommended_actions_deterministic.push(
-      `${to_verify} câble(s) signalés partiels — vérifier achèvement avant clôture liste`
+      `${to_verify} cav${to_verify === 1 ? "o" : "i"} segnalati parziali — verificare completamento prima della chiusura lista`
     );
   }
   if (blocked > 0) {
     recommended_actions_deterministic.push(
-      `${blocked} câble(s) bloqués — traiter findings ouverts en priorité`
+      `${blocked} cav${blocked === 1 ? "o" : "i"} bloccati — trattare anomalie aperte in priorità`
     );
   }
   if (completion_rate_pct < 50) {
     recommended_actions_deterministic.push(
-      `Taux de complétion faible (${completion_rate_pct}%) — revoir allocation d'équipe pour demain`
+      `Avanzamento basso (${completion_rate_pct}%) — rivedere allocazione squadra per domani`
     );
   }
 
-  // Perimeters with 0 confirmed
   const zeroPerims = progress_by_perimeter.filter((p) => p.pct === 0 && p.total > 0);
   if (zeroPerims.length > 0) {
     recommended_actions_deterministic.push(
-      `Périmètres sans aucune confirmation: ${zeroPerims.map((p) => p.perimetro).join(", ")}`
+      `Zone senza alcuna conferma: ${zeroPerims.map((p) => p.perimetro).join(", ")}`
     );
   }
 

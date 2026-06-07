@@ -3,21 +3,21 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 
 const MAIN_NAV = [
-  { to: "/command/center",        label: "Dashboard",      hint: "Vue chantier du jour" },
-  { to: "/command/navemaster",    label: "Navemaster",     hint: "Vérité, travail, import et IA" },
-  { to: "/command/cables",        label: "Câbles",         hint: "Recherche et stories" },
-  { to: "/command/commander",     label: "Commander",      hint: "Entrée messages" },
-  { to: "/command/apparati",      label: "Apparati",       hint: "Gestion des apparats" },
-  { to: "/command/terrain-images", label: "Images terrain", hint: "Photos et preuves visuelles" },
-  { to: "/command/ai",            label: "IA Cockpit",     hint: "Analyse et classification IA" },
+  { to: "/command/center",         label: "Centro Comando",    hint: "Vista giornaliera cantiere" },
+  { to: "/command/navemaster",     label: "Navemaster",        hint: "Verità, lavoro, import e IA" },
+  { to: "/command/cables",         label: "Cavi",              hint: "Ricerca e storie cavi" },
+  { to: "/command/commander",      label: "Commander",         hint: "Invio messaggi" },
+  { to: "/command/apparati",       label: "Apparati",          hint: "Gestione apparecchiature" },
+  { to: "/command/terrain-images", label: "Immagini terreno",  hint: "Foto ed evidenze visive" },
+  { to: "/command/ai",             label: "IA Cockpit",        hint: "Analisi e classificazione IA" },
 ] as const;
 
 const ADMIN_NAV = [
-  { to: "/command/problems",  label: "Problèmes ouverts" },
-  { to: "/command/timeline",  label: "Journal chantier" },
+  { to: "/command/problems",  label: "Anomalie aperte" },
+  { to: "/command/timeline",  label: "Giornale cantiere" },
   { to: "/command/inca",      label: "Import INCA" },
-  { to: "/command/intake",    label: "Intake messages" },
-  { to: "/command/ai-intake", label: "Classifieur IA" },
+  { to: "/command/intake",    label: "Intake messaggi" },
+  { to: "/command/ai-intake", label: "Classificatore IA" },
 ] as const;
 
 export default function CommandShell(): JSX.Element {
@@ -55,17 +55,17 @@ export default function CommandShell(): JSX.Element {
           <div className="rounded-[28px] border border-stone-200 bg-[linear-gradient(135deg,#ffffff_0%,#f6f0e3_100%)] p-5 shadow-[0_20px_50px_rgba(15,23,42,0.06)]">
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-stone-500">Core Command</p>
             <h1 className="mt-3 text-2xl font-semibold tracking-tight text-stone-950">Hamidou Control Room</h1>
-            <p className="mt-2 text-sm leading-6 text-stone-600">Telegram en direct, Navemaster, priorités câble et décisions terrain.</p>
+            <p className="mt-2 text-sm leading-6 text-stone-600">Telegram in diretta, Navemaster, priorità cavi e decisioni terreno.</p>
           </div>
 
           <form onSubmit={search} className="mt-6">
             <label className="block">
-              <span className="sr-only">Rechercher un câble</span>
+              <span className="sr-only">Cerca cavo</span>
               <input
                 type="text"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Rechercher un câble"
+                placeholder="Cerca cavo"
                 className="min-h-12 w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-amber-400 focus:bg-white"
               />
             </label>
@@ -95,7 +95,7 @@ export default function CommandShell(): JSX.Element {
           </nav>
 
           <div className="mt-8 rounded-[24px] border border-stone-200 bg-stone-50/90 p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-stone-500">Outils</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-stone-500">Strumenti</p>
             <div className="mt-3 space-y-2">
               {ADMIN_NAV.map(({ to, label }) => (
                 <NavLink
@@ -118,7 +118,7 @@ export default function CommandShell(): JSX.Element {
               onClick={() => signOut({ reason: "manual" })}
               className="min-h-11 w-full rounded-2xl border border-stone-200 bg-white px-4 text-sm font-medium text-stone-700 transition hover:border-rose-200 hover:text-rose-700"
             >
-              Déconnexion
+              Disconnetti
             </button>
           </div>
         </aside>
@@ -129,7 +129,7 @@ export default function CommandShell(): JSX.Element {
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-stone-500">Core Command</p>
-                  <p className="mt-1 text-base font-semibold text-stone-950">Cockpit chantier</p>
+                  <p className="mt-1 text-base font-semibold text-stone-950">Centro Comando</p>
                 </div>
                 <div ref={adminRef} className="relative shrink-0">
                   <button
@@ -138,7 +138,7 @@ export default function CommandShell(): JSX.Element {
                       adminActive ? "border-stone-900 bg-stone-900 text-white" : "border-stone-200 bg-white text-stone-600"
                     }`}
                   >
-                    Outils
+                    Strumenti
                   </button>
                   {adminOpen ? (
                     <div className="absolute right-0 top-full mt-2 w-56 rounded-2xl border border-stone-200 bg-white p-2 shadow-[0_20px_60px_rgba(15,23,42,0.10)]">
@@ -166,7 +166,7 @@ export default function CommandShell(): JSX.Element {
                   type="text"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Rechercher un câble"
+                  placeholder="Cerca cavo"
                   className="min-h-11 w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 text-sm text-stone-900 outline-none placeholder:text-stone-400 focus:border-amber-400 focus:bg-white"
                 />
               </form>
