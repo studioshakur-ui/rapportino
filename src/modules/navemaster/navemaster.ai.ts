@@ -1,5 +1,5 @@
 import type { NavemasterAiInsight, NavemasterAiOverview, NavemasterNormalizedRow } from "./navemaster.types";
-import { summarizeNavemasterLegendSignals } from "./navemaster.legend";
+import { resolveNavemasterStateLegend, summarizeNavemasterLegendSignals } from "./navemaster.legend";
 
 function scoreRow(row: NavemasterNormalizedRow): NavemasterAiInsight | null {
   const reasons: string[] = [];
@@ -70,11 +70,11 @@ function scoreRow(row: NavemasterNormalizedRow): NavemasterAiInsight | null {
 }
 
 function isMajorSignal(row: NavemasterNormalizedRow, text: string, reasons: string[]): boolean {
-  const statoSta = String(row.payload.stato_sta ?? "").trim().toUpperCase();
   const situazione = String(row.payload["SITUAZIONE CAVO"] ?? "").trim().toUpperCase();
+  const statoSta = resolveNavemasterStateLegend(row.payload.stato_sta);
 
   return (
-    statoSta === "B" ||
+    statoSta?.code === "B" ||
     situazione === "!" ||
     /BLOCC|MANC|DA TROVARE|RISTENDERE|SHORT|CORT/.test(text) ||
     reasons.some((reason) =>

@@ -6,6 +6,7 @@ const MAIN_NAV = [
   { to: "/oggi", label: "Oggi", hint: "Cosa chiudere adesso" },
   { to: "/apparati", label: "Apparati", hint: "Chiusure sistema/apparato" },
   { to: "/campo", label: "Campo", hint: "Prove, import, Telegram" },
+  { to: "/situazione", label: "Situazione", hint: "Messaggio 16:30" },
   { to: "/grafici", label: "Grafici", hint: "Solo metriche métier" },
 ] as const;
 
@@ -30,7 +31,7 @@ export default function CommandShell(): JSX.Element {
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-stone-500">Core Command</p>
             <h1 className="mt-3 text-2xl font-semibold tracking-tight text-stone-950">Hamidou Control Room</h1>
             <p className="mt-2 text-sm leading-6 text-stone-600">
-              Oggi, Apparati, Campo e Grafici. Il resto resta dietro le quinte.
+              Oggi, Apparati, Campo, Situazione e Grafici. Il resto resta dietro le quinte.
             </p>
           </div>
 
@@ -106,7 +107,7 @@ export default function CommandShell(): JSX.Element {
                 />
               </form>
 
-              <div className="mt-3 grid grid-cols-4 gap-2">
+              <div className="mt-3 grid grid-cols-5 gap-2">
                 {MAIN_NAV.map(({ to, label }) => (
                   <NavLink
                     key={to}

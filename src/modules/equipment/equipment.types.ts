@@ -119,6 +119,9 @@ export interface EquipmentIntelligence {
   completion_rate: number;
   risk_level: EquipmentRiskLevel;
   risk_reasons: string[];
+  without_field_evidence: number;
+  status_distribution: Record<string, number>;
+  recommended_actions: string[];
   critical_path: CriticalPathCable[];
 }
 

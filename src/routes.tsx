@@ -10,6 +10,7 @@ import CableDetailPage    from "./features/core-command/cable/CableDetailPage";
 import CampoPage          from "./features/core-command/campo/CampoPage";
 import GraficiPage        from "./features/core-command/grafici/GraficiPage";
 import OggiPage           from "./features/core-command/oggi/OggiPage";
+import SituazionePage     from "./features/core-command/situazione/SituazionePage";
 import DailyListsPage     from "./modules/daily-lists/DailyListsPage";
 import DailyListDetailPage from "./modules/daily-lists/DailyListDetailPage";
 import ApparatiPage        from "./modules/apparati/ApparatiPage";
@@ -48,6 +49,7 @@ export default function AppRoutes(): JSX.Element {
         <Route path="oggi" element={<OggiPage />} />
         <Route path="apparati" element={<ApparatiPage />} />
         <Route path="campo" element={<CampoPage />} />
+        <Route path="situazione" element={<SituazionePage />} />
         <Route path="grafici" element={<GraficiPage />} />
         <Route path="import" element={<DailyListsPage />} />
         <Route path="import/:importId" element={<DailyListDetailPage />} />
@@ -57,6 +59,7 @@ export default function AppRoutes(): JSX.Element {
         <Route path="command/oggi" element={<Navigate to="/oggi" replace />} />
         <Route path="command/apparati" element={<Navigate to="/apparati" replace />} />
         <Route path="command/campo" element={<Navigate to="/campo" replace />} />
+        <Route path="command/situazione" element={<Navigate to="/situazione" replace />} />
         <Route path="command/grafici" element={<Navigate to="/grafici" replace />} />
         <Route path="command/import" element={<Navigate to="/import" replace />} />
         <Route path="command/import/:importId" element={<ParamRedirect to={(params) => `/import/${params.importId ?? ""}`} />} />

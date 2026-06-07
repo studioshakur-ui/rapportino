@@ -2,9 +2,13 @@ import { listRecentImports, loadItemsWithEvidence } from "../../modules/daily-li
 import { buildListSummary } from "../../modules/daily-lists/dailyLists.logic";
 import { loadEquipmentIntelligenceDashboard } from "../../modules/equipment/equipmentIntelligence.repo";
 import { listRecentTelegramMessages } from "../../features/core-command/api/telegramMessages.api";
+import { listOpenPriorities } from "../../features/core-command/api/cablePriorities.api";
 import { ensureArray } from "../../core/utils/array";
+import { buildSdcCableLookup, getDisplayCableCode } from "./sdc";
 import type { DailyListItemVM, DailyListSummary } from "../../modules/daily-lists/dailyLists.types";
 import type { EquipmentIntelligence, SystemClosure } from "../../modules/equipment/equipment.types";
+import { buildDailySituationView } from "./dailySituation";
+import type { DailySituationView } from "./dailySituation";
 
 export interface CoreEngineImportInfo {
   id: string;
@@ -40,6 +44,11 @@ export interface TodayWorkTelegramCard {
 export interface TodayWorkView {
   latest_import: CoreEngineImportInfo | null;
   summary: DailyListSummary | null;
+  open_priorities: Array<{
+    cable_code: string;
+    reason: string | null;
+    priority: string;
+  }>;
   metrics: {
     total_cables: number;
     confirmed_cables: number;
@@ -66,6 +75,10 @@ export interface ApparatusClosureCard {
   confirmed_cables: number;
   open_cables: number;
   blocked_cables: number;
+  without_field_evidence: number;
+  status_distribution: Record<string, number>;
+  recommended_actions: string[];
+  completion_rate: number;
   blocker: string | null;
   critical_path: string[];
   route: string;
@@ -77,9 +90,16 @@ export interface ApparatusClosureView {
 }
 
 export interface FieldEvidenceCard {
+  cable_code_raw: string | null;
   cable_code: string;
+  display_cable_code: string;
   cable_story_path: string;
   perimetro: string | null;
+  app_partenza: string | null;
+  app_arrivo: string | null;
+  stato_collegamento: string | null;
+  situazione_inca: string | null;
+  note: string | null;
   computed_status: string;
   evidence_count: number;
   last_event_at: string | null;
@@ -143,45 +163,53 @@ export interface CoreEngineSnapshot {
   apparatus: ApparatusClosureView;
   field: FieldEvidenceView;
   charts: ClosureChartsView;
+  situation: DailySituationView;
 }
 
 function emptySnapshot(): CoreEngineSnapshot {
+  const today: TodayWorkView = {
+    latest_import: null,
+    summary: null,
+    open_priorities: [],
+    metrics: {
+      total_cables: 0,
+      confirmed_cables: 0,
+      remaining_cables: 0,
+      blocked_cables: 0,
+      open_systems: 0,
+      blocked_systems: 0,
+      open_equipments: 0,
+      blocked_equipments: 0,
+      telegram_impacts: 0,
+    },
+    critical_closures: [],
+    telegram_impacts: [],
+  };
+  const apparatus: ApparatusClosureView = {
+    systems: [],
+    equipments: [],
+  };
+  const field: FieldEvidenceView = {
+    imports: [],
+    summary: null,
+    priority_items: [],
+    missing_evidence_items: [],
+    partial_items: [],
+    blocked_items: [],
+  };
+  const charts: ClosureChartsView = {
+    system_closures: [],
+    blocked_by_zone: [],
+    telegram_trend: [],
+    inca_distribution: [],
+  };
+
   return {
-    today: {
-      latest_import: null,
-      summary: null,
-      metrics: {
-        total_cables: 0,
-        confirmed_cables: 0,
-        remaining_cables: 0,
-        blocked_cables: 0,
-        open_systems: 0,
-        blocked_systems: 0,
-        open_equipments: 0,
-        blocked_equipments: 0,
-        telegram_impacts: 0,
-      },
-      critical_closures: [],
-      telegram_impacts: [],
-    },
-    apparatus: {
-      systems: [],
-      equipments: [],
-    },
-    field: {
-      imports: [],
-      summary: null,
-      priority_items: [],
-      missing_evidence_items: [],
-      partial_items: [],
-      blocked_items: [],
-    },
-    charts: {
-      system_closures: [],
-      blocked_by_zone: [],
-      telegram_trend: [],
-      inca_distribution: [],
-    },
+    today,
+    apparatus,
+    field,
+    charts,
+    situation: buildDailySituationView({ today, field, apparatus }),
   };
 }
 
@@ -244,9 +272,16 @@ function buildFieldEvidenceCards(items: DailyListItemVM[]): FieldEvidenceCard[] 
     )
     .slice(0, 24)
     .map((item) => ({
+      cable_code_raw: item.cable_code_raw ?? null,
       cable_code: item.cable_code_normalized,
+      display_cable_code: getDisplayCableCode(item.cable_code_raw ?? item.cable_code_normalized),
       cable_story_path: item.cable_story_path,
       perimetro: item.perimetro,
+      app_partenza: item.app_partenza,
+      app_arrivo: item.app_arrivo,
+      stato_collegamento: item.stato_collegamento,
+      situazione_inca: item.situazione_inca,
+      note: item.note,
       computed_status: item.computed_status,
       evidence_count: item.evidence_count,
       last_event_at: item.last_event_at,
@@ -328,82 +363,102 @@ export async function loadCoreEngineSnapshot(): Promise<CoreEngineSnapshot> {
   const imports = await listRecentImports(12);
   if (!latestImport) return emptySnapshot();
 
-  const [items, dashboard, telegramMessages] = await Promise.all([
+  const [items, dashboard, telegramMessages, openPriorities] = await Promise.all([
     loadItemsWithEvidence(latestImport.id),
     loadEquipmentIntelligenceDashboard(),
     listRecentTelegramMessages(24),
+    listOpenPriorities(10),
   ]);
 
   const summary = buildListSummary(latestImport.id, latestImport.list_date, latestImport.file_name, items);
   const systems = ensureArray(dashboard.systems, "coreEngine.dashboard.systems");
   const equipments = ensureArray(dashboard.equipments, "coreEngine.dashboard.equipments");
   const telegramImpacts = ensureArray(dashboard.telegram_impacts, "coreEngine.dashboard.telegram_impacts");
+  const sdcLookup = buildSdcCableLookup(items);
+
+  const today: TodayWorkView = {
+    latest_import: toImportInfo(latestImport),
+    summary,
+    open_priorities: ensureArray(openPriorities, "coreEngine.today.open_priorities").map((priority) => ({
+      cable_code: priority.cable_code,
+      reason: priority.reason ?? null,
+      priority: priority.priority,
+    })),
+    metrics: {
+      total_cables: summary.total,
+      confirmed_cables: summary.confirmed + summary.likely_laid,
+      remaining_cables: Math.max(summary.total - summary.confirmed - summary.likely_laid, 0),
+      blocked_cables: summary.blocked,
+      open_systems: systems.filter((system) => system.closure_status !== "CLOSED").length,
+      blocked_systems: systems.filter((system) => system.closure_status === "BLOCKED").length,
+      open_equipments: equipments.filter((equipment) => equipment.closure_status !== "CLOSED").length,
+      blocked_equipments: equipments.filter((equipment) => equipment.closure_status === "BLOCKED").length,
+      telegram_impacts: telegramImpacts.length,
+    },
+    critical_closures: buildTodayClosures(systems, equipments),
+    telegram_impacts: telegramImpacts.map((impact) => ({
+      message_id: impact.message_id,
+      message_ts: impact.message_ts,
+      text: impact.text ?? "",
+      cable_codes: [impact.cable_code],
+      systems: impact.systems,
+      before_label: impact.before_label,
+      after_label: impact.after_label,
+      system_closed: impact.system_closed,
+    })),
+  };
+
+  const apparatus: ApparatusClosureView = {
+    systems,
+    equipments: equipments.map((equipment) => ({
+      equipment_code: equipment.equipment_code,
+      equipment_name: equipment.equipment_name,
+      zone: equipment.zone,
+      system: equipment.system,
+      closure_status: equipment.closure_status,
+      risk_level: equipment.risk_level,
+      total_cables: equipment.total_cables,
+      confirmed_cables: equipment.confirmed_cables,
+      open_cables: equipment.open_cables,
+      blocked_cables: equipment.blocked_cables,
+      without_field_evidence: equipment.without_field_evidence,
+      status_distribution: equipment.status_distribution,
+      recommended_actions: equipment.recommended_actions,
+      completion_rate: equipment.completion_rate,
+      blocker: equipment.critical_path[0]?.reason ?? null,
+      critical_path: ensureArray(equipment.critical_path, `coreEngine.apparatus.${equipment.equipment_code}.critical_path`).map((cable) => cable.cable_code),
+      route: `/equipment/${encodeURIComponent(equipment.equipment_code)}`,
+    })),
+  };
+
+  const field: FieldEvidenceView = {
+    imports: imports.map(toImportInfo),
+    summary,
+    priority_items: buildFieldEvidenceCards(items).filter((item) => item.computed_status === "blocked" || item.has_partial_progress || item.confirmed_by_whatsapp),
+    missing_evidence_items: buildFieldEvidenceCards(items).filter((item) => item.computed_status === "no_evidence"),
+    partial_items: buildFieldEvidenceCards(items).filter((item) => item.computed_status === "to_verify" || item.computed_status === "likely_laid"),
+    blocked_items: buildFieldEvidenceCards(items).filter((item) => item.computed_status === "blocked"),
+  };
+
+  const charts: ClosureChartsView = {
+    system_closures: systems.map((system) => ({
+      system: system.system,
+      zone: system.zone,
+      total_equipments: system.total_equipments,
+      closed_equipments: system.closed_equipments,
+      open_equipments: system.open_equipments,
+      blocked_equipments: system.blocked_equipments,
+    })),
+    blocked_by_zone: buildBlockedByZone(equipments),
+    telegram_trend: buildTelegramTrend(telegramMessages),
+    inca_distribution: buildIncaDistribution(items),
+  };
 
   return {
-    today: {
-      latest_import: toImportInfo(latestImport),
-      summary,
-      metrics: {
-        total_cables: summary.total,
-        confirmed_cables: summary.confirmed + summary.likely_laid,
-        remaining_cables: Math.max(summary.total - summary.confirmed - summary.likely_laid, 0),
-        blocked_cables: summary.blocked,
-        open_systems: systems.filter((system) => system.closure_status !== "CLOSED").length,
-        blocked_systems: systems.filter((system) => system.closure_status === "BLOCKED").length,
-        open_equipments: equipments.filter((equipment) => equipment.closure_status !== "CLOSED").length,
-        blocked_equipments: equipments.filter((equipment) => equipment.closure_status === "BLOCKED").length,
-        telegram_impacts: telegramImpacts.length,
-      },
-      critical_closures: buildTodayClosures(systems, equipments),
-      telegram_impacts: telegramImpacts.map((impact) => ({
-        message_id: impact.message_id,
-        message_ts: impact.message_ts,
-        text: impact.text ?? "",
-        cable_codes: [impact.cable_code],
-        systems: impact.systems,
-        before_label: impact.before_label,
-        after_label: impact.after_label,
-        system_closed: impact.system_closed,
-      })),
-    },
-    apparatus: {
-      systems,
-      equipments: equipments.map((equipment) => ({
-        equipment_code: equipment.equipment_code,
-        equipment_name: equipment.equipment_name,
-        zone: equipment.zone,
-        system: equipment.system,
-        closure_status: equipment.closure_status,
-        risk_level: equipment.risk_level,
-        total_cables: equipment.total_cables,
-        confirmed_cables: equipment.confirmed_cables,
-        open_cables: equipment.open_cables,
-        blocked_cables: equipment.blocked_cables,
-        blocker: equipment.critical_path[0]?.reason ?? null,
-        critical_path: ensureArray(equipment.critical_path, `coreEngine.apparatus.${equipment.equipment_code}.critical_path`).map((cable) => cable.cable_code),
-        route: `/equipment/${encodeURIComponent(equipment.equipment_code)}`,
-      })),
-    },
-    field: {
-      imports: imports.map(toImportInfo),
-      summary,
-      priority_items: buildFieldEvidenceCards(items).filter((item) => item.computed_status === "blocked" || item.has_partial_progress || item.confirmed_by_whatsapp),
-      missing_evidence_items: buildFieldEvidenceCards(items).filter((item) => item.computed_status === "no_evidence"),
-      partial_items: buildFieldEvidenceCards(items).filter((item) => item.computed_status === "to_verify" || item.computed_status === "likely_laid"),
-      blocked_items: buildFieldEvidenceCards(items).filter((item) => item.computed_status === "blocked"),
-    },
-    charts: {
-      system_closures: systems.map((system) => ({
-        system: system.system,
-        zone: system.zone,
-        total_equipments: system.total_equipments,
-        closed_equipments: system.closed_equipments,
-        open_equipments: system.open_equipments,
-        blocked_equipments: system.blocked_equipments,
-      })),
-      blocked_by_zone: buildBlockedByZone(equipments),
-      telegram_trend: buildTelegramTrend(telegramMessages),
-      inca_distribution: buildIncaDistribution(items),
-    },
+    today,
+    apparatus,
+    field,
+    charts,
+    situation: buildDailySituationView({ today, field, apparatus, sdc: sdcLookup }),
   };
 }

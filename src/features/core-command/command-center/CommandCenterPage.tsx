@@ -1,25 +1,9 @@
-// src/features/core-command/command-center/CommandCenterPage.tsx — CENTRO COMANDO
-// UI consuma solo output dominio già normalizzati.
-// Nessun calcolo métier qui. Nessun testo in francese.
-
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { listRecentImports, loadItemsWithEvidence } from "../../../modules/daily-lists/dailyLists.repo";
-import { buildListSummary } from "../../../modules/daily-lists/dailyLists.logic";
 import { Pill, Screen, StatCard, EmptyState, Section, AppBar } from "../../../components/command-ui";
 import { formatCableDisplay } from "../../../core/cable/cableDisplay";
-import { listRecentTelegramMessages } from "../api/telegramMessages.api";
-import { buildSistemiChiusura, sistemiNonChiusi, chiusureRecenti } from "../../../domain/sistema";
-import { buildApparecchiaturaVMs } from "../../../domain/apparecchiatura";
-import { buildPercorsoCritico } from "../../../domain/percorso-critico";
-import { buildImpattiTelegram } from "../../../domain/telegram-impact";
-import { loadEquipmentIntelligenceDashboard } from "../../../modules/equipment/equipmentIntelligence.repo";
-import type { DailyListItemVM } from "../../../modules/daily-lists/dailyLists.types";
-import type { SistemaChiusura } from "../../../domain/sistema";
-import type { ApparecchiaturaVM } from "../../../domain/apparecchiatura";
-import type { CavoPercorsoCritico } from "../../../domain/percorso-critico";
-import type { ImpattoTelegram } from "../../../domain/telegram-impact";
-import { STATO_CHIUSURA } from "../../../domain/dizionario";
+import { loadCoreEngineSnapshot } from "../../../domain/core-engine";
+import type { ApparatusClosureCard, TodayWorkClosureCard, TodayWorkTelegramCard } from "../../../domain/core-engine";
 import { ensureArray } from "../../../core/utils/array";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -34,21 +18,11 @@ function formatData(value: string | null): string {
   });
 }
 
-
-function statoPill(status: string): "emerald" | "sky" | "amber" | "red" | "neutral" {
-  if (status === "confirmed_field") return "emerald";
-  if (status === "likely_laid") return "sky";
-  if (status === "to_verify" || status === "no_evidence") return "amber";
-  if (status === "blocked" || status === "missing") return "red";
-  return "neutral";
-}
-
-function statoChiusuraTone(stato: string): "emerald" | "sky" | "amber" | "red" | "neutral" {
-  if (stato === STATO_CHIUSURA.CHIUSO) return "emerald";
-  if (stato === STATO_CHIUSURA.IN_CORSO) return "sky";
-  if (stato === STATO_CHIUSURA.NON_CHIUSO) return "amber";
-  if (stato === STATO_CHIUSURA.BLOCCATO) return "red";
-  return "neutral";
+function statusTone(status: string): "emerald" | "sky" | "amber" | "red" | "neutral" {
+  if (status === "CLOSED") return "emerald";
+  if (status === "BLOCKED") return "red";
+  if (status === "OPEN") return "amber";
+  return "sky";
 }
 
 function rischioTone(raw: string): "emerald" | "sky" | "amber" | "red" | "neutral" {
@@ -59,67 +33,47 @@ function rischioTone(raw: string): "emerald" | "sky" | "amber" | "red" | "neutra
   return "neutral";
 }
 
+function rischioLabel(raw: string): string {
+  if (raw === "low") return "Basso";
+  if (raw === "medium") return "Medio";
+  if (raw === "high") return "Alto";
+  if (raw === "critical") return "Critico";
+  return raw;
+}
+
+function closureLabel(raw: string): string {
+  if (raw === "CLOSED") return "CHIUSO";
+  if (raw === "BLOCKED") return "BLOCCATO";
+  if (raw === "PARTIAL") return "PARZIALE";
+  if (raw === "OPEN") return "APERTO";
+  return raw;
+}
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CommandCenterPage(): JSX.Element {
   const navigate = useNavigate();
 
-  const { data: imports } = useQuery({
-    queryKey: ["daily_list_imports"],
-    queryFn: () => listRecentImports(1),
+  const { data: snapshot, isLoading, isError } = useQuery({
+    queryKey: ["core_engine_snapshot"],
+    queryFn: loadCoreEngineSnapshot,
     staleTime: 60_000,
   });
-  const latest = imports?.[0] ?? null;
-
-  const { data: items, isLoading, isError } = useQuery({
-    queryKey: ["daily_list_items_vm", latest?.id],
-    queryFn: () => loadItemsWithEvidence(latest!.id),
-    enabled: Boolean(latest?.id),
-    staleTime: 60_000,
-  });
-
-  const { data: telegramMessages } = useQuery({
-    queryKey: ["telegram_live_feed"],
-    queryFn: () => listRecentTelegramMessages(12),
-    staleTime: 30_000,
-  });
-
-  const { data: equipmentDashboard } = useQuery({
-    queryKey: ["equipment_intelligence_dashboard"],
-    queryFn: loadEquipmentIntelligenceDashboard,
-    staleTime: 30_000,
-  });
-
-  // ── Domain layer — tutto il calcolo métier qui, fuori dai componenti ──────
-  const summary = latest && items
-    ? buildListSummary(latest.id, latest.list_date, latest.file_name, items)
-    : null;
-
-  const equipments = ensureArray(equipmentDashboard?.equipments, "commandCenter.equipments");
-
-  const sistemi         = items ? buildSistemiChiusura(items, equipments) : [];
-  const nonChiusi       = sistemiNonChiusi(sistemi);
-  const recentiChiusi   = chiusureRecenti(sistemi);
-
-  const apparecchiature = buildApparecchiaturaVMs(
-    equipments.filter((e) => e.risk_level === "critical" || e.risk_level === "high")
-  );
-
-  const percorsoCritico = items ? buildPercorsoCritico(items, equipments) : [];
-
-  const impattiTelegram = items && telegramMessages
-    ? buildImpattiTelegram(telegramMessages, items)
-    : (telegramMessages ?? []).map((msg) => ({
-        messaggio_id: msg.id,
-        mittente: msg.sender_name ?? "Telegram",
-        testo: msg.text ?? "",
-        data: msg.message_ts ?? msg.created_at,
-        cavi_impattati: [],
-        ha_cavi_bloccanti: false,
-        ha_riferimenti_cavi: ensureArray(msg.cable_refs, `commandCenter.telegram.${msg.id}.cable_refs`).length > 0,
-      }));
-
-  const cabliBloccantiDiretti = items?.filter((i) => i.computed_status === "blocked") ?? [];
+  const latest = snapshot?.today.latest_import ?? null;
+  const summary = snapshot?.today.summary ?? null;
+  const nonChiusi = ensureArray(snapshot?.today.critical_closures, "commandCenter.today.critical_closures")
+    .filter((card) => card.kind === "system" && card.status !== "CLOSED");
+  const recentiChiusi = ensureArray(snapshot?.apparatus.systems, "commandCenter.apparatus.systems")
+    .filter((system) => system.closure_status === "CLOSED")
+    .slice(0, 6);
+  const apparecchiature = ensureArray(snapshot?.apparatus.equipments, "commandCenter.apparatus.equipments")
+    .filter((equipment) => equipment.closure_status !== "CLOSED" || equipment.risk_level === "high" || equipment.risk_level === "critical")
+    .slice(0, 9);
+  const cabliBloccantiDiretti = ensureArray(snapshot?.field.blocked_items, "commandCenter.field.blocked_items").slice(0, 20);
+  const percorsoCritico = ensureArray(snapshot?.apparatus.equipments, "commandCenter.apparatus.equipments")
+    .flatMap((equipment) => ensureArray(equipment.critical_path, `commandCenter.${equipment.equipment_code}.critical_path`))
+    .slice(0, 12);
+  const impattiTelegram = ensureArray(snapshot?.today.telegram_impacts, "commandCenter.today.telegram_impacts").slice(0, 12);
 
   if (!latest && !isLoading) {
     return (
@@ -143,15 +97,13 @@ export default function CommandCenterPage(): JSX.Element {
 
   return (
     <Screen className="max-w-6xl space-y-6">
-
-      {/* ── Intestazione ─────────────────────────────────────────────────── */}
       <section className="rounded-[32px] border border-stone-200 bg-[linear-gradient(135deg,#ffffff_0%,#f6f0e3_100%)] p-6 shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
         <AppBar
           title="Centro Comando"
           subtitle={new Date().toLocaleDateString("it-IT", { weekday: "long", day: "2-digit", month: "long" })}
           action={
             summary ? (
-              <Pill tone={nonChiusi.length === 0 ? "emerald" : nonChiusi.some((s) => s.stato === STATO_CHIUSURA.BLOCCATO) ? "red" : "amber"}>
+              <Pill tone={nonChiusi.length === 0 ? "emerald" : nonChiusi.some((s) => s.status === "BLOCKED") ? "red" : "amber"}>
                 {nonChiusi.length === 0 ? "Tutto chiuso" : `${nonChiusi.length} sist. non chius${nonChiusi.length === 1 ? "o" : "i"}`}
               </Pill>
             ) : null
@@ -178,15 +130,14 @@ export default function CommandCenterPage(): JSX.Element {
 
         {summary ? (
           <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard label="Cavi confermati" value={(summary.confirmed ?? 0) + (summary.likely_laid ?? 0)} helper={`/ ${summary.total} totale`} tone="emerald" />
-            <StatCard label="Rimanenti" value={Math.max(summary.total - (summary.confirmed ?? 0) - (summary.likely_laid ?? 0), 0)} helper="da seguire" tone={summary.total - (summary.confirmed ?? 0) - (summary.likely_laid ?? 0) > 0 ? "amber" : "neutral"} />
+            <StatCard label="Cavi confermati" value={snapshot?.today.metrics.confirmed_cables ?? 0} helper={`/ ${snapshot?.today.metrics.total_cables ?? 0} totale`} tone="emerald" />
+            <StatCard label="Rimanenti" value={snapshot?.today.metrics.remaining_cables ?? 0} helper="da seguire" tone={(snapshot?.today.metrics.remaining_cables ?? 0) > 0 ? "amber" : "neutral"} />
             <StatCard label="Senza evidenza" value={summary.no_evidence} helper="da confermare" tone={summary.no_evidence > 0 ? "amber" : "neutral"} />
-            <StatCard label="Anomalie" value={(summary.blocked ?? 0) + (summary.short_issues ?? 0) + (summary.missing_issues ?? 0)} helper="bloccati · corti · mancanti" tone={(summary.blocked ?? 0) > 0 ? "red" : "neutral"} />
+            <StatCard label="Anomalie" value={snapshot?.today.metrics.blocked_cables ?? 0} helper="bloccati · critici" tone={(snapshot?.today.metrics.blocked_cables ?? 0) > 0 ? "red" : "neutral"} />
           </div>
         ) : null}
       </section>
 
-      {/* ── Errore caricamento evidenze ──────────────────────────────────── */}
       {isError ? (
         <div className="rounded-[28px] border border-amber-200 bg-amber-50 p-4">
           <p className="text-sm font-medium text-amber-800">Evidenze terreno non caricate</p>
@@ -196,7 +147,6 @@ export default function CommandCenterPage(): JSX.Element {
         </div>
       ) : null}
 
-      {/* ── Sistemi non chiusi ────────────────────────────────────────────── */}
       {!isLoading && nonChiusi.length > 0 ? (
         <SistemiNonChiusiSection
           sistemi={nonChiusi}
@@ -204,7 +154,6 @@ export default function CommandCenterPage(): JSX.Element {
         />
       ) : null}
 
-      {/* ── Apparecchiature critiche ──────────────────────────────────────── */}
       {apparecchiature.length > 0 ? (
         <ApparecchiatureCriticheSection
           apparecchiature={apparecchiature}
@@ -212,7 +161,6 @@ export default function CommandCenterPage(): JSX.Element {
         />
       ) : null}
 
-      {/* ── Cavi bloccanti ───────────────────────────────────────────────── */}
       {cabliBloccantiDiretti.length > 0 ? (
         <CaviBloccantiSection
           cavi={cabliBloccantiDiretti}
@@ -220,7 +168,6 @@ export default function CommandCenterPage(): JSX.Element {
         />
       ) : null}
 
-      {/* ── Percorso critico ─────────────────────────────────────────────── */}
       {percorsoCritico.length > 0 ? (
         <PercorsoCriticoSection
           percorso={percorsoCritico}
@@ -228,18 +175,14 @@ export default function CommandCenterPage(): JSX.Element {
         />
       ) : null}
 
-      {/* ── Impatti Telegram ─────────────────────────────────────────────── */}
       <ImpattiTelegramSection
         impatti={impattiTelegram}
-        onOpenCavo={(code) => navigate(`/cable/${encodeURIComponent(code)}`)}
       />
 
-      {/* ── Chiusure recenti ─────────────────────────────────────────────── */}
       {recentiChiusi.length > 0 ? (
         <ChiusureRecentiSection sistemi={recentiChiusi} />
       ) : null}
 
-      {/* ── Stato ok ─────────────────────────────────────────────────────── */}
       {!isLoading &&
         summary &&
         nonChiusi.length === 0 &&
@@ -262,7 +205,7 @@ function SistemiNonChiusiSection({
   sistemi,
   onNavigate,
 }: {
-  sistemi: SistemaChiusura[];
+  sistemi: TodayWorkClosureCard[];
   onNavigate: () => void;
 }): JSX.Element {
   return (
@@ -274,54 +217,34 @@ function SistemiNonChiusiSection({
       <div className="grid gap-3 md:grid-cols-2">
         {sistemi.map((sistema) => (
           <button
-            key={sistema.nome}
+            key={sistema.key}
             onClick={() => onNavigate()}
             className="rounded-[28px] border border-stone-200 bg-white p-4 text-left shadow-sm transition hover:border-sky-300"
           >
             <div className="flex items-start justify-between gap-3">
               <span className="text-xs font-semibold uppercase tracking-wider text-stone-500">
-                Sistema
+                {sistema.kind === "system" ? "Sistema" : "Apparecchiatura"}
               </span>
-              <Pill tone={statoChiusuraTone(sistema.stato)}>{sistema.stato}</Pill>
+              <Pill tone={statusTone(sistema.status)}>{sistema.status}</Pill>
             </div>
-            <p className="mt-1 text-base font-bold text-stone-950">{sistema.nome}</p>
+            <p className="mt-1 text-base font-bold text-stone-950">{sistema.name}</p>
 
             <dl className="mt-3 space-y-1.5 text-xs text-stone-600">
               <div className="flex items-start gap-2">
                 <dt className="w-24 shrink-0 font-medium text-stone-500">Avanzamento</dt>
-                <dd>{sistema.avanzamento_label}</dd>
+                <dd>{sistema.summary}</dd>
               </div>
               <div className="flex items-start gap-2">
                 <dt className="w-24 shrink-0 font-medium text-stone-500">Cosa manca</dt>
-                <dd>{sistema.cosa_manca}</dd>
+                <dd>{sistema.status === "CLOSED" ? "Tutto chiuso" : "Da seguire"}</dd>
               </div>
-              {sistema.cosa_blocca ? (
+              {sistema.blocker ? (
                 <div className="flex items-start gap-2">
                   <dt className="w-24 shrink-0 font-medium text-red-600">Bloccato da</dt>
-                  <dd className="font-mono text-red-700">{sistema.cosa_blocca}</dd>
-                </div>
-              ) : null}
-              {sistema.impatto ? (
-                <div className="flex items-start gap-2">
-                  <dt className="w-24 shrink-0 font-medium text-rose-600">Impatto</dt>
-                  <dd className="text-rose-700">{sistema.impatto}</dd>
+                  <dd className="font-mono text-red-700">{sistema.blocker}</dd>
                 </div>
               ) : null}
             </dl>
-
-            {/* Progress bar */}
-            <div className="mt-3 h-2 overflow-hidden rounded-full bg-stone-200">
-              <div
-                style={{ width: `${sistema.cavi_totali > 0 ? (sistema.cavi_confermati / sistema.cavi_totali) * 100 : 0}%` }}
-                className={`h-full rounded-full transition-all ${
-                  sistema.stato === STATO_CHIUSURA.BLOCCATO
-                    ? "bg-red-500"
-                    : sistema.stato === STATO_CHIUSURA.IN_CORSO
-                    ? "bg-sky-500"
-                    : "bg-amber-400"
-                }`}
-              />
-            </div>
           </button>
         ))}
       </div>
@@ -335,7 +258,7 @@ function ApparecchiatureCriticheSection({
   apparecchiature,
   onOpen,
 }: {
-  apparecchiature: ApparecchiaturaVM[];
+  apparecchiature: ApparatusClosureCard[];
   onOpen: (codice: string) => void;
 }): JSX.Element {
   return (
@@ -347,40 +270,40 @@ function ApparecchiatureCriticheSection({
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {apparecchiature.slice(0, 9).map((app) => (
           <button
-            key={app.codice}
-            onClick={() => onOpen(app.codice)}
+            key={app.equipment_code}
+            onClick={() => onOpen(app.equipment_code)}
             className="rounded-[28px] border border-rose-200 bg-rose-50/70 p-4 text-left shadow-sm transition hover:border-rose-300"
           >
             <div className="flex items-start justify-between gap-3">
-              <span className="font-mono text-base font-semibold text-stone-950">{app.codice}</span>
-              <Pill tone={rischioTone(app.livello_rischio_raw)}>{app.livello_rischio}</Pill>
+              <span className="font-mono text-base font-semibold text-stone-950">{app.equipment_code}</span>
+              <Pill tone={rischioTone(app.risk_level)}>{rischioLabel(app.risk_level)}</Pill>
             </div>
 
             <dl className="mt-3 space-y-1.5 text-xs text-stone-600">
               <div className="flex items-start gap-2">
                 <dt className="w-28 shrink-0 font-medium text-stone-500">Avanzamento</dt>
-                <dd>{app.avanzamento_label}</dd>
+                <dd>{`${app.confirmed_cables}/${app.total_cables} cavi confermati`}</dd>
               </div>
               <div className="flex items-start gap-2">
                 <dt className="w-28 shrink-0 font-medium text-stone-500">Cosa manca</dt>
-                <dd>{app.cosa_manca}</dd>
+                <dd>{app.total_cables - app.confirmed_cables > 0 ? `${app.total_cables - app.confirmed_cables} cavi non confermati` : "Tutti i cavi confermati"}</dd>
               </div>
-              {app.cosa_blocca ? (
+              {app.blocker ? (
                 <div className="flex items-start gap-2">
                   <dt className="w-28 shrink-0 font-medium text-red-600">Cosa blocca</dt>
-                  <dd className="text-red-700">{app.cosa_blocca}</dd>
+                  <dd className="text-red-700">{app.blocker}</dd>
                 </div>
               ) : null}
-              {app.impatto_sistema ? (
+              {app.blocker ? (
                 <div className="flex items-start gap-2">
                   <dt className="w-28 shrink-0 font-medium text-rose-600">Impatto</dt>
-                  <dd className="text-rose-700">{app.impatto_sistema}</dd>
+                  <dd className="text-rose-700">apparecchiatura non chiudibile</dd>
                 </div>
               ) : null}
             </dl>
 
-            {app.anomalie[0] ? (
-              <p className="mt-3 text-xs leading-5 text-rose-700">{app.anomalie[0]}</p>
+            {app.recommended_actions[0] ? (
+              <p className="mt-3 text-xs leading-5 text-rose-700">{app.recommended_actions[0]}</p>
             ) : null}
           </button>
         ))}
@@ -395,7 +318,11 @@ function CaviBloccantiSection({
   cavi,
   onOpen,
 }: {
-  cavi: DailyListItemVM[];
+  cavi: Array<{
+    cable_code: string;
+    perimetro: string | null;
+    recommended_action: string;
+  }>;
   onOpen: (code: string) => void;
 }): JSX.Element {
   return (
@@ -408,12 +335,12 @@ function CaviBloccantiSection({
         <div className="flex flex-wrap gap-2">
           {cavi.slice(0, 20).map((item) => (
             <button
-              key={item.id}
-              onClick={() => onOpen(item.cable_code_normalized)}
+              key={item.cable_code}
+              onClick={() => onOpen(item.cable_code)}
               className="rounded-xl border border-red-200 bg-white px-3 py-2 text-left transition hover:border-red-400"
             >
               <p className="font-mono text-sm font-semibold text-stone-950">
-                {formatCableDisplay(item.cable_code_normalized)}
+                {formatCableDisplay(item.cable_code)}
               </p>
               {item.perimetro ? (
                 <p className="mt-0.5 text-[10px] text-stone-500">{item.perimetro}</p>
@@ -438,7 +365,7 @@ function PercorsoCriticoSection({
   percorso,
   onOpen,
 }: {
-  percorso: CavoPercorsoCritico[];
+  percorso: string[];
   onOpen: (code: string) => void;
 }): JSX.Element {
   return (
@@ -450,27 +377,19 @@ function PercorsoCriticoSection({
       <div className="grid gap-2 md:grid-cols-2">
         {percorso.slice(0, 12).map((cavo) => (
           <button
-            key={cavo.codice_cavo}
-            onClick={() => onOpen(cavo.codice_cavo)}
+            key={cavo}
+            onClick={() => onOpen(cavo)}
             className="flex items-start gap-3 rounded-[22px] border border-stone-200 bg-white p-3 text-left transition hover:border-amber-300"
           >
             <div className="mt-0.5 flex-shrink-0">
-              <span className={`inline-flex h-2 w-2 rounded-full ${cavo.blocca_sistema ? "bg-red-500" : "bg-amber-400"}`} />
+              <span className="inline-flex h-2 w-2 rounded-full bg-amber-400" />
             </div>
             <div className="min-w-0">
               <p className="font-mono text-sm font-semibold text-stone-950">
-                {formatCableDisplay(cavo.codice_cavo)}
+                {formatCableDisplay(cavo)}
               </p>
-              <p className="mt-0.5 text-xs text-stone-600">{cavo.motivo}</p>
-              {cavo.apparecchiature_impattate.length > 0 ? (
-                <p className="mt-1 text-[10px] text-stone-400">
-                  App: {cavo.apparecchiature_impattate.join(" · ")}
-                </p>
-              ) : null}
+              <p className="mt-0.5 text-xs text-stone-600">Percorso critico dal snapshot core</p>
             </div>
-            {cavo.perimetro ? (
-              <span className="ml-auto shrink-0 text-[10px] text-stone-400">{cavo.perimetro}</span>
-            ) : null}
           </button>
         ))}
       </div>
@@ -485,14 +404,9 @@ function PercorsoCriticoSection({
 
 function ImpattiTelegramSection({
   impatti,
-  onOpenCavo,
 }: {
-  impatti: ImpattoTelegram[];
-  onOpenCavo: (code: string) => void;
+  impatti: TodayWorkTelegramCard[];
 }): JSX.Element {
-  const conCavi = impatti.filter((i) => i.ha_riferimenti_cavi).length;
-  const conBloccanti = impatti.filter((i) => i.ha_cavi_bloccanti).length;
-
   return (
     <Section
       title="Impatto Telegram"
@@ -509,59 +423,43 @@ function ImpattiTelegramSection({
         <div className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-3">
             <StatCard label="Messaggi recenti" value={impatti.length} helper="catturati in DB" tone="sky" />
-            <StatCard label="Con cavi" value={conCavi} helper="apribili in Cable Story" tone={conCavi > 0 ? "emerald" : "neutral"} />
-            <StatCard label="Con bloccanti" value={conBloccanti} helper="richiedono azione" tone={conBloccanti > 0 ? "red" : "neutral"} />
+            <StatCard label="Con cavi" value={impatti.filter((item) => item.cable_codes.length > 0).length} helper="apribili in Cable Story" tone={impatti.some((item) => item.cable_codes.length > 0) ? "emerald" : "neutral"} />
+            <StatCard label="System closed" value={impatti.filter((item) => item.system_closed).length} helper="chiusure ufficiali" tone={impatti.some((item) => item.system_closed) ? "emerald" : "neutral"} />
           </div>
 
           <div className="grid gap-3 md:grid-cols-2">
             {impatti.map((impatto) => (
               <article
-                key={impatto.messaggio_id}
+                key={impatto.message_id}
                 className={`rounded-[28px] border p-4 shadow-sm ${
-                  impatto.ha_cavi_bloccanti
-                    ? "border-red-200 bg-red-50/60"
-                    : "border-sky-200 bg-sky-50/70"
+                  impatto.system_closed ? "border-emerald-200 bg-emerald-50/60" : "border-sky-200 bg-sky-50/70"
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-stone-950">{impatto.mittente}</p>
-                    <p className="mt-1 text-xs text-stone-600">{formatData(impatto.data)}</p>
+                    <p className="truncate text-sm font-semibold text-stone-950">{impatto.text || "Messaggio Telegram"}</p>
+                    <p className="mt-1 text-xs text-stone-600">{formatData(impatto.message_ts)}</p>
                   </div>
-                  {impatto.ha_cavi_bloccanti ? (
-                    <Pill tone="red">bloccante</Pill>
-                  ) : impatto.ha_riferimenti_cavi ? (
-                    <Pill tone="emerald">{impatto.cavi_impattati.length} cav{impatto.cavi_impattati.length === 1 ? "o" : "i"}</Pill>
-                  ) : (
-                    <Pill tone="neutral">info</Pill>
-                  )}
+              <Pill tone={impatto.system_closed ? "emerald" : "amber"}>{impatto.system_closed ? "SYSTEM CLOSED" : "in attesa"}</Pill>
                 </div>
 
-                <p className="mt-3 line-clamp-3 whitespace-pre-line text-sm leading-6 text-stone-700">
-                  {impatto.testo || "Messaggio senza testo"}
+                <p className="mt-3 whitespace-pre-line text-sm leading-6 text-stone-700">
+                  {impatto.before_label} → {impatto.after_label}
                 </p>
 
-                {impatto.cavi_impattati.length > 0 ? (
+                {impatto.cable_codes.length > 0 ? (
                   <div className="mt-3 space-y-1.5">
-                    {impatto.cavi_impattati.slice(0, 6).map((cavo) => (
-                      <button
-                        key={cavo.codice_cavo}
-                        onClick={() => onOpenCavo(cavo.codice_cavo)}
-                        className="flex w-full items-center justify-between rounded-xl border border-stone-200 bg-white px-2.5 py-1.5 text-left transition hover:border-sky-300"
+                    {impatto.cable_codes.slice(0, 6).map((code) => (
+                      <div
+                        key={code}
+                        className="flex w-full items-center justify-between rounded-xl border border-stone-200 bg-white px-2.5 py-1.5"
                       >
-                        <span className="font-mono text-xs font-semibold text-stone-700">
-                          {formatCableDisplay(cavo.codice_cavo)}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          {cavo.perimetro ? (
-                            <span className="text-[10px] text-stone-400">{cavo.perimetro}</span>
-                          ) : null}
-                          <Pill tone={statoPill(cavo.stato)}>{cavo.stato_label}</Pill>
-                        </div>
-                      </button>
+                        <span className="font-mono text-xs font-semibold text-stone-700">{formatCableDisplay(code)}</span>
+                        <span className="text-[10px] text-stone-400">{impatto.systems.join(" · ") || "—"}</span>
+                      </div>
                     ))}
-                    {impatto.cavi_impattati.length > 6 ? (
-                      <p className="text-xs text-stone-500">+{impatto.cavi_impattati.length - 6} altri cavi</p>
+                    {impatto.cable_codes.length > 6 ? (
+                      <p className="text-xs text-stone-500">+{impatto.cable_codes.length - 6} altri cavi</p>
                     ) : null}
                   </div>
                 ) : null}
@@ -579,7 +477,15 @@ function ImpattiTelegramSection({
 function ChiusureRecentiSection({
   sistemi,
 }: {
-  sistemi: SistemaChiusura[];
+  sistemi: Array<{
+    system: string;
+    zone: string | null;
+    total_equipments: number;
+    closed_equipments: number;
+    open_equipments: number;
+    blocked_equipments: number;
+    closure_status: string;
+  }>;
 }): JSX.Element {
   return (
     <div>
@@ -590,14 +496,14 @@ function ChiusureRecentiSection({
       <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
         {sistemi.map((sistema) => (
           <div
-            key={sistema.nome}
+            key={sistema.system}
             className="rounded-[22px] border border-emerald-200 bg-emerald-50/60 px-4 py-3"
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="truncate text-sm font-semibold text-stone-950">{sistema.nome}</span>
-              <Pill tone="emerald">CHIUSO</Pill>
+              <span className="truncate text-sm font-semibold text-stone-950">{sistema.system}</span>
+              <Pill tone="emerald">{closureLabel(sistema.closure_status)}</Pill>
             </div>
-            <p className="mt-1 text-xs text-stone-600">{sistema.avanzamento_label}</p>
+            <p className="mt-1 text-xs text-stone-600">{sistema.closed_equipments}/{sistema.total_equipments} apparecchiature chiuse</p>
           </div>
         ))}
       </div>

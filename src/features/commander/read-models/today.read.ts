@@ -1,13 +1,13 @@
-import { listOpenPriorities } from "../../core-command/api/cablePriorities.api";
-import { buildListSummary } from "../../../modules/daily-lists/dailyLists.logic";
-import { listRecentImports, loadItemsWithEvidence } from "../../../modules/daily-lists/dailyLists.repo";
+import { loadCoreEngineSnapshot } from "../../../domain/core-engine";
+import type { PerimeterSummary } from "../../../modules/daily-lists/dailyLists.types";
 import type { CommanderTodayReadModel } from "../commands/CommandTypes";
 
 export async function loadCommanderToday(): Promise<CommanderTodayReadModel> {
-  const latestImports = await listRecentImports(1);
-  const latest = latestImports[0] ?? null;
+  const snapshot = await loadCoreEngineSnapshot();
+  const summary = snapshot.today.summary;
+  const fieldSummary = snapshot.field.summary;
 
-  if (!latest) {
+  if (!summary) {
     return {
       planned: null,
       confirmed: null,
@@ -19,19 +19,7 @@ export async function loadCommanderToday(): Promise<CommanderTodayReadModel> {
     };
   }
 
-  const [items, priorities] = await Promise.all([
-    loadItemsWithEvidence(latest.id),
-    listOpenPriorities(10),
-  ]);
-
-  const summary = buildListSummary(
-    latest.id,
-    latest.list_date,
-    latest.file_name,
-    items
-  );
-
-  const criticalZones = summary.by_perimeter
+  const criticalZones = (fieldSummary?.by_perimeter ?? ([] as PerimeterSummary[]))
     .filter((zone) => zone.no_evidence > 0 || zone.pct < 50)
     .sort((left, right) => {
       if (right.no_evidence !== left.no_evidence) return right.no_evidence - left.no_evidence;
@@ -40,8 +28,8 @@ export async function loadCommanderToday(): Promise<CommanderTodayReadModel> {
     .slice(0, 3)
     .map((zone) => zone.perimetro);
 
-  const topPriority = priorities[0]
-    ? `${priorities[0].cable_code} — ${priorities[0].reason ?? priorities[0].priority}`
+  const topPriority = snapshot.today.open_priorities[0]
+    ? `${snapshot.today.open_priorities[0].cable_code} — ${snapshot.today.open_priorities[0].reason ?? snapshot.today.open_priorities[0].priority}`
     : null;
 
   return {

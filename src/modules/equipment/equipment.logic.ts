@@ -1,7 +1,8 @@
-import { getIncaStatusDefinition, formatIncaStatus } from "../../core/inca/statusDictionary";
+import { getIncaStatusDefinition } from "../../core/inca/statusDictionary";
 import type { DailyListItemVM } from "../daily-lists/dailyLists.types";
 import type { EquipmentBriefingContext, EquipmentImpactSummary, EquipmentLinkedCable, EquipmentRiskLevel, EquipmentStoryVM, EquipmentSummary } from "./equipment.types";
 import { ensureArray } from "../../core/utils/array";
+import { translateIncaStatus } from "../../domain/core-engine/incaStatus";
 
 const RISK_RANK: Record<EquipmentRiskLevel, number> = {
   low: 1,
@@ -33,12 +34,13 @@ export function buildEquipmentStory(
 
 export function enrichEquipmentCable(cable: EquipmentLinkedCable): EquipmentLinkedCable {
   const statusDefinition = getIncaStatusDefinition(cable.situazione_inca ?? cable.stato_collegamento);
+  const translatedStatus = translateIncaStatus(cable.situazione_inca ?? cable.stato_collegamento);
   const riskReasons = buildCableRiskReasons(cable);
 
   return {
     ...cable,
     inca_status_code: statusDefinition?.code ?? null,
-    inca_status_label: formatIncaStatus(cable.situazione_inca ?? cable.stato_collegamento),
+    inca_status_label: translatedStatus.label,
     risk_reasons: riskReasons,
   };
 }
@@ -99,10 +101,10 @@ export function isFieldConfirmed(cable: EquipmentLinkedCable): boolean {
 
 function buildCableRiskReasons(cable: EquipmentLinkedCable): string[] {
   const reasons: string[] = [];
-  const status = getIncaStatusDefinition(cable.situazione_inca ?? cable.stato_collegamento);
+  const status = translateIncaStatus(cable.situazione_inca ?? cable.stato_collegamento);
 
-  if (status?.code === "B") reasons.push("INCA bloccato");
-  if (status?.code === "P" && cable.missing_evidence) reasons.push("Posato INCA non confermato sul terreno");
+  if (status.isBlocked) reasons.push("INCA bloccato");
+  if (status.status === "POSATO" && cable.missing_evidence) reasons.push("Posato INCA non confermato sul terreno");
   if (cable.has_short_issue) reasons.push("Segnale cavo corto");
   if (cable.has_missing_issue) reasons.push("Segnale cavo mancante");
   if (cable.has_partial_progress) reasons.push("Progressione parziale");
@@ -131,7 +133,7 @@ function computeRiskLevel(args: {
 function buildEquipmentActions(cables: EquipmentLinkedCable[], riskLevel: EquipmentRiskLevel): string[] {
   const actions: string[] = [];
   const noEvidence = cables.filter((cable) => cable.missing_evidence);
-  const blocked = cables.filter((cable) => cable.inca_status_code === "B" || cable.open_blocker_count > 0);
+  const blocked = cables.filter((cable) => translateIncaStatus(cable.inca_status_code).isBlocked || cable.open_blocker_count > 0);
   const partial = cables.filter((cable) => cable.has_partial_progress);
   const shortOrMissing = cables.filter((cable) => cable.has_short_issue || cable.has_missing_issue);
 
@@ -194,16 +196,16 @@ export function buildEquipmentImpactsFromDailyItems(items: DailyListItemVM[]): E
   return Array.from(map.entries())
     .map(([equipmentCode, cables]) => {
       const blocked = cables.filter((cable) => {
-        const status = getIncaStatusDefinition(cable.situazione_inca ?? cable.stato_collegamento);
-        return status?.code === "B" || cable.computed_status === "blocked" || cable.has_short_issue || cable.has_missing_issue;
+        const status = translateIncaStatus(cable.situazione_inca ?? cable.stato_collegamento);
+        return status.isBlocked || cable.computed_status === "blocked" || cable.has_short_issue || cable.has_missing_issue;
       }).length;
       const withoutFieldEvidence = cables.filter((cable) => cable.missing_evidence).length;
       const confirmedByField = cables.filter((cable) => cable.confirmed_by_whatsapp || cable.evidence_count > 0).length;
       const riskReasons = Array.from(new Set(cables.flatMap((cable) => {
         const reasons: string[] = [];
-        const status = getIncaStatusDefinition(cable.situazione_inca ?? cable.stato_collegamento);
-        if (status?.code === "B") reasons.push("INCA bloccato");
-        if (status?.code === "P" && cable.missing_evidence) reasons.push("Posato INCA non confermato sul terreno");
+        const status = translateIncaStatus(cable.situazione_inca ?? cable.stato_collegamento);
+        if (status.isBlocked) reasons.push("INCA bloccato");
+        if (status.status === "POSATO" && cable.missing_evidence) reasons.push("Posato INCA non confermato sul terreno");
         if (cable.has_short_issue) reasons.push("Cavo corto");
         if (cable.has_missing_issue) reasons.push("Cavo mancante");
         if (cable.has_partial_progress) reasons.push("Progressione parziale");

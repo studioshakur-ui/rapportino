@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "db:update": "powershell -ExecutionPolicy Bypass -File scripts/db-update.ps1",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
     "check:no-conit": "node scripts/check-no-conit.js"
   },
   "dependencies": {
@@ -34,6 +35,7 @@
     "supabase": "^2.70.5",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.9.3",
-    "vite": "^5.0.0"
+    "vite": "^5.0.0",
+    "vitest": "^4.1.8"
   }
 }

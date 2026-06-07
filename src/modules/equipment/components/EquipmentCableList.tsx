@@ -2,12 +2,14 @@ import { Link } from "react-router-dom";
 import type { EquipmentLinkedCable } from "../equipment.types";
 import { EmptyState, Pill, Section } from "../../../components/command-ui";
 import { formatCableDisplay } from "../../../core/cable/cableDisplay";
+import { translateIncaStatus } from "../../../domain/core-engine/incaStatus";
 
 function statusTone(cable: EquipmentLinkedCable): "neutral" | "emerald" | "amber" | "red" | "sky" {
-  if (cable.inca_status_code === "C" || cable.confirmed_by_whatsapp) return "emerald";
-  if (cable.inca_status_code === "B" || cable.open_blocker_count > 0) return "red";
+  const status = translateIncaStatus(cable.inca_status_code);
+  if (status.isClosed || cable.confirmed_by_whatsapp) return "emerald";
+  if (status.isBlocked || cable.open_blocker_count > 0) return "red";
   if (cable.risk_reasons.length > 0 || cable.open_priority_count > 0) return "amber";
-  if (cable.inca_status_code === "P") return "sky";
+  if (status.status === "POSATO") return "sky";
   return "neutral";
 }
 

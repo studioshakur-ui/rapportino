@@ -6,6 +6,7 @@
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../../../lib/supabaseClient";
+import { translateIncaStatus } from "../../../domain/core-engine/incaStatus";
 
 const BUCKET = "core-drive";
 const CORE_COMMAND_SHIP_ID = "cc000000-0000-0000-0000-000000000001";
@@ -191,11 +192,15 @@ export default function IncaImportPage() {
               )}
               {result.counts && (
                 <div className="flex flex-wrap gap-2 text-xs mt-1">
-                  {Object.entries(result.counts).filter(([k]) => ["P","T","R","B","L","E"].includes(k)).map(([k, v]) => (
-                    <span key={k} className="px-2 py-0.5 bg-white dark:bg-zinc-800 border rounded border-zinc-200 dark:border-zinc-700">
-                      {k} : {v}
-                    </span>
-                  ))}
+                  {Object.entries(result.counts).filter(([k]) => ["P","T","R","B","L","E"].includes(k)).map(([k, v]) => {
+                    const translated = translateIncaStatus(k);
+                    const label = translated.status === "SCONOSCIUTO" ? k : translated.label;
+                    return (
+                      <span key={k} className="px-2 py-0.5 bg-white dark:bg-zinc-800 border rounded border-zinc-200 dark:border-zinc-700">
+                        {label} : {v}
+                      </span>
+                    );
+                  })}
                 </div>
               )}
               <p className="text-xs text-zinc-500 mt-1">inca_cavi : {fmt(incaCount ?? undefined)} câbles — relancer Re-process dans WhatsApp Intake</p>

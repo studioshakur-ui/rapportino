@@ -1,4 +1,5 @@
 import type { NavemasterNormalizedRow } from "./navemaster.types";
+import { translateIncaStatus } from "../../domain/core-engine/incaStatus";
 
 export type NavemasterLegendSeverity = "neutral" | "info" | "warn" | "danger";
 
@@ -89,6 +90,22 @@ function readPayloadCode(row: NavemasterNormalizedRow, key: string): string {
   return normalizeCode(payloadValue);
 }
 
+export function translateIncaLegendStatus(raw: unknown) {
+  return translateIncaStatus(raw);
+}
+
+export function resolveNavemasterSituationLegend(code: unknown): NavemasterLegendEntry | null {
+  return findNavemasterLegendEntry("situazione", code);
+}
+
+export function resolveNavemasterTechnicalLegend(code: unknown): NavemasterLegendEntry | null {
+  return findNavemasterLegendEntry("statoTec", code);
+}
+
+export function resolveNavemasterStateLegend(code: unknown): NavemasterLegendEntry | null {
+  return findNavemasterLegendEntry("statoSta", code);
+}
+
 export function getNavemasterLegendGroups(): NavemasterLegendGroup[] {
   return NAVEMASTER_LEGEND_GROUPS;
 }
@@ -110,10 +127,14 @@ export function summarizeNavemasterLegendSignals(row: NavemasterNormalizedRow): 
   const tags: string[] = [];
   let score = 0;
 
+  // These payload values are Navemaster legend codes, not INCA statuses.
   const situazione = readPayloadCode(row, "SITUAZIONE CAVO");
   const statoTec = readPayloadCode(row, "stato_tec");
   const statoSta = readPayloadCode(row, "stato_sta");
   const srtp = readPayloadCode(row, "srtp");
+  const situazioneLegend = resolveNavemasterSituationLegend(situazione);
+  const statoTecLegend = resolveNavemasterTechnicalLegend(statoTec);
+  const statoStaLegend = resolveNavemasterStateLegend(statoSta);
 
   if (srtp === "NO") {
     score += 8;
@@ -121,43 +142,43 @@ export function summarizeNavemasterLegendSignals(row: NavemasterNormalizedRow): 
     tags.push("srtp-no");
   }
 
-  if (situazione === "!") {
+  if (situazioneLegend?.code === "!") {
     score += 45;
     reasons.push("longueur 0 en instradamento");
     tags.push("situazione-zero");
-  } else if (situazione === "C") {
+  } else if (situazioneLegend?.code === "C") {
     score += 18;
     reasons.push("non traité in STA");
     tags.push("situazione-sta");
-  } else if (situazione === "E") {
+  } else if (situazioneLegend?.code === "E") {
     score += 20;
     reasons.push("câble éliminé fonctionnellement");
     tags.push("situazione-elimined");
-  } else if (situazione === "K" || situazione === "$" || situazione === "M") {
+  } else if (["K", "$", "M"].includes(situazioneLegend?.code ?? "")) {
     score += 12;
     reasons.push("variation ou modification métier");
     tags.push("situazione-change");
   }
 
-  if (statoTec === "I") {
+  if (statoTecLegend?.code === "I") {
     score += 12;
     reasons.push("état technique incomplet");
     tags.push("tec-incomplete");
-  } else if (statoTec === "C") {
+  } else if (statoTecLegend?.code === "C") {
     score += 10;
     reasons.push("instradamento avec traites indéfinies");
     tags.push("tec-indefinite");
   }
 
-  if (statoSta === "B") {
+  if (statoStaLegend?.code === "B") {
     score += 35;
     reasons.push("câble bloqué");
     tags.push("sta-blocked");
-  } else if (statoSta === "T") {
+  } else if (statoStaLegend?.code === "T") {
     score += 12;
     reasons.push("câble tagliato");
     tags.push("sta-cut");
-  } else if (statoSta === "P") {
+  } else if (statoStaLegend?.code === "P") {
     score += 8;
     reasons.push("câble en posa");
     tags.push("sta-installed");

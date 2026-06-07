@@ -6,8 +6,8 @@ import type {
   CableStorySource,
   CableStoryTimelineItem,
 } from "./cableStory.types";
-import { getIncaStatusDefinition } from "../../core/inca/statusDictionary";
 import { ensureArray } from "../../core/utils/array";
+import { translateIncaStatus } from "../../domain/core-engine/incaStatus";
 
 type StoryStatus =
   | "Pose confirmée"
@@ -70,10 +70,11 @@ export function getConfidenceBand(confidence: number): CableStoryConfidenceBand 
 }
 
 function mapIncaSituazioneStatus(situazione: string | null | undefined): StoryStatus {
-  const definition = getIncaStatusDefinition(situazione);
-  if (definition?.code === "P" || definition?.code === "C") return "Pose confirmée";
-  if (definition?.isBlocked) return "Bloqué";
-  if (definition) return "À vérifier";
+  const status = translateIncaStatus(situazione);
+  if (status.status === "POSATO" || status.status === "COLLEGATO" || status.status === "PARZIALMENTE_COLLEGATO") return "Pose confirmée";
+  if (status.isBlocked) return "Bloqué";
+  if (status.status !== "SCONOSCIUTO" && status.status !== "DA_VERIFICARE") return "À vérifier";
+  if (status.status === "DA_VERIFICARE") return "Sans signal récent";
   return "Sans signal récent";
 }
 

@@ -9,6 +9,7 @@ import type {
   TelegramImpact,
 } from "./equipment.types";
 import { ensureArray } from "../../core/utils/array";
+import { translateIncaStatus } from "../../domain/core-engine/incaStatus";
 
 interface IncaEquipmentMeta {
   apparato_a: string | null;
@@ -78,11 +79,11 @@ function isCableConfirmed(item: DailyListItemVM): boolean {
 }
 
 function isCableBlocked(item: DailyListItemVM): boolean {
-  return item.computed_status === "blocked" || item.situazione_inca === "B";
+  return item.computed_status === "blocked" || translateIncaStatus(item.situazione_inca).isBlocked;
 }
 
 function buildCableReason(item: DailyListItemVM): string {
-  if (item.situazione_inca === "B") return "INCA B";
+  if (translateIncaStatus(item.situazione_inca).isBlocked) return "INCA bloccato";
   if (item.computed_status === "blocked") return "anomalia critica";
   if (item.has_missing_issue) return "cavo mancante";
   if (item.has_short_issue) return "cavo corto";
@@ -119,6 +120,23 @@ function computeRiskLevel(args: {
   if (args.highPriority > 0 || args.noEvidence >= 2 || args.open >= 3) return "high";
   if (args.noEvidence > 0 || args.open > 0) return "medium";
   return "low";
+}
+
+function buildIntelligenceActions(cables: DailyListItemVM[], riskLevel: EquipmentRiskLevel): string[] {
+  const actions: string[] = [];
+  const blocked = cables.filter((item) => translateIncaStatus(item.situazione_inca).isBlocked || item.computed_status === "blocked");
+  const shortOrMissing = cables.filter((item) => item.has_short_issue || item.has_missing_issue);
+  const noEvidence = cables.filter((item) => item.missing_evidence);
+  const partial = cables.filter((item) => item.has_partial_progress);
+
+  if (blocked.length > 0) actions.push(`Sbloccare ${blocked.length} cav${blocked.length === 1 ? "o" : "i"} collegati`);
+  if (shortOrMissing.length > 0) actions.push(`Controllare cavi corti/mancanti: ${shortOrMissing.slice(0, 5).map((item) => item.cable_code_normalized).join(", ")}`);
+  if (noEvidence.length > 0) actions.push(`Richiedere evidenza terreno per ${noEvidence.length} cav${noEvidence.length === 1 ? "o" : "i"}`);
+  if (partial.length > 0) actions.push("Confermare completamento delle progressioni parziali");
+  if (riskLevel === "high" || riskLevel === "critical") actions.push("Inserire questa apparecchiatura nelle priorità del briefing cantiere");
+  if (actions.length === 0) actions.push("Solo monitoraggio — nessun rischio aperto rilevato");
+
+  return actions;
 }
 
 export function buildEquipmentGraph(
@@ -191,6 +209,11 @@ export function buildEquipmentIntelligence(
       }
 
       const cables = Array.from(uniqueCables.values());
+      const statusDistribution: Record<string, number> = {};
+      for (const entry of cables) {
+        const statusKey = entry.item.situazione_inca?.trim() || entry.item.stato_collegamento?.trim() || "unknown";
+        statusDistribution[statusKey] = (statusDistribution[statusKey] ?? 0) + 1;
+      }
       const confirmed = cables.filter((entry) => isCableConfirmed(entry.item)).length;
       const blocked = cables.filter((entry) => isCableBlocked(entry.item)).length;
       const open = Math.max(cables.length - confirmed, 0);
@@ -238,6 +261,9 @@ export function buildEquipmentIntelligence(
         confirmed_cables: confirmed,
         open_cables: open,
         blocked_cables: blocked,
+        without_field_evidence: noEvidence,
+        status_distribution: statusDistribution,
+        recommended_actions: buildIntelligenceActions(cables.map((entry) => entry.item), riskLevel),
         incoming_cables: graphNode?.incoming_cables ?? [],
         outgoing_cables: graphNode?.outgoing_cables ?? [],
         related_equipments: graphNode?.related_equipments ?? [],
