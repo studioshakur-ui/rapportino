@@ -258,6 +258,61 @@ function rowsToParsedList(dataRows: string[][]): ParsedListRow[] {
   return result;
 }
 
+function parseL4TextLine(line: string): ParsedListRow | null {
+  const normalizedLine = line.replace(/\s+/g, " ").trim();
+  const head = normalizedLine.match(/^(\d+)\s+(\d{1,2}\/\d{1,2}\/\d{4})\s+(.+)$/);
+  if (!head) return null;
+
+  const lista = head[1];
+  const risoluzione = head[2];
+  const tokens = head[3].split(" ").filter(Boolean);
+  const firstAppIndex = tokens.findIndex((token) => /^\d{12}$/.test(token));
+  if (firstAppIndex <= 0 || firstAppIndex + 1 >= tokens.length || !/^\d{12}$/.test(tokens[firstAppIndex + 1])) return null;
+
+  const beforeApp = tokens.slice(0, firstAppIndex).join(" ");
+  const appPartenza = tokens[firstAppIndex];
+  const appArrivo = tokens[firstAppIndex + 1];
+  const afterApps = tokens.slice(firstAppIndex + 2);
+  let dateIndex = afterApps.findIndex((token) => parseItalianDate(token) !== null);
+  const tbcIndex = afterApps.findIndex((token) => token.toUpperCase() === "TBC");
+  const hasTbcDate = dateIndex < 0 && tbcIndex >= 0;
+  if (hasTbcDate) dateIndex = tbcIndex;
+  if (dateIndex < 0) return null;
+
+  const marcaMatch = beforeApp.match(/^((?:\d+[-/]\d+\s+)?[A-Z]\s*[A-Z]{1,4}\s*\d{2,5}[A-Z]?)(?:\s+([A-Z0-9]))?$/i);
+  if (!marcaMatch) return null;
+
+  const marcaPezzo = clean(marcaMatch[1]);
+  if (!marcaPezzo || !looksLikeCableCode(marcaPezzo)) return null;
+
+  const dataPerimetro = hasTbcDate ? null : parseItalianDate(afterApps[dateIndex]);
+  const perimetro = afterApps.slice(0, dateIndex).join(" ");
+  const situazioneInca = hasTbcDate ? null : afterApps[dateIndex + 1] ?? null;
+  const note = afterApps.slice(hasTbcDate ? dateIndex + 1 : dateIndex + 2).join(" ");
+
+  return {
+    lista,
+    risoluzione,
+    marca_pezzo: marcaPezzo,
+    stato_collegamento: clean(marcaMatch[2]),
+    app_partenza: clean(appPartenza),
+    app_arrivo: clean(appArrivo),
+    perimetro: clean(perimetro),
+    data_perimetro: dataPerimetro,
+    situazione_inca: clean(situazioneInca),
+    note: clean(note),
+  };
+}
+
+export function parseL4TextRows(lines: string[]): ParsedListRow[] {
+  const rows: ParsedListRow[] = [];
+  for (const line of lines) {
+    const parsed = parseL4TextLine(line);
+    if (parsed) rows.push(parsed);
+  }
+  return rows;
+}
+
 export async function parsePdf(file: File): Promise<ParseResult> {
   const warnings: string[] = [];
   const buffer = await file.arrayBuffer();
@@ -289,10 +344,13 @@ export async function parsePdf(file: File): Promise<ParseResult> {
     }
   }
 
-  const parsedRows = rowsToParsedList(dataRows);
+  let parsedRows = rowsToParsedList(dataRows);
+  if (parsedRows.length === 0) {
+    parsedRows = parseL4TextRows(rows.slice(headerIdx + 1).map((row) => row.map((item) => item.str).join(" ")));
+  }
 
   if (parsedRows.length === 0) {
-    warnings.push("Aucune ligne de données extraite du PDF. Essayez le format Excel.");
+    warnings.push("Nessuna riga estratta dal PDF. Usa Excel oppure un PDF con testo tabellare selezionabile.");
   }
 
   return {
