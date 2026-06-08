@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { EmptyState, Pill, ProgressBar, Screen, Section, StatCard } from "../../components/command-ui";
 import { useAuth } from "../../auth/AuthProvider";
 import { formatCableDisplay } from "../../core/cable/cableDisplay";
-import { FIELD_VERIFICATION_STATUS_OPTIONS, formatFieldStatusLabel, getFieldVerificationStatusLabel, isVerifiedFieldVerificationStatus, loadCoreEngineSnapshot, resolveFieldStatus, type CoreEngineSnapshot, type FieldVerificationStatus } from "../../domain/core-engine";
+import { canConfirmFieldVerification, FIELD_VERIFICATION_STATUS_OPTIONS, formatFieldStatusLabel, getFieldVerificationStatusLabel, isVerifiedFieldVerificationStatus, loadCoreEngineSnapshot, resolveFieldStatus, type CoreEngineSnapshot, type FieldVerificationStatus } from "../../domain/core-engine";
 import { translateIncaStatus } from "../../domain/core-engine/incaStatus";
 import { recordFieldVerification } from "../../features/core-command/api/fieldVerification.api";
 
@@ -115,7 +115,7 @@ export default function EquipmentStoryPage(): JSX.Element {
   const [confirmedCodes, setConfirmedCodes] = useState<Set<string>>(new Set());
   const [feedback, setFeedback] = useState<string | null>(null);
   const [verificationNote, setVerificationNote] = useState("");
-  const [verificationStatus, setVerificationStatus] = useState<FieldVerificationStatus>("AT_DESTINATION");
+  const [verificationStatus, setVerificationStatus] = useState<FieldVerificationStatus | null>(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["core_engine_snapshot", "equipment_story", equipmentCode],
@@ -150,7 +150,13 @@ export default function EquipmentStoryPage(): JSX.Element {
   const openVerification = (cableCode: string) => {
     setSelectedCable(cableCode);
     setVerificationNote("");
-    setVerificationStatus("AT_DESTINATION");
+    setVerificationStatus(null);
+  };
+
+  const closeVerification = () => {
+    setSelectedCable(null);
+    setVerificationNote("");
+    setVerificationStatus(null);
   };
 
   const handleConfirm = async () => {
@@ -161,6 +167,10 @@ export default function EquipmentStoryPage(): JSX.Element {
     }
     if (selected.fieldStatus !== "TO_VERIFY") {
       setFeedback("Solo i cavi da verificare possono essere confermati manualmente");
+      return;
+    }
+    if (!verificationStatus) {
+      setFeedback("Seleziona lo stato rilevato");
       return;
     }
 
@@ -178,9 +188,7 @@ export default function EquipmentStoryPage(): JSX.Element {
       if (isVerifiedFieldVerificationStatus(verificationStatus)) {
         setConfirmedCodes((current) => new Set(current).add(selected.cableCode));
       }
-      setSelectedCable(null);
-      setVerificationNote("");
-      setVerificationStatus("AT_DESTINATION");
+      closeVerification();
       setFeedback(`Verifica manuale registrata: ${getFieldVerificationStatusLabel(verificationStatus)}`);
       await queryClient.invalidateQueries({ queryKey: ["core_engine_snapshot"] });
       await queryClient.invalidateQueries({ queryKey: ["core_events"] });
@@ -294,12 +302,12 @@ export default function EquipmentStoryPage(): JSX.Element {
       </section>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-        <StatCard label="Entranti" value={incoming.length} helper="confermati" tone="sky" />
-        <StatCard label="Uscenti" value={outgoing.length} helper="confermati" tone="emerald" />
+        <StatCard label="Entranti" value={incoming.length} helper="da confermare" tone="sky" />
+        <StatCard label="Uscenti" value={outgoing.length} helper="da confermare" tone="emerald" />
         <StatCard label="Chiusura" value={closureLabel(closureStatus)} helper="stato attuale" tone={closureStatus === "CLOSED" ? "emerald" : closureStatus === "BLOCKED" ? "red" : "amber"} />
         <StatCard label="Restanti" value={remaining} helper="da confermare" tone={remaining > 0 ? "amber" : "neutral"} />
         <StatCard label="Bloccati" value={blocked} helper={`INCA = ${summary.blocked_cables > 0 ? "B" : "—"}`} tone={blocked > 0 ? "red" : "neutral"} />
-        <StatCard label="Cavi collegati" value={totalCables} helper="totale cavi" tone="neutral" />
+        <StatCard label="Totale cavi" value={totalCables} helper="totale cavi" tone="neutral" />
       </div>
 
       <section className="grid gap-4 xl:grid-cols-2">
@@ -445,7 +453,7 @@ export default function EquipmentStoryPage(): JSX.Element {
                 <p className="mt-1 text-xs text-stone-500">Conferma la situazione senza uscire dal contesto apparato.</p>
               </div>
               <button
-                onClick={() => setSelectedCable(null)}
+                onClick={closeVerification}
                 className="rounded-xl border border-stone-200 px-3 py-2 text-sm text-stone-500 transition hover:text-stone-900"
               >
                 ✕
@@ -467,12 +475,17 @@ export default function EquipmentStoryPage(): JSX.Element {
 
 
               <label className="block">
-                <span className="text-sm font-medium text-stone-900">Stato rilevato</span>
+                <span className="text-sm font-medium text-stone-900">
+                  Stato rilevato <span className="text-rose-600">*</span>
+                </span>
                 <select
-                  value={verificationStatus}
-                  onChange={(event) => setVerificationStatus(event.target.value as FieldVerificationStatus)}
+                  value={verificationStatus ?? ""}
+                  onChange={(event) => setVerificationStatus((event.target.value || null) as FieldVerificationStatus | null)}
                   className="mt-2 min-h-11 w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 text-sm font-semibold text-stone-900 outline-none focus:border-emerald-300"
                 >
+                  <option value="" disabled>
+                    — Seleziona lo stato rilevato —
+                  </option>
                   {FIELD_VERIFICATION_STATUS_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
@@ -499,14 +512,14 @@ export default function EquipmentStoryPage(): JSX.Element {
             <div className="border-t border-stone-200 px-5 py-4">
               <div className="flex gap-2">
                 <button
-                  onClick={() => setSelectedCable(null)}
+                  onClick={closeVerification}
                   className="min-h-11 flex-1 rounded-2xl border border-stone-200 bg-white px-4 text-sm font-semibold text-stone-700 transition hover:border-stone-300"
                 >
                   Annulla
                 </button>
                 <button
                   onClick={handleConfirm}
-                  disabled={!uid || selected.fieldStatus !== "TO_VERIFY"}
+                  disabled={!uid || !canConfirmFieldVerification(selected.fieldStatus, verificationStatus)}
                   className="min-h-11 flex-1 rounded-2xl border border-emerald-600 bg-emerald-600 px-4 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(16,185,129,0.22)] transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-200 disabled:text-zinc-500"
                 >
                   Conferma
