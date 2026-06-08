@@ -109,6 +109,7 @@ interface TextItem {
   str: string;
   x: number;
   y: number;
+  page: number;
 }
 
 async function extractPdfTextItems(buffer: ArrayBuffer): Promise<TextItem[]> {
@@ -127,6 +128,7 @@ async function extractPdfTextItems(buffer: ArrayBuffer): Promise<TextItem[]> {
         str: item.str.trim(),
         x: Math.round(item.transform[4]),
         y: Math.round(item.transform[5]),
+        page: pageNum,
       });
     }
   }
@@ -134,19 +136,22 @@ async function extractPdfTextItems(buffer: ArrayBuffer): Promise<TextItem[]> {
 }
 
 function groupByRow(items: TextItem[], yTolerance = 4): TextItem[][] {
-  const sorted = [...items].sort((a, b) => b.y - a.y); // PDF y is bottom-up
+  const sorted = [...items].sort((a, b) => a.page - b.page || b.y - a.y); // PDF y is bottom-up
   const rows: TextItem[][] = [];
   let currentRow: TextItem[] = [];
   let lastY: number | null = null;
+  let lastPage: number | null = null;
 
   for (const item of sorted) {
-    if (lastY === null || Math.abs(item.y - lastY) <= yTolerance) {
+    if (lastY === null || lastPage === item.page && Math.abs(item.y - lastY) <= yTolerance) {
       currentRow.push(item);
       lastY = item.y;
+      lastPage = item.page;
     } else {
       if (currentRow.length > 0) rows.push(currentRow);
       currentRow = [item];
       lastY = item.y;
+      lastPage = item.page;
     }
   }
   if (currentRow.length > 0) rows.push(currentRow);
