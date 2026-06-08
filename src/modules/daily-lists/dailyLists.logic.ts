@@ -15,6 +15,7 @@ import type {
   TomorrowAction,
 } from "./dailyLists.types";
 import { ensureArray } from "../../core/utils/array";
+import { isVerifiedFieldVerificationStatus } from "../../domain/core-engine/fieldVerification";
 
 // ── Progress % extraction from WhatsApp raw note ───────────────────────────
 const PERCENT_RE = /(\d{1,3})\s*%/;
@@ -32,6 +33,11 @@ export function extractProgressPercent(note: string | null): number | null {
 // story type ("POSED_REPORTED", "RESOLVED"). Both must count as field proof.
 const POSED_EVENT_KINDS = new Set(["CABLE_POSATO", "POSED_REPORTED", "RESOLVED"]);
 const VERIFIED_FIELD_EVENT_KINDS = new Set(["FIELD_VERIFIED"]);
+
+function isConfirmedManualEvidence(evidence: DailyItemEvidence): boolean {
+  if (evidence.source_type !== "manual" && !VERIFIED_FIELD_EVENT_KINDS.has(evidence.event_kind)) return false;
+  return evidence.verification_status == null || isVerifiedFieldVerificationStatus(evidence.verification_status);
+}
 
 function isPosedEvent(eventKind: string | null | undefined): boolean {
   return eventKind ? POSED_EVENT_KINDS.has(eventKind) : false;
@@ -54,8 +60,12 @@ export function computeItemStatus(
   // every item collapsed to "outside_inca" — dropping the list to 0% even with
   // real terrain proof. Field evidence must be evaluated before INCA matching.
   if (safeEvidence.length > 0) {
-    if (safeEvidence.some((e) => e.source_type === "manual" || VERIFIED_FIELD_EVENT_KINDS.has(e.event_kind))) {
+    if (safeEvidence.some(isConfirmedManualEvidence)) {
       return "confirmed_field";
+    }
+
+    if (safeEvidence.some((e) => e.source_type === "manual" || VERIFIED_FIELD_EVENT_KINDS.has(e.event_kind))) {
+      return "to_verify";
     }
 
     // Explicit 100% or a posed/confirmed event → confirmed terrain.

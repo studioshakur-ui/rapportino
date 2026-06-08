@@ -268,7 +268,8 @@ function buildFieldEvidenceCards(items: DailyListItemVM[]): FieldEvidenceCard[] 
       item.has_partial_progress ||
       item.has_short_issue ||
       item.has_missing_issue ||
-      item.computed_status === "blocked"
+      item.computed_status === "blocked" ||
+      item.computed_status === "to_verify"
     )
     .slice(0, 24)
     .map((item) => ({

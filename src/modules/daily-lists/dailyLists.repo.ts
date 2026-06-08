@@ -264,6 +264,7 @@ export async function fetchEvidenceForCodes(
       last_message:     message?.raw_message ?? rawNote,
       confidence:       Number(row.confidence ?? 0),
       progress_percent: pct,
+      verification_status: null,
     });
     result.set(code, list);
   }
@@ -330,6 +331,7 @@ async function appendCoreEventEvidence(
       last_message: message?.raw_message ?? rawNote,
       confidence: Number(row.confidence ?? 0),
       progress_percent: extractPercentFromNote(rawNote),
+      verification_status: typeof row.payload?.verification_status === "string" ? row.payload.verification_status : null,
     });
     result.set(code, list);
   }
@@ -381,6 +383,7 @@ async function appendDirectWhatsAppEvidence(
         last_message: rawMessage,
         confidence: 0.55,
         progress_percent: extractPercentFromNote(rawMessage),
+        verification_status: null,
       });
       result.set(matchedCode, list);
     }
