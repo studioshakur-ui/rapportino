@@ -2,6 +2,7 @@
 // CORE Memory — vérité opérationnelle.
 // Aucune écriture dans inca_cavi depuis ce module.
 import { supabase } from "../../../lib/supabaseClient";
+import { publishCoreEvent } from "../../../core/events/eventBus";
 import type { CoreEvent, InsertCoreEvent, UpdateCoreEvent, ValidationStatus } from "../types";
 
 export interface CoreEventFilters {
@@ -56,13 +57,7 @@ export async function getCoreEvent(id: string): Promise<CoreEvent | null> {
 }
 
 export async function insertCoreEvent(payload: InsertCoreEvent): Promise<CoreEvent> {
-  const { data, error } = await supabase
-    .from("core_events")
-    .insert(payload)
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
+  return publishCoreEvent(payload);
 }
 
 export async function bulkInsertCoreEvents(events: InsertCoreEvent[]): Promise<CoreEvent[]> {

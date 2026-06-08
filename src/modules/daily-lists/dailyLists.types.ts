@@ -75,6 +75,7 @@ export interface DailyItemEvidence {
   last_message: string | null;
   confidence: number;
   progress_percent: number | null;  // extracted from note "70%"
+  verification_status?: string | null;
 }
 
 export interface DailyListItemVM extends DailyListItem {

@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { EmptyState, Pill, ProgressBar, Screen, Section, StatCard } from "../../components/command-ui";
 import { useAuth } from "../../auth/AuthProvider";
 import { formatCableDisplay } from "../../core/cable/cableDisplay";
-import { formatFieldStatusLabel, loadCoreEngineSnapshot, resolveFieldStatus, type CoreEngineSnapshot } from "../../domain/core-engine";
+import { FIELD_VERIFICATION_STATUS_OPTIONS, formatFieldStatusLabel, getFieldVerificationStatusLabel, isVerifiedFieldVerificationStatus, loadCoreEngineSnapshot, resolveFieldStatus, type CoreEngineSnapshot, type FieldVerificationStatus } from "../../domain/core-engine";
 import { translateIncaStatus } from "../../domain/core-engine/incaStatus";
 import { recordFieldVerification } from "../../features/core-command/api/fieldVerification.api";
 
@@ -115,6 +115,7 @@ export default function EquipmentStoryPage(): JSX.Element {
   const [confirmedCodes, setConfirmedCodes] = useState<Set<string>>(new Set());
   const [feedback, setFeedback] = useState<string | null>(null);
   const [verificationNote, setVerificationNote] = useState("");
+  const [verificationStatus, setVerificationStatus] = useState<FieldVerificationStatus>("AT_DESTINATION");
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["core_engine_snapshot", "equipment_story", equipmentCode],
@@ -133,8 +134,9 @@ export default function EquipmentStoryPage(): JSX.Element {
     [data, equipmentCode, confirmedCodes]
   );
 
-  const incoming = visibleCards.filter((item) => item.direction === "incoming" && !item.confirmedHere);
-  const outgoing = visibleCards.filter((item) => item.direction === "outgoing" && !item.confirmedHere);
+  const toVerifyCards = visibleCards.filter((item) => item.fieldStatus === "TO_VERIFY");
+  const incoming = visibleCards.filter((item) => item.direction === "incoming" && item.fieldStatus === "TO_VERIFY");
+  const outgoing = visibleCards.filter((item) => item.direction === "outgoing" && item.fieldStatus === "TO_VERIFY");
   const selected = visibleCards.find((item) => item.cableCode === selectedCable) ?? null;
 
   const activeConfirmed = (equipment?.confirmed_cables ?? 0) + confirmedCodes.size;
@@ -148,6 +150,7 @@ export default function EquipmentStoryPage(): JSX.Element {
   const openVerification = (cableCode: string) => {
     setSelectedCable(cableCode);
     setVerificationNote("");
+    setVerificationStatus("AT_DESTINATION");
   };
 
   const handleConfirm = async () => {
@@ -166,13 +169,19 @@ export default function EquipmentStoryPage(): JSX.Element {
         cableCodeRaw: selected.displayCableCode,
         cableCodeNormalized: selected.cableCode,
         verificationSource: "manual",
+        verificationStatus,
         verifiedBy: uid,
         note: verificationNote.trim() || null,
+        appPartenza: selected.appPartenza,
+        appArrivo: selected.appArrivo,
       });
-      setConfirmedCodes((current) => new Set(current).add(selected.cableCode));
+      if (isVerifiedFieldVerificationStatus(verificationStatus)) {
+        setConfirmedCodes((current) => new Set(current).add(selected.cableCode));
+      }
       setSelectedCable(null);
       setVerificationNote("");
-      setFeedback("Verifica manuale registrata");
+      setVerificationStatus("AT_DESTINATION");
+      setFeedback(`Verifica manuale registrata: ${getFieldVerificationStatusLabel(verificationStatus)}`);
       await queryClient.invalidateQueries({ queryKey: ["core_engine_snapshot"] });
       await queryClient.invalidateQueries({ queryKey: ["core_events"] });
       await queryClient.invalidateQueries({ queryKey: ["cable_events"] });
@@ -264,7 +273,7 @@ export default function EquipmentStoryPage(): JSX.Element {
               Verificare {remaining} cavi per chiudere l'apparato
             </h2>
             <div className="mt-3 flex flex-wrap gap-2">
-              {visibleCards.filter((item) => !item.confirmedHere).slice(0, 6).map((item) => (
+              {toVerifyCards.slice(0, 6).map((item) => (
                 <span key={item.cableCode} className="rounded-xl border border-emerald-200 bg-white px-2.5 py-1 font-mono text-xs font-semibold text-stone-800">
                   {item.displayCableCode}
                 </span>
@@ -273,10 +282,10 @@ export default function EquipmentStoryPage(): JSX.Element {
           </div>
           <button
             onClick={() => {
-              const first = visibleCards.find((item) => !item.confirmedHere);
+              const first = toVerifyCards[0];
               if (first) openVerification(first.cableCode);
             }}
-            disabled={remaining === 0}
+            disabled={toVerifyCards.length === 0}
             className="min-h-11 rounded-2xl border border-emerald-600 bg-emerald-600 px-4 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-200 disabled:text-zinc-500"
           >
             Verifica sul campo
@@ -326,24 +335,23 @@ export default function EquipmentStoryPage(): JSX.Element {
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-stone-500">Verifica campo</p>
-            <h2 className="text-base font-semibold text-stone-950">Cavi da verificare ({visibleCards.filter((item) => !item.confirmedHere).length})</h2>
+            <h2 className="text-base font-semibold text-stone-950">Cavi da verificare ({toVerifyCards.length})</h2>
             <p className="mt-1 text-sm text-stone-500">Clicca su un cavo per confermare la verifica sul campo.</p>
           </div>
           <button className="min-h-10 rounded-xl border border-stone-200 bg-white px-3 text-xs font-medium text-stone-600 transition hover:border-stone-300">
-            Conferma tutti ({visibleCards.filter((item) => !item.confirmedHere).length})
+            Conferma tutti ({toVerifyCards.length})
           </button>
         </div>
 
         <div className="space-y-2">
-          {visibleCards.filter((item) => !item.confirmedHere).length === 0 ? (
+          {toVerifyCards.length === 0 ? (
             <EmptyState
               title="Nessun cavo da verificare"
               description="Tutti i cavi visibili sono già stati confermati in questa sessione."
               icon="✓"
             />
           ) : (
-            visibleCards
-              .filter((item) => !item.confirmedHere)
+            toVerifyCards
               .map((item) => (
                 <button
                   key={item.cableCode}
@@ -451,14 +459,33 @@ export default function EquipmentStoryPage(): JSX.Element {
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-2">
-                <Detail label="Da" value={selected.appPartenza ?? "—"} />
-                <Detail label="A" value={selected.appArrivo ?? "—"} />
+                <Detail label="Apparato partenza" value={selected.appPartenza ?? "—"} />
+                <Detail label="Apparato arrivo" value={selected.appArrivo ?? "—"} />
                 <Detail label="Stato INCA" value={selected.incaStatus ?? "—"} />
                 <Detail label="Stato terreno" value={selected.terrainStatus} />
               </div>
 
+
+              <label className="block">
+                <span className="text-sm font-medium text-stone-900">Stato rilevato</span>
+                <select
+                  value={verificationStatus}
+                  onChange={(event) => setVerificationStatus(event.target.value as FieldVerificationStatus)}
+                  className="mt-2 min-h-11 w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 text-sm font-semibold text-stone-900 outline-none focus:border-emerald-300"
+                >
+                  {FIELD_VERIFICATION_STATUS_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="mt-2 block text-xs text-stone-500">
+                  A destinazione, In partenza o Collegato entrambi chiudono la verifica. Non trovato e Da ricontrollare restano da verificare.
+                </span>
+              </label>
+
               <div>
-                <p className="text-sm font-medium text-stone-900">Nota (facoltativa)</p>
+                <p className="text-sm font-medium text-stone-900">Nota opzionale</p>
                 <textarea
                   rows={4}
                   value={verificationNote}
@@ -482,7 +509,7 @@ export default function EquipmentStoryPage(): JSX.Element {
                   disabled={!uid || selected.fieldStatus !== "TO_VERIFY"}
                   className="min-h-11 flex-1 rounded-2xl border border-emerald-600 bg-emerald-600 px-4 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(16,185,129,0.22)] transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-200 disabled:text-zinc-500"
                 >
-                  Conferma verifica
+                  Conferma
                 </button>
               </div>
             </div>

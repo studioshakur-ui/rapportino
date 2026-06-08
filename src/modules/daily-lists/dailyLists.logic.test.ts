@@ -37,11 +37,33 @@ describe("dailyLists.logic", () => {
         last_message: "Verifica sul campo",
         confidence: 1,
         progress_percent: null,
+        verification_status: "AT_DESTINATION",
       },
     ];
 
     expect(computeItemStatus(baseItem, evidence, false)).toBe("confirmed_field");
     expect(buildItemVM(baseItem, evidence, false).confirmed_by_whatsapp).toBe(false);
     expect(buildItemVM(baseItem, evidence, false).computed_status).toBe("confirmed_field");
+  });
+
+  it("keeps manual non-found evidence in to_verify", () => {
+    const evidence: DailyItemEvidence[] = [
+      {
+        cable_event_id: null,
+        core_event_id: "core-2",
+        whatsapp_message_id: null,
+        source_type: "manual",
+        event_kind: "FIELD_VERIFIED",
+        occurred_at: "2026-06-07T10:05:00.000Z",
+        actor_label: "Hamid",
+        raw_note: "Non trovato",
+        last_message: "Non trovato",
+        confidence: 1,
+        progress_percent: null,
+        verification_status: "NOT_FOUND",
+      },
+    ];
+
+    expect(computeItemStatus(baseItem, evidence, false)).toBe("to_verify");
   });
 });
