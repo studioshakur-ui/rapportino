@@ -95,8 +95,16 @@ begin
   group by 1;
   create index on tmp_core_proofs (codice_key);
 
-  -- Latest UFFICIO event per codice (inchangé)
-  with latest_evt as (
+  -- baseline dédoublonné par codice_norm (un fichier INCA peut contenir des
+  -- doublons → contrainte unique (run_id, codice_norm) sur state_rows).
+  with baseline as (
+    select distinct on (replace(replace(trim(c.codice), ' ', ''), '*', ''))
+      c.*
+    from public.inca_cavi c
+    where c.inca_file_id = v_inca_file_id
+    order by replace(replace(trim(c.codice), ' ', ''), '*', ''), c.id
+  ),
+  latest_evt as (
     select distinct on (e.codice_norm)
       e.codice_norm, e.event_type, e.blocco_locale_id, e.event_at,
       (b.unblocked_at is null) as blocco_active
@@ -175,11 +183,10 @@ begin
       else 'INCA_ONLY'::public.navemaster_coverage
     end as coverage
 
-  from public.inca_cavi c
+  from baseline c
   left join proofs pr on pr.codice_norm = replace(replace(trim(c.codice), ' ', ''), '*', '')
   left join latest_evt le on le.codice_norm = replace(replace(trim(c.codice), ' ', ''), '*', '')
-  left join tmp_core_proofs cp on cp.codice_key = upper(replace(replace(trim(c.codice), ' ', ''), '*', ''))
-  where c.inca_file_id = v_inca_file_id;
+  left join tmp_core_proofs cp on cp.codice_key = upper(replace(replace(trim(c.codice), ' ', ''), '*', ''));
 
   -- Alerts: MISSING_IN_CORE = aucune preuve (ni mètres ni présence terrain)
   insert into public.navemaster_alerts (run_id, ship_id, costr, commessa, codice, codice_norm, type, severity, evidence)
