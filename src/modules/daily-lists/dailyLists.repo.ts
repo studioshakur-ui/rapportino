@@ -12,7 +12,8 @@ import type {
   DailyEvidenceSyncStats,
 } from "./dailyLists.types";
 import { buildItemVM } from "./dailyLists.logic";
-import { normalizePdfCableCode, rawCodeForInca } from "./dailyLists.parser";
+import { normalizePdfCableCode } from "./dailyLists.parser";
+import { normalizeCableLoose, normalizeCableStrict, resolveCableMatch } from "../../core/cable/cableIdentity";
 import type { ParsedListRow } from "./dailyLists.types";
 
 interface CableEventEvidenceRow {
@@ -60,23 +61,31 @@ const EMPTY_SYNC_STATS: DailyEvidenceSyncStats = {
   error: null,
 };
 
-// ── Read inca_cavi to match cable code (READ-ONLY) ─────────────────────────
-// Tries multiple format variants: "W TI 036", "WTI 036", "W TI036"
-async function resolveIncaCavoId(rawCode: string): Promise<string | null> {
-  const raw      = rawCodeForInca(rawCode);        // "W TI 036" (from PDF raw)
-  const norm     = normalizePdfCableCode(rawCode); // "WTI 036"  (normalized)
-  // "WTI 036" → "W TI 036" (insert space after first letter)
-  const expanded = norm.replace(/^([A-Z])([A-Z]+)\s/, "$1 $2 ");
+// ── Read inca_cavi to build a non-destructive match index (READ-ONLY) ──────
+// Loads the ACTIVE INCA file once and exposes strict/loose keys so each daily
+// row can be matched with provenance + confidence (see core/cable/cableIdentity).
+interface IncaMatchCandidate { id: string; strict: string; loose: string }
 
-  const candidates = Array.from(new Set([raw, norm, expanded].filter(Boolean)));
-
-  const { data } = await supabase
-    .from("inca_cavi")
+async function loadIncaMatchIndex(): Promise<IncaMatchCandidate[]> {
+  // Active baseline = latest uploaded XLSX INCA file (matches Navemaster truth).
+  const { data: file } = await supabase
+    .from("inca_files")
     .select("id")
-    .in("marca_cavo", candidates)
+    .eq("file_type", "XLSX")
+    .order("uploaded_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  return data?.id ?? null;
+
+  let query = supabase.from("inca_cavi").select("id, marca_cavo, codice").limit(20000);
+  if (file?.id) query = query.eq("inca_file_id", file.id);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  return ((data ?? []) as Array<{ id: string; marca_cavo: string | null; codice: string | null }>).map((row) => {
+    const source = row.marca_cavo ?? row.codice ?? "";
+    return { id: row.id, strict: normalizeCableStrict(source), loose: normalizeCableLoose(source) };
+  });
 }
 
 // ── Create import + items ──────────────────────────────────────────────────
@@ -108,17 +117,12 @@ export async function createDailyListImport(payload: ImportPayload): Promise<str
   if (importErr || !importRow) throw importErr ?? new Error("Import creation failed");
   const importId = importRow.id as string;
 
-  // 2. Resolve INCA IDs in parallel batches of 20
+  // 2. Resolve INCA matches against the active baseline.
+  // Strict-first (prefix preserved), single-loose at lower confidence, ambiguous
+  // never auto-assigned — provenance + confidence stored per item.
   const BATCH = 20;
-  const incaIds: (string | null)[] = new Array(payload.rows.length).fill(null);
-
-  for (let i = 0; i < payload.rows.length; i += BATCH) {
-    const batch = payload.rows.slice(i, i + BATCH);
-    const resolved = await Promise.all(batch.map((r) => resolveIncaCavoId(r.marca_pezzo)));
-    for (let j = 0; j < resolved.length; j++) {
-      incaIds[i + j] = resolved[j];
-    }
-  }
+  const incaIndex = await loadIncaMatchIndex();
+  const matches = payload.rows.map((r) => resolveCableMatch(r.marca_pezzo, incaIndex));
 
   // 3. Build items — sanitize all fields before insert
   const items = payload.rows.map((row, idx) => ({
@@ -127,7 +131,9 @@ export async function createDailyListImport(payload: ImportPayload): Promise<str
     list_resolution_date:  safeDate(row.risoluzione),
     cable_code_raw:        row.marca_pezzo,
     cable_code_normalized: normalizePdfCableCode(row.marca_pezzo),
-    inca_cavo_id:          incaIds[idx],
+    inca_cavo_id:          matches[idx].incaCavoId,
+    match_source:          matches[idx].source,
+    match_confidence:      matches[idx].confidence,
     stato_collegamento:    safeText(row.stato_collegamento, 10),
     app_partenza:          safeText(row.app_partenza, 50),
     app_arrivo:            safeText(row.app_arrivo, 50),
