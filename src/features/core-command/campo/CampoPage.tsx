@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { AppBar, EmptyState, Pill, Screen, Section, StatCard } from "../../../components/command-ui";
@@ -107,6 +108,8 @@ export default function CampoPage(): JSX.Element {
   );
 }
 
+const EVIDENCE_PAGE_SIZE = 10;
+
 function EvidenceList({
   title,
   count,
@@ -130,6 +133,9 @@ function EvidenceList({
   onOpen: (route: string) => void;
   primaryAction: string;
 }): JSX.Element {
+  const [showAll, setShowAll] = useState(false);
+  const visible = showAll ? items : items.slice(0, EVIDENCE_PAGE_SIZE);
+
   return (
     <Section title={title} eyebrow="Campo" count={count}>
       {items.length === 0 ? (
@@ -139,39 +145,49 @@ function EvidenceList({
           icon="∅"
         />
       ) : (
-        <div className="space-y-3">
-          {items.slice(0, 10).map((item) => (
-            <button
-              key={item.cable_code}
-              onClick={() => onOpen(item.cable_story_path)}
-              className="w-full rounded-[24px] border border-stone-200 bg-white p-4 text-left shadow-sm transition hover:border-sky-300"
-            >
-              <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                  <p className="font-mono text-sm font-semibold text-stone-950">{formatCableDisplay(item.cable_code)}</p>
-                  <p className="mt-1 text-xs text-stone-500">
-                    {item.perimetro ?? "—"} · {item.evidence_count} prove · {item.last_event_at ? formatDate(item.last_event_at) : "senza data"}
-                  </p>
-                  {item.last_actor ? <p className="mt-2 text-xs text-stone-600">{item.last_actor}</p> : null}
-                  {item.last_message ? <p className="mt-1 text-xs leading-5 text-stone-600">{item.last_message}</p> : null}
+        <>
+          <div className="space-y-3">
+            {visible.map((item) => (
+              <button
+                key={item.cable_code}
+                onClick={() => onOpen(item.cable_story_path)}
+                className="w-full rounded-[24px] border border-stone-200 bg-white p-4 text-left shadow-sm transition hover:border-sky-300"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-mono text-sm font-semibold text-stone-950">{formatCableDisplay(item.cable_code)}</p>
+                    <p className="mt-1 text-xs text-stone-500">
+                      {item.perimetro ?? "—"} · {item.evidence_count} prove · {item.last_event_at ? formatDate(item.last_event_at) : "senza data"}
+                    </p>
+                    {item.last_actor ? <p className="mt-2 text-xs text-stone-600">{item.last_actor}</p> : null}
+                    {item.last_message ? <p className="mt-1 text-xs leading-5 text-stone-600">{item.last_message}</p> : null}
+                  </div>
+                  <Pill tone={translateTone(item.computed_status)}>
+                    {formatFieldStatusLabel(resolveFieldStatus({
+                      hasVerificationProof: item.computed_status === "confirmed_field" || item.computed_status === "likely_laid",
+                      hasCriticalFinding: item.computed_status === "blocked",
+                      hasTechnicalAnomaly: false,
+                    }))}
+                  </Pill>
                 </div>
-                <Pill tone={translateTone(item.computed_status)}>
-                  {formatFieldStatusLabel(resolveFieldStatus({
-                    hasVerificationProof: item.computed_status === "confirmed_field" || item.computed_status === "likely_laid",
-                    hasCriticalFinding: item.computed_status === "blocked",
-                    hasTechnicalAnomaly: false,
-                  }))}
-                </Pill>
-              </div>
-              <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-xs leading-5 text-stone-600">{item.recommended_action}</p>
-                <span className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-700">
-                  {primaryAction}
-                </span>
-              </div>
+                <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-xs leading-5 text-stone-600">{item.recommended_action}</p>
+                  <span className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-700">
+                    {primaryAction}
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+          {!showAll && items.length > EVIDENCE_PAGE_SIZE && (
+            <button
+              onClick={() => setShowAll(true)}
+              className="mt-2 w-full rounded-2xl border border-stone-200 bg-white py-3 text-sm font-medium text-stone-600 transition hover:border-stone-300 hover:text-stone-950"
+            >
+              Mostra tutti ({items.length})
             </button>
-          ))}
-        </div>
+          )}
+        </>
       )}
     </Section>
   );

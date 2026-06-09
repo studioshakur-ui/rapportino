@@ -71,7 +71,7 @@ function buildMetaForRole(
     equipment_name: equipmentName,
     equipment_type: inca?.tipo ?? inca?.sezione ?? "ESWBS",
     zone,
-    system: inca?.impianto ?? null,
+    system: inca?.impianto ?? inca?.sezione ?? item.perimetro ?? null,
   };
 }
 

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { AppBar, Btn, EmptyState, Pill, Screen, Section, StatCard } from "../../../components/command-ui";
@@ -26,8 +27,14 @@ function isFieldVerificationBlocker(value: string | null | undefined): boolean {
   return text.includes("prova") || text.includes("evidenza") || text.includes("verific");
 }
 
+const CLOSURES_PAGE_SIZE = 8;
+const TELEGRAM_PAGE_SIZE = 8;
+
 export default function OggiPage(): JSX.Element {
   const navigate = useNavigate();
+  const [showAllClosures, setShowAllClosures] = useState(false);
+  const [showAllTelegram, setShowAllTelegram] = useState(false);
+
   const { data, isLoading } = useQuery({
     queryKey: ["core_engine_snapshot"],
     queryFn: loadCoreEngineSnapshot,
@@ -91,33 +98,43 @@ export default function OggiPage(): JSX.Element {
                   icon="✓"
                 />
               ) : (
-                <div className="space-y-3">
-                  {today.critical_closures.slice(0, 8).map((item) => (
-                    <button
-                      key={item.key}
-                      onClick={() => navigate(item.route)}
-                      className="w-full rounded-[24px] border border-stone-200 bg-white p-4 text-left shadow-sm transition hover:border-sky-300"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">
-                            {item.kind === "system" ? "Sistema" : "Apparato"}
-                          </p>
-                          <p className="mt-1 text-base font-semibold text-stone-950">{item.name}</p>
-                          <p className="mt-1 text-sm text-stone-600">{item.summary}</p>
-                          {item.blocker ? (
-                            <p className={`mt-2 text-xs ${isFieldVerificationBlocker(item.blocker) ? "text-amber-700" : "text-red-700"}`}>
-                              {isFieldVerificationBlocker(item.blocker) ? "Da verificare sul campo" : "Blocco reale"}: {item.blocker}
+                <>
+                  <div className="space-y-3">
+                    {(showAllClosures ? today.critical_closures : today.critical_closures.slice(0, CLOSURES_PAGE_SIZE)).map((item) => (
+                      <button
+                        key={item.key}
+                        onClick={() => navigate(item.route)}
+                        className="w-full rounded-[24px] border border-stone-200 bg-white p-4 text-left shadow-sm transition hover:border-sky-300"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">
+                              {item.kind === "system" ? "Sistema" : "Apparato"}
                             </p>
-                          ) : null}
+                            <p className="mt-1 text-base font-semibold text-stone-950">{item.name}</p>
+                            <p className="mt-1 text-sm text-stone-600">{item.summary}</p>
+                            {item.blocker ? (
+                              <p className={`mt-2 text-xs ${isFieldVerificationBlocker(item.blocker) ? "text-amber-700" : "text-red-700"}`}>
+                                {isFieldVerificationBlocker(item.blocker) ? "Da verificare sul campo" : "Blocco reale"}: {item.blocker}
+                              </p>
+                            ) : null}
+                          </div>
+                          <Pill tone={item.status === "BLOCKED" ? "red" : item.status === "PARTIAL" ? "amber" : "neutral"}>
+                            {closureLabel(item.status)}
+                          </Pill>
                         </div>
-                        <Pill tone={item.status === "BLOCKED" ? "red" : item.status === "PARTIAL" ? "amber" : "neutral"}>
-                          {closureLabel(item.status)}
-                        </Pill>
-                      </div>
+                      </button>
+                    ))}
+                  </div>
+                  {!showAllClosures && today.critical_closures.length > CLOSURES_PAGE_SIZE && (
+                    <button
+                      onClick={() => setShowAllClosures(true)}
+                      className="mt-2 w-full rounded-2xl border border-stone-200 bg-white py-3 text-sm font-medium text-stone-600 transition hover:border-stone-300 hover:text-stone-950"
+                    >
+                      Mostra tutti ({today.critical_closures.length})
                     </button>
-                  ))}
-                </div>
+                  )}
+                </>
               )}
             </Section>
 
@@ -129,33 +146,43 @@ export default function OggiPage(): JSX.Element {
                   icon="📡"
                 />
               ) : (
-                <div className="space-y-3">
-                  {today.telegram_impacts.slice(0, 8).map((impact) => (
-                    <article key={impact.message_id} className="rounded-[24px] border border-stone-200 bg-white p-4 shadow-sm">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-stone-950">{formatDate(impact.message_ts)}</p>
-                          <p className="mt-1 text-xs text-stone-500">{impact.before_label} → {impact.after_label}</p>
+                <>
+                  <div className="space-y-3">
+                    {(showAllTelegram ? today.telegram_impacts : today.telegram_impacts.slice(0, TELEGRAM_PAGE_SIZE)).map((impact) => (
+                      <article key={impact.message_id} className="rounded-[24px] border border-stone-200 bg-white p-4 shadow-sm">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-stone-950">{formatDate(impact.message_ts)}</p>
+                            <p className="mt-1 text-xs text-stone-500">{impact.before_label} → {impact.after_label}</p>
+                          </div>
+                          <Pill tone={impact.system_closed ? "emerald" : "amber"}>{impact.system_closed ? "Sistema chiuso" : "Impatto"}</Pill>
                         </div>
-                        <Pill tone={impact.system_closed ? "emerald" : "amber"}>{impact.system_closed ? "Sistema chiuso" : "Impatto"}</Pill>
-                      </div>
-                      <p className="mt-3 line-clamp-3 whitespace-pre-line text-sm leading-6 text-stone-700">
-                        {impact.text || "Messaggio senza testo"}
-                      </p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {impact.cable_codes.map((code) => (
-                          <button
-                            key={code}
-                            onClick={() => navigate(`/cable/${encodeURIComponent(code)}`)}
-                            className="rounded-xl border border-stone-200 bg-stone-50 px-2.5 py-1 text-xs font-mono font-semibold text-stone-700 transition hover:border-sky-300"
-                          >
-                            {formatCableDisplay(code)}
-                          </button>
-                        ))}
-                      </div>
-                    </article>
-                  ))}
-                </div>
+                        <p className="mt-3 line-clamp-3 whitespace-pre-line text-sm leading-6 text-stone-700">
+                          {impact.text || "Messaggio senza testo"}
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {impact.cable_codes.map((code) => (
+                            <button
+                              key={code}
+                              onClick={() => navigate(`/cable/${encodeURIComponent(code)}`)}
+                              className="rounded-xl border border-stone-200 bg-stone-50 px-2.5 py-1 text-xs font-mono font-semibold text-stone-700 transition hover:border-sky-300"
+                            >
+                              {formatCableDisplay(code)}
+                            </button>
+                          ))}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                  {!showAllTelegram && today.telegram_impacts.length > TELEGRAM_PAGE_SIZE && (
+                    <button
+                      onClick={() => setShowAllTelegram(true)}
+                      className="mt-2 w-full rounded-2xl border border-stone-200 bg-white py-3 text-sm font-medium text-stone-600 transition hover:border-stone-300 hover:text-stone-950"
+                    >
+                      Mostra tutti ({today.telegram_impacts.length})
+                    </button>
+                  )}
+                </>
               )}
             </Section>
           </section>
