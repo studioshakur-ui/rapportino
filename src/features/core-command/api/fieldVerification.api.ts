@@ -10,7 +10,7 @@ export interface RecordFieldVerificationInput {
   cableCodeRaw: string;
   cableCodeNormalized: string;
   verificationSource: FieldVerificationSource;
-  verificationStatus?: FieldVerificationStatus;
+  verificationStatus: FieldVerificationStatus;
   verifiedBy: string;
   note: string | null;
   appPartenza?: string | null;
@@ -20,12 +20,12 @@ export interface RecordFieldVerificationInput {
 
 export async function recordFieldVerification(input: RecordFieldVerificationInput): Promise<CoreEvent> {
   // INCA stays read-only: a field verification is persisted only as a core_event.
-  // Callers without a directional outcome (e.g. the generic cable verify button)
-  // default to CONNECTED_BOTH — a full positive confirmation.
+  // No implicit status: the caller MUST pass an explicit verification outcome
+  // (never an implicit CONNECTED_BOTH).
   const event = buildFieldVerificationEvent({
     cableCodeRaw: input.cableCodeRaw,
     cableCodeNormalized: input.cableCodeNormalized,
-    verificationStatus: input.verificationStatus ?? "CONNECTED_BOTH",
+    verificationStatus: input.verificationStatus,
     verificationSource: input.verificationSource,
     verifiedBy: input.verifiedBy,
     note: input.note,

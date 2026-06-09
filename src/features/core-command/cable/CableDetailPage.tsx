@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../../../lib/supabaseClient";
 import { formatCableDisplay } from "../../../core/cable/cableDisplay";
 import { Pill, Screen, EmptyState } from "../../../components/command-ui";
-import { formatFieldStatusLabel, resolveFieldStatus } from "../../../domain/core-engine/fieldVerification";
+import { FIELD_VERIFICATION_STATUS_OPTIONS, formatFieldStatusLabel, getFieldVerificationStatusLabel, resolveFieldStatus, type FieldVerificationStatus } from "../../../domain/core-engine/fieldVerification";
 import { useAuth } from "../../../auth/AuthProvider";
 import { recordFieldVerification } from "../api/fieldVerification.api";
 import type { CableEvent } from "../types";
@@ -136,7 +136,9 @@ export default function CableDetailPage() {
     hasVerificationProof: Boolean(latestFieldEvent || lastEvent?.event_kind === "CABLE_POSATO" || lastEvent?.event_kind === "posa"),
   });
 
-  async function verifyOnField(): Promise<void> {
+  // Nessuno stato è dedotto di default: l'operatore sceglie esplicitamente
+  // cosa ha visto sul campo (mai un CONNECTED_BOTH implicito).
+  async function verifyOnField(status: FieldVerificationStatus): Promise<void> {
     if (!uid) {
       setFeedback("Utente non autenticato");
       return;
@@ -145,11 +147,12 @@ export default function CableDetailPage() {
       await recordFieldVerification({
         cableCodeRaw: displayCode || cableCode,
         cableCodeNormalized: normalizeForQuery(cableCode),
+        verificationStatus: status,
         verificationSource: "manual",
         verifiedBy: uid,
         note: null,
       });
-      setFeedback("Verifica registrata");
+      setFeedback(`Stato registrato: ${getFieldVerificationStatusLabel(status)}`);
       await queryClient.invalidateQueries({ queryKey: ["cable_detail", cableCode] });
       await queryClient.invalidateQueries({ queryKey: ["core_engine_snapshot"] });
     } catch (error) {
@@ -184,13 +187,6 @@ export default function CableDetailPage() {
             </Pill>
           ) : null}
           <button
-            onClick={() => void verifyOnField()}
-            disabled={!uid || fieldStatus === "BLOCKED"}
-            className="min-h-10 rounded-lg border border-emerald-600 bg-emerald-600 px-3 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:border-zinc-700 disabled:bg-zinc-800 disabled:text-zinc-500"
-          >
-            Verifica sul campo
-          </button>
-          <button
             onClick={() => navigate("/import")}
             className="min-h-9 rounded-lg border border-zinc-800 px-3 text-xs font-medium text-zinc-500 transition hover:border-zinc-600 hover:text-zinc-300"
           >
@@ -198,6 +194,30 @@ export default function CableDetailPage() {
           </button>
         </div>
       </div>
+
+      {/* Verifica sul campo — stato esplicito, nessun default */}
+      {!isLoading && fieldStatus !== "BLOCKED" && (
+        <section className="space-y-2">
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-500">Stato rilevato sul campo</h2>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {FIELD_VERIFICATION_STATUS_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => void verifyOnField(option.value)}
+                disabled={!uid}
+                className={`min-h-12 rounded-xl border px-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                  option.countsAsVerified
+                    ? "border-emerald-600 bg-emerald-600/10 text-emerald-300 hover:bg-emerald-600/20"
+                    : "border-amber-600 bg-amber-600/10 text-amber-300 hover:bg-amber-600/20"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          {feedback && <p className="text-sm font-medium text-emerald-400">{feedback}</p>}
+        </section>
+      )}
 
       {/* Loading skeleton */}
       {isLoading && (
