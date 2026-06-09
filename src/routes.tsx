@@ -15,6 +15,7 @@ import DailyListsPage     from "./modules/daily-lists/DailyListsPage";
 import DailyListDetailPage from "./modules/daily-lists/DailyListDetailPage";
 import ApparatiPage        from "./modules/apparati/ApparatiPage";
 import EquipmentStoryPage  from "./modules/equipment/EquipmentStoryPage";
+import NavemasterPage      from "./modules/navemaster/NavemasterPage";
 
 function RouteRedirect({ to }: { to: string }): JSX.Element {
   return <Navigate to={to} replace />;
@@ -32,7 +33,6 @@ export default function AppRoutes(): JSX.Element {
       <Route path="/cable-story/:code" element={<ParamRedirect to={(params) => `/cable/${params.code ?? ""}`} />} />
       <Route path="/equipment-story/:code" element={<ParamRedirect to={(params) => `/equipment/${params.code ?? ""}`} />} />
       <Route path="/dashboard" element={<RouteRedirect to="/oggi" />} />
-      <Route path="/navemaster" element={<RouteRedirect to="/oggi" />} />
       <Route path="/commander" element={<RouteRedirect to="/campo" />} />
       <Route path="/images-terreno" element={<RouteRedirect to="/campo" />} />
       <Route path="/ia-cockpit" element={<RouteRedirect to="/oggi" />} />
@@ -48,6 +48,7 @@ export default function AppRoutes(): JSX.Element {
         <Route index element={<Navigate to="/oggi" replace />} />
         <Route path="oggi" element={<OggiPage />} />
         <Route path="apparati" element={<ApparatiPage />} />
+        <Route path="navemaster" element={<NavemasterPage />} />
         <Route path="campo" element={<CampoPage />} />
         <Route path="situazione" element={<SituazionePage />} />
         <Route path="grafici" element={<GraficiPage />} />
