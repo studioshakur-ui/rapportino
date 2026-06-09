@@ -6,9 +6,17 @@ import { loadCoreEngineSnapshot } from "../../domain/core-engine";
 
 function closureLabel(status: string): string {
   if (status === "CLOSED") return "CHIUSO";
+  if (status === "DA_CONFERMARE") return "DA CONFERMARE";
   if (status === "PARTIAL") return "PARZIALE";
   if (status === "BLOCKED") return "BLOCCATO";
   return "APERTO";
+}
+
+// Vérité partagée : un apparato è CHIUSO solo se i cavi sono fatti E confermato
+// dal capo. Cavi fatti senza conferma = DA_CONFERMARE (non ancora chiuso).
+function effectiveClosure(item: { closure_status: string; confirmed: boolean }): string {
+  if (item.closure_status === "CLOSED" && !item.confirmed) return "DA_CONFERMARE";
+  return item.closure_status;
 }
 
 export default function ApparatiPage(): JSX.Element {
@@ -20,7 +28,7 @@ export default function ApparatiPage(): JSX.Element {
   });
 
   const apparatus = data?.apparatus ?? null;
-  const openEquipments = apparatus?.equipments.filter((item) => item.closure_status !== "CLOSED") ?? [];
+  const openEquipments = apparatus?.equipments.filter((item) => effectiveClosure(item) !== "CLOSED") ?? [];
 
   return (
     <Screen className="max-w-6xl space-y-6">
@@ -59,8 +67,8 @@ export default function ApparatiPage(): JSX.Element {
                         <p className="font-mono text-sm font-semibold text-stone-950">{equipment.equipment_code}</p>
                         <p className="mt-1 truncate text-xs text-stone-500">{equipment.equipment_name ?? equipment.zone ?? "ESWBS"}</p>
                       </div>
-                      <Pill tone={equipment.closure_status === "BLOCKED" ? "red" : equipment.closure_status === "PARTIAL" ? "amber" : "emerald"}>
-                        {closureLabel(equipment.closure_status)}
+                      <Pill tone={equipment.closure_status === "BLOCKED" ? "red" : effectiveClosure(equipment) === "CLOSED" ? "emerald" : "amber"}>
+                        {closureLabel(effectiveClosure(equipment))}
                       </Pill>
                     </div>
 

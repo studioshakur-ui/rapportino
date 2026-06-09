@@ -333,6 +333,7 @@ function buildBaseInput(): SituationInput {
           blocker: null,
           critical_path: [],
           route: "/equipment/415001120001",
+          confirmed: false,
         },
         {
           equipment_code: "415001150002",
@@ -352,6 +353,7 @@ function buildBaseInput(): SituationInput {
           blocker: null,
           critical_path: [],
           route: "/equipment/415001150002",
+          confirmed: false,
         },
       ],
     },

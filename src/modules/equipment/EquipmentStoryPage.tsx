@@ -7,6 +7,7 @@ import { formatCableDisplay } from "../../core/cable/cableDisplay";
 import { canConfirmFieldVerification, FIELD_VERIFICATION_STATUS_OPTIONS, formatFieldStatusLabel, getFieldVerificationStatusLabel, isVerifiedFieldVerificationStatus, loadCoreEngineSnapshot, resolveFieldStatus, type CoreEngineSnapshot, type FieldVerificationStatus } from "../../domain/core-engine";
 import { translateIncaStatus } from "../../domain/core-engine/incaStatus";
 import { recordFieldVerification } from "../../features/core-command/api/fieldVerification.api";
+import { confirmApparatoClosure, removeApparatoConfirmation } from "../../features/core-command/api/apparatoConfirmation.api";
 
 type Direction = "incoming" | "outgoing";
 
@@ -94,6 +95,7 @@ function statusTone(status: string | null | undefined): "neutral" | "emerald" | 
 
 function closureLabel(status: string): string {
   if (status === "CLOSED") return "CHIUSO";
+  if (status === "DA_CONFERMARE") return "DA CONFERMARE";
   if (status === "PARTIAL") return "PARZIALE";
   if (status === "BLOCKED") return "BLOCCATO";
   return "APERTO";
@@ -143,7 +145,13 @@ export default function EquipmentStoryPage(): JSX.Element {
   const totalCables = equipment?.total_cables ?? 0;
   const remaining = Math.max(totalCables - activeConfirmed, 0);
   const blocked = equipment?.blocked_cables ?? 0;
-  const closureStatus = remaining === 0 && totalCables > 0 ? "CLOSED" : equipment?.closure_status ?? "OPEN";
+  const apparatoConfirmed = equipment?.confirmed ?? false;
+  // Cavi tutti verificati MA non basta: l'apparato è CHIUSO solo se il capo
+  // conferma la chiusura. Altrimenti resta DA_CONFERMARE.
+  const cablesDone = remaining === 0 && totalCables > 0;
+  const closureStatus = cablesDone
+    ? (apparatoConfirmed ? "CLOSED" : "DA_CONFERMARE")
+    : equipment?.closure_status ?? "OPEN";
   const completionRate = totalCables > 0 ? Math.round((activeConfirmed / totalCables) * 100) : 0;
   const riskLevel = equipment?.risk_level ?? "low";
 
@@ -195,6 +203,26 @@ export default function EquipmentStoryPage(): JSX.Element {
       await queryClient.invalidateQueries({ queryKey: ["cable_events"] });
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "Errore durante la conferma");
+    }
+  };
+
+  const toggleApparatoConfirmation = async () => {
+    if (!uid) {
+      setFeedback("Utente non autenticato");
+      return;
+    }
+    try {
+      if (apparatoConfirmed) {
+        await removeApparatoConfirmation(equipmentCode, uid);
+        setFeedback("Conferma chiusura rimossa");
+      } else {
+        await confirmApparatoClosure(equipmentCode, uid);
+        setFeedback("Apparato confermato chiuso");
+      }
+      await queryClient.invalidateQueries({ queryKey: ["core_engine_snapshot"] });
+      await queryClient.invalidateQueries({ queryKey: ["core_events"] });
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Errore conferma apparato");
     }
   };
 
@@ -272,6 +300,32 @@ export default function EquipmentStoryPage(): JSX.Element {
           </div>
         </div>
       </section>
+
+      {cablesDone ? (
+        <section className={`rounded-[28px] border p-5 shadow-sm ${apparatoConfirmed ? "border-emerald-300 bg-emerald-50" : "border-amber-300 bg-amber-50"}`}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-stone-600">Chiusura apparato</p>
+              <h2 className="mt-1 text-lg font-semibold text-stone-950">
+                {apparatoConfirmed
+                  ? "Apparato confermato chiuso dal capo"
+                  : "Tutti i cavi verificati — manca la conferma del capo"}
+              </h2>
+            </div>
+            <button
+              onClick={() => void toggleApparatoConfirmation()}
+              disabled={!uid}
+              className={`min-h-11 rounded-2xl border px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                apparatoConfirmed
+                  ? "border-stone-300 bg-white text-stone-700 hover:border-stone-400"
+                  : "border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700"
+              }`}
+            >
+              {apparatoConfirmed ? "Annulla conferma" : "Conferma chiusura"}
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       <section className="rounded-[28px] border border-emerald-200 bg-emerald-50/70 p-5 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

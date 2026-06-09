@@ -3,6 +3,7 @@ import { buildListSummary } from "../../modules/daily-lists/dailyLists.logic";
 import { loadEquipmentIntelligenceDashboard } from "../../modules/equipment/equipmentIntelligence.repo";
 import { listRecentTelegramMessages } from "../../features/core-command/api/telegramMessages.api";
 import { listOpenPriorities } from "../../features/core-command/api/cablePriorities.api";
+import { loadApparatoConfirmations } from "../../features/core-command/api/apparatoConfirmation.api";
 import { ensureArray } from "../../core/utils/array";
 import { buildSdcCableLookup, getDisplayCableCode } from "./sdc";
 import type { DailyListItemVM, DailyListSummary } from "../../modules/daily-lists/dailyLists.types";
@@ -82,6 +83,7 @@ export interface ApparatusClosureCard {
   blocker: string | null;
   critical_path: string[];
   route: string;
+  confirmed: boolean; // chiusura confermata esplicitamente dal capo
 }
 
 export interface ApparatusClosureView {
@@ -364,11 +366,12 @@ export async function loadCoreEngineSnapshot(): Promise<CoreEngineSnapshot> {
   const imports = await listRecentImports(12);
   if (!latestImport) return emptySnapshot();
 
-  const [items, dashboard, telegramMessages, openPriorities] = await Promise.all([
+  const [items, dashboard, telegramMessages, openPriorities, apparatoConfirmations] = await Promise.all([
     loadItemsWithEvidence(latestImport.id),
     loadEquipmentIntelligenceDashboard(),
     listRecentTelegramMessages(24),
     listOpenPriorities(10),
+    loadApparatoConfirmations(),
   ]);
 
   const summary = buildListSummary(latestImport.id, latestImport.list_date, latestImport.file_name, items);
@@ -429,6 +432,7 @@ export async function loadCoreEngineSnapshot(): Promise<CoreEngineSnapshot> {
       blocker: equipment.critical_path[0]?.reason ?? null,
       critical_path: ensureArray(equipment.critical_path, `coreEngine.apparatus.${equipment.equipment_code}.critical_path`).map((cable) => cable.cable_code),
       route: `/equipment/${encodeURIComponent(equipment.equipment_code)}`,
+      confirmed: apparatoConfirmations.has(equipment.equipment_code),
     })),
   };
 
