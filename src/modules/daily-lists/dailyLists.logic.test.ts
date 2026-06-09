@@ -85,6 +85,24 @@ function manualVerification(status: string | null): DailyItemEvidence {
   };
 }
 
+function manualVerificationAt(status: string, occurred_at: string): DailyItemEvidence {
+  return { ...manualVerification(status), occurred_at };
+}
+
+describe("dailyLists.logic — Bloccato (blocco reale)", () => {
+  it("a manual Bloccato makes the cable blocked (not to_verify)", () => {
+    expect(computeItemStatus(baseItem, [manualVerification("BLOCKED")], false)).toBe("blocked");
+  });
+
+  it("a later TROVATO clears the manual block", () => {
+    const evidence = [
+      manualVerificationAt("BLOCKED", "2026-06-01T08:00:00.000Z"),
+      manualVerificationAt("CONNECTED_BOTH", "2026-06-02T08:00:00.000Z"),
+    ];
+    expect(computeItemStatus(baseItem, evidence, false)).toBe("confirmed_field");
+  });
+});
+
 describe("dailyLists.logic — directional field verification", () => {
   it("A destinazione / In partenza / Collegato entrambi → confirmed_field (VERIFIED)", () => {
     expect(computeItemStatus(baseItem, [manualVerification("AT_DESTINATION")], false)).toBe("confirmed_field");

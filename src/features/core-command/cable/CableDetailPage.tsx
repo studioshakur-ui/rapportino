@@ -206,9 +206,11 @@ export default function CableDetailPage() {
                 onClick={() => void verifyOnField(option.value)}
                 disabled={!uid}
                 className={`min-h-12 rounded-xl border px-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${
-                  option.countsAsVerified
-                    ? "border-emerald-600 bg-emerald-600/10 text-emerald-300 hover:bg-emerald-600/20"
-                    : "border-amber-600 bg-amber-600/10 text-amber-300 hover:bg-amber-600/20"
+                  option.isBlocker
+                    ? "border-red-600 bg-red-600/10 text-red-300 hover:bg-red-600/20"
+                    : option.countsAsVerified
+                      ? "border-emerald-600 bg-emerald-600/10 text-emerald-300 hover:bg-emerald-600/20"
+                      : "border-amber-600 bg-amber-600/10 text-amber-300 hover:bg-amber-600/20"
                 }`}
               >
                 {option.label}

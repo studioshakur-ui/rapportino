@@ -10,6 +10,7 @@ import type {
 } from "./equipment.types";
 import { ensureArray } from "../../core/utils/array";
 import { translateIncaStatus } from "../../domain/core-engine/incaStatus";
+import { isRealBlocker } from "../../domain/core-engine/fieldVerification";
 
 interface IncaEquipmentMeta {
   apparato_a: string | null;
@@ -79,7 +80,10 @@ function isCableConfirmed(item: DailyListItemVM): boolean {
 }
 
 function isCableBlocked(item: DailyListItemVM): boolean {
-  return item.computed_status === "blocked" || translateIncaStatus(item.situazione_inca).isBlocked;
+  return isRealBlocker({
+    incaIsBlocked: translateIncaStatus(item.situazione_inca).isBlocked,
+    computedStatus: item.computed_status,
+  });
 }
 
 function buildCableReason(item: DailyListItemVM): string {

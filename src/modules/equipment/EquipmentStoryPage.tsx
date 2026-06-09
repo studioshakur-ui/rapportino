@@ -493,7 +493,7 @@ export default function EquipmentStoryPage(): JSX.Element {
                   ))}
                 </select>
                 <span className="mt-2 block text-xs text-stone-500">
-                  A destinazione, In partenza o Collegato entrambi chiudono la verifica. Non trovato e Da ricontrollare restano da verificare.
+                  Trovato a partenza/arrivo/entrambi conferma il cavo. Non trovato e Da ricontrollare restano da verificare. Bloccato segnala un blocco reale.
                 </span>
               </label>
 

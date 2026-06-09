@@ -15,7 +15,7 @@ import type {
   TomorrowAction,
 } from "./dailyLists.types";
 import { ensureArray } from "../../core/utils/array";
-import { isVerifiedFieldVerificationStatus } from "../../domain/core-engine/fieldVerification";
+import { deriveCableFieldState, isVerifiedFieldVerificationStatus, type FieldVerificationStatus } from "../../domain/core-engine/fieldVerification";
 
 // ── Progress % extraction from WhatsApp raw note ───────────────────────────
 const PERCENT_RE = /(\d{1,3})\s*%/;
@@ -52,6 +52,15 @@ export function computeItemStatus(
   const safeEvidence = ensureArray(evidence, "dailyLists.computeItemStatus.evidence");
   // Blocked by an open finding — always wins.
   if (hasOpenBlockingFinding) return "blocked";
+
+  // "Bloccato" dichiarato dal capo = blocco reale (a meno che un TROVATO
+  // successivo lo sblocchi — stato derivato a 2 assi partenza/arrivo).
+  const manualFieldEntries = safeEvidence
+    .filter((e) => (e.source_type === "manual" || VERIFIED_FIELD_EVENT_KINDS.has(e.event_kind)) && e.verification_status != null)
+    .map((e) => ({ status: e.verification_status as FieldVerificationStatus, occurred_at: e.occurred_at }));
+  if (manualFieldEntries.length > 0 && deriveCableFieldState(manualFieldEntries).is_blocked) {
+    return "blocked";
+  }
 
   // ── Field evidence is the source of truth ─────────────────────────────────
   // REGRESSION FIX (P3): the previous version ran `if (!item.inca_cavo_id)

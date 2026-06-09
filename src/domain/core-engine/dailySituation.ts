@@ -1,6 +1,6 @@
 import { ensureArray } from "../../core/utils/array";
 import { translateIncaStatus } from "./incaStatus";
-import { resolveFieldStatus } from "./fieldVerification";
+import { isRealBlocker } from "./fieldVerification";
 import {
   buildSdcCableLookup,
   findSdcCableRecord,
@@ -283,15 +283,13 @@ function buildListName(input: DailySituationInput): string | null {
   return input.today.summary?.file_name ?? input.today.latest_import?.file_name ?? input.field.summary?.file_name ?? null;
 }
 
-function isRealBlocker(card: FieldEvidenceCard): boolean {
+// Usa la fonte di verità centrale: un blocco reale esige una prova forte.
+function cardIsRealBlocker(card: FieldEvidenceCard): boolean {
   const status = translateIncaStatus(card.situazione_inca ?? card.stato_collegamento);
-  return (
-    resolveFieldStatus({
-      hasCriticalFinding: status.isBlocked,
-      hasTechnicalAnomaly: card.computed_status === "blocked",
-      hasVerificationProof: card.confirmed_by_whatsapp || card.computed_status === "confirmed_field",
-    }) === "BLOCKED"
-  );
+  return isRealBlocker({
+    incaIsBlocked: status.isBlocked,
+    computedStatus: card.computed_status,
+  });
 }
 
 function buildToVerifyCables(
@@ -305,7 +303,7 @@ function buildToVerifyCables(
   ];
 
   const items = cards
-    .filter((card) => !isRealBlocker(card))
+    .filter((card) => !cardIsRealBlocker(card))
     .map((card) => {
       const record = findSdcCableRecord(sdcLookup, card.display_cable_code ?? card.cable_code_raw ?? card.cable_code);
       const displayCode = record?.cableCodeOriginal || card.display_cable_code || displayCableCode(card.cable_code_raw ?? card.cable_code);
