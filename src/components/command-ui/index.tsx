@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { NavLink } from "react-router-dom";
 
 type Tone = "neutral" | "emerald" | "amber" | "red" | "sky" | "blue" | "violet";
 
@@ -15,11 +14,13 @@ export function Screen({ children, className = "" }: { children: ReactNode; clas
 
 // ─── Page header ─────────────────────────────────────────────────────────────
 
-export function AppBar({ title, subtitle, action }: { title: string; subtitle?: ReactNode; action?: ReactNode }): JSX.Element {
+export function AppBar({ title, subtitle, action, kicker }: {
+  title: string; subtitle?: ReactNode; action?: ReactNode; kicker?: string;
+}): JSX.Element {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-6">
       <div className="min-w-0 space-y-1">
-        <p className="kicker text-[11px] font-semibold uppercase tracking-[0.24em] text-stone-500">Core Command</p>
+        <p className="kicker text-[11px] font-semibold uppercase tracking-[0.24em] text-stone-500">{kicker ?? "Core Command"}</p>
         <h1 className="text-2xl font-semibold tracking-tight text-stone-950 sm:text-3xl">{title}</h1>
         {subtitle ? <p className="text-sm leading-6 text-stone-600">{subtitle}</p> : null}
       </div>
@@ -38,9 +39,13 @@ export function Section({ title, eyebrow, count, children, className = "" }: {
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           {eyebrow ? <p className="kicker text-[11px] font-semibold uppercase tracking-[0.2em] text-stone-500">{eyebrow}</p> : null}
-          <h2 className="text-base font-semibold text-stone-950">{title}</h2>
+          <h2 className="text-lg font-semibold tracking-tight text-stone-950">{title}</h2>
         </div>
-        {typeof count === "number" ? <Pill tone="neutral">{count}</Pill> : null}
+        {typeof count === "number" ? (
+          <span className="inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-stone-100 px-2 text-xs font-semibold text-stone-500">
+            {count}
+          </span>
+        ) : null}
       </div>
       {children}
     </section>
@@ -52,10 +57,11 @@ export function Section({ title, eyebrow, count, children, className = "" }: {
 export function StatCard({ label, value, tone = "neutral", helper }: {
   label: string; value: ReactNode; tone?: Tone; helper?: ReactNode;
 }): JSX.Element {
+  const isLongString = typeof value === "string" && value.length > 8;
   return (
     <div className={`rounded-[24px] border p-4 shadow-sm ${surfaceByTone(tone)}`}>
       <p className="text-xs font-medium uppercase tracking-[0.18em] text-stone-500">{label}</p>
-      <div className="mt-2 text-2xl font-semibold text-stone-950">{value}</div>
+      <div className={`mt-2 font-semibold text-stone-950 ${isLongString ? "text-sm leading-snug" : "text-2xl"}`}>{value}</div>
       {helper ? <p className="mt-1 text-sm text-stone-600">{helper}</p> : null}
     </div>
   );
@@ -75,12 +81,18 @@ export function Pill({ children, tone = "neutral", className = "" }: {
 
 // ─── Empty state ──────────────────────────────────────────────────────────────
 
-export function EmptyState({ title, description, icon = "✓" }: {
-  title: string; description?: ReactNode; icon?: ReactNode;
+export function EmptyState({ title, description, icon = "✓", tone = "neutral" }: {
+  title: string; description?: ReactNode; icon?: ReactNode; tone?: "neutral" | "emerald" | "amber" | "red";
 }): JSX.Element {
+  const iconStyles: Record<string, string> = {
+    neutral: "border-stone-200 bg-stone-50 text-stone-500",
+    emerald: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    amber:   "border-amber-200 bg-amber-50 text-amber-700",
+    red:     "border-red-200 bg-red-50 text-red-700",
+  };
   return (
     <div className="rounded-[28px] border border-stone-200 bg-white p-8 text-center shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 text-2xl text-emerald-700">
+      <div className={`mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border text-2xl ${iconStyles[tone]}`}>
         {icon}
       </div>
       <p className="mt-4 font-semibold text-stone-950">{title}</p>
@@ -93,30 +105,30 @@ export function EmptyState({ title, description, icon = "✓" }: {
 
 export function Table({ children }: { children: ReactNode }): JSX.Element {
   return (
-    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
       <table className="w-full min-w-0 border-collapse text-sm">{children}</table>
     </div>
   );
 }
 
 export function Thead({ children }: { children: ReactNode }): JSX.Element {
-  return <thead className="border-b border-gray-200 bg-gray-50">{children}</thead>;
+  return <thead className="border-b border-stone-200 bg-stone-50">{children}</thead>;
 }
 
 export function Tbody({ children }: { children: ReactNode }): JSX.Element {
-  return <tbody className="divide-y divide-gray-100">{children}</tbody>;
+  return <tbody className="divide-y divide-stone-100">{children}</tbody>;
 }
 
 export function Th({ children, className = "" }: { children: ReactNode; className?: string }): JSX.Element {
   return (
-    <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 ${className}`}>
+    <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-stone-500 ${className}`}>
       {children}
     </th>
   );
 }
 
 export function Td({ children, className = "" }: { children: ReactNode; className?: string }): JSX.Element {
-  return <td className={`px-4 py-3 text-sm text-gray-700 ${className}`}>{children}</td>;
+  return <td className={`px-4 py-3 text-sm text-stone-700 ${className}`}>{children}</td>;
 }
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
@@ -124,10 +136,10 @@ export function Td({ children, className = "" }: { children: ReactNode; classNam
 export function Card({ children, className = "", onClick }: {
   children: ReactNode; className?: string; onClick?: () => void;
 }): JSX.Element {
-  const base = "rounded-xl border border-gray-200 bg-white p-4 shadow-sm";
+  const base = "rounded-xl border border-stone-200 bg-white p-4 shadow-sm";
   if (onClick) {
     return (
-      <button onClick={onClick} className={`${base} w-full text-left transition hover:border-blue-300 hover:shadow-md ${className}`}>
+      <button onClick={onClick} className={`${base} w-full text-left transition hover:border-amber-300 hover:shadow-md ${className}`}>
         {children}
       </button>
     );
@@ -145,10 +157,10 @@ export function Btn({ children, onClick, disabled, variant = "primary", classNam
   className?: string;
 }): JSX.Element {
   const variants: Record<string, string> = {
-    primary:   "bg-blue-600 text-white hover:bg-blue-700 focus-visible:ring-blue-500",
-    secondary: "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 focus-visible:ring-gray-400",
+    primary:   "bg-stone-900 text-white hover:bg-stone-800 focus-visible:ring-stone-500",
+    secondary: "bg-white text-stone-700 border border-stone-200 hover:bg-stone-50 focus-visible:ring-stone-400",
     danger:    "bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500",
-    ghost:     "text-gray-600 hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-gray-400",
+    ghost:     "text-stone-600 hover:bg-stone-100 hover:text-stone-900 focus-visible:ring-stone-400",
   };
   return (
     <button
@@ -161,44 +173,18 @@ export function Btn({ children, onClick, disabled, variant = "primary", classNam
   );
 }
 
-// ─── Bottom nav (mobile) ─────────────────────────────────────────────────────
-
-type BottomNavItem = { to: string; label: string };
-
-export function BottomNav({ items }: { items: readonly BottomNavItem[] }): JSX.Element {
-  return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-stone-200 bg-white/96 px-3 py-2 shadow-[0_-10px_30px_rgba(15,23,42,0.06)] backdrop-blur md:hidden">
-      <div className="mx-auto grid max-w-md grid-cols-4 gap-1">
-        {items.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) =>
-              `rounded-2xl px-2 py-2 text-center text-xs font-medium transition ${
-                isActive ? "bg-stone-900 text-white" : "text-stone-500 hover:bg-stone-100 hover:text-stone-900"
-              }`
-            }
-          >
-            {item.label}
-          </NavLink>
-        ))}
-      </div>
-    </nav>
-  );
-}
-
 // ─── Progress bar ─────────────────────────────────────────────────────────────
 
-export function ProgressBar({ value, max, tone = "blue" }: { value: number; max: number; tone?: "blue" | "emerald" | "amber" | "red" }): JSX.Element {
+export function ProgressBar({ value, max, tone = "emerald" }: { value: number; max: number; tone?: "emerald" | "amber" | "red" | "stone" }): JSX.Element {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
   const fill: Record<string, string> = {
-    blue:    "bg-blue-500",
     emerald: "bg-emerald-500",
     amber:   "bg-amber-400",
     red:     "bg-red-500",
+    stone:   "bg-stone-400",
   };
   return (
-    <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+    <div className="h-2 overflow-hidden rounded-full bg-stone-100">
       <div style={{ width: `${pct}%` }} className={`h-full rounded-full transition-all ${fill[tone]}`} />
     </div>
   );

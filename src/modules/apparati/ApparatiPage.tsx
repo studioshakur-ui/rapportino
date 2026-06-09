@@ -62,6 +62,7 @@ export default function ApparatiPage(): JSX.Element {
                 title="Nessun apparato aperto"
                 description="La lista attiva non richiede azioni apparato."
                 icon="✓"
+                tone="emerald"
               />
             ) : (
               <>
@@ -70,7 +71,7 @@ export default function ApparatiPage(): JSX.Element {
                     <button
                       key={equipment.equipment_code}
                       onClick={() => navigate(equipment.route)}
-                      className="rounded-[24px] border border-stone-200 bg-white p-4 text-left shadow-sm transition hover:border-sky-300"
+                      className="rounded-[24px] border border-stone-200 bg-white p-4 text-left shadow-sm transition hover:border-amber-300"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">

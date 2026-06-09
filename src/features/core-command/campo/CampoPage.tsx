@@ -151,7 +151,7 @@ function EvidenceList({
               <button
                 key={item.cable_code}
                 onClick={() => onOpen(item.cable_story_path)}
-                className="w-full rounded-[24px] border border-stone-200 bg-white p-4 text-left shadow-sm transition hover:border-sky-300"
+                className="w-full rounded-[24px] border border-stone-200 bg-white p-4 text-left shadow-sm transition hover:border-amber-300"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">

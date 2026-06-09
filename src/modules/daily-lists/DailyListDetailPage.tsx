@@ -29,7 +29,6 @@ export default function DailyListDetailPage(): JSX.Element {
     queryFn:  () => loadItemsWithEvidence(importId!),
     enabled:  Boolean(importId),
     staleTime: 30_000,
-    // No passive polling — Realtime (useRealtimeSync) drives freshness.
   });
 
   const isLoading = loadingImport || loadingItems;
@@ -68,7 +67,7 @@ export default function DailyListDetailPage(): JSX.Element {
     <Screen className="max-w-6xl space-y-6">
       <button
         onClick={() => navigate("/import")}
-        className="min-h-10 rounded-xl border border-zinc-800 px-3 text-xs font-medium text-zinc-400 transition hover:border-zinc-700 hover:text-white"
+        className="min-h-10 rounded-xl border border-stone-200 px-3 text-xs font-medium text-stone-600 transition hover:border-stone-400 hover:text-stone-950"
       >
         ← Tutte le liste
       </button>
@@ -81,20 +80,20 @@ export default function DailyListDetailPage(): JSX.Element {
             <button
               type="button"
               onClick={() => window.print()}
-              className="min-h-10 rounded-xl bg-white px-3 text-xs font-semibold text-zinc-950 transition hover:bg-zinc-200"
+              className="min-h-10 rounded-xl border border-stone-200 bg-white px-3 text-xs font-semibold text-stone-700 transition hover:bg-stone-50"
             >
               Stampa lista
             </button>
             <button
               type="button"
               onClick={() => navigate("/campo")}
-              className="min-h-10 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-200 transition hover:border-emerald-400"
+              className="min-h-10 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
             >
               Apri giro campo
             </button>
             <button
               onClick={() => setShowBriefing((v) => !v)}
-              className="min-h-10 rounded-xl border border-zinc-800 px-3 text-xs font-medium text-zinc-400 transition hover:border-zinc-700 hover:text-white"
+              className="min-h-10 rounded-xl border border-stone-200 px-3 text-xs font-medium text-stone-500 transition hover:border-stone-400 hover:text-stone-950"
             >
               {showBriefing ? "Nascondi dati tecnici" : "Dati tecnici"}
             </button>
@@ -103,8 +102,8 @@ export default function DailyListDetailPage(): JSX.Element {
       />
 
       {isLoading ? (
-        <div className="flex min-h-16 items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/80 px-4 text-sm text-zinc-400">
-          <svg className="h-4 w-4 animate-spin text-sky-400" fill="none" viewBox="0 0 24 24">
+        <div className="flex min-h-16 items-center gap-3 rounded-2xl border border-stone-200 bg-white px-4 text-sm text-stone-500 shadow-sm">
+          <svg className="h-4 w-4 animate-spin text-amber-500" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
           </svg>
@@ -121,13 +120,13 @@ export default function DailyListDetailPage(): JSX.Element {
             <StatCard
               label="Problemi"
               value={problemItems.length + partialItems.length}
-              helper={`${zeroPerimeters.length} zone${zeroPerimeters.length > 1 ? "" : ""} a 0%`}
+              helper={`${zeroPerimeters.length} zone a 0%`}
               tone={problemItems.length + partialItems.length > 0 ? "red" : "neutral"}
             />
           </div>
 
           <Section title="Avanzamento globale" eyebrow="Progressione">
-            <div className="rounded-3xl border border-zinc-800 bg-zinc-900/80 p-4">
+            <div className="rounded-[24px] border border-stone-200 bg-white p-5 shadow-sm">
               <DailyListProgress summary={summary} />
             </div>
           </Section>
@@ -135,14 +134,14 @@ export default function DailyListDetailPage(): JSX.Element {
       ) : null}
 
       {summary && summary.tomorrow_actions.length > 0 ? (
-        <Section title="Azioni domani" eyebrow="Priorita campo" count={summary.tomorrow_actions.length}>
+        <Section title="Azioni domani" eyebrow="Priorità campo" count={summary.tomorrow_actions.length}>
           <div className="space-y-3">
             {summary.tomorrow_actions.map((action) => (
-              <article key={`${action.kind}-${action.perimetro ?? "all"}`} className="rounded-3xl border border-amber-500/20 bg-amber-500/10 p-4">
+              <article key={`${action.kind}-${action.perimetro ?? "all"}`} className="rounded-[24px] border border-amber-200 bg-amber-50 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="font-medium text-amber-100">{action.label}</p>
-                    {action.perimetro ? <p className="mt-1 text-xs text-amber-300/80">Zona {action.perimetro}</p> : null}
+                    <p className="font-medium text-amber-900">{action.label}</p>
+                    {action.perimetro ? <p className="mt-1 text-xs text-amber-600">Zona {action.perimetro}</p> : null}
                   </div>
                   <Pill tone="amber">{action.count}</Pill>
                 </div>
@@ -151,7 +150,7 @@ export default function DailyListDetailPage(): JSX.Element {
                     <button
                       key={code}
                       onClick={() => navigate(`/cable/${encodeURIComponent(code)}`)}
-                      className="min-h-9 rounded-xl bg-black/20 px-3 font-mono text-sm font-semibold text-amber-100 transition hover:bg-black/30"
+                      className="min-h-9 rounded-xl border border-amber-200 bg-white px-3 font-mono text-sm font-semibold text-amber-800 transition hover:border-amber-300"
                     >
                       {formatCableDisplay(code)}
                     </button>
@@ -178,40 +177,40 @@ export default function DailyListDetailPage(): JSX.Element {
       {problemItems.length > 0 || zeroPerimeters.length > 0 ? (
         <Section title="Bloccanti reali e anomalie" eyebrow="Controllo cantiere" count={problemItems.length + zeroPerimeters.length}>
           <div className="grid gap-3 lg:grid-cols-2">
-            <div className="rounded-3xl border border-red-500/20 bg-red-500/10 p-4">
-              <h3 className="text-sm font-semibold text-red-200">Zone critiche</h3>
+            <div className="rounded-[24px] border border-red-200 bg-red-50 p-4">
+              <h3 className="text-sm font-semibold text-red-800">Zone critiche</h3>
               {zeroPerimeters.length === 0 ? (
-                <p className="mt-3 text-sm text-zinc-400">Nessuna zona a 0%.</p>
+                <p className="mt-3 text-sm text-stone-500">Nessuna zona a 0%.</p>
               ) : (
                 <div className="mt-3 space-y-2">
                   {zeroPerimeters.map((zone) => (
-                    <div key={zone.perimetro} className="flex items-center justify-between gap-3 rounded-2xl bg-black/20 px-3 py-2">
-                      <span className="text-sm font-medium text-red-100">{zone.perimetro}</span>
-                      <span className="text-xs text-red-200">{zone.total} cavi · 0%</span>
+                    <div key={zone.perimetro} className="flex items-center justify-between gap-3 rounded-2xl bg-white px-3 py-2 shadow-sm">
+                      <span className="text-sm font-medium text-red-800">{zone.perimetro}</span>
+                      <span className="text-xs text-red-600">{zone.total} cavi · 0%</span>
                     </div>
                   ))}
                 </div>
               )}
             </div>
 
-            <div className="rounded-3xl border border-zinc-800 bg-zinc-900/80 p-4">
-              <h3 className="text-sm font-semibold text-zinc-100">Azioni da seguire</h3>
+            <div className="rounded-[24px] border border-stone-200 bg-white p-4 shadow-sm">
+              <h3 className="text-sm font-semibold text-stone-900">Azioni da seguire</h3>
               {absolutePriorities.length === 0 ? (
-                <p className="mt-3 text-sm text-zinc-400">Nessuna priorita bloccante rilevata.</p>
+                <p className="mt-3 text-sm text-stone-500">Nessuna priorità bloccante rilevata.</p>
               ) : (
                 <div className="mt-3 space-y-2">
                   {absolutePriorities.map((item) => (
                     <button
                       key={item.id}
                       onClick={() => navigate(item.cable_story_path)}
-                      className="w-full rounded-2xl border border-zinc-800 bg-zinc-950/50 px-3 py-3 text-left transition hover:border-red-500/30"
+                      className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-3 py-3 text-left transition hover:border-red-200 hover:bg-red-50"
                     >
                       <span className="flex items-start justify-between gap-3">
                         <span>
-                          <span className="font-mono text-sm font-semibold text-white">{formatCableDisplay(item.cable_code_normalized)}</span>
-                          <span className="mt-1 block text-xs leading-5 text-zinc-500">{item.recommended_action}</span>
+                          <span className="font-mono text-sm font-semibold text-stone-950">{formatCableDisplay(item.cable_code_normalized)}</span>
+                          <span className="mt-1 block text-xs leading-5 text-stone-500">{item.recommended_action}</span>
                         </span>
-                        <span className="shrink-0 text-[11px] text-zinc-400">{item.perimetro ?? "—"}</span>
+                        <span className="shrink-0 text-[11px] text-stone-400">{item.perimetro ?? "—"}</span>
                       </span>
                     </button>
                   ))}
@@ -224,24 +223,24 @@ export default function DailyListDetailPage(): JSX.Element {
 
       {summary && summary.by_perimeter.length > 0 ? (
         <Section title="Per zona" eyebrow="Avanzamento" count={summary.by_perimeter.length}>
-          <div className="rounded-3xl border border-zinc-800 bg-zinc-900/80 p-4">
+          <div className="rounded-[24px] border border-stone-200 bg-white p-5 shadow-sm">
             <div className="space-y-3">
               {summary.by_perimeter.map((perimeter) => {
                 const pct = perimeter.pct;
                 const critical = perimeter.pct === 0 || (perimeter.no_evidence > 0 && pct < 30);
                 return (
-                  <div key={perimeter.perimetro} className="space-y-2 rounded-2xl border border-zinc-800 bg-zinc-950/40 p-3">
+                  <div key={perimeter.perimetro} className="space-y-2 rounded-2xl border border-stone-100 bg-stone-50 p-3">
                     <div className="flex items-center justify-between gap-3">
-                      <span className={`truncate text-sm font-medium ${critical ? "text-amber-300" : "text-zinc-200"}`}>{perimeter.perimetro}</span>
-                      <span className="shrink-0 text-xs tabular-nums text-zinc-500">{perimeter.confirmed}/{perimeter.total} · {pct}%</span>
+                      <span className={`truncate text-sm font-medium ${critical ? "text-amber-700" : "text-stone-700"}`}>{perimeter.perimetro}</span>
+                      <span className="shrink-0 text-xs tabular-nums text-stone-400">{perimeter.confirmed}/{perimeter.total} · {pct}%</span>
                     </div>
-                    <div className="h-2.5 overflow-hidden rounded-full bg-zinc-800">
+                    <div className="h-2.5 overflow-hidden rounded-full bg-stone-200">
                       <div
                         style={{ width: `${pct}%` }}
-                        className={`h-full rounded-full ${pct === 0 ? "bg-zinc-600" : pct < 50 ? "bg-amber-400" : pct < 80 ? "bg-sky-400" : "bg-emerald-500"}`}
+                        className={`h-full rounded-full ${pct === 0 ? "bg-stone-300" : pct < 50 ? "bg-amber-400" : pct < 80 ? "bg-sky-400" : "bg-emerald-500"}`}
                       />
                     </div>
-                    {perimeter.no_evidence > 0 ? <p className="text-[11px] text-amber-300">{perimeter.no_evidence} da verificare sul campo</p> : null}
+                    {perimeter.no_evidence > 0 ? <p className="text-[11px] text-amber-700">{perimeter.no_evidence} da verificare sul campo</p> : null}
                   </div>
                 );
               })}
@@ -257,18 +256,18 @@ export default function DailyListDetailPage(): JSX.Element {
               <button
                 key={equipment.equipment_code}
                 onClick={() => navigate(`/equipment/${encodeURIComponent(equipment.equipment_code)}`)}
-                className="rounded-3xl border border-zinc-800 bg-zinc-900/80 p-4 text-left transition hover:border-sky-500/40"
+                className="rounded-[24px] border border-stone-200 bg-white p-4 text-left shadow-sm transition hover:border-amber-300"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-sm font-semibold text-white">{equipment.equipment_code}</span>
+                  <span className="font-mono text-sm font-semibold text-stone-950">{equipment.equipment_code}</span>
                   <Pill tone={equipment.risk_level === "critical" || equipment.risk_level === "high" ? "red" : equipment.risk_level === "medium" ? "amber" : "emerald"}>
                     {formatRiskLabel(equipment.risk_level)}
                   </Pill>
                 </div>
-                <div className="mt-2 text-xs leading-5 text-zinc-500">
+                <div className="mt-2 text-xs leading-5 text-stone-500">
                   {equipment.total_cables} cavi · {equipment.confirmed_by_field} prove · {equipment.without_field_evidence} da verificare
                 </div>
-                {equipment.risk_reasons[0] ? <div className="mt-2 truncate text-xs text-amber-300">{equipment.risk_reasons[0]}</div> : null}
+                {equipment.risk_reasons[0] ? <div className="mt-2 truncate text-xs text-amber-700">{equipment.risk_reasons[0]}</div> : null}
               </button>
             ))}
           </div>
@@ -287,11 +286,11 @@ export default function DailyListDetailPage(): JSX.Element {
 
       {showBriefing && briefing ? (
         <Section title="Dati tecnici" eyebrow="Interno" count={1}>
-          <div className="rounded-3xl border border-zinc-800 bg-zinc-900/80 p-4">
-            <p className="mb-3 text-xs text-zinc-500">
-              JSON tecnico per verifica interna. Nessun servizio esterno e stato chiamato qui.
+          <div className="rounded-[24px] border border-stone-200 bg-stone-50 p-4">
+            <p className="mb-3 text-xs text-stone-500">
+              JSON tecnico per verifica interna. Nessun servizio esterno è stato chiamato qui.
             </p>
-            <pre className="max-h-96 overflow-auto rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-[11px] text-zinc-300">
+            <pre className="max-h-96 overflow-auto rounded-2xl border border-stone-200 bg-white p-4 text-[11px] text-stone-600">
               {JSON.stringify(briefing, null, 2)}
             </pre>
           </div>
@@ -310,8 +309,8 @@ function CableCardGrid({
   accent: "amber" | "sky";
   onOpen: (item: DailyListItemVM) => void;
 }): JSX.Element {
-  const accentClass = accent === "amber" ? "border-amber-500/20 bg-amber-500/10" : "border-sky-500/20 bg-sky-500/10";
-  const actionClass = accent === "amber" ? "text-amber-300" : "text-sky-300";
+  const borderClass = accent === "amber" ? "border-amber-200 bg-amber-50 hover:border-amber-300" : "border-sky-200 bg-sky-50 hover:border-sky-300";
+  const actionClass = accent === "amber" ? "text-amber-700" : "text-sky-700";
 
   return (
     <div className="grid gap-3 sm:grid-cols-2">
@@ -319,12 +318,12 @@ function CableCardGrid({
         <button
           key={item.id}
           onClick={() => onOpen(item)}
-          className={`rounded-3xl border p-4 text-left transition hover:border-white/20 ${accentClass}`}
+          className={`rounded-[24px] border p-4 text-left transition ${borderClass}`}
         >
           <span className="flex items-start justify-between gap-3">
             <span className="min-w-0">
-              <span className="font-mono text-base font-semibold text-white">{formatCableDisplay(item.cable_code_normalized)}</span>
-              <span className="mt-1 block text-xs text-zinc-400">{item.perimetro ?? "—"}</span>
+              <span className="font-mono text-base font-semibold text-stone-950">{formatCableDisplay(item.cable_code_normalized)}</span>
+              <span className="mt-1 block text-xs text-stone-500">{item.perimetro ?? "—"}</span>
             </span>
             {item.progress_percent !== null && item.progress_percent < 100 ? (
               <Pill tone="amber">{item.progress_percent}%</Pill>

@@ -132,7 +132,7 @@ export default function NavemasterPage(): JSX.Element {
           </div>
 
           {openAlerts.length === 0 ? (
-            <EmptyState title="Nessuna alert aperta" description="INCA e campo sono allineati per questo run." icon="✓" />
+            <EmptyState title="Nessuna alert aperta" description="INCA e campo sono allineati per questo run." icon="✓" tone="emerald" />
           ) : (
             TYPE_ORDER.filter((type) => grouped.has(type)).map((type) => {
               const alerts = grouped.get(type) ?? [];

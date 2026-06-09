@@ -148,10 +148,20 @@ export default function CommandShell(): JSX.Element {
                   </NavLink>
                 ))}
               </div>
-              <div className="mt-2 flex justify-end">
-                <NavLink to="/grafici" className="text-xs font-medium text-stone-500 underline-offset-4 hover:text-stone-900 hover:underline">
-                  Analisi
-                </NavLink>
+              <div className="mt-2 flex justify-end gap-4">
+                {SECONDARY_NAV.map(({ to, label }) => (
+                  <NavLink
+                    key={to}
+                    to={to}
+                    className={({ isActive }) =>
+                      `text-xs font-medium underline-offset-4 transition ${
+                        isActive ? "text-stone-950 underline" : "text-stone-500 hover:text-stone-900 hover:underline"
+                      }`
+                    }
+                  >
+                    {label}
+                  </NavLink>
+                ))}
               </div>
             </div>
           </header>

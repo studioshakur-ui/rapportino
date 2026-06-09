@@ -16,7 +16,7 @@ export default function DailyListProgress({ summary }: Props): JSX.Element {
     { key: "confirmed",    count: confirmed,    color: "bg-emerald-500", label: "Confermato" },
     { key: "likely_laid",  count: likely_laid,  color: "bg-sky-400",     label: "Probabile" },
     { key: "to_verify",    count: to_verify,    color: "bg-amber-400",   label: "Da verificare" },
-    { key: "no_evidence",  count: no_evidence,  color: "bg-zinc-600",    label: "Senza prova" },
+    { key: "no_evidence",  count: no_evidence,  color: "bg-stone-300",   label: "Senza prova" },
     { key: "blocked",      count: blocked,      color: "bg-red-500",     label: "Bloccato" },
     { key: "outside_inca", count: outside_inca, color: "bg-violet-400",  label: "Fuori INCA" },
   ].filter((s) => s.count > 0);
@@ -24,7 +24,7 @@ export default function DailyListProgress({ summary }: Props): JSX.Element {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3">
-        <div className="flex h-4 flex-1 overflow-hidden rounded-full bg-zinc-800">
+        <div className="flex h-4 flex-1 overflow-hidden rounded-full bg-stone-200">
           {segments.map((s) => (
             <div
               key={s.key}
@@ -34,18 +34,18 @@ export default function DailyListProgress({ summary }: Props): JSX.Element {
             />
           ))}
         </div>
-        <span className="w-12 text-right text-sm font-bold tabular-nums text-white">{pct}%</span>
+        <span className="w-12 text-right text-sm font-bold tabular-nums text-stone-950">{pct}%</span>
       </div>
 
       <div className="flex flex-wrap gap-x-4 gap-y-2">
         {segments.map((s) => (
-          <span key={s.key} className="flex items-center gap-1.5 text-xs text-zinc-400">
+          <span key={s.key} className="flex items-center gap-1.5 text-xs text-stone-500">
             <span className={`inline-block h-2.5 w-2.5 rounded-sm ${s.color}`} />
-            {s.label} <strong className="text-zinc-100">{s.count}</strong>
+            {s.label} <strong className="text-stone-900">{s.count}</strong>
           </span>
         ))}
-        <span className="ml-auto flex items-center gap-1 text-xs text-zinc-500">
-          totale <strong className="text-zinc-300">{total}</strong>
+        <span className="ml-auto flex items-center gap-1 text-xs text-stone-400">
+          totale <strong className="text-stone-700">{total}</strong>
         </span>
       </div>
     </div>

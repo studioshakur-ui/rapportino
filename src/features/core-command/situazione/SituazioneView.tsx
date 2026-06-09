@@ -74,7 +74,7 @@ export function SituazioneView({ situation }: { situation: DailySituationView | 
 
       <Section title="Cavi da verificare" eyebrow="Situazione" count={situation.toVerifyCables.length}>
         {situation.toVerifyCables.length === 0 ? (
-          <EmptyState title="Nessun cavo da verificare" icon="✓" />
+          <EmptyState title="Nessun cavo da verificare" icon="✓" tone="emerald" />
         ) : (
           <div className="space-y-3">
             {situation.toVerifyCables.map((item) => (
@@ -97,7 +97,7 @@ export function SituazioneView({ situation }: { situation: DailySituationView | 
 
       <Section title="Apparati non chiusi" eyebrow="Apparati" count={situation.impactedApparatus.length}>
         {situation.impactedApparatus.length === 0 ? (
-          <EmptyState title="Nessun apparato non chiuso" icon="✓" />
+          <EmptyState title="Nessun apparato non chiuso" icon="✓" tone="emerald" />
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {situation.impactedApparatus.map((apparatus) => (
@@ -121,7 +121,7 @@ export function SituazioneView({ situation }: { situation: DailySituationView | 
 
       <Section title="Sistemi impattati" eyebrow="Sistema" count={situation.impactedSystems.length}>
         {situation.impactedSystems.length === 0 ? (
-          <EmptyState title="Nessun sistema impattato" icon="✓" />
+          <EmptyState title="Nessun sistema impattato" icon="✓" tone="emerald" />
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {situation.impactedSystems.map((system) => (
@@ -144,7 +144,7 @@ export function SituazioneView({ situation }: { situation: DailySituationView | 
 
       <Section title="Blocchi reali" eyebrow="Situazione" count={situation.realBlockers.length}>
         {situation.realBlockers.length === 0 ? (
-          <EmptyState title="Nessun blocco reale dichiarato" icon="✓" />
+          <EmptyState title="Nessun blocco reale dichiarato" icon="✓" tone="emerald" />
         ) : (
           <div className="space-y-3">
             {situation.realBlockers.map((blocker) => (
@@ -189,7 +189,7 @@ export function SituazioneView({ situation }: { situation: DailySituationView | 
 
       <Section title="Azioni proposte" eyebrow="Operativo" count={situation.recommendedActions.length}>
         {situation.recommendedActions.length === 0 ? (
-          <EmptyState title="Nessuna azione proposta" icon="✓" />
+          <EmptyState title="Nessuna azione proposta" icon="✓" tone="emerald" />
         ) : (
           <div className="space-y-3">
             {situation.recommendedActions.map((action) => (

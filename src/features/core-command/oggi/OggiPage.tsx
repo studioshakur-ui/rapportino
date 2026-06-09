@@ -96,6 +96,7 @@ export default function OggiPage(): JSX.Element {
                   title="Nessuna verifica urgente"
                   description="La lista non contiene apparati o sistemi da controllare subito."
                   icon="✓"
+                  tone="emerald"
                 />
               ) : (
                 <>
@@ -104,7 +105,7 @@ export default function OggiPage(): JSX.Element {
                       <button
                         key={item.key}
                         onClick={() => navigate(item.route)}
-                        className="w-full rounded-[24px] border border-stone-200 bg-white p-4 text-left shadow-sm transition hover:border-sky-300"
+                        className="w-full rounded-[24px] border border-stone-200 bg-white p-4 text-left shadow-sm transition hover:border-amber-300"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
@@ -165,7 +166,7 @@ export default function OggiPage(): JSX.Element {
                             <button
                               key={code}
                               onClick={() => navigate(`/cable/${encodeURIComponent(code)}`)}
-                              className="rounded-xl border border-stone-200 bg-stone-50 px-2.5 py-1 text-xs font-mono font-semibold text-stone-700 transition hover:border-sky-300"
+                              className="rounded-xl border border-stone-200 bg-stone-50 px-2.5 py-1 text-xs font-mono font-semibold text-stone-700 transition hover:border-amber-300"
                             >
                               {formatCableDisplay(code)}
                             </button>

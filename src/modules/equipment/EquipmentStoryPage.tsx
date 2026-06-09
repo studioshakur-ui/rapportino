@@ -371,7 +371,7 @@ export default function EquipmentStoryPage(): JSX.Element {
               <span>Avanzamento INCA</span>
               <span className="font-semibold text-stone-950">{activeConfirmed} / {totalCables}</span>
             </div>
-            <ProgressBar value={activeConfirmed} max={Math.max(totalCables, 1)} tone={closureStatus === "CLOSED" ? "emerald" : "blue"} />
+            <ProgressBar value={activeConfirmed} max={Math.max(totalCables, 1)} tone={closureStatus === "CLOSED" ? "emerald" : "amber"} />
             <div className="grid gap-2 sm:grid-cols-2">
               <Line label="Posati INCA" value={summary.status_distribution["P"] ?? 0} />
               <Line label="Tasso indicativo" value={`${completionRate}%`} />
@@ -411,6 +411,7 @@ export default function EquipmentStoryPage(): JSX.Element {
               title="Nessun cavo da verificare"
               description="Tutti i cavi visibili sono già stati confermati in questa sessione."
               icon="✓"
+              tone="emerald"
             />
           ) : (
             toVerifyCards
