@@ -8,6 +8,7 @@
 //   SITUAZIONE INCA | NOTE
 
 import type { ParsedListRow, ParseResult } from "./dailyLists.types";
+import { normalizeCableLoose } from "../../core/cable/cableIdentity";
 import * as XLSX from "xlsx";
 import * as pdfjsLib from "pdfjs-dist";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -33,41 +34,13 @@ const EXPECTED_HEADERS = [
 // Section prefix regex: "1-7 " or "A-3 " at start
 const SECTION_PREFIX_RE = /^\d+[-/]\d+\s+/;
 
-// ── Cable code normalisation (mirrors normalizer.agent.ts) ─────────────────
-// PDF format: "N NR 003", "I RS 002", "T CE 020"
-// Normalized: "NNR 003",  "IRS 002",  "TCE 020"
+// ── Cable code normalisation ───────────────────────────────────────────────
+// Delegates to the canonical LOOSE key (single source of truth). Behaviour is
+// identical to the previous inline implementation (prefix-stripped):
+//   "N NR 003" -> "NNR 003", "I RS 002" -> "IRS 002".
+// The prefix-preserving STRICT key lives in core/cable/cableIdentity.ts.
 export function normalizePdfCableCode(raw: string): string {
-  if (!raw) return "";
-
-  // Strip leading section prefix like "1-7 " or "2-1 "
-  let s = raw.replace(SECTION_PREFIX_RE, "").trim();
-
-  // Strip emoji / special chars
-  s = s
-    .replace(/[\u{1F000}-\u{1FFFF}]|[\u{2600}-\u{27BF}]|[\u{2B00}-\u{2BFF}]/gu, "")
-    .replace(/[◑●○◐◒◓◔◕▶▷►◀◁◄]/g, "")
-    .replace(/[.\s]+/g, " ")
-    .trim()
-    .toUpperCase();
-
-  // Match: 1-5 letters (possibly space-separated) + digits + optional suffix
-  const m = s.match(/^([A-Z](?:\s*[A-Z]){1,4})\s*([\d]{2,5})\s*([A-Z]?)$/);
-  if (!m) {
-    // Try to handle "NHP005" style (letters run together with digits)
-    const m2 = s.replace(/\s+/g, "").match(/^([A-Z]{2,5})([\d]{2,5})([A-Z]?)$/);
-    if (m2) {
-      const letters = m2[1];
-      const digits  = m2[2];
-      const suffix  = m2[3];
-      return suffix ? `${letters} ${digits} ${suffix}` : `${letters} ${digits}`;
-    }
-    return s;
-  }
-
-  const letters = m[1].replace(/\s+/g, "");
-  const digits  = m[2];
-  const suffix  = m[3];
-  return suffix ? `${letters} ${digits} ${suffix}` : `${letters} ${digits}`;
+  return normalizeCableLoose(raw);
 }
 
 // ── Raw code for INCA matching (inca_cavi.marca_cavo uses spaced format) ───
