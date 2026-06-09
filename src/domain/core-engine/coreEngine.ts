@@ -76,6 +76,8 @@ export interface ApparatusClosureCard {
   confirmed_cables: number;
   open_cables: number;
   blocked_cables: number;
+  ai_validation_required: number;
+  ai_incoherences: number;
   without_field_evidence: number;
   status_distribution: Record<string, number>;
   recommended_actions: string[];
@@ -113,6 +115,10 @@ export interface FieldEvidenceCard {
   has_partial_progress: boolean;
   has_short_issue: boolean;
   has_missing_issue: boolean;
+  requires_human_validation: boolean;
+  has_incoherence: boolean;
+  latest_detected_status: string | null;
+  latest_confidence_reason: string | null;
 }
 
 export interface FieldEvidenceView {
@@ -230,7 +236,6 @@ function buildTodayClosures(
 ): TodayWorkClosureCard[] {
   const criticalSystems = ensureArray(systems, "coreEngine.today.systems")
     .filter((system) => system.closure_status !== "CLOSED")
-    .slice(0, 8)
     .map((system) => ({
       key: `system:${system.system}`,
       kind: "system" as const,
@@ -246,7 +251,6 @@ function buildTodayClosures(
 
   const criticalEquipments = ensureArray(equipments, "coreEngine.today.equipments")
     .filter((equipment) => equipment.closure_status !== "CLOSED")
-    .slice(0, 10)
     .map((equipment) => ({
       key: `equipment:${equipment.equipment_code}`,
       kind: "equipment" as const,
@@ -273,7 +277,6 @@ function buildFieldEvidenceCards(items: DailyListItemVM[]): FieldEvidenceCard[] 
       item.computed_status === "blocked" ||
       item.computed_status === "to_verify"
     )
-    .slice(0, 24)
     .map((item) => ({
       cable_code_raw: item.cable_code_raw ?? null,
       cable_code: item.cable_code_normalized,
@@ -296,6 +299,10 @@ function buildFieldEvidenceCards(items: DailyListItemVM[]): FieldEvidenceCard[] 
       has_partial_progress: item.has_partial_progress,
       has_short_issue: item.has_short_issue,
       has_missing_issue: item.has_missing_issue,
+      requires_human_validation: item.requires_human_validation,
+      has_incoherence: item.has_incoherence,
+      latest_detected_status: item.latest_detected_status,
+      latest_confidence_reason: item.latest_confidence_reason,
     }));
 }
 
@@ -379,6 +386,7 @@ export async function loadCoreEngineSnapshot(): Promise<CoreEngineSnapshot> {
   const equipments = ensureArray(dashboard.equipments, "coreEngine.dashboard.equipments");
   const telegramImpacts = ensureArray(dashboard.telegram_impacts, "coreEngine.dashboard.telegram_impacts");
   const sdcLookup = buildSdcCableLookup(items);
+  const fieldCards = buildFieldEvidenceCards(items);
 
   const today: TodayWorkView = {
     latest_import: toImportInfo(latestImport),
@@ -425,6 +433,8 @@ export async function loadCoreEngineSnapshot(): Promise<CoreEngineSnapshot> {
       confirmed_cables: equipment.confirmed_cables,
       open_cables: equipment.open_cables,
       blocked_cables: equipment.blocked_cables,
+      ai_validation_required: equipment.ai_validation_required,
+      ai_incoherences: equipment.ai_incoherences,
       without_field_evidence: equipment.without_field_evidence,
       status_distribution: equipment.status_distribution,
       recommended_actions: equipment.recommended_actions,
@@ -439,10 +449,10 @@ export async function loadCoreEngineSnapshot(): Promise<CoreEngineSnapshot> {
   const field: FieldEvidenceView = {
     imports: imports.map(toImportInfo),
     summary,
-    priority_items: buildFieldEvidenceCards(items).filter((item) => item.computed_status === "blocked" || item.has_partial_progress || item.confirmed_by_whatsapp),
-    missing_evidence_items: buildFieldEvidenceCards(items).filter((item) => item.computed_status === "no_evidence"),
-    partial_items: buildFieldEvidenceCards(items).filter((item) => item.computed_status === "to_verify" || item.computed_status === "likely_laid"),
-    blocked_items: buildFieldEvidenceCards(items).filter((item) => item.computed_status === "blocked"),
+    priority_items: fieldCards.filter((item) => item.computed_status === "blocked" || item.has_partial_progress || item.confirmed_by_whatsapp),
+    missing_evidence_items: fieldCards.filter((item) => item.computed_status === "no_evidence"),
+    partial_items: fieldCards.filter((item) => item.computed_status === "to_verify" || item.computed_status === "likely_laid"),
+    blocked_items: fieldCards.filter((item) => item.computed_status === "blocked"),
   };
 
   const charts: ClosureChartsView = {

@@ -112,6 +112,8 @@ export interface EquipmentIntelligence {
   confirmed_cables: number;
   open_cables: number;
   blocked_cables: number;
+  ai_validation_required: number;
+  ai_incoherences: number;
   incoming_cables: string[];
   outgoing_cables: string[];
   related_equipments: string[];

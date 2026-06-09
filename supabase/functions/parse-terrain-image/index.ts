@@ -63,6 +63,10 @@ function normalizeCableCode(raw: string): string {
   return m[3] ? `${letters} ${m[2]} ${m[3]}` : `${letters} ${m[2]}`;
 }
 
+function uniqueStrings(values: Array<string | null | undefined>): string[] {
+  return Array.from(new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean)));
+}
+
 async function callVision(key: string, dataUrl: string): Promise<VisionResult> {
   const systemPrompt = [
     "Tu es un OCR expert de listes de cablage electrique (chantier Trieste, Italie).",
@@ -191,7 +195,7 @@ serve(
 
     let q = admin
       .from("incoming_messages")
-      .select("id, sender_name, message_ts, image_path")
+      .select("id, sender_name, message_ts, image_path, classification")
       .not("image_path", "is", null)
       .order("message_ts", { ascending: false });
     q = oneId ? q.eq("id", oneId) : q.eq("vision_processed", false).limit(limit);
@@ -220,6 +224,49 @@ serve(
 
         const vision = await callVision(openaiKey, dataUrl);
         const allCodes = vision.rows.map((r) => normalizeCableCode(r.marca_pezzo)).filter(Boolean);
+        const equipmentCodes = uniqueStrings(
+          vision.rows.flatMap((row) => [row.app_partenza, row.app_arrivo])
+        );
+        const isLowConfidence = vision.rows.length > 0 && allCodes.length > 0 && allCodes.length < Math.ceil(vision.rows.length / 2);
+        const ocrStatus = vision.rows.length === 0
+          ? "OCR fallito"
+          : allCodes.length === 0
+            ? "Cavo non riconosciuto"
+            : isLowConfidence
+              ? "Bassa confidenza"
+              : "OCR riuscito";
+        const confidence = vision.rows.length === 0
+          ? 0.2
+          : allCodes.length === 0
+            ? 0.35
+            : isLowConfidence
+              ? 0.48
+            : Math.min(0.82, 0.5 + Math.min(allCodes.length, 4) * 0.08);
+        const confidenceReason = vision.rows.length === 0
+          ? "Nessuna riga leggibile nella foto"
+          : allCodes.length === 0
+            ? "OCR completato ma senza codice cavo affidabile"
+            : isLowConfidence
+              ? "OCR parziale: alcune righe lette ma non abbastanza per fidarsi"
+            : "Codici cavo ed apparati letti dalla foto, verifica umana ancora richiesta";
+        const recommendedAction = allCodes.length === 0
+          ? "associa a cavo"
+          : "valida prova";
+        const classificationPatch = {
+          source_type: "ocr_photo",
+          event_kind: "CABLE_MENTION",
+          detected_position: "sconosciuto",
+          detected_status: ocrStatus === "OCR riuscito" ? "Da validare" : ocrStatus,
+          confidence,
+          confidence_reason: confidenceReason,
+          requires_human_validation: true,
+          recommended_action: recommendedAction,
+          extracted_cable_codes: allCodes,
+          extracted_equipment_codes: equipmentCodes,
+          extracted_eswbs: equipmentCodes,
+          ocr_status: ocrStatus,
+          incoherence_reason: null,
+        };
 
         // Cables posés = MARCA PEZZO colorée (laid_date non null)
         const posatiTotal   = vision.rows.filter((r) => r.laid_date !== null).length;
@@ -286,6 +333,10 @@ serve(
 
         await admin.from("incoming_messages").update({
           vision_processed: true,
+          classification: {
+            ...((msg.classification && typeof msg.classification === "object") ? msg.classification : {}),
+            ...classificationPatch,
+          },
           vision_result: {
             list_number:  vision.list_number,
             list_date:    vision.list_date,

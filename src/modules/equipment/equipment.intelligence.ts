@@ -36,6 +36,7 @@ export interface EquipmentIntelligenceSource {
 }
 
 const ESWBS_CODE_RE = /^\d{12}$/;
+const UNASSIGNED_SYSTEM_LABEL = "Sistema non assegnato";
 
 function normalizeEquipmentCode(value: string | null | undefined): string {
   return String(value ?? "").trim().toUpperCase();
@@ -117,11 +118,14 @@ function computeRiskLevel(args: {
   blocked: number;
   open: number;
   noEvidence: number;
+  aiValidationRequired: number;
+  aiIncoherences: number;
   highPriority: number;
   criticalPriority: number;
 }): EquipmentRiskLevel {
-  if (args.blocked > 0 || args.criticalPriority > 0) return "critical";
+  if (args.blocked > 0 || args.aiIncoherences > 0 || args.criticalPriority > 0) return "critical";
   if (args.highPriority > 0 || args.noEvidence >= 2 || args.open >= 3) return "high";
+  if (args.aiValidationRequired > 0) return "high";
   if (args.noEvidence > 0 || args.open > 0) return "medium";
   return "low";
 }
@@ -132,8 +136,12 @@ function buildIntelligenceActions(cables: DailyListItemVM[], riskLevel: Equipmen
   const shortOrMissing = cables.filter((item) => item.has_short_issue || item.has_missing_issue);
   const noEvidence = cables.filter((item) => item.missing_evidence);
   const partial = cables.filter((item) => item.has_partial_progress);
+  const aiValidation = cables.filter((item) => item.requires_human_validation);
+  const aiIncoherences = cables.filter((item) => item.has_incoherence);
 
   if (blocked.length > 0) actions.push(`Sbloccare ${blocked.length} cav${blocked.length === 1 ? "o" : "i"} collegati`);
+  if (aiIncoherences.length > 0) actions.push(`Verificare incoerenze IA su ${aiIncoherences.length} cav${aiIncoherences.length === 1 ? "o" : "i"}`);
+  if (aiValidation.length > 0) actions.push(`Validare prove IA per ${aiValidation.length} cav${aiValidation.length === 1 ? "o" : "i"}`);
   if (shortOrMissing.length > 0) actions.push(`Controllare cavi corti/mancanti: ${shortOrMissing.slice(0, 5).map((item) => item.cable_code_normalized).join(", ")}`);
   if (noEvidence.length > 0) actions.push(`Richiedere evidenza terreno per ${noEvidence.length} cav${noEvidence.length === 1 ? "o" : "i"}`);
   if (partial.length > 0) actions.push("Confermare completamento delle progressioni parziali");
@@ -222,6 +230,8 @@ export function buildEquipmentIntelligence(
       const blocked = cables.filter((entry) => isCableBlocked(entry.item)).length;
       const open = Math.max(cables.length - confirmed, 0);
       const noEvidence = cables.filter((entry) => entry.item.missing_evidence).length;
+      const aiValidationRequired = cables.filter((entry) => entry.item.requires_human_validation).length;
+      const aiIncoherences = cables.filter((entry) => entry.item.has_incoherence).length;
       const highPriority = cables.filter((entry) => entry.priority?.highest === "high").length;
       const criticalPriority = cables.filter((entry) => entry.priority?.highest === "critical").length;
 
@@ -248,6 +258,8 @@ export function buildEquipmentIntelligence(
         blocked,
         open,
         noEvidence,
+        aiValidationRequired,
+        aiIncoherences,
         highPriority,
         criticalPriority,
       });
@@ -260,11 +272,13 @@ export function buildEquipmentIntelligence(
         equipment_name: graphNode?.equipment_name ?? null,
         equipment_type: graphNode?.equipment_type ?? null,
         zone: graphNode?.zone ?? null,
-        system: graphNode?.system ?? "SISTEMA NON ASSEGNATO",
+        system: graphNode?.system ?? UNASSIGNED_SYSTEM_LABEL,
         total_cables: cables.length,
         confirmed_cables: confirmed,
         open_cables: open,
         blocked_cables: blocked,
+        ai_validation_required: aiValidationRequired,
+        ai_incoherences: aiIncoherences,
         without_field_evidence: noEvidence,
         status_distribution: statusDistribution,
         recommended_actions: buildIntelligenceActions(cables.map((entry) => entry.item), riskLevel),
@@ -298,7 +312,7 @@ export function buildSystemClosures(
   const groups = new Map<string, EquipmentIntelligence[]>();
 
   for (const equipment of equipments) {
-    const key = equipment.system ?? "SISTEMA NON ASSEGNATO";
+    const key = equipment.system ?? UNASSIGNED_SYSTEM_LABEL;
     const list = groups.get(key) ?? [];
     list.push(equipment);
     groups.set(key, list);
@@ -385,7 +399,7 @@ export function buildTelegramImpacts(
         const impactedEquipments = equipmentByCable.get(cableCode) ?? [];
         if (impactedEquipments.length === 0) return null;
 
-        const systemsTouched = Array.from(new Set(impactedEquipments.map((equipment) => equipment.system ?? "SISTEMA NON ASSEGNATO")));
+        const systemsTouched = Array.from(new Set(impactedEquipments.map((equipment) => equipment.system ?? UNASSIGNED_SYSTEM_LABEL)));
         const beforeSystem = systemsTouched
           .map((name) => systemByName.get(name))
           .filter((system): system is SystemClosure => Boolean(system))
@@ -400,7 +414,7 @@ export function buildTelegramImpacts(
 
         const beforeLabel = beforeSystem
           ? `${beforeSystem.system} ${beforeSystem.closed_equipments}/${beforeSystem.total_equipments}`
-          : systemsTouched[0] ?? "SISTEMA NON ASSEGNATO";
+          : systemsTouched[0] ?? UNASSIGNED_SYSTEM_LABEL;
         const afterLabel = beforeSystem && positive
           ? `${beforeSystem.system} ${Math.min(beforeSystem.total_equipments, beforeSystem.closed_equipments + closingEquipments)}/${beforeSystem.total_equipments}`
           : beforeLabel;
@@ -418,6 +432,5 @@ export function buildTelegramImpacts(
         } satisfies TelegramImpact;
       });
     })
-    .filter((impact): impact is TelegramImpact => Boolean(impact))
-    .slice(0, 12);
+    .filter((impact): impact is TelegramImpact => Boolean(impact));
 }

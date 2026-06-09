@@ -32,6 +32,7 @@ interface CoreEventEvidenceRow {
   cable_code_normalized: string | null;
   cable_code_raw: string | null;
   event_type: string;
+  validation_status: string | null;
   occurred_at: string;
   confidence: number | null;
   raw_text: string | null;
@@ -52,6 +53,24 @@ interface DailyListItemEventRow {
   cable_event_id: string | null;
   core_event_id: string | null;
   whatsapp_message_id: string | null;
+}
+
+function asObject(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function getString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function getStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+}
+
+function getBoolean(value: unknown): boolean {
+  return value === true;
 }
 
 const EMPTY_SYNC_STATS: DailyEvidenceSyncStats = {
@@ -263,14 +282,25 @@ export async function fetchEvidenceForCodes(
       core_event_id:    row.core_event_id,
       whatsapp_message_id: row.source_message_id,
       source_type:      "cable_event",
+      proof_source: "telegram",
+      proof_source_type: null,
       event_kind:       row.event_kind as string,
       occurred_at:      row.occurred_at as string,
       actor_label:      message?.author ?? null,
       raw_note:         rawNote,
       last_message:     message?.raw_message ?? rawNote,
       confidence:       Number(row.confidence ?? 0),
+      confidence_reason: null,
       progress_percent: pct,
       verification_status: null,
+      extracted_cable_codes: [],
+      extracted_equipment_codes: [],
+      extracted_eswbs: [],
+      detected_position: null,
+      detected_status: null,
+      requires_human_validation: false,
+      recommended_action: null,
+      incoherence_reason: null,
     });
     result.set(code, list);
   }
@@ -291,8 +321,9 @@ async function appendCoreEventEvidence(
 ): Promise<void> {
   const { data, error } = await supabase
     .from("core_events")
-    .select("id,cable_code_normalized,cable_code_raw,event_type,occurred_at,confidence,raw_text,source_message_id,payload")
+    .select("id,cable_code_normalized,cable_code_raw,event_type,validation_status,occurred_at,confidence,raw_text,source_message_id,payload")
     .in("cable_code_normalized", codes)
+    .neq("validation_status", "rejected")
     .order("occurred_at", { ascending: false })
     .limit(2000);
 
@@ -320,6 +351,8 @@ async function appendCoreEventEvidence(
     if (!code || !codes.includes(code)) continue;
     const message = row.source_message_id ? msgMap.get(row.source_message_id) : null;
     const rawNote = row.raw_text ?? message?.raw_message ?? null;
+    const payload = asObject(row.payload) ?? {};
+    const proof = asObject(payload.proof) ?? payload;
     const list = result.get(code) ?? [];
     list.push({
       cable_event_id: null,
@@ -330,14 +363,25 @@ async function appendCoreEventEvidence(
         String((row.payload ?? null)?.verification_source ?? "").toLowerCase() === "manual"
           ? "manual"
           : "core_event",
+      proof_source: getString(proof.source) ?? getString(row.source_message_id) ?? "telegram",
+      proof_source_type: (getString(proof.source_type) as DailyItemEvidence["proof_source_type"]) ?? null,
       event_kind: row.event_type,
       occurred_at: row.occurred_at,
-      actor_label: message?.author ?? null,
+      actor_label: getString(proof.author) ?? message?.author ?? null,
       raw_note: rawNote,
       last_message: message?.raw_message ?? rawNote,
       confidence: Number(row.confidence ?? 0),
+      confidence_reason: getString(proof.confidence_reason),
       progress_percent: extractPercentFromNote(rawNote),
       verification_status: typeof row.payload?.verification_status === "string" ? row.payload.verification_status : null,
+      extracted_cable_codes: getStringArray(proof.extracted_cable_codes),
+      extracted_equipment_codes: getStringArray(proof.extracted_equipment_codes),
+      extracted_eswbs: getStringArray(proof.extracted_eswbs),
+      detected_position: (getString(proof.detected_position) as DailyItemEvidence["detected_position"]) ?? null,
+      detected_status: getString(proof.detected_status),
+      requires_human_validation: getBoolean(proof.requires_human_validation),
+      recommended_action: getString(proof.recommended_action),
+      incoherence_reason: getString(proof.incoherence_reason),
     });
     result.set(code, list);
   }
@@ -382,14 +426,25 @@ async function appendDirectWhatsAppEvidence(
         core_event_id: null,
         whatsapp_message_id: msg.id,
         source_type: "whatsapp_message",
+        proof_source: "whatsapp_web",
+        proof_source_type: null,
         event_kind: "WHATSAPP_MESSAGE",
         occurred_at: msg.message_ts,
         actor_label: msg.author,
         raw_note: rawMessage,
         last_message: rawMessage,
         confidence: 0.55,
+        confidence_reason: null,
         progress_percent: extractPercentFromNote(rawMessage),
         verification_status: null,
+        extracted_cable_codes: [],
+        extracted_equipment_codes: [],
+        extracted_eswbs: [],
+        detected_position: null,
+        detected_status: null,
+        requires_human_validation: false,
+        recommended_action: null,
+        incoherence_reason: null,
       });
       result.set(matchedCode, list);
     }

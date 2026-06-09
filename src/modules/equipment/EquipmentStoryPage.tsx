@@ -1,13 +1,15 @@
 import { useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { EmptyState, Pill, ProgressBar, Screen, Section, StatCard } from "../../components/command-ui";
 import { useAuth } from "../../auth/AuthProvider";
 import { formatCableDisplay } from "../../core/cable/cableDisplay";
-import { canConfirmFieldVerification, FIELD_VERIFICATION_STATUS_OPTIONS, formatFieldStatusLabel, getFieldVerificationStatusLabel, isVerifiedFieldVerificationStatus, loadCoreEngineSnapshot, resolveFieldStatus, type CoreEngineSnapshot, type FieldVerificationStatus } from "../../domain/core-engine";
+import { canConfirmFieldVerification, FIELD_VERIFICATION_STATUS_OPTIONS, formatFieldStatusLabel, getFieldVerificationStatusLabel, loadCoreEngineSnapshot, resolveFieldStatus, type CoreEngineSnapshot, type FieldVerificationStatus } from "../../domain/core-engine";
 import { translateIncaStatus } from "../../domain/core-engine/incaStatus";
 import { recordFieldVerification } from "../../features/core-command/api/fieldVerification.api";
 import { confirmApparatoClosure, removeApparatoConfirmation } from "../../features/core-command/api/apparatoConfirmation.api";
+import { getPendingEvents } from "../../features/core-command/api/coreEvents.api";
+import type { CoreEvent } from "../../features/core-command/types";
 
 type Direction = "incoming" | "outgoing";
 
@@ -29,6 +31,41 @@ type CableCard = {
 
 function normalizeKey(value: string | null | undefined): string {
   return String(value ?? "").trim().toUpperCase();
+}
+
+function asPayload(payload: CoreEvent["payload"]): Record<string, unknown> {
+  if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+    return payload as Record<string, unknown>;
+  }
+  return {};
+}
+
+function getString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function eventMatchesEquipment(event: CoreEvent, equipmentCode: string): boolean {
+  if (event.event_type !== "FIELD_VERIFIED") return false;
+
+  const payload = asPayload(event.payload);
+  const current = normalizeKey(equipmentCode);
+  return normalizeKey(getString(payload.app_partenza)) === current || normalizeKey(getString(payload.app_arrivo)) === current;
+}
+
+function buildPendingByCable(events: CoreEvent[]): Map<string, CoreEvent[]> {
+  const byCable = new Map<string, CoreEvent[]>();
+
+  for (const event of events) {
+    const payload = asPayload(event.payload);
+    const cableCode = normalizeKey(event.cable_code_normalized ?? event.cable_code_raw ?? getString(payload.cable_code));
+    if (!cableCode) continue;
+
+    const current = byCable.get(cableCode) ?? [];
+    current.push(event);
+    byCable.set(cableCode, current);
+  }
+
+  return byCable;
 }
 
 function buildCableCards(snapshot: CoreEngineSnapshot | null, equipmentCode: string, confirmedCodes: Set<string>): CableCard[] {
@@ -110,20 +147,28 @@ function riskLabel(status: string): string {
 
 export default function EquipmentStoryPage(): JSX.Element {
   const { code } = useParams<{ code: string }>();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { uid } = useAuth();
   const equipmentCode = code ? decodeURIComponent(code) : "";
   const [selectedCable, setSelectedCable] = useState<string | null>(null);
-  const [confirmedCodes, setConfirmedCodes] = useState<Set<string>>(new Set());
   const [feedback, setFeedback] = useState<string | null>(null);
   const [verificationNote, setVerificationNote] = useState("");
   const [verificationStatus, setVerificationStatus] = useState<FieldVerificationStatus | null>(null);
+  const confirmedCodes = useMemo(() => new Set<string>(), []);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["core_engine_snapshot", "equipment_story", equipmentCode],
     queryFn: loadCoreEngineSnapshot,
     enabled: Boolean(equipmentCode),
     staleTime: 30_000,
+  });
+
+  const { data: pendingEvents = [] } = useQuery({
+    queryKey: ["core_events", "pending", "equipment", equipmentCode],
+    queryFn: () => getPendingEvents(100),
+    enabled: Boolean(equipmentCode),
+    staleTime: 10_000,
   });
 
   const equipment = useMemo(
@@ -140,6 +185,12 @@ export default function EquipmentStoryPage(): JSX.Element {
   const incoming = visibleCards.filter((item) => item.direction === "incoming" && item.fieldStatus === "TO_VERIFY");
   const outgoing = visibleCards.filter((item) => item.direction === "outgoing" && item.fieldStatus === "TO_VERIFY");
   const selected = visibleCards.find((item) => item.cableCode === selectedCable) ?? null;
+  const equipmentPendingEvents = useMemo(
+    () => pendingEvents.filter((event) => eventMatchesEquipment(event, equipmentCode)),
+    [pendingEvents, equipmentCode]
+  );
+  const pendingByCable = useMemo(() => buildPendingByCable(equipmentPendingEvents), [equipmentPendingEvents]);
+  const pendingFieldCount = equipmentPendingEvents.length;
 
   const activeConfirmed = (equipment?.confirmed_cables ?? 0) + confirmedCodes.size;
   const totalCables = equipment?.total_cables ?? 0;
@@ -193,11 +244,8 @@ export default function EquipmentStoryPage(): JSX.Element {
         appPartenza: selected.appPartenza,
         appArrivo: selected.appArrivo,
       });
-      if (isVerifiedFieldVerificationStatus(verificationStatus)) {
-        setConfirmedCodes((current) => new Set(current).add(selected.cableCode));
-      }
       closeVerification();
-      setFeedback(`Verifica manuale registrata: ${getFieldVerificationStatusLabel(verificationStatus)}`);
+      setFeedback(`Verifica manuale registrata: ${getFieldVerificationStatusLabel(verificationStatus)}. In attesa di validazione.`);
       await queryClient.invalidateQueries({ queryKey: ["core_engine_snapshot"] });
       await queryClient.invalidateQueries({ queryKey: ["core_events"] });
       await queryClient.invalidateQueries({ queryKey: ["cable_events"] });
@@ -209,6 +257,10 @@ export default function EquipmentStoryPage(): JSX.Element {
   const toggleApparatoConfirmation = async () => {
     if (!uid) {
       setFeedback("Utente non autenticato");
+      return;
+    }
+    if (!apparatoConfirmed && pendingFieldCount > 0) {
+      setFeedback("Valida o rifiuta le verifiche in attesa prima di chiudere l'apparato");
       return;
     }
     try {
@@ -307,14 +359,16 @@ export default function EquipmentStoryPage(): JSX.Element {
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-stone-600">Chiusura apparato</p>
               <h2 className="mt-1 text-lg font-semibold text-stone-950">
-                {apparatoConfirmed
+                {pendingFieldCount > 0
+                  ? `${pendingFieldCount} verifiche in attesa — valida prima di chiudere`
+                  : apparatoConfirmed
                   ? "Apparato confermato chiuso dal capo"
                   : "Tutti i cavi verificati — manca la conferma del capo"}
               </h2>
             </div>
             <button
               onClick={() => void toggleApparatoConfirmation()}
-              disabled={!uid}
+              disabled={!uid || (!apparatoConfirmed && pendingFieldCount > 0)}
               className={`min-h-11 rounded-2xl border px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${
                 apparatoConfirmed
                   ? "border-stone-300 bg-white text-stone-700 hover:border-stone-400"
@@ -332,7 +386,11 @@ export default function EquipmentStoryPage(): JSX.Element {
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-700">Azione apparato</p>
             <h2 className="mt-1 text-lg font-semibold text-stone-950">
-              Verificare {remaining} cavi per chiudere l'apparato
+              {pendingFieldCount > 0
+                ? `Valida ${pendingFieldCount} verifiche in attesa`
+                : remaining > 0
+                  ? `Verificare ${remaining} cavi per chiudere l'apparato`
+                  : "Pronto per la conferma capo"}
             </h2>
             <div className="mt-3 flex flex-wrap gap-2">
               {toVerifyCards.slice(0, 6).map((item) => (
@@ -344,13 +402,17 @@ export default function EquipmentStoryPage(): JSX.Element {
           </div>
           <button
             onClick={() => {
+              if (pendingFieldCount > 0) {
+                navigate("/campo");
+                return;
+              }
               const first = toVerifyCards[0];
               if (first) openVerification(first.cableCode);
             }}
-            disabled={toVerifyCards.length === 0}
+            disabled={pendingFieldCount === 0 && toVerifyCards.length === 0}
             className="min-h-11 rounded-2xl border border-emerald-600 bg-emerald-600 px-4 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-200 disabled:text-zinc-500"
           >
-            Verifica sul campo
+            {pendingFieldCount > 0 ? "Apri validazioni" : "Verifica sul campo"}
           </button>
         </div>
       </section>
@@ -360,8 +422,8 @@ export default function EquipmentStoryPage(): JSX.Element {
         <StatCard label="Uscenti" value={outgoing.length} helper="da confermare" tone="emerald" />
         <StatCard label="Chiusura" value={closureLabel(closureStatus)} helper="stato attuale" tone={closureStatus === "CLOSED" ? "emerald" : closureStatus === "BLOCKED" ? "red" : "amber"} />
         <StatCard label="Restanti" value={remaining} helper="da confermare" tone={remaining > 0 ? "amber" : "neutral"} />
+        <StatCard label="In attesa" value={pendingFieldCount} helper="da validare" tone={pendingFieldCount > 0 ? "amber" : "neutral"} />
         <StatCard label="Bloccati" value={blocked} helper={`INCA = ${summary.blocked_cables > 0 ? "B" : "—"}`} tone={blocked > 0 ? "red" : "neutral"} />
-        <StatCard label="Totale cavi" value={totalCables} helper="totale cavi" tone="neutral" />
       </div>
 
       <section className="grid gap-4 xl:grid-cols-2">
@@ -382,7 +444,7 @@ export default function EquipmentStoryPage(): JSX.Element {
           </div>
         </Section>
 
-        <Section title="Chiusura apparato" eyebrow="Closure Engine" className="rounded-[28px] border border-stone-200 bg-white p-5 shadow-sm">
+        <Section title="Chiusura apparato" eyebrow="Motore chiusura" className="rounded-[28px] border border-stone-200 bg-white p-5 shadow-sm">
           <div className="space-y-2 text-sm">
             <Line label="Stato" value={closureLabel(closureStatus)} accent={closureStatus === "CLOSED" ? "emerald" : closureStatus === "BLOCKED" ? "red" : "amber"} />
             <Line label="Confermati terreno" value={activeConfirmed} />
@@ -400,8 +462,11 @@ export default function EquipmentStoryPage(): JSX.Element {
             <h2 className="text-base font-semibold text-stone-950">Cavi da verificare ({toVerifyCards.length})</h2>
             <p className="mt-1 text-sm text-stone-500">Clicca su un cavo per confermare la verifica sul campo.</p>
           </div>
-          <button className="min-h-10 rounded-xl border border-stone-200 bg-white px-3 text-xs font-medium text-stone-600 transition hover:border-stone-300">
-            Conferma tutti ({toVerifyCards.length})
+          <button
+            disabled
+            className="min-h-10 rounded-xl border border-stone-200 bg-stone-50 px-3 text-xs font-medium text-stone-400"
+          >
+            Verifica uno per volta
           </button>
         </div>
 
@@ -415,7 +480,10 @@ export default function EquipmentStoryPage(): JSX.Element {
             />
           ) : (
             toVerifyCards
-              .map((item) => (
+              .map((item) => {
+                const itemPendingCount = pendingByCable.get(normalizeKey(item.cableCode))?.length ?? 0;
+
+                return (
                 <button
                   key={item.cableCode}
                   onClick={() => openVerification(item.cableCode)}
@@ -429,6 +497,7 @@ export default function EquipmentStoryPage(): JSX.Element {
                         <Pill tone={item.fieldStatus === "BLOCKED" ? "red" : item.fieldStatus === "TO_VERIFY" ? "amber" : "sky"}>
                           {item.terrainStatus}
                         </Pill>
+                        {itemPendingCount > 0 ? <Pill tone="amber">{itemPendingCount} in attesa</Pill> : null}
                       </div>
                       <p className="mt-2 text-xs text-stone-500">
                         Da {item.appPartenza ?? "—"} · A {item.appArrivo ?? "—"} · {item.system ?? "sistema non assegnato"}
@@ -436,11 +505,12 @@ export default function EquipmentStoryPage(): JSX.Element {
                       {item.note ? <p className="mt-2 text-xs leading-5 text-stone-600">{item.note}</p> : null}
                     </div>
                     <span className="inline-flex min-h-10 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-700">
-                      Verifica sul campo
+                      {itemPendingCount > 0 ? "In attesa capo" : "Verifica sul campo"}
                     </span>
                   </div>
                 </button>
-              ))
+              );
+              })
           )}
         </div>
 

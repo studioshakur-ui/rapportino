@@ -37,15 +37,17 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
 const COMMON_WORDS = new Set([
   "OK","SI","NO","HO","HA","CI","DA","DI","IN","UN","LA","LE","LO","AI",
   "ME","TE","SE","MA","OR","ED","AL","NE","SU","GU","DO","RE","FA","MI",
-  "IS","IT","AT","AS","BE","BY","IF","OF","ON","TO","UP","WE",
-  "IO","SA","SO","CO","PO","BO","VO","GO",
+  "HI","IS","IT","AT","AS","BE","BY","IF","OF","ON","TO","UP","WE",
+  "IA","IO","SA","SO","CO","PO","MO","BO","VO","FO","GO",
+  "PONTE","PONTI",
 ]);
 
 function extractCableRefs(text: string): string[] {
   const found = new Set<string>();
   for (const rawLine of text.split("\n")) {
     const line = rawLine.replace(/^\d+[-/]\d+\s+/, "")
-      .replace(/[\u{1F000}-\u{1FFFF}]/gu, "")
+      .replace(/[\u{1F000}-\u{1FFFF}]|[\u{2600}-\u{27BF}]|[\u{2B00}-\u{2BFF}]/gu, "")
+      .replace(/[◑●○◐◒◓◔◕▶▷►◀◁◄]/g, "")
       .replace(/@\S+/g, "")
       .replace(/[.\s]+/g, " ")
       .trim();
@@ -59,6 +61,7 @@ function extractCableRefs(text: string): string[] {
       const suffix  = m[3].toUpperCase();
       if (letters.length < 2 || letters.length > 5) continue;
       if (COMMON_WORDS.has(letters)) continue;
+      if (/^\d+$/.test(letters)) continue;
       found.add(suffix ? `${letters} ${digits} ${suffix}` : `${letters} ${digits}`);
     }
   }
@@ -70,6 +73,144 @@ function extractPercent(text: string): number | null {
   if (!m) return null;
   const v = parseInt(m[1], 10);
   return v >= 0 && v <= 100 ? v : null;
+}
+
+function extractEquipmentCodes(text: string): string[] {
+  return Array.from(new Set((text.match(/\b\d{12}\b/g) ?? []).map((item) => item.trim())));
+}
+
+function extractEswbs(text: string): string[] {
+  return extractEquipmentCodes(text);
+}
+
+type ProofPosition = "partenza" | "arrivo" | "entrambi" | "sconosciuto";
+
+interface TerrainProofClassification {
+  raw_text: string;
+  source: string;
+  source_type: "telegram_text" | "telegram_photo";
+  author: string;
+  timestamp: string;
+  extracted_cable_codes: string[];
+  extracted_equipment_codes: string[];
+  extracted_eswbs: string[];
+  detected_position: ProofPosition;
+  detected_status: string;
+  confidence: number;
+  confidence_reason: string;
+  requires_human_validation: boolean;
+  recommended_action: string;
+  event_kind: string;
+  incoherence_reason: string | null;
+  progress_percent: number | null;
+}
+
+function analyseTerrainProof(params: {
+  text: string;
+  cableRefs: string[];
+  author: string;
+  occurredAt: string;
+  hasPhoto: boolean;
+  progress: number | null;
+}): TerrainProofClassification {
+  const normalizedText = params.text.trim();
+  const lower = normalizedText.toLowerCase();
+  const baseline = classifyEventKind(normalizedText);
+  const extractedEquipmentCodes = extractEquipmentCodes(normalizedText);
+  const extractedEswbs = extractEswbs(normalizedText);
+  const hasDeparture = /\bpartenza\b/.test(lower);
+  const hasArrival = /\barrivo\b/.test(lower);
+  const positiveHint = /\b(ok|trovat[oa]?|presente|collegat[oa]?|chius[oa]?|fatto|finito|completat[oa]?)\b/.test(lower);
+  const blockedHint = /\b(bloccat[oa]?|manca accesso|accesso bloccato|impossibil|indisponibil)\b/.test(lower);
+  const notFoundHint = /\b(non si trova|non trovato|non trovata|non trovato|assente)\b/.test(lower);
+  const recheckHint = /\b(da controllare|ricontrollare|domani|verificare)\b/.test(lower);
+  const hasMultipleCables = params.cableRefs.length > 1;
+  const hasPercent = params.progress != null && params.progress < 100;
+
+  let detectedPosition: ProofPosition = "sconosciuto";
+  if (hasDeparture && hasArrival) detectedPosition = "entrambi";
+  else if (hasDeparture) detectedPosition = "partenza";
+  else if (hasArrival) detectedPosition = "arrivo";
+
+  let detectedStatus = "Da validare";
+  let confidence = 0.45;
+  let confidenceReason = "Messaggio libero senza prova abbastanza forte";
+  let recommendedAction = "mantieni da validare";
+  let eventKind = baseline.kind;
+  let incoherenceReason: string | null = null;
+
+  if (blockedHint) {
+    detectedStatus = "Bloccato";
+    confidence = 0.88;
+    confidenceReason = "Blocco dichiarato esplicitamente nel testo";
+    recommendedAction = "segnala blocco";
+    eventKind = "CABLE_DA_CONTROLLARE";
+  } else if (notFoundHint) {
+    detectedStatus = "Non trovato";
+    confidence = 0.84;
+    confidenceReason = "Ricerca negativa dichiarata esplicitamente";
+    recommendedAction = "ricontrolla in campo";
+    eventKind = "CABLE_MANCANTE";
+  } else if (hasPercent) {
+    detectedStatus = "Parziale";
+    confidence = 0.82;
+    confidenceReason = "Avanzamento parziale con percentuale esplicita";
+    recommendedAction = "chiedi conferma al team";
+    eventKind = "CABLE_MENTION";
+  } else if (positiveHint && detectedPosition === "entrambi") {
+    detectedStatus = "Trovato a entrambi";
+    confidence = 0.9;
+    confidenceReason = "Partenza e arrivo confermati nel messaggio";
+    recommendedAction = "valida prova";
+    eventKind = "CABLE_MENTION";
+  } else if (positiveHint && detectedPosition === "partenza") {
+    detectedStatus = "Trovato a partenza";
+    confidence = 0.88;
+    confidenceReason = "Partenza confermata con codice cavo riconosciuto";
+    recommendedAction = "valida prova";
+    eventKind = "CABLE_MENTION";
+  } else if (positiveHint && detectedPosition === "arrivo") {
+    detectedStatus = "Trovato a arrivo";
+    confidence = 0.88;
+    confidenceReason = "Arrivo confermato con codice cavo riconosciuto";
+    recommendedAction = "valida prova";
+    eventKind = "CABLE_MENTION";
+  } else if (recheckHint) {
+    detectedStatus = "Da validare";
+    confidence = 0.6;
+    confidenceReason = "Il messaggio chiede controllo o conferma successiva";
+    recommendedAction = "ricontrolla in campo";
+    eventKind = "CABLE_DA_CONTROLLARE";
+  }
+
+  if (hasMultipleCables && detectedStatus !== "Parziale" && detectedStatus !== "Bloccato" && detectedStatus !== "Non trovato") {
+    detectedStatus = "Da validare";
+    confidence = Math.min(confidence, 0.62);
+    confidenceReason = "Più cavi possibili nello stesso messaggio";
+    recommendedAction = "chiedi conferma al team";
+  }
+
+  const requiresHumanValidation = true;
+
+  return {
+    raw_text: normalizedText,
+    source: "telegram",
+    source_type: params.hasPhoto ? "telegram_photo" : "telegram_text",
+    author: params.author,
+    timestamp: params.occurredAt,
+    extracted_cable_codes: params.cableRefs,
+    extracted_equipment_codes: extractedEquipmentCodes,
+    extracted_eswbs: extractedEswbs,
+    detected_position: detectedPosition,
+    detected_status: detectedStatus,
+    confidence,
+    confidence_reason: confidenceReason,
+    requires_human_validation: requiresHumanValidation,
+    recommended_action: recommendedAction,
+    event_kind: eventKind,
+    incoherence_reason: incoherenceReason,
+    progress_percent: params.progress,
+  };
 }
 
 // ── Minimal deterministic classifier (mirror of classifier.agent.ts) ───────
@@ -154,11 +295,20 @@ async function recordFieldEvents(params: {
   author: string;
   occurredAt: string;
   progress: number | null;
+  hasPhoto: boolean;
 }): Promise<void> {
-  const { messageId, cableRefs, text, author, occurredAt, progress } = params;
+  const { messageId, cableRefs, text, author, occurredAt, progress, hasPhoto } = params;
   if (cableRefs.length === 0) return;
 
-  const { kind, confidence } = classifyEventKind(text);
+  const proof = analyseTerrainProof({
+    text,
+    cableRefs,
+    author,
+    occurredAt,
+    hasPhoto,
+    progress,
+  });
+  const { kind, confidence } = { kind: proof.event_kind, confidence: proof.confidence };
   const note = `${author}: ${text.slice(0, 120)}`;
 
   for (const code of cableRefs) {
@@ -177,9 +327,16 @@ async function recordFieldEvents(params: {
           cable_code_raw:        code,
           cable_code_normalized: code,
           confidence,
-          validation_status:     incaCavoId ? "promoted" : "pending",
+          validation_status:     "pending",
           raw_text:              text.slice(0, 500),
-          payload:               { author, progress },
+          payload:               {
+            author,
+            progress,
+            proof: {
+              ...proof,
+              extracted_cable_codes: [code],
+            },
+          },
         })
         .select("id")
         .single();
@@ -303,6 +460,15 @@ bot.on("message", async (ctx: Context) => {
   // ── Extraire cables + % ────────────────────────────────────────────────
   const cableRefs = extractCableRefs(text);
   const progress  = extractPercent(text);
+  const occurredAt = new Date(msg.date * 1000).toISOString();
+  const proof = analyseTerrainProof({
+    text: displayText,
+    cableRefs,
+    author: sender,
+    occurredAt,
+    hasPhoto: Boolean(msg.photo),
+    progress,
+  });
 
   // ── Déduplication ──────────────────────────────────────────────────────
   const msgKey = `tg:${chatId}:${msg.message_id}`;
@@ -352,12 +518,12 @@ bot.on("message", async (ctx: Context) => {
     source:       "telegram",
     wamid:        msgKey,
     sender:       senderId,
-    sender_name:  sender,
-    message_ts:   new Date(msg.date * 1000).toISOString(),
+      sender_name:  sender,
+    message_ts:   occurredAt,
     message_type: hasMedia ? "media" : "text",
     text:         displayText,
     cable_refs:   cableRefs,
-    classification: { chat_id: chatId, chat_name: chatName, progress },
+    classification: { chat_id: chatId, chat_name: chatName, progress, ...proof },
     raw_payload:  { message_id: msg.message_id, chat_id: chatId },
     image_path:       imagePath,
     vision_processed: false,
@@ -372,8 +538,9 @@ bot.on("message", async (ctx: Context) => {
     cableRefs,
     text:       displayText,
     author:     sender,
-    occurredAt: new Date(msg.date * 1000).toISOString(),
+    occurredAt,
     progress,
+    hasPhoto: Boolean(msg.photo),
   });
 
   // ── Stats ──────────────────────────────────────────────────────────────

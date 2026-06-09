@@ -23,6 +23,33 @@ interface AIResult {
   note: string | null;
 }
 
+type ProofSourceType =
+  | "telegram_text"
+  | "telegram_photo"
+  | "ocr_photo"
+  | "manual_validation"
+  | "imported_note"
+  | "system_inference";
+
+interface StructuredProof {
+  raw_text: string;
+  source: string;
+  source_type: ProofSourceType;
+  author: string | null;
+  timestamp: string;
+  extracted_cable_codes: string[];
+  extracted_equipment_codes: string[];
+  extracted_eswbs: string[];
+  detected_position: "partenza" | "arrivo" | "entrambi" | "sconosciuto";
+  detected_status: string;
+  confidence: number;
+  confidence_reason: string;
+  requires_human_validation: boolean;
+  recommended_action: string;
+  incoherence_reason: string | null;
+  event_kind: string;
+}
+
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -39,6 +66,109 @@ const CABLE_KINDS = new Set([
   "CABLE_DA_CONTROLLARE",
   "CABLE_MENTION",
 ]);
+
+function asObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function getString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function getStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
+}
+
+function extractEquipmentCodes(text: string): string[] {
+  return Array.from(new Set((text.match(/\b\d{12}\b/g) ?? []).map((item) => item.trim())));
+}
+
+function readStructuredProof(row: IncomingRow): StructuredProof | null {
+  const classification = asObject(row.classification);
+  const sourceType = getString(classification.source_type) as ProofSourceType | null;
+  const detectedStatus = getString(classification.detected_status);
+  if (!sourceType || !detectedStatus) return null;
+
+  return {
+    raw_text: row.text ?? "",
+    source: getString(classification.source) ?? "telegram",
+    source_type: sourceType,
+    author: row.sender_name,
+    timestamp: row.message_ts,
+    extracted_cable_codes: getStringArray(classification.extracted_cable_codes).length > 0
+      ? getStringArray(classification.extracted_cable_codes)
+      : row.cable_refs,
+    extracted_equipment_codes: getStringArray(classification.extracted_equipment_codes),
+    extracted_eswbs: getStringArray(classification.extracted_eswbs),
+    detected_position: (getString(classification.detected_position) as StructuredProof["detected_position"]) ?? "sconosciuto",
+    detected_status: detectedStatus,
+    confidence: typeof classification.confidence === "number" ? classification.confidence : 0.5,
+    confidence_reason: getString(classification.confidence_reason) ?? "Classificazione esistente mantenuta",
+    requires_human_validation: classification.requires_human_validation === true,
+    recommended_action: getString(classification.recommended_action) ?? "mantieni da validare",
+    incoherence_reason: getString(classification.incoherence_reason),
+    event_kind: getString(classification.event_kind) ?? "CABLE_MENTION",
+  };
+}
+
+function buildProofFromAi(msg: IncomingRow, cls: AIResult): StructuredProof {
+  const text = msg.text ?? "";
+  const lower = text.toLowerCase();
+  const hasDeparture = /\bpartenza\b/.test(lower);
+  const hasArrival = /\barrivo\b/.test(lower);
+  const detectedPosition =
+    hasDeparture && hasArrival ? "entrambi" :
+    hasDeparture ? "partenza" :
+    hasArrival ? "arrivo" :
+    "sconosciuto";
+
+  let detectedStatus = "Da validare";
+  let recommendedAction = "mantieni da validare";
+  let confidenceReason = "Classificazione OpenAI usata solo come supporto";
+
+  if (cls.kind === "CABLE_MANCANTE") {
+    detectedStatus = "Non trovato";
+    recommendedAction = "ricontrolla in campo";
+    confidenceReason = "Messaggio classificato come cavo mancante o non trovato";
+  } else if (cls.kind === "CABLE_CORTO") {
+    detectedStatus = "Da validare";
+    recommendedAction = "ricontrolla in campo";
+    confidenceReason = "Segnale di cavo corto, non sufficiente per chiudere";
+  } else if (cls.kind === "CABLE_DA_CONTROLLARE") {
+    detectedStatus = "Da validare";
+    recommendedAction = "chiedi conferma al team";
+    confidenceReason = "Messaggio da controllare o ambiguo";
+  } else if (cls.kind === "CABLE_POSATO") {
+    detectedStatus =
+      detectedPosition === "entrambi" ? "Trovato a entrambi" :
+      detectedPosition === "partenza" ? "Trovato a partenza" :
+      detectedPosition === "arrivo" ? "Trovato a arrivo" :
+      "Da validare";
+    recommendedAction = "valida prova";
+    confidenceReason = "Messaggio positivo, ma richiede comunque conferma del capo";
+  }
+
+  return {
+    raw_text: text,
+    source: "telegram",
+    source_type: "telegram_text",
+    author: msg.sender_name,
+    timestamp: msg.message_ts,
+    extracted_cable_codes: msg.cable_refs,
+    extracted_equipment_codes: extractEquipmentCodes(text),
+    extracted_eswbs: extractEquipmentCodes(text),
+    detected_position: detectedPosition,
+    detected_status: detectedStatus,
+    confidence: Math.min(cls.confidence, 0.9),
+    confidence_reason: confidenceReason,
+    requires_human_validation: true,
+    recommended_action: recommendedAction,
+    incoherence_reason: null,
+    event_kind: CABLE_KINDS.has(cls.kind) ? cls.kind : "CABLE_MENTION",
+  };
+}
 
 async function callOpenAI(key: string, batch: IncomingRow[]): Promise<AIResult[]> {
   const msgList = batch
@@ -209,12 +339,15 @@ serve(
       const cls = resultMap.get(msg.id) ?? {
         id: msg.id, kind: "GENERAL_MESSAGE", confidence: 0.2, note: null,
       };
-      const kind = CABLE_KINDS.has(cls.kind) ? cls.kind : "GENERAL_MESSAGE";
+      const existingProof = readStructuredProof(msg);
+      const aiProof = buildProofFromAi(msg, cls);
+      const effectiveProof = existingProof ?? aiProof;
+      const kind = CABLE_KINDS.has(effectiveProof.event_kind) ? effectiveProof.event_kind : "GENERAL_MESSAGE";
       const cableRefs = msg.cable_refs;
       let firstCoreEventId: string | null = null;
 
       try {
-        if (CABLE_KINDS.has(kind) && kind !== "GENERAL_MESSAGE") {
+        if (!existingProof && CABLE_KINDS.has(kind) && kind !== "GENERAL_MESSAGE" && cableRefs.length > 0) {
           for (const cableCode of cableRefs) {
             const { data: ce, error: ceErr } = await admin
               .from("core_events")
@@ -225,10 +358,14 @@ serve(
                 source_message_id:     msg.id,
                 cable_code_raw:        cableCode,
                 cable_code_normalized: cableCode,
-                confidence:            cls.confidence,
+                confidence:            effectiveProof.confidence,
                 raw_text:              msg.text,
                 validation_status:     "pending",
-                payload:               { sender: msg.sender_name, classified_by: "openai-gpt4o-mini" },
+                payload:               {
+                  sender: msg.sender_name,
+                  classified_by: "openai-gpt4o-mini",
+                  proof: { ...effectiveProof, extracted_cable_codes: [cableCode] },
+                },
               })
               .select("id")
               .single();
@@ -250,7 +387,7 @@ serve(
               event_kind:        kind,
               occurred_at:       msg.message_ts,
               source_message_id: msg.id,
-              confidence:        cls.confidence,
+              confidence:        effectiveProof.confidence,
               note:              noteText,
             });
 
@@ -264,11 +401,13 @@ serve(
 
         const mergedClassification = {
           ...msg.classification,
+          ...effectiveProof,
           event_kind:    kind,
-          confidence:    cls.confidence,
+          confidence:    effectiveProof.confidence,
           note:          cls.note,
           classified_by: "openai-gpt4o-mini",
           classified_at: new Date().toISOString(),
+          ai_support_only: true,
         };
 
         const updatePayload: Record<string, unknown> = {

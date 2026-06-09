@@ -7,6 +7,7 @@ const COMMON_WORDS = new Set([
   "ME","TE","SE","MA","OR","ED","AL","NE","SU","GU","DO","RE","FA","MI",
   "HI","IS","IT","AT","AS","BE","BY","IF","OF","ON","TO","UP","WE",
   "IA","IO","SA","SO","CO","PO","MO","BO","VO","FO","GO",
+  "PONTE","PONTI",
 ]);
 
 function stripNoise(s: string): string {
@@ -22,9 +23,18 @@ function stripSectionPrefix(s: string): string {
 }
 
 export function normalizeCableCode(raw: string): string {
-  const cleaned = stripNoise(raw).replace(/[\s.]+/g, " ").trim().toUpperCase();
+  let cleaned = stripSectionPrefix(stripNoise(raw));
+  cleaned = cleaned.replace(/[\s.\-]+/g, " ").trim().toUpperCase();
   const m = cleaned.match(/^([A-Z](?:\s*[A-Z]){1,4})\s*([\d]{2,5})\s*([A-Z]?)$/);
-  if (!m) return cleaned;
+  if (!m) {
+    const compact = cleaned.replace(/\s+/g, "");
+    const fallback = compact.match(/^([A-Z]{2,5})([\d]{2,5})([A-Z]?)$/i);
+    if (!fallback) return cleaned;
+    const letters = fallback[1].toUpperCase();
+    const digits  = fallback[2];
+    const suffix  = fallback[3].toUpperCase();
+    return suffix ? `${letters} ${digits} ${suffix}` : `${letters} ${digits}`;
+  }
   const letters = m[1].replace(/\s+/g, "");
   const digits  = m[2];
   const suffix  = m[3];

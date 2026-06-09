@@ -148,7 +148,7 @@ export default function DailyListTable({ items }: Props): JSX.Element {
                   <p className="mt-3 text-xs leading-5 text-zinc-400">
                     {ev.actor_label ? <span className="font-medium text-zinc-200">{ev.actor_label}</span> : null}
                     {ev.actor_label ? " · " : ""}
-                    {new Date(ev.occurred_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })}
+                    {new Date(ev.occurred_at).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })}
                   </p>
                 ) : null}
                 {item.note ? <p className="mt-2 line-clamp-2 text-xs leading-5 text-zinc-500">{item.note}</p> : null}
@@ -210,7 +210,7 @@ export default function DailyListTable({ items }: Props): JSX.Element {
                       <>
                         {ev.actor_label ? <span className="font-medium text-zinc-300">{ev.actor_label}</span> : null}
                         {ev.actor_label ? " · " : ""}
-                        {new Date(ev.occurred_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })}
+                        {new Date(ev.occurred_at).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })}
                       </>
                     ) : "—"}
                   </td>

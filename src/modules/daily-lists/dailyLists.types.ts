@@ -68,14 +68,25 @@ export interface DailyItemEvidence {
   core_event_id: string | null;
   whatsapp_message_id: string | null;
   source_type: "cable_event" | "core_event" | "whatsapp_message" | "manual";
+  proof_source: string | null;
+  proof_source_type: "telegram_text" | "telegram_photo" | "ocr_photo" | "manual_validation" | "imported_note" | "system_inference" | null;
   event_kind: string;
   occurred_at: string;
   actor_label: string | null;
   raw_note: string | null;
   last_message: string | null;
   confidence: number;
+  confidence_reason?: string | null;
   progress_percent: number | null;  // extracted from note "70%"
   verification_status?: string | null;
+  extracted_cable_codes?: string[];
+  extracted_equipment_codes?: string[];
+  extracted_eswbs?: string[];
+  detected_position?: "partenza" | "arrivo" | "entrambi" | "sconosciuto" | null;
+  detected_status?: string | null;
+  requires_human_validation?: boolean;
+  recommended_action?: string | null;
+  incoherence_reason?: string | null;
 }
 
 export interface DailyListItemVM extends DailyListItem {
@@ -97,6 +108,10 @@ export interface DailyListItemVM extends DailyListItem {
   inca_matched: boolean;
   cable_story_path: string;
   recommended_action: string;
+  requires_human_validation: boolean;
+  has_incoherence: boolean;
+  latest_detected_status: string | null;
+  latest_confidence_reason: string | null;
 }
 
 export interface DailyEvidenceSyncStats {

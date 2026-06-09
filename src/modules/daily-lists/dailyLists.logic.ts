@@ -16,6 +16,7 @@ import type {
 } from "./dailyLists.types";
 import { ensureArray } from "../../core/utils/array";
 import { deriveCableFieldState, isVerifiedFieldVerificationStatus, type FieldVerificationStatus } from "../../domain/core-engine/fieldVerification";
+import { translateIncaStatus } from "../../domain/core-engine/incaStatus";
 
 // ── Progress % extraction from WhatsApp raw note ───────────────────────────
 const PERCENT_RE = /(\d{1,3})\s*%/;
@@ -41,6 +42,27 @@ function isConfirmedManualEvidence(evidence: DailyItemEvidence): boolean {
 
 function isPosedEvent(eventKind: string | null | undefined): boolean {
   return eventKind ? POSED_EVENT_KINDS.has(eventKind) : false;
+}
+
+function getItemIncaStatus(item: DailyListItem) {
+  return translateIncaStatus(item.situazione_inca ?? item.stato_collegamento);
+}
+
+function hasStructuredAiProof(evidence: DailyItemEvidence): boolean {
+  return evidence.proof_source_type != null;
+}
+
+function isAiProofAwaitingValidation(evidence: DailyItemEvidence): boolean {
+  if (!hasStructuredAiProof(evidence)) return false;
+  if (evidence.source_type === "manual") return false;
+  if (evidence.requires_human_validation) return true;
+  if (evidence.incoherence_reason) return true;
+  if (evidence.confidence < 0.85) return true;
+  return false;
+}
+
+function hasIncoherentEvidence(evidence: DailyItemEvidence[]): boolean {
+  return evidence.some((entry) => typeof entry.incoherence_reason === "string" && entry.incoherence_reason.length > 0);
 }
 
 // ── Status computation ─────────────────────────────────────────────────────
@@ -73,7 +95,13 @@ export function computeItemStatus(
       return "confirmed_field";
     }
 
-    if (safeEvidence.some((e) => e.source_type === "manual" || VERIFIED_FIELD_EVENT_KINDS.has(e.event_kind))) {
+    if (
+      safeEvidence.some((e) =>
+        e.source_type === "manual" ||
+        VERIFIED_FIELD_EVENT_KINDS.has(e.event_kind) ||
+        isAiProofAwaitingValidation(e)
+      )
+    ) {
       return "to_verify";
     }
 
@@ -103,6 +131,10 @@ export function computeItemStatus(
   if (!item.inca_cavo_id) return "outside_inca";
 
   // Matched in INCA but no WhatsApp / field signal yet.
+  const incaStatus = getItemIncaStatus(item);
+  if (incaStatus.isClosed) return "likely_laid";
+  if (incaStatus.isPartiallyConnected || incaStatus.status === "POSATO") return "to_verify";
+
   return "no_evidence";
 }
 
@@ -144,6 +176,7 @@ export function hasMissingIssue(item: DailyListItem, evidence: DailyItemEvidence
 }
 
 export function buildRecommendedAction(
+  evidence: DailyItemEvidence[],
   status: DailyItemStatus,
   flags: {
     hasShortIssue: boolean;
@@ -151,6 +184,13 @@ export function buildRecommendedAction(
     hasPartialProgress: boolean;
   }
 ): string {
+  const latestStructuredProof = evidence.find((entry) => hasStructuredAiProof(entry));
+  if (hasIncoherentEvidence(evidence)) {
+    return latestStructuredProof?.recommended_action ?? "Verificare l'incoerenza prima di aggiornare cavo o apparato";
+  }
+  if (latestStructuredProof?.requires_human_validation) {
+    return latestStructuredProof.recommended_action ?? "Mantenere da validare finché il capo non conferma la prova";
+  }
   if (status === "outside_inca") return "Verificare il codice INCA prima di procedere sul terreno";
   if (status === "blocked") return "Risolvere il blocco aperto prima della chiusura";
   if (flags.hasShortIssue) return "Controllare lunghezza e avviare correzione cavo corto";
@@ -185,11 +225,14 @@ export function buildItemVM(
   const has_short_issue = hasShortIssue(item, safeEvidence);
   const has_missing_issue = hasMissingIssue(item, safeEvidence);
   const has_partial_progress = progress_percent !== null && progress_percent < 100;
-  const recommended_action = buildRecommendedAction(computed_status, {
+  const recommended_action = buildRecommendedAction(safeEvidence, computed_status, {
     hasShortIssue: has_short_issue,
     hasMissingIssue: has_missing_issue,
     hasPartialProgress: has_partial_progress,
   });
+  const latestStructuredProof = sorted.find((entry) => hasStructuredAiProof(entry)) ?? null;
+  const requires_human_validation = safeEvidence.some(isAiProofAwaitingValidation);
+  const has_incoherence = hasIncoherentEvidence(safeEvidence);
 
   return {
     ...item,
@@ -211,6 +254,10 @@ export function buildItemVM(
     inca_matched,
     cable_story_path: `/cable/${encodeURIComponent(item.cable_code_normalized)}`,
     recommended_action,
+    requires_human_validation,
+    has_incoherence,
+    latest_detected_status: latestStructuredProof?.detected_status ?? null,
+    latest_confidence_reason: latestStructuredProof?.confidence_reason ?? null,
   };
 }
 

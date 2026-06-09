@@ -68,7 +68,7 @@ export function SituazioneView({ situation }: { situation: DailySituationView | 
         <StatCard label="Verificati campo" value={situation.totals.verifiedCables} tone="emerald" />
         <StatCard label="Da verificare" value={situation.totals.toVerifyCables} tone={situation.totals.toVerifyCables > 0 ? "amber" : "emerald"} />
         <StatCard label="Restanti" value={situation.totals.remainingCables} tone={situation.totals.remainingCables > 0 ? "amber" : "emerald"} />
-        <StatCard label="Bloccati INCA" value={situation.totals.blockedCables} tone={situation.totals.blockedCables > 0 ? "red" : "neutral"} />
+        <StatCard label="Blocchi reali" value={situation.totals.blockedCables} tone={situation.totals.blockedCables > 0 ? "red" : "neutral"} />
         <StatCard label="Prove mancanti" value={situation.totals.withoutFieldEvidence} tone={situation.totals.withoutFieldEvidence > 0 ? "amber" : "emerald"} />
       </div>
 
@@ -86,7 +86,7 @@ export function SituazioneView({ situation }: { situation: DailySituationView | 
                       {[item.apparatusCode, item.system].filter(Boolean).join(" · ") || "Contesto non disponibile"}
                     </p>
                   </div>
-                  <Pill tone="amber">Da verificare</Pill>
+                  <Pill tone={item.reason === "incoerenza" ? "red" : "amber"}>{toVerifyLabel(item.reason)}</Pill>
                 </div>
                 <p className="mt-2 text-sm text-stone-700">{item.reason}</p>
               </article>
@@ -218,4 +218,11 @@ function riskLabel(status: string): string {
   if (status === "medium") return "MEDIA";
   if (status === "low") return "BASSA";
   return status;
+}
+
+function toVerifyLabel(reason: string): string {
+  if (reason === "incoerenza") return "Incoerenza";
+  if (reason === "da validare") return "Da validare";
+  if (reason === "senza evidenza") return "Senza evidenza";
+  return "Da verificare";
 }

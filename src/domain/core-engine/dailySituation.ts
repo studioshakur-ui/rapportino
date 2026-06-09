@@ -311,11 +311,15 @@ function buildToVerifyCables(
       const area = resolveAreaLabel(card, equipmentIndex, sdcLookup);
       const apparatusCode = resolveApparatusCode(card, equipmentIndex, sdcLookup);
       const reason =
-        card.computed_status === "likely_laid"
-          ? "posato probabile"
-          : card.has_partial_progress
-            ? "da verificare"
-            : "senza prova campo";
+        card.has_incoherence
+          ? "incoerenza"
+          : card.requires_human_validation
+            ? "da validare"
+            : card.computed_status === "likely_laid"
+              ? "posato probabile"
+              : card.has_partial_progress
+                ? "da verificare"
+                : "senza evidenza";
 
       return {
         cableCode: card.cable_code,
@@ -400,7 +404,7 @@ function buildTelegramImpacts(input: DailySituationInput): DailySituationView["t
     .map((impact) => ({
       cableCode: displayCableCode(impact.cable_codes[0] ?? "Senza cavo"),
       message: normalizeText(impact.text) || `${impact.before_label} → ${impact.after_label}`,
-      impact: impact.system_closed ? "SYSTEM CLOSED" : `${impact.before_label} → ${impact.after_label}`,
+      impact: impact.system_closed ? "Sistema chiuso" : `${impact.before_label} → ${impact.after_label}`,
       timestamp: impact.message_ts,
     }))
     .sort((left, right) => {
@@ -493,7 +497,7 @@ function buildMessageToSend(situation: DailySituationView): string {
     `Totale cavi: ${situation.totals.totalCables}`,
     `Verificati campo: ${situation.totals.verifiedCables}`,
     `Da verificare: ${situation.totals.toVerifyCables}`,
-    `Bloccati INCA: ${situation.totals.blockedCables}`,
+    `Blocchi reali: ${situation.totals.blockedCables}`,
     "",
     "Cavi da verificare:",
     ...formatCableList(situation.toVerifyCables.map((item) => ({

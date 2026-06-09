@@ -27,6 +27,10 @@ function makeCard(overrides: Partial<SituationInput["field"]["priority_items"][n
     has_partial_progress: false,
     has_short_issue: false,
     has_missing_issue: false,
+    requires_human_validation: false,
+    has_incoherence: false,
+    latest_detected_status: null,
+    latest_confidence_reason: null,
     ...overrides,
   };
 }
@@ -326,6 +330,8 @@ function buildBaseInput(): SituationInput {
           confirmed_cables: 3,
           open_cables: 1,
           blocked_cables: 0,
+          ai_validation_required: 0,
+          ai_incoherences: 0,
           without_field_evidence: 1,
           status_distribution: { P: 2, C: 1 },
           recommended_actions: ["azione 1"],
@@ -346,6 +352,8 @@ function buildBaseInput(): SituationInput {
           confirmed_cables: 0,
           open_cables: 2,
           blocked_cables: 0,
+          ai_validation_required: 0,
+          ai_incoherences: 0,
           without_field_evidence: 2,
           status_distribution: { P: 2 },
           recommended_actions: [],
@@ -500,5 +508,30 @@ describe("buildDailySituationView", () => {
     });
     expect(result.messageToSend).toContain("Nessun blocco reale dichiarato.");
     expect(result.messageToSend).toContain("Nessuna prova campo disponibile");
+  });
+
+  it("shows da validare and incoerenza reasons without treating them as closures", () => {
+    const input = buildBaseInput();
+    input.field.missing_evidence_items = [
+      makeCard({
+        cable_code_raw: "I RS 012",
+        cable_code: "IRS012",
+        display_cable_code: "I RS 012",
+        requires_human_validation: true,
+        has_incoherence: false,
+      }),
+      makeCard({
+        cable_code_raw: "W TI 036",
+        cable_code: "WTI036",
+        display_cable_code: "W TI 036",
+        requires_human_validation: true,
+        has_incoherence: true,
+      }),
+    ];
+
+    const result = buildDailySituationView(input);
+
+    expect(result.toVerifyCables.find((item) => item.displayCableCode === "I RS 012")?.reason).toBe("da validare");
+    expect(result.toVerifyCables.find((item) => item.displayCableCode === "W TI 036")?.reason).toBe("incoerenza");
   });
 });
