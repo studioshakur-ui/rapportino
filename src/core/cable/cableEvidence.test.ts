@@ -98,3 +98,60 @@ describe("cableEvidence forensic matching", () => {
     expect(classify("1-5 ISE 003", "ISE 003 posato").bucket).not.toBe("linked");
   });
 });
+
+describe("suffix segmentation — false trailing letter from next code", () => {
+  // Test 1: wrong segmented code is never produced
+  it("does not produce 'CCS 515 C' from 'C CS 515 C s 549'", () => {
+    const codes = detectCableCodesInText("C CS 515 C s 549").map(
+      (c) => c.normalizedStrict,
+    );
+    expect(codes).not.toContain("CCS 515 C");
+  });
+
+  // Test 2: correct base code IS produced (spaced variant)
+  it("produces 'CCS 515' from 'C CS 515 C s 549'", () => {
+    const codes = detectCableCodesInText("C CS 515 C s 549").map(
+      (c) => c.normalizedStrict,
+    );
+    expect(codes).toContain("CCS 515");
+  });
+
+  // Test 3: correct base code IS produced (compact variant)
+  it("produces 'CCS 515' from 'CCS 515 C s 549'", () => {
+    const codes = detectCableCodesInText("CCS 515 C s 549").map(
+      (c) => c.normalizedStrict,
+    );
+    expect(codes).toContain("CCS 515");
+  });
+
+  // Test 4: real suffix kept when the full code exists in the catalog
+  it("keeps a real suffix when the full code exists in knownCodes", () => {
+    // compact of "TKV 017 I" = "TKV017I"
+    const known = new Set(["TKV017I"]);
+    const codes = detectCableCodesInText("TKV 017 I posato", known).map(
+      (c) => c.normalizedStrict,
+    );
+    expect(codes).toContain("TKV 017 I");
+  });
+
+  // Test 5: suffix stripped when code-with-suffix is absent from catalog
+  it("strips suffix when code-with-suffix is not in knownCodes but base is", () => {
+    // "CCS515C" absent, "CCS515" present
+    const known = new Set(["CCS515"]);
+    const codes = detectCableCodesInText("CCS 515 C", known).map(
+      (c) => c.normalizedStrict,
+    );
+    expect(codes).toContain("CCS 515");
+    expect(codes).not.toContain("CCS 515 C");
+  });
+
+  // Test 6: classifyCableEvidence must not show a non-existent code as rilevato
+  it("classifyCableEvidence shows correct normalized code, not the false-suffix variant", () => {
+    const result = classifyCableEvidence({
+      targetCableCode: "CCS 515",
+      sourceText: "CCS 515 C s 549",
+    });
+    expect(result.normalized_detected_code).toBe("CCS 515");
+    expect(result.bucket).toBe("linked");
+  });
+});

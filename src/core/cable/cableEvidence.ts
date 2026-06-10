@@ -37,6 +37,13 @@ export interface ClassifyCableEvidenceInput {
   proofSourceType?: string | null;
   validationStatus?: string | null;
   isManualValidation?: boolean;
+  /**
+   * Compact keys (cableKeyCompact(normalizeCableStrict(code))) of codes that
+   * are known to exist in the catalog/INCA. When provided, a trailing suffix
+   * letter is accepted only if the full code (with suffix) is in this set.
+   * Without this set a text-heuristic decides.
+   */
+  knownCodes?: ReadonlySet<string>;
 }
 
 interface DetectedCableCode {
@@ -68,6 +75,7 @@ const ITALIAN_CONNECTOR_SUFFIXES = new Set(["E", "ED"]);
 
 export function detectCableCodesInText(
   text: string | null | undefined,
+  knownCodes?: ReadonlySet<string>,
 ): DetectedCableCode[] {
   const value = String(text ?? "");
   const matches: DetectedCableCode[] = [];
@@ -77,7 +85,17 @@ export function detectCableCodesInText(
   CABLE_CODE_RE.lastIndex = 0;
   while ((match = CABLE_CODE_RE.exec(value)) !== null) {
     const parsed = stripAbsorbedConnectorSuffix(match[1]);
-    const raw = parsed.raw;
+    let raw = parsed.raw;
+
+    // Validate the optional trailing letter: drop it when it is actually the
+    // first letter of the next code in the stream.
+    const decision = resolveSuffix(raw, match.index, value, knownCodes);
+    if (decision.stripped) {
+      raw = decision.base;
+      // Rewind the scanner so the suffix letter can start the next match.
+      CABLE_CODE_RE.lastIndex = decision.suffixPosInText;
+    }
+
     const normalizedStrict = normalizeCableStrict(raw);
     const normalizedLoose = normalizeCableLoose(raw);
     const compact = cableKeyCompact(normalizedLoose);
@@ -94,11 +112,57 @@ export function detectCableCodesInText(
       normalizedStrict,
       normalizedLoose,
       start: match.index,
-      end: match.index + parsed.length,
+      end: match.index + raw.length,
     });
   }
 
   return matches;
+}
+
+/**
+ * Decide whether the optional trailing letter in a detected cable code is a
+ * genuine suffix or the first letter of the NEXT code in a dense text stream.
+ *
+ * Strategy (in order):
+ *  1. Catalog check: if knownCodes is provided, the suffix is kept only when
+ *     the compact key of the full code (with suffix) is present in the set.
+ *  2. Text heuristic (no catalog): strip the suffix when the characters that
+ *     follow the full match look like the start of another cable code
+ *     (letter + optional letter + digits).
+ *
+ * Returns { stripped: false } when nothing needs to change, or
+ * { stripped: true, base, suffixPosInText } when the suffix should be dropped
+ * and the regex scanner should resume from suffixPosInText so the letter can
+ * be re-matched as the start of the next code.
+ */
+function resolveSuffix(
+  raw: string,
+  matchIndex: number,
+  text: string,
+  knownCodes?: ReadonlySet<string>,
+): { stripped: false } | { stripped: true; base: string; suffixPosInText: number } {
+  const m = raw.match(/^(.*?\d{2,5})\s+([A-Za-z])$/);
+  if (!m) return { stripped: false };
+
+  const base = m[1];
+  // The suffix letter is the last character of `raw`; its position in `text`
+  // is matchIndex + raw.length - 1.
+  const suffixPosInText = matchIndex + raw.length - 1;
+
+  if (knownCodes !== undefined) {
+    const compactFull = cableKeyCompact(normalizeCableStrict(raw));
+    if (knownCodes.has(compactFull)) return { stripped: false };
+    return { stripped: true, base, suffixPosInText };
+  }
+
+  // Heuristic: does text immediately after this match start with a cable-like
+  // pattern?  e.g. " s 549" → yes (suffix is really start of "CS 549").
+  const afterMatch = text.slice(matchIndex + raw.length);
+  if (/^\s+[A-Za-z][\s.]*[A-Za-z]?\s*\d{2,5}/.test(afterMatch)) {
+    return { stripped: true, base, suffixPosInText };
+  }
+
+  return { stripped: false };
 }
 
 function stripAbsorbedConnectorSuffix(rawMatch: string): {
@@ -166,7 +230,7 @@ export function classifyCableEvidence(
   const targetStrictKey = cableKeyCompact(targetStrict);
   const targetLooseKey = cableKeyCompact(targetLoose);
   const text = String(input.sourceText ?? "");
-  const detected = detectCableCodesInText(text);
+  const detected = detectCableCodesInText(text, input.knownCodes);
   // 1) match strict via tokenisation générique ; 2) sinon recherche dirigée par
   //    la cible (récupère les codes que la tokenisation dense a fragmentés).
   const strictHit =
