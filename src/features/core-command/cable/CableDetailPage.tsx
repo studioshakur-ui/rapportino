@@ -9,14 +9,19 @@ import {
   classifyCableEvidence,
   type CableEvidenceMatch,
 } from "../../../core/cable/cableEvidence";
-import { normalizeCableStrict } from "../../../core/cable/cableIdentity";
+import {
+  buildCableIdentity,
+  cableKeyCompact,
+} from "../../../core/cable/cableIdentity";
 import { Pill, Screen, EmptyState } from "../../../components/command-ui";
 import {
   FIELD_VERIFICATION_STATUS_OPTIONS,
-  formatFieldStatusLabel,
+  deriveForensicCableFieldState,
+  formatCableEndpointStateLabel,
+  formatCableFieldStatusLabel,
   getFieldVerificationStatusLabel,
-  resolveFieldStatus,
   type FieldVerificationStatus,
+  type ForensicFieldVerificationEntry,
 } from "../../../domain/core-engine/fieldVerification";
 import { useAuth } from "../../../auth/AuthProvider";
 import { recordFieldVerification } from "../api/fieldVerification.api";
@@ -40,6 +45,8 @@ type ForensicEvidence = {
   source: "cable_event" | "core_event";
   note: string | null;
   match: CableEvidenceMatch;
+  verification_status: FieldVerificationStatus | null;
+  is_manual_validation: boolean;
 };
 
 type CableListItem = {
@@ -49,19 +56,6 @@ type CableListItem = {
   app_partenza: string | null;
   app_arrivo: string | null;
 };
-
-// Normalize cable code for DB lookup: "C CS 102" or "CCS102" → "CCS 102"
-function normalizeForQuery(raw: string): string {
-  const c = raw.replace(/\s+/g, "").replace(/\./g, "").toUpperCase();
-  const m = c.match(/^([A-Z])([A-Z]{1,4})(\d{2,5})([A-Z]?)$/);
-  if (m) {
-    const [, head, letters, digits, suffix] = m;
-    return suffix
-      ? `${head}${letters} ${digits} ${suffix}`
-      : `${head}${letters} ${digits}`;
-  }
-  return c;
-}
 
 const KIND_META: Record<string, { label: string; tone: string; dot: string }> =
   {
@@ -124,6 +118,117 @@ function kindMeta(kind: string) {
   );
 }
 
+function getString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function getObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function buildCableLookupCodes(raw: string): string[] {
+  const identity = buildCableIdentity(raw);
+  return Array.from(
+    new Set(
+      [
+        identity.raw,
+        identity.display,
+        identity.strict,
+        identity.loose,
+        cableKeyCompact(identity.strict),
+        cableKeyCompact(identity.loose),
+      ]
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+function matchTypeLabel(type: CableEvidenceMatch["match_type"]): string {
+  const labels: Record<CableEvidenceMatch["match_type"], string> = {
+    exact: "Esatto",
+    strict: "Confermato",
+    loose: "Da validare",
+    ocr: "OCR",
+    telegram: "Telegram",
+    manual: "Validazione manuale",
+    ambiguous: "Ambiguo",
+    none: "Nessun match",
+  };
+  return labels[type];
+}
+
+function inferVerificationStatus(
+  eventKind: string,
+  payload: Record<string, unknown> | null,
+): FieldVerificationStatus | null {
+  const payloadObj = getObject(payload);
+  const proof = getObject(payloadObj.proof);
+  const status = getString(payloadObj.verification_status);
+  if (
+    status &&
+    FIELD_VERIFICATION_STATUS_OPTIONS.some((option) => option.value === status)
+  ) {
+    return status as FieldVerificationStatus;
+  }
+
+  const position =
+    getString(proof.detected_position) ??
+    getString(payloadObj.detected_position);
+  if (eventKind === "CABLE_POSATO" || eventKind === "POSED_REPORTED") {
+    if (position === "partenza") return "AT_DEPARTURE";
+    if (position === "arrivo") return "AT_DESTINATION";
+    if (position === "entrambi") return "CONNECTED_BOTH";
+  }
+  if (eventKind === "CABLE_MANCANTE" || eventKind === "BLOCKED_REPORTED")
+    return "NOT_FOUND";
+  if (eventKind === "CABLE_CORTO" || eventKind === "CABLE_DA_CONTROLLARE")
+    return "RECHECK";
+  if (eventKind === "FIELD_VERIFIED") return null;
+  return null;
+}
+
+function buildWhyResult(
+  listItems: CableListItem[],
+  linkedEvidence: ForensicEvidence[],
+  ambiguousEvidence: ForensicEvidence[],
+  relatedEvidence: ForensicEvidence[],
+): string {
+  const parts: string[] = [];
+  parts.push(
+    listItems.length > 0
+      ? "Codice trovato nella lista attiva."
+      : "Codice aperto direttamente dalla ricerca cavo.",
+  );
+  parts.push(
+    linkedEvidence.length > 0
+      ? linkedEvidence.length === 1
+        ? "1 prova collegata confermata."
+        : `${linkedEvidence.length} prove collegate confermate.`
+      : "Nessuna prova campo confermata.",
+  );
+  if (ambiguousEvidence.length > 0) {
+    const codes = Array.from(
+      new Set(
+        ambiguousEvidence
+          .map((item) => item.match.normalized_detected_code)
+          .filter(Boolean),
+      ),
+    ).join(", ");
+    parts.push(
+      `${ambiguousEvidence.length} candidat${ambiguousEvidence.length === 1 ? "o ambiguo" : "i ambigui"} trovati${codes ? `: ${codes}` : ""}. Validazione richiesta.`,
+    );
+  }
+  if (relatedEvidence.length > 0) {
+    parts.push(
+      "Segnali presenti nel contesto, ma nessun riferimento diretto al cavo.",
+    );
+  }
+  return parts.join(" ");
+}
+
 function isManualCoreEvent(event: FieldCoreEvent): boolean {
   return (
     event.event_type === "FIELD_VERIFIED" ||
@@ -149,6 +254,8 @@ function buildForensicEvidence(
       validationStatus: null,
       isManualValidation: false,
     }),
+    verification_status: inferVerificationStatus(event.event_kind, null),
+    is_manual_validation: false,
   }));
 
   const coreEvidence = fieldEvents.map((event) => ({
@@ -167,6 +274,11 @@ function buildForensicEvidence(
       validationStatus: event.validation_status,
       isManualValidation: isManualCoreEvent(event),
     }),
+    verification_status: inferVerificationStatus(
+      event.event_type,
+      event.payload,
+    ),
+    is_manual_validation: isManualCoreEvent(event),
   }));
 
   return [...cableEvidence, ...coreEvidence].sort(
@@ -200,7 +312,7 @@ function EvidenceCard({ item }: { item: ForensicEvidence }) {
                   : "neutral"
             }
           >
-            {item.match.match_type}
+            {matchTypeLabel(item.match.match_type)}
           </Pill>
         </div>
         <span className="text-xs text-stone-400">
@@ -212,27 +324,32 @@ function EvidenceCard({ item }: { item: ForensicEvidence }) {
       </div>
       <dl className="mt-3 grid gap-2 text-xs text-stone-600 sm:grid-cols-2">
         <div>
-          <dt className="font-semibold text-stone-500">target_cable_code</dt>
+          <dt className="font-semibold text-stone-500">Cavo cercato</dt>
           <dd className="font-mono">{item.match.target_cable_code}</dd>
         </div>
         <div>
-          <dt className="font-semibold text-stone-500">raw_detected_code</dt>
+          <dt className="font-semibold text-stone-500">Codice rilevato</dt>
           <dd className="font-mono">{item.match.raw_detected_code ?? "—"}</dd>
         </div>
         <div>
-          <dt className="font-semibold text-stone-500">
-            normalized_detected_code
-          </dt>
+          <dt className="font-semibold text-stone-500">Codice normalizzato</dt>
           <dd className="font-mono">
             {item.match.normalized_detected_code ?? "—"}
           </dd>
         </div>
         <div>
-          <dt className="font-semibold text-stone-500">match_confidence</dt>
+          <dt className="font-semibold text-stone-500">Tipo match</dt>
+          <dd>{matchTypeLabel(item.match.match_type)}</dd>
+        </div>
+        <div>
+          <dt className="font-semibold text-stone-500">Confidenza</dt>
           <dd>{Math.round(item.match.match_confidence * 100)}%</dd>
         </div>
       </dl>
-      <div className="mt-3 rounded-xl bg-stone-50 p-3 text-sm leading-relaxed text-stone-700">
+      <p className="mt-3 text-xs font-semibold uppercase tracking-widest text-stone-500">
+        Estratto
+      </p>
+      <div className="mt-1 rounded-xl bg-stone-50 p-3 text-sm leading-relaxed text-stone-700">
         {parts.map((part, index) =>
           part.highlight ? (
             <mark
@@ -246,10 +363,12 @@ function EvidenceCard({ item }: { item: ForensicEvidence }) {
           ),
         )}
       </div>
-      <p className="mt-2 text-xs text-stone-500">{item.match.match_reason}</p>
+      <p className="mt-2 text-xs text-stone-500">
+        <span className="font-semibold">Motivo:</span> {item.match.match_reason}
+      </p>
       {item.match.requires_human_validation ? (
         <p className="mt-1 text-xs font-semibold text-amber-700">
-          Richiede validazione capo
+          Validazione richiesta
         </p>
       ) : null}
     </div>
@@ -257,12 +376,7 @@ function EvidenceCard({ item }: { item: ForensicEvidence }) {
 }
 
 async function fetchCableDetail(raw: string) {
-  const normalized = normalizeForQuery(raw);
-  const strict = normalizeCableStrict(raw);
-  const compact = strict.replace(/\s+/g, "").toUpperCase();
-  const lookupCodes = Array.from(
-    new Set([normalized, strict, compact, raw.toUpperCase()].filter(Boolean)),
-  );
+  const lookupCodes = buildCableLookupCodes(raw);
 
   const [eventsRes, listRes, priRes, coreRes] = await Promise.all([
     supabase
@@ -358,24 +472,22 @@ export default function CableDetailPage() {
     (item) => item.match.bucket === "related",
   );
   const lastEvent = linkedEvidence[0] ?? null;
-  const latestFieldEvent =
-    fieldEvents.find(
-      (event) =>
-        event.event_type === "FIELD_VERIFIED" ||
-        event.event_type === "POSED_REPORTED" ||
-        event.event_type === "RESOLVED" ||
-        event.event_type === "CONFIRMED",
-    ) ?? null;
-  const fieldStatus = resolveFieldStatus({
-    hasCriticalFinding: fieldEvents.some(
-      (event) => event.event_type === "BLOCKED_REPORTED",
-    ),
-    hasVerificationProof: Boolean(
-      latestFieldEvent ||
-      lastEvent?.event_kind === "CABLE_POSATO" ||
-      lastEvent?.event_kind === "posa",
-    ),
-  });
+  const forensicFieldEntries: ForensicFieldVerificationEntry[] =
+    forensicEvidence
+      .filter((item) => item.verification_status != null)
+      .map((item) => ({
+        status: item.verification_status as FieldVerificationStatus,
+        occurred_at: item.occurred_at,
+        evidence_bucket: item.match.bucket,
+        is_manual_validation: item.is_manual_validation,
+      }));
+  const cableFieldState = deriveForensicCableFieldState(forensicFieldEntries);
+  const whyResult = buildWhyResult(
+    listItems,
+    linkedEvidence,
+    ambiguousEvidence,
+    relatedEvidence,
+  );
 
   // Nessuno stato è dedotto di default: l'operatore sceglie esplicitamente
   // cosa ha visto sul campo (mai un CONNECTED_BOTH implicito).
@@ -387,7 +499,7 @@ export default function CableDetailPage() {
     try {
       await recordFieldVerification({
         cableCodeRaw: displayCode || cableCode,
-        cableCodeNormalized: normalizeForQuery(cableCode),
+        cableCodeNormalized: buildCableIdentity(cableCode).strict,
         verificationStatus: status,
         verificationSource: "manual",
         verifiedBy: uid,
@@ -439,14 +551,14 @@ export default function CableDetailPage() {
           {!isLoading ? (
             <Pill
               tone={
-                fieldStatus === "VERIFIED"
+                cableFieldState.status === "collegato"
                   ? "emerald"
-                  : fieldStatus === "BLOCKED"
+                  : cableFieldState.status === "bloccato"
                     ? "red"
                     : "amber"
               }
             >
-              {formatFieldStatusLabel(fieldStatus)}
+              {formatCableFieldStatusLabel(cableFieldState.status)}
             </Pill>
           ) : null}
           <button
@@ -459,7 +571,7 @@ export default function CableDetailPage() {
       </div>
 
       {/* Verifica sul campo — stato esplicito, nessun default */}
-      {!isLoading && fieldStatus !== "BLOCKED" && (
+      {!isLoading && cableFieldState.status !== "bloccato" && (
         <section className="space-y-2">
           <h2 className="text-xs font-semibold uppercase tracking-widest text-stone-500">
             Stato rilevato sul campo
@@ -598,11 +710,7 @@ export default function CableDetailPage() {
             <h2 className="text-xs font-semibold uppercase tracking-widest text-stone-500">
               Perché questo risultato
             </h2>
-            <p className="mt-2 text-sm text-stone-600">
-              Storico confermato solo con strict match evidenziabile nel
-              testo/OCR o validazione manuale. I loose match e i segnali senza
-              codice target restano fuori dallo storico principale.
-            </p>
+            <p className="mt-2 text-sm text-stone-600">{whyResult}</p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -610,15 +718,32 @@ export default function CableDetailPage() {
               <h2 className="text-xs font-semibold uppercase tracking-widest text-stone-500">
                 Partenza / Arrivo
               </h2>
-              <p className="mt-2 text-sm text-stone-700">
-                Stato operativo: {formatFieldStatusLabel(fieldStatus)}
-              </p>
-              <p className="mt-1 text-sm text-stone-500">
-                Partenza: {latestListItem?.app_partenza ?? "—"}
-              </p>
-              <p className="mt-1 text-sm text-stone-500">
-                Arrivo: {latestListItem?.app_arrivo ?? "—"}
-              </p>
+              <div className="mt-2 space-y-1 text-sm">
+                <p className="font-semibold text-stone-700">Stato campo</p>
+                <p className="text-stone-600">
+                  Stato operativo:{" "}
+                  {formatCableFieldStatusLabel(cableFieldState.status)}
+                </p>
+                <p className="text-stone-600">
+                  Partenza:{" "}
+                  {formatCableEndpointStateLabel(
+                    cableFieldState.stato_partenza,
+                  )}
+                </p>
+                <p className="text-stone-600">
+                  Arrivo:{" "}
+                  {formatCableEndpointStateLabel(cableFieldState.stato_arrivo)}
+                </p>
+              </div>
+              <div className="mt-3 space-y-1 border-t border-stone-100 pt-3 text-sm">
+                <p className="font-semibold text-stone-700">Apparati</p>
+                <p className="text-stone-500">
+                  Apparato partenza: {latestListItem?.app_partenza ?? "—"}
+                </p>
+                <p className="text-stone-500">
+                  Apparato arrivo: {latestListItem?.app_arrivo ?? "—"}
+                </p>
+              </div>
             </div>
             <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
               <h2 className="text-xs font-semibold uppercase tracking-widest text-stone-500">

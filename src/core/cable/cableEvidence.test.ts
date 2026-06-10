@@ -28,6 +28,29 @@ describe("cableEvidence forensic matching", () => {
     expect(result.requires_human_validation).toBe(true);
   });
 
+  it("does not absorb Italian conjunction e as a cable suffix", () => {
+    expect(
+      detectCableCodesInText("I GF 002 e C CS 104").map(
+        (code) => code.normalizedStrict,
+      ),
+    ).toEqual(["IGF 002", "CCS 104"]);
+    expect(
+      detectCableCodesInText("ISE 003 e ISE 004").map(
+        (code) => code.normalizedStrict,
+      ),
+    ).toEqual(["ISE 003", "ISE 004"]);
+    expect(
+      detectCableCodesInText("TCK 271 e TCK 520").map(
+        (code) => code.normalizedStrict,
+      ),
+    ).toEqual(["TCK 271", "TCK 520"]);
+    expect(
+      detectCableCodesInText("CCS 358, ICS 103 e IRS 010").map(
+        (code) => code.normalizedStrict,
+      ),
+    ).toEqual(["CCS 358", "ICS 103", "IRS 010"]);
+  });
+
   it("keeps loose matches as ambiguous candidates instead of linked proof", () => {
     const result = classify("1-5 ISE 003", "Telegram: ISE 003 trovato a bordo");
     expect(result.bucket).toBe("ambiguous");

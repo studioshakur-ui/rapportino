@@ -64,6 +64,8 @@ const GENERIC_TOKENS = new Set([
   "GF",
 ]);
 
+const ITALIAN_CONNECTOR_SUFFIXES = new Set(["E", "ED"]);
+
 export function detectCableCodesInText(
   text: string | null | undefined,
 ): DetectedCableCode[] {
@@ -74,7 +76,8 @@ export function detectCableCodesInText(
 
   CABLE_CODE_RE.lastIndex = 0;
   while ((match = CABLE_CODE_RE.exec(value)) !== null) {
-    const raw = match[1].trim();
+    const parsed = stripAbsorbedConnectorSuffix(match[1]);
+    const raw = parsed.raw;
     const normalizedStrict = normalizeCableStrict(raw);
     const normalizedLoose = normalizeCableLoose(raw);
     const compact = cableKeyCompact(normalizedLoose);
@@ -91,11 +94,27 @@ export function detectCableCodesInText(
       normalizedStrict,
       normalizedLoose,
       start: match.index,
-      end: match.index + match[0].length,
+      end: match.index + parsed.length,
     });
   }
 
   return matches;
+}
+
+function stripAbsorbedConnectorSuffix(rawMatch: string): {
+  raw: string;
+  length: number;
+} {
+  const match = rawMatch.match(/^(.*?\d{2,5})(\s+)([A-Za-z]{1,2})$/);
+  if (!match) return { raw: rawMatch.trim(), length: rawMatch.length };
+
+  const suffix = match[3].toUpperCase();
+  if (!ITALIAN_CONNECTOR_SUFFIXES.has(suffix)) {
+    return { raw: rawMatch.trim(), length: rawMatch.length };
+  }
+
+  const raw = match[1].trimEnd();
+  return { raw, length: raw.length };
 }
 
 export function classifyCableEvidence(

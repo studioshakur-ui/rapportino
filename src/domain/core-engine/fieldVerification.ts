@@ -17,19 +17,56 @@ export interface FieldVerificationStatusOption {
 
 // Le capo choisit toujours explicitement (jamais de défaut implicite).
 // 3 stati positivi (presenza terrain) + non trovato / da ricontrollare + bloccato.
-export const FIELD_VERIFICATION_STATUS_OPTIONS: FieldVerificationStatusOption[] = [
-  { value: "AT_DEPARTURE", label: "Trovato a partenza", countsAsVerified: true, isBlocker: false },
-  { value: "AT_DESTINATION", label: "Trovato ad arrivo", countsAsVerified: true, isBlocker: false },
-  { value: "CONNECTED_BOTH", label: "Trovato a entrambi", countsAsVerified: true, isBlocker: false },
-  { value: "NOT_FOUND", label: "Non trovato", countsAsVerified: false, isBlocker: false },
-  { value: "RECHECK", label: "Da ricontrollare", countsAsVerified: false, isBlocker: false },
-  { value: "BLOCKED", label: "Bloccato", countsAsVerified: false, isBlocker: true },
-];
+export const FIELD_VERIFICATION_STATUS_OPTIONS: FieldVerificationStatusOption[] =
+  [
+    {
+      value: "AT_DEPARTURE",
+      label: "Trovato a partenza",
+      countsAsVerified: true,
+      isBlocker: false,
+    },
+    {
+      value: "AT_DESTINATION",
+      label: "Trovato ad arrivo",
+      countsAsVerified: true,
+      isBlocker: false,
+    },
+    {
+      value: "CONNECTED_BOTH",
+      label: "Trovato a entrambi",
+      countsAsVerified: true,
+      isBlocker: false,
+    },
+    {
+      value: "NOT_FOUND",
+      label: "Non trovato",
+      countsAsVerified: false,
+      isBlocker: false,
+    },
+    {
+      value: "RECHECK",
+      label: "Da ricontrollare",
+      countsAsVerified: false,
+      isBlocker: false,
+    },
+    {
+      value: "BLOCKED",
+      label: "Bloccato",
+      countsAsVerified: false,
+      isBlocker: true,
+    },
+  ];
 
-const VERIFIED_FIELD_STATUSES = new Set<FieldVerificationStatus>(["AT_DESTINATION", "AT_DEPARTURE", "CONNECTED_BOTH"]);
+const VERIFIED_FIELD_STATUSES = new Set<FieldVerificationStatus>([
+  "AT_DESTINATION",
+  "AT_DEPARTURE",
+  "CONNECTED_BOTH",
+]);
 const BLOCKING_FIELD_STATUSES = new Set<FieldVerificationStatus>(["BLOCKED"]);
 
-export function isBlockingFieldVerificationStatus(status: string | null | undefined): boolean {
+export function isBlockingFieldVerificationStatus(
+  status: string | null | undefined,
+): boolean {
   return BLOCKING_FIELD_STATUSES.has(status as FieldVerificationStatus);
 }
 
@@ -54,15 +91,24 @@ export interface ResolveFieldStatusInput {
   hasTechnicalAnomaly?: boolean;
 }
 
-export function isVerifiedFieldVerificationStatus(status: string | null | undefined): boolean {
+export function isVerifiedFieldVerificationStatus(
+  status: string | null | undefined,
+): boolean {
   return VERIFIED_FIELD_STATUSES.has(status as FieldVerificationStatus);
 }
 
-export function getFieldVerificationStatusLabel(status: string | null | undefined): string {
-  return FIELD_VERIFICATION_STATUS_OPTIONS.find((option) => option.value === status)?.label ?? "Verifica campo";
+export function getFieldVerificationStatusLabel(
+  status: string | null | undefined,
+): string {
+  return (
+    FIELD_VERIFICATION_STATUS_OPTIONS.find((option) => option.value === status)
+      ?.label ?? "Verifica campo"
+  );
 }
 
-export function resolveFieldStatus(input: ResolveFieldStatusInput): FieldStatus {
+export function resolveFieldStatus(
+  input: ResolveFieldStatusInput,
+): FieldStatus {
   if (input.hasCriticalFinding || input.hasTechnicalAnomaly) return "BLOCKED";
   if (input.hasVerificationProof) return "VERIFIED";
   return "TO_VERIFY";
@@ -81,7 +127,7 @@ export function formatFieldStatusLabel(status: FieldStatus): string {
  */
 export function canConfirmFieldVerification(
   fieldStatus: FieldStatus,
-  selectedStatus: FieldVerificationStatus | null | undefined
+  selectedStatus: FieldVerificationStatus | null | undefined,
 ): boolean {
   return fieldStatus === "TO_VERIFY" && selectedStatus != null;
 }
@@ -128,7 +174,7 @@ export interface FieldVerificationEvent {
 }
 
 export function buildFieldVerificationEvent(
-  input: BuildFieldVerificationEventInput
+  input: BuildFieldVerificationEventInput,
 ): FieldVerificationEvent {
   const occurredAt = input.occurredAt ?? new Date().toISOString();
   const note = input.note ?? null;
@@ -144,14 +190,18 @@ export function buildFieldVerificationEvent(
     cable_code_normalized: input.cableCodeNormalized,
     // A positive verification is full field proof; a non-positive one is still a
     // tracked terrain event but must not confirm the cable downstream.
-    confidence: isVerifiedFieldVerificationStatus(input.verificationStatus) ? 1 : 0.5,
+    confidence: isVerifiedFieldVerificationStatus(input.verificationStatus)
+      ? 1
+      : 0.5,
     validation_status: "validated",
     raw_text: note,
     payload: {
       cable_code: input.cableCodeNormalized,
       cable_code_normalized: input.cableCodeNormalized,
       verification_status: input.verificationStatus,
-      verification_status_label: getFieldVerificationStatusLabel(input.verificationStatus),
+      verification_status_label: getFieldVerificationStatusLabel(
+        input.verificationStatus,
+      ),
       source,
       verification_source: source,
       verified_by: input.verifiedBy,
@@ -167,7 +217,11 @@ export function buildFieldVerificationEvent(
 // Un cavo ha due estremità verificabili indipendentemente. Le azioni del capo
 // si accumulano per estremità; lo stato "collegato" è DERIVATO (entrambe
 // trovate), mai imposto. Nessuno stato è schiacciato in un semplice "verificato".
-export type CableEndpointState = "trovato" | "non_trovato" | "da_rivedere" | "ignoto";
+export type CableEndpointState =
+  | "trovato"
+  | "non_trovato"
+  | "da_rivedere"
+  | "ignoto";
 
 export type CableFieldStatus =
   | "collegato"
@@ -189,9 +243,18 @@ export interface FieldVerificationEntry {
   occurred_at: string;
 }
 
+export interface ForensicFieldVerificationEntry extends FieldVerificationEntry {
+  evidence_bucket: "linked" | "ambiguous" | "related";
+  is_manual_validation?: boolean;
+}
+
 /** Plie l'historico delle verifiche in uno stato a 2 assi + stato derivato. */
-export function deriveCableFieldState(entries: ReadonlyArray<FieldVerificationEntry>): CableFieldState {
-  const sorted = [...entries].sort((a, b) => String(a.occurred_at).localeCompare(String(b.occurred_at)));
+export function deriveCableFieldState(
+  entries: ReadonlyArray<FieldVerificationEntry>,
+): CableFieldState {
+  const sorted = [...entries].sort((a, b) =>
+    String(a.occurred_at).localeCompare(String(b.occurred_at)),
+  );
   let partenza: CableEndpointState = "ignoto";
   let arrivo: CableEndpointState = "ignoto";
   let blocked = false;
@@ -231,11 +294,48 @@ export function deriveCableFieldState(entries: ReadonlyArray<FieldVerificationEn
   if (blocked) status = "bloccato";
   else if (partenza === "trovato" && arrivo === "trovato") status = "collegato";
   else if (partenza === "trovato" || arrivo === "trovato") status = "parziale";
-  else if (partenza === "non_trovato" && arrivo === "non_trovato") status = "non_trovato";
-  else if (partenza === "da_rivedere" || arrivo === "da_rivedere") status = "da_rivedere";
+  else if (partenza === "non_trovato" && arrivo === "non_trovato")
+    status = "non_trovato";
+  else if (partenza === "da_rivedere" || arrivo === "da_rivedere")
+    status = "da_rivedere";
   else status = "da_verificare";
 
-  return { stato_partenza: partenza, stato_arrivo: arrivo, status, is_blocked: blocked };
+  return {
+    stato_partenza: partenza,
+    stato_arrivo: arrivo,
+    status,
+    is_blocked: blocked,
+  };
+}
+
+export function deriveForensicCableFieldState(
+  entries: ReadonlyArray<ForensicFieldVerificationEntry>,
+): CableFieldState {
+  return deriveCableFieldState(
+    entries
+      .filter(
+        (entry) =>
+          entry.evidence_bucket === "linked" ||
+          entry.is_manual_validation === true,
+      )
+      .map((entry) => ({
+        status: entry.status,
+        occurred_at: entry.occurred_at,
+      })),
+  );
+}
+
+const CABLE_ENDPOINT_STATE_LABELS: Record<CableEndpointState, string> = {
+  trovato: "Trovato",
+  non_trovato: "Non trovato",
+  da_rivedere: "Da ricontrollare",
+  ignoto: "Da verificare",
+};
+
+export function formatCableEndpointStateLabel(
+  status: CableEndpointState,
+): string {
+  return CABLE_ENDPOINT_STATE_LABELS[status];
 }
 
 const CABLE_FIELD_STATUS_LABELS: Record<CableFieldStatus, string> = {
@@ -256,7 +356,7 @@ export function formatCableFieldStatusLabel(status: CableFieldStatus): string {
 // "parziale" NON sono blocchi. Usare ovunque (Oggi, Campo, Apparati, Equipment,
 // Situazione, Grafici) per non confondere mai da-verificare con bloccato.
 export interface RealBlockerInput {
-  incaIsBlocked?: boolean;       // INCA = B (interpretato a monte via translateIncaStatus)
+  incaIsBlocked?: boolean; // INCA = B (interpretato a monte via translateIncaStatus)
   computedStatus?: string | null; // "blocked" (anomalia critica / agent finding)
   fieldStatus?: CableFieldStatus | null; // "bloccato" (Bloccato dichiarato dal capo)
   hasOpenBlockingFinding?: boolean;
@@ -266,6 +366,7 @@ export function isRealBlocker(input: RealBlockerInput): boolean {
   if (input.hasOpenBlockingFinding) return true;
   if (input.incaIsBlocked) return true;
   if (input.fieldStatus === "bloccato") return true;
-  if (String(input.computedStatus ?? "").toLowerCase() === "blocked") return true;
+  if (String(input.computedStatus ?? "").toLowerCase() === "blocked")
+    return true;
   return false;
 }

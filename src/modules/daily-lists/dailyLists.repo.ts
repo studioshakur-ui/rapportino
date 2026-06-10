@@ -514,7 +514,7 @@ async function appendDirectWhatsAppEvidence(
 
     for (const msg of (data ?? []) as WhatsAppEvidenceRow[]) {
       const rawMessage = msg.raw_message ?? "";
-      const matched = batch
+      const matchedEntries = batch
         .map((code) => ({
           code,
           match: classifyCableEvidence({
@@ -523,43 +523,45 @@ async function appendDirectWhatsAppEvidence(
             sourceType: "whatsapp_message",
           }),
         }))
-        .find((entry) => entry.match.bucket === "linked");
-      if (!matched) continue;
+        .filter((entry) => entry.match.bucket === "linked");
+      if (matchedEntries.length === 0) continue;
 
-      const list = result.get(matched.code) ?? [];
-      list.push({
-        cable_event_id: null,
-        core_event_id: null,
-        whatsapp_message_id: msg.id,
-        source_type: "whatsapp_message",
-        proof_source: "whatsapp_web",
-        proof_source_type: null,
-        event_kind: "WHATSAPP_MESSAGE",
-        occurred_at: msg.message_ts,
-        actor_label: msg.author,
-        raw_note: rawMessage,
-        last_message: rawMessage,
-        confidence: 0.55,
-        confidence_reason: null,
-        progress_percent: extractPercentFromNote(rawMessage),
-        verification_status: null,
-        extracted_cable_codes: [],
-        extracted_equipment_codes: [],
-        extracted_eswbs: [],
-        detected_position: null,
-        detected_status: null,
-        requires_human_validation: false,
-        recommended_action: null,
-        incoherence_reason: null,
-        target_cable_code: matched.match.target_cable_code,
-        raw_detected_code: matched.match.raw_detected_code,
-        normalized_detected_code: matched.match.normalized_detected_code,
-        match_type: matched.match.match_type,
-        match_confidence: matched.match.match_confidence,
-        match_reason: matched.match.match_reason,
-        source_text_excerpt: matched.match.source_text_excerpt,
-      });
-      result.set(matched.code, list);
+      for (const matched of matchedEntries) {
+        const list = result.get(matched.code) ?? [];
+        list.push({
+          cable_event_id: null,
+          core_event_id: null,
+          whatsapp_message_id: msg.id,
+          source_type: "whatsapp_message",
+          proof_source: "whatsapp_web",
+          proof_source_type: null,
+          event_kind: "WHATSAPP_MESSAGE",
+          occurred_at: msg.message_ts,
+          actor_label: msg.author,
+          raw_note: rawMessage,
+          last_message: rawMessage,
+          confidence: 0.55,
+          confidence_reason: null,
+          progress_percent: extractPercentFromNote(rawMessage),
+          verification_status: null,
+          extracted_cable_codes: [],
+          extracted_equipment_codes: [],
+          extracted_eswbs: [],
+          detected_position: null,
+          detected_status: null,
+          requires_human_validation: false,
+          recommended_action: null,
+          incoherence_reason: null,
+          target_cable_code: matched.match.target_cable_code,
+          raw_detected_code: matched.match.raw_detected_code,
+          normalized_detected_code: matched.match.normalized_detected_code,
+          match_type: matched.match.match_type,
+          match_confidence: matched.match.match_confidence,
+          match_reason: matched.match.match_reason,
+          source_text_excerpt: matched.match.source_text_excerpt,
+        });
+        result.set(matched.code, list);
+      }
     }
   }
 }
