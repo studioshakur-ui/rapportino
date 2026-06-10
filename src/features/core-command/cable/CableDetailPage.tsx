@@ -4,11 +4,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../../../lib/supabaseClient";
 import { formatCableDisplay } from "../../../core/cable/cableDisplay";
-import {
-  buildHighlightedText,
-  classifyCableEvidence,
-  type CableEvidenceMatch,
-} from "../../../core/cable/cableEvidence";
+import { classifyCableEvidence } from "../../../core/cable/cableEvidence";
 import {
   buildCableIdentity,
   cableKeyCompact,
@@ -16,16 +12,20 @@ import {
 import { Pill, Screen, EmptyState } from "../../../components/command-ui";
 import {
   FIELD_VERIFICATION_STATUS_OPTIONS,
-  deriveForensicCableFieldState,
+  deriveCableFieldState,
   formatCableEndpointStateLabel,
   formatCableFieldStatusLabel,
   getFieldVerificationStatusLabel,
+  isRealBlocker,
   type FieldVerificationStatus,
-  type ForensicFieldVerificationEntry,
 } from "../../../domain/core-engine/fieldVerification";
 import { useAuth } from "../../../auth/AuthProvider";
 import { recordFieldVerification } from "../api/fieldVerification.api";
 import type { CableEvent } from "../types";
+import {
+  CableEvidenceSections,
+  type CableEvidenceItem,
+} from "./CableEvidenceSections";
 
 type FieldCoreEvent = {
   id: string;
@@ -38,15 +38,8 @@ type FieldCoreEvent = {
   payload: Record<string, unknown> | null;
 };
 
-type ForensicEvidence = {
-  id: string;
-  occurred_at: string;
-  event_kind: string;
-  source: "cable_event" | "core_event";
-  note: string | null;
-  match: CableEvidenceMatch;
+type ForensicEvidence = CableEvidenceItem & {
   verification_status: FieldVerificationStatus | null;
-  is_manual_validation: boolean;
 };
 
 type CableListItem = {
@@ -56,67 +49,6 @@ type CableListItem = {
   app_partenza: string | null;
   app_arrivo: string | null;
 };
-
-const KIND_META: Record<string, { label: string; tone: string; dot: string }> =
-  {
-    CABLE_POSATO: {
-      label: "Cavo posato",
-      tone: "text-emerald-700",
-      dot: "bg-emerald-500",
-    },
-    CABLE_MENTION: {
-      label: "Nota campo",
-      tone: "text-stone-500",
-      dot: "bg-stone-400",
-    },
-    CABLE_SFILATO: {
-      label: "Cavo sfilato",
-      tone: "text-sky-600",
-      dot: "bg-sky-500",
-    },
-    CABLE_CORTO: {
-      label: "Cavo corto",
-      tone: "text-amber-700",
-      dot: "bg-amber-500",
-    },
-    CABLE_MANCANTE: {
-      label: "Cavo mancante",
-      tone: "text-red-700",
-      dot: "bg-red-500",
-    },
-    CABLE_DA_CONTROLLARE: {
-      label: "Da verificare",
-      tone: "text-amber-700",
-      dot: "bg-amber-400",
-    },
-    GENERAL_MESSAGE: {
-      label: "Segnale campo",
-      tone: "text-stone-500",
-      dot: "bg-stone-400",
-    },
-    posa: {
-      label: "Cavo posato",
-      tone: "text-emerald-700",
-      dot: "bg-emerald-500",
-    },
-    ripresa: { label: "Ripresa", tone: "text-sky-600", dot: "bg-sky-500" },
-    blocco: { label: "Bloccato", tone: "text-red-700", dot: "bg-red-500" },
-    anomalia: {
-      label: "Anomalia",
-      tone: "text-amber-700",
-      dot: "bg-amber-500",
-    },
-  };
-
-function kindMeta(kind: string) {
-  return (
-    KIND_META[kind] ?? {
-      label: kind.replace(/_/g, " "),
-      tone: "text-stone-500",
-      dot: "bg-stone-400",
-    }
-  );
-}
 
 function getString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -144,20 +76,6 @@ function buildCableLookupCodes(raw: string): string[] {
         .filter(Boolean),
     ),
   );
-}
-
-function matchTypeLabel(type: CableEvidenceMatch["match_type"]): string {
-  const labels: Record<CableEvidenceMatch["match_type"], string> = {
-    exact: "Esatto",
-    strict: "Confermato",
-    loose: "Da validare",
-    ocr: "OCR",
-    telegram: "Telegram",
-    manual: "Validazione manuale",
-    ambiguous: "Ambiguo",
-    none: "Nessun match",
-  };
-  return labels[type];
 }
 
 function inferVerificationStatus(
@@ -287,94 +205,6 @@ function buildForensicEvidence(
   );
 }
 
-function EvidenceCard({ item }: { item: ForensicEvidence }) {
-  const meta = kindMeta(item.event_kind);
-  const text = item.note ?? item.match.source_text_excerpt ?? "";
-  const parts = buildHighlightedText(
-    text,
-    item.match.highlight_start,
-    item.match.highlight_end,
-  );
-  return (
-    <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className={`h-2 w-2 rounded-full ${meta.dot}`} />
-          <span className={`text-sm font-semibold ${meta.tone}`}>
-            {meta.label}
-          </span>
-          <Pill
-            tone={
-              item.match.bucket === "linked"
-                ? "emerald"
-                : item.match.bucket === "ambiguous"
-                  ? "amber"
-                  : "neutral"
-            }
-          >
-            {matchTypeLabel(item.match.match_type)}
-          </Pill>
-        </div>
-        <span className="text-xs text-stone-400">
-          {new Date(item.occurred_at).toLocaleDateString("it-IT", {
-            day: "2-digit",
-            month: "short",
-          })}
-        </span>
-      </div>
-      <dl className="mt-3 grid gap-2 text-xs text-stone-600 sm:grid-cols-2">
-        <div>
-          <dt className="font-semibold text-stone-500">Cavo cercato</dt>
-          <dd className="font-mono">{item.match.target_cable_code}</dd>
-        </div>
-        <div>
-          <dt className="font-semibold text-stone-500">Codice rilevato</dt>
-          <dd className="font-mono">{item.match.raw_detected_code ?? "—"}</dd>
-        </div>
-        <div>
-          <dt className="font-semibold text-stone-500">Codice normalizzato</dt>
-          <dd className="font-mono">
-            {item.match.normalized_detected_code ?? "—"}
-          </dd>
-        </div>
-        <div>
-          <dt className="font-semibold text-stone-500">Tipo match</dt>
-          <dd>{matchTypeLabel(item.match.match_type)}</dd>
-        </div>
-        <div>
-          <dt className="font-semibold text-stone-500">Confidenza</dt>
-          <dd>{Math.round(item.match.match_confidence * 100)}%</dd>
-        </div>
-      </dl>
-      <p className="mt-3 text-xs font-semibold uppercase tracking-widest text-stone-500">
-        Estratto
-      </p>
-      <div className="mt-1 rounded-xl bg-stone-50 p-3 text-sm leading-relaxed text-stone-700">
-        {parts.map((part, index) =>
-          part.highlight ? (
-            <mark
-              key={index}
-              className="rounded bg-amber-200 px-1 font-semibold text-stone-950"
-            >
-              {part.text}
-            </mark>
-          ) : (
-            <span key={index}>{part.text}</span>
-          ),
-        )}
-      </div>
-      <p className="mt-2 text-xs text-stone-500">
-        <span className="font-semibold">Motivo:</span> {item.match.match_reason}
-      </p>
-      {item.match.requires_human_validation ? (
-        <p className="mt-1 text-xs font-semibold text-amber-700">
-          Validazione richiesta
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
 async function fetchCableDetail(raw: string) {
   const lookupCodes = buildCableLookupCodes(raw);
 
@@ -472,16 +302,17 @@ export default function CableDetailPage() {
     (item) => item.match.bucket === "related",
   );
   const lastEvent = linkedEvidence[0] ?? null;
-  const forensicFieldEntries: ForensicFieldVerificationEntry[] =
-    forensicEvidence
-      .filter((item) => item.verification_status != null)
-      .map((item) => ({
-        status: item.verification_status as FieldVerificationStatus,
-        occurred_at: item.occurred_at,
-        evidence_bucket: item.match.bucket,
-        is_manual_validation: item.is_manual_validation,
-      }));
-  const cableFieldState = deriveForensicCableFieldState(forensicFieldEntries);
+  const fieldVerificationEntries = fieldEvents
+    .map((event) => ({
+      status: inferVerificationStatus(event.event_type, event.payload),
+      occurred_at: event.occurred_at,
+    }))
+    .filter(
+      (entry): entry is { status: FieldVerificationStatus; occurred_at: string } =>
+        entry.status != null,
+    );
+  const cableFieldState = deriveCableFieldState(fieldVerificationEntries);
+  const hasRealBlocker = isRealBlocker({ fieldStatus: cableFieldState.status });
   const whyResult = buildWhyResult(
     listItems,
     linkedEvidence,
@@ -553,7 +384,7 @@ export default function CableDetailPage() {
               tone={
                 cableFieldState.status === "collegato"
                   ? "emerald"
-                  : cableFieldState.status === "bloccato"
+                  : hasRealBlocker
                     ? "red"
                     : "amber"
               }
@@ -725,6 +556,9 @@ export default function CableDetailPage() {
                   {formatCableFieldStatusLabel(cableFieldState.status)}
                 </p>
                 <p className="text-stone-600">
+                  Blocco reale: {hasRealBlocker ? "Sì" : "No"}
+                </p>
+                <p className="text-stone-600">
                   Partenza:{" "}
                   {formatCableEndpointStateLabel(
                     cableFieldState.stato_partenza,
@@ -759,40 +593,11 @@ export default function CableDetailPage() {
             </div>
           </div>
 
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-emerald-700">
-            Prove collegate — {linkedEvidence.length}
-          </h2>
-          {linkedEvidence.length > 0 ? (
-            linkedEvidence.map((item) => (
-              <EvidenceCard key={`${item.source}:${item.id}`} item={item} />
-            ))
-          ) : (
-            <p className="rounded-2xl border border-stone-200 bg-stone-50 p-4 text-sm text-stone-500">
-              Nessuna prova confermata per questo cavo.
-            </p>
-          )}
-
-          {ambiguousEvidence.length > 0 && (
-            <>
-              <h2 className="text-xs font-semibold uppercase tracking-widest text-amber-700">
-                Candidati ambigui — {ambiguousEvidence.length}
-              </h2>
-              {ambiguousEvidence.map((item) => (
-                <EvidenceCard key={`${item.source}:${item.id}`} item={item} />
-              ))}
-            </>
-          )}
-
-          {relatedEvidence.length > 0 && (
-            <>
-              <h2 className="text-xs font-semibold uppercase tracking-widest text-stone-500">
-                Segnali correlati non collegati — {relatedEvidence.length}
-              </h2>
-              {relatedEvidence.map((item) => (
-                <EvidenceCard key={`${item.source}:${item.id}`} item={item} />
-              ))}
-            </>
-          )}
+          <CableEvidenceSections
+            linkedEvidence={linkedEvidence}
+            ambiguousEvidence={ambiguousEvidence}
+            relatedEvidence={relatedEvidence}
+          />
         </section>
       )}
     </Screen>
