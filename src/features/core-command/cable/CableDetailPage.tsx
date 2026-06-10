@@ -12,12 +12,13 @@ import {
 import { Pill, Screen, EmptyState } from "../../../components/command-ui";
 import {
   FIELD_VERIFICATION_STATUS_OPTIONS,
-  deriveCableFieldState,
+  deriveForensicCableFieldState,
   formatCableEndpointStateLabel,
   formatCableFieldStatusLabel,
   getFieldVerificationStatusLabel,
   isRealBlocker,
   type FieldVerificationStatus,
+  type ForensicFieldVerificationEntry,
 } from "../../../domain/core-engine/fieldVerification";
 import { useAuth } from "../../../auth/AuthProvider";
 import { recordFieldVerification } from "../api/fieldVerification.api";
@@ -302,16 +303,18 @@ export default function CableDetailPage() {
     (item) => item.match.bucket === "related",
   );
   const lastEvent = linkedEvidence[0] ?? null;
-  const fieldVerificationEntries = fieldEvents
-    .map((event) => ({
-      status: inferVerificationStatus(event.event_type, event.payload),
-      occurred_at: event.occurred_at,
-    }))
-    .filter(
-      (entry): entry is { status: FieldVerificationStatus; occurred_at: string } =>
-        entry.status != null,
-    );
-  const cableFieldState = deriveCableFieldState(fieldVerificationEntries);
+  // Stato campo = SOLO prove "linked" o validazioni manuali del capo (§5 della
+  // vision): una frase chiara in un messaggio collegato O un'azione esplicita
+  // del capo possono muovere lo stato. Ambigui/correlati non lo toccano mai.
+  const forensicFieldEntries: ForensicFieldVerificationEntry[] = forensicEvidence
+    .filter((item) => item.verification_status != null)
+    .map((item) => ({
+      status: item.verification_status as FieldVerificationStatus,
+      occurred_at: item.occurred_at,
+      evidence_bucket: item.match.bucket,
+      is_manual_validation: item.is_manual_validation,
+    }));
+  const cableFieldState = deriveForensicCableFieldState(forensicFieldEntries);
   const hasRealBlocker = isRealBlocker({ fieldStatus: cableFieldState.status });
   const whyResult = buildWhyResult(
     listItems,
