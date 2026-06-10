@@ -21,6 +21,18 @@ export interface AuthResult {
   error: string | null;
 }
 
+/** Lit le claim `role` d'un JWT (la signature est déjà validée par la gateway). */
+function jwtRole(token: string): string | null {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const json = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+    return typeof json.role === "string" ? json.role : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Détermine le mode d'appel et valide l'autorisation.
  * - service-role en Bearer  → system (cron)
@@ -40,8 +52,10 @@ export async function authenticateCaller(
     return { ok: false, mode: null, status: 401, error: "Missing Authorization" };
   }
 
-  // Mode système : le cron présente la service-role key.
-  if (bearer === serviceKey) {
+  // Mode système : le cron présente la service-role key. On accepte soit l'égalité
+  // directe, soit le claim role=service_role (la gateway a déjà validé la signature),
+  // pour être robuste aux variantes de clé service-role du projet.
+  if (bearer === serviceKey || jwtRole(bearer) === "service_role") {
     return { ok: true, mode: "system", status: 200, error: null };
   }
 
