@@ -27,6 +27,14 @@ const COMMON_WORDS = new Set([
   "IA","IO","SA","SO","CO","PO","MO","BO","VO","FO","GO",
 ]);
 
+// Mots de chantier (lieux, structures, équipes) qui ressemblent à un code
+// « LETTRES + chiffres » mais n'en sont PAS. Ex : "ponte 10" = pont n°10,
+// pas le câble "PONTE 10". Comparaison exacte sur les lettres normalisées.
+const SITE_WORDS = new Set([
+  "PONTE","PONT","PORTA","PORTE","RAMPA","SCALA","SALA","SALE",
+  "ZONA","AREA","LOCALE","SQUADRA","LATO","CABINA","QUADRO",
+]);
+
 // ---------------------------------------------------------------------------
 // Strip émojis / symboles non-alphabétiques non-numériques
 // ---------------------------------------------------------------------------
@@ -131,6 +139,8 @@ export function extractCableRefs(text: string): ExtractedCableRef[] {
       if (letterRaw.length < 2 || letterRaw.length > 5) continue;
       // Filtre : pas un mot commun
       if (COMMON_WORDS.has(letterRaw)) continue;
+      // Filtre : pas un mot de chantier (ponte, scala, zona…)
+      if (SITE_WORDS.has(letterRaw)) continue;
       // Filtre : pas un nombre seul déguisé
       if (/^\d+$/.test(letterRaw)) continue;
 
