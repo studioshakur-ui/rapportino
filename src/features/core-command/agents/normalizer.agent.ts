@@ -63,11 +63,11 @@ export function normalizeCableCode(raw: string): string {
   let s = stripSectionPrefix(stripNoise(raw));
   // Collapse separators (spaces, dots, dashes between letters)
   s = s.replace(/[\s.\-]+/g, " ").trim().toUpperCase();
-  // Match: 1-5 letters (possibly spaced) + digits + optional suffix
-  const m = s.match(/^([A-Z](?:\s*[A-Z]){1,4})\s*([\d]{2,5})\s*([A-Z]?)$/);
+  // Match: 2-3 letters (possibly spaced) + digits + optional suffix
+  const m = s.match(/^([A-Z](?:\s*[A-Z]){1,2})\s*([\d]{2,5})\s*([A-Z]?)$/);
   if (!m) {
     // Fallback: try without spaces at all e.g. "WTI036" or "wti036"
-    const m2 = s.replace(/\s+/g, "").match(/^([A-Z]{2,5})([\d]{2,5})([A-Z]?)$/i);
+    const m2 = s.replace(/\s+/g, "").match(/^([A-Z]{2,3})([\d]{2,5})([A-Z]?)$/i);
     if (m2) {
       const letters = m2[1].toUpperCase();
       const digits  = m2[2];
@@ -88,7 +88,7 @@ export function normalizeCableCode(raw: string): string {
  * Normalized:  [ship_letter][family_code] [number]
  */
 export function normalizedToIncaCode(normalized: string): string {
-  const m = normalized.match(/^([A-Z])([A-Z]{1,4})\s+([\d]{2,5}.*)$/);
+  const m = normalized.match(/^([A-Z])([A-Z]{1,2})\s+([\d]{2,5}.*)$/);
   if (m) return `${m[1]} ${m[2]} ${m[3]}`;
   return normalized;
 }
@@ -121,12 +121,8 @@ export function extractCableRefs(text: string): ExtractedCableRef[] {
     const line = stripSectionPrefix(stripNoise(rawLine)).trim();
     if (!line) continue;
 
-    // Regex permissive :
-    // - 1-5 lettres, chaque lettre séparée par espaces/points facultatifs
-    // - séparateur optionnel (points, espaces)
-    // - 2-5 chiffres
-    // - suffixe lettre optionnel
-    const re = /\b([A-Za-z](?:[\s.]*[A-Za-z]){1,4})[\s.]*(\d{2,5})\s*([A-Za-z]?)\b/g;
+    // Regex: 2-3 letters (possibly spaced/dotted) + 2-5 digits + optional suffix
+    const re = /\b([A-Za-z](?:[\s.]*[A-Za-z]){1,2})[\s.]*(\d{2,5})\s*([A-Za-z]?)\b/g;
     let m: RegExpExecArray | null;
 
     while ((m = re.exec(line)) !== null) {
@@ -135,8 +131,8 @@ export function extractCableRefs(text: string): ExtractedCableRef[] {
       const digits    = m[2];
       const suffix    = m[3].toUpperCase();
 
-      // Filtre : lettres entre 2 et 5 chars
-      if (letterRaw.length < 2 || letterRaw.length > 5) continue;
+      // Filtre : lettres entre 2 et 3 chars
+      if (letterRaw.length < 2 || letterRaw.length > 3) continue;
       // Filtre : pas un mot commun
       if (COMMON_WORDS.has(letterRaw)) continue;
       // Filtre : pas un mot de chantier (ponte, scala, zona…)

@@ -60,9 +60,9 @@ export function normalizeCableLoose(raw: string): string {
     .trim()
     .toUpperCase();
 
-  const m = s.match(/^([A-Z](?:\s*[A-Z]){1,4})\s*([\d]{2,5})\s*([A-Z]?)$/);
+  const m = s.match(/^([A-Z](?:\s*[A-Z]){1,2})\s*([\d]{2,5})\s*([A-Z]?)$/);
   if (!m) {
-    const m2 = s.replace(/\s+/g, "").match(/^([A-Z]{2,5})([\d]{2,5})([A-Z]?)$/);
+    const m2 = s.replace(/\s+/g, "").match(/^([A-Z]{2,3})([\d]{2,5})([A-Z]?)$/);
     if (m2) {
       const letters = m2[1];
       const digits = m2[2];

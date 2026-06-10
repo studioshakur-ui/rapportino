@@ -48,7 +48,7 @@ interface DetectedCableCode {
 }
 
 const CABLE_CODE_RE =
-  /\b((?:\d{1,2}[-/]\d{1,2}\s+)?[A-Za-z](?:[\s.\-]*[A-Za-z]){1,4}[\s.\-]*\d{2,5}\s*[A-Za-z]?)\b/g;
+  /\b((?:\d{1,2}[-/]\d{1,2}\s+)?[A-Za-z](?:[\s.\-]*[A-Za-z]){1,2}[\s.\-]*\d{2,5}\s*[A-Za-z]?)\b/g;
 const GENERIC_TOKENS = new Set([
   "I",
   "SE",
