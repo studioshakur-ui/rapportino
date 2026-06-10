@@ -7,6 +7,7 @@ const MAIN_NAV = [
   { to: "/campo", label: "Campo", hint: "Verifiche sul campo" },
   { to: "/apparati", label: "Apparati", hint: "Chiusure apparato" },
   { to: "/situazione", label: "Situazione", hint: "Messaggio 16:30" },
+  { to: "/assistente", label: "Assistente", hint: "Domande sul cantiere" },
 ] as const;
 
 const SECONDARY_NAV = [
@@ -133,7 +134,7 @@ export default function CommandShell(): JSX.Element {
                 />
               </form>
 
-              <div className="mt-3 grid grid-cols-4 gap-2">
+              <div className="mt-3 grid grid-cols-3 gap-2">
                 {MAIN_NAV.map(({ to, label }) => (
                   <NavLink
                     key={to}

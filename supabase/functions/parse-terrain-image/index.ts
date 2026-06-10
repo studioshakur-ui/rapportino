@@ -19,6 +19,8 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { corsHeaders, withCors } from "../_shared/cors.ts";
+import { chatJSON, MODELS } from "../_shared/openai.ts";
+import { authenticateCaller } from "../_shared/auth.ts";
 
 const IMAGE_BUCKET = "terrain-images";
 
@@ -123,36 +125,27 @@ async function callVision(key: string, dataUrl: string): Promise<VisionResult> {
     "}",
   ].join("\n");
 
-  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "gpt-4o",
-      response_format: { type: "json_object" },
-      max_tokens: 4096,
-      messages: [
-        { role: "system", content: systemPrompt },
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: "Analyse cette liste terrain. Etape 1: lis la legende des couleurs en bas. Etape 2: pour chaque ligne, detecte la couleur de fond de MARCA PEZZO et mappe-la sur la legende pour obtenir laid_date. Detecte aussi les APP-PARTENZA/APP-ARRIVO colores et le texte PRIORITA dans NOTE.",
-            },
-            { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
-          ],
-        },
-      ],
-    }),
+  // temperature 0 (défaut) : la lecture d'un tableau doit être reproductible ;
+  // retry + timeout 60s intégrés (la vision est plus lente, le cron est sans humain).
+  const text = await chatJSON({
+    apiKey: key,
+    model: MODELS.vision,
+    maxTokens: 4096,
+    timeoutMs: 60_000,
+    messages: [
+      { role: "system", content: systemPrompt },
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: "Analyse cette liste terrain. Etape 1: lis la legende des couleurs en bas. Etape 2: pour chaque ligne, detecte la couleur de fond de MARCA PEZZO et mappe-la sur la legende pour obtenir laid_date. Detecte aussi les APP-PARTENZA/APP-ARRIVO colores et le texte PRIORITA dans NOTE.",
+          },
+          { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
+        ],
+      },
+    ],
   });
-
-  if (!resp.ok) {
-    const err = await resp.text().catch(() => "");
-    throw new Error(`OpenAI Vision ${resp.status}: ${err.slice(0, 150)}`);
-  }
-
-  const data = await resp.json();
-  const text: string = data.choices?.[0]?.message?.content ?? "{}";
   const parsed = JSON.parse(text);
   return {
     list_number:  parsed.list_number ?? null,
@@ -176,17 +169,11 @@ serve(
     if (!supabaseUrl || !serviceKey || !anonKey) return json(500, { error: "Missing Supabase env" });
     if (!openaiKey) return json(500, { error: "OPENAI_API_KEY not configured" });
 
-    const authHeader = req.headers.get("authorization") ?? "";
-    if (!authHeader) return json(401, { error: "Missing Authorization" });
+    // Auth : cron (service-role) en mode système, ou bouton manuel (JWT user).
+    const auth = await authenticateCaller(req, supabaseUrl, anonKey, serviceKey);
+    if (!auth.ok) return json(auth.status, { error: auth.error });
 
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-      auth: { persistSession: false },
-    });
     const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
-
-    const { data: u, error: uErr } = await userClient.auth.getUser();
-    if (uErr || !u?.user) return json(401, { error: "Invalid session" });
 
     const body   = await req.json().catch(() => ({}));
     const dryRun = body.dry_run === true;

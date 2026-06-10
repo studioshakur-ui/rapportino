@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { AppBar, EmptyState, Pill, Screen, Section, StatCard } from "../../../components/command-ui";
+import { AppBar, Btn, EmptyState, Pill, Screen, Section, StatCard } from "../../../components/command-ui";
+import { classifyIncomingNow, parseTerrainImagesNow } from "../api/ai.api";
 import { useAuth } from "../../../auth/AuthProvider";
 import { formatCableDisplay } from "../../../core/cable/cableDisplay";
 import { loadCoreEngineSnapshot } from "../../../domain/core-engine";
@@ -26,6 +27,52 @@ function formatDate(value: string | null): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+// Barra di sincronizzazione manuale. Il cron classifica/legge ogni 30 min ;
+// questi pulsanti forzano un aggiornamento immediato quando serve.
+function FieldSyncBar(): JSX.Element {
+  const queryClient = useQueryClient();
+  const [msg, setMsg] = useState<string | null>(null);
+
+  function invalidate(): void {
+    void queryClient.invalidateQueries({ queryKey: ["core_engine_snapshot"] });
+    void queryClient.invalidateQueries({ queryKey: ["core_events", "pending"] });
+    void queryClient.invalidateQueries({ queryKey: ["incoming_messages", "telegram", "proofs"] });
+  }
+
+  const classify = useMutation({
+    mutationFn: classifyIncomingNow,
+    onSuccess: (r) => { setMsg(`Messaggi: ${r.processed} elaborati · ${r.events_created} prove`); invalidate(); },
+    onError: (e) => setMsg((e as Error).message),
+  });
+  const vision = useMutation({
+    mutationFn: parseTerrainImagesNow,
+    onSuccess: (r) => { setMsg(`Foto: ${r.processed} lette · ${r.snapshots_created} apparati`); invalidate(); },
+    onError: (e) => setMsg((e as Error).message),
+  });
+
+  const busy = classify.isPending || vision.isPending;
+
+  return (
+    <div className="rounded-[24px] border border-stone-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-stone-950">Aggiorna prove dal campo</p>
+          <p className="mt-0.5 text-xs text-stone-500">Automatico ogni 30 min · forza ora se serve</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Btn onClick={() => classify.mutate()} disabled={busy} variant="secondary">
+            {classify.isPending ? "…" : "Classifica messaggi"}
+          </Btn>
+          <Btn onClick={() => vision.mutate()} disabled={busy} variant="secondary">
+            {vision.isPending ? "…" : "Leggi foto liste"}
+          </Btn>
+        </div>
+      </div>
+      {msg ? <p className="mt-2 text-xs font-medium text-stone-600">{msg}</p> : null}
+    </div>
+  );
 }
 
 export default function CampoPage(): JSX.Element {
@@ -144,6 +191,8 @@ export default function CampoPage(): JSX.Element {
         title="Campo"
         subtitle="Prove, import e messaggi che hanno cambiato la situazione sul terreno."
       />
+
+      <FieldSyncBar />
 
       {!isLoading && !field ? (
         <EmptyState

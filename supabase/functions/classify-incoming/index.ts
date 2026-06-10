@@ -5,6 +5,8 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { corsHeaders, withCors } from "../_shared/cors.ts";
+import { chatJSON, MODELS } from "../_shared/openai.ts";
+import { authenticateCaller } from "../_shared/auth.ts";
 
 interface IncomingRow {
   id: string;
@@ -205,29 +207,16 @@ Règles critiques:
 Réponds en JSON valide uniquement, format:
 {"results":[{"id":"<exact_uuid>","kind":"<KIND>","confidence":<0.0-1.0>,"note":<"phrase"|null>}]}`;
 
-  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${key}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user",   content: `Messages à analyser:\n${msgList}` },
-      ],
-    }),
+  // temperature 0 (défaut chatJSON) : la classification doit être déterministe ;
+  // retry + timeout intégrés (le cron tourne sans humain devant l'écran).
+  const text = await chatJSON({
+    apiKey: key,
+    model: MODELS.classify,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user",   content: `Messages à analyser:\n${msgList}` },
+    ],
   });
-
-  if (!resp.ok) {
-    const err = await resp.text().catch(() => "(unreadable)");
-    throw new Error(`OpenAI API ${resp.status}: ${err.slice(0, 200)}`);
-  }
-
-  const data = await resp.json();
-  const text: string = data.choices?.[0]?.message?.content ?? "";
   const parsed = JSON.parse(text);
   return (parsed.results ?? []) as AIResult[];
 }
@@ -249,20 +238,14 @@ serve(
       return json(500, { ok: false, error: "OPENAI_API_KEY not configured in Supabase secrets" });
     }
 
-    const authHeader = req.headers.get("authorization") ?? "";
-    if (!authHeader) return json(401, { ok: false, error: "Missing Authorization header" });
+    // Auth : cron (service-role) en mode système, ou bouton manuel (JWT user).
+    const auth = await authenticateCaller(req, supabaseUrl, anonKey, serviceKey);
+    if (!auth.ok) return json(auth.status, { ok: false, error: auth.error });
 
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-      auth: { persistSession: false },
-    });
     const admin = createClient(supabaseUrl, serviceKey, {
       global: { headers: { Authorization: `Bearer ${serviceKey}` } },
       auth: { persistSession: false },
     });
-
-    const { data: u, error: uErr } = await userClient.auth.getUser();
-    if (uErr || !u?.user) return json(401, { ok: false, error: "Invalid session" });
 
     const body = await req.json().catch(() => ({}));
     const dryRun = body.dry_run === true;
@@ -298,6 +281,10 @@ serve(
     const BATCH_SIZE = 10;
     const allResults: AIResult[] = [];
     const apiErrors: string[] = [];
+    // Messages dont l'appel API a échoué (après retries) : on NE les marque PAS
+    // processed → le prochain run cron les reprendra. Sans ça, un vrai
+    // "CCS 102 posato" reçu pendant un hoquet OpenAI serait perdu pour toujours.
+    const failedIds = new Set<string>();
 
     for (let i = 0; i < messages.length; i += BATCH_SIZE) {
       const batch = messages.slice(i, i + BATCH_SIZE);
@@ -306,9 +293,7 @@ serve(
         allResults.push(...results);
       } catch (e) {
         apiErrors.push(String(e));
-        for (const m of batch) {
-          allResults.push({ id: m.id, kind: "GENERAL_MESSAGE", confidence: 0.1, note: null });
-        }
+        for (const m of batch) failedIds.add(m.id);
       }
     }
 
@@ -333,9 +318,13 @@ serve(
 
     let eventsCreated  = 0;
     let processedCount = 0;
+    let skippedCount   = 0;
     const writeErrors: string[] = [];
 
     for (const msg of messages) {
+      // Échec API → on laisse processed=false pour le prochain run cron.
+      if (failedIds.has(msg.id)) { skippedCount++; continue; }
+
       const cls = resultMap.get(msg.id) ?? {
         id: msg.id, kind: "GENERAL_MESSAGE", confidence: 0.2, note: null,
       };
@@ -429,8 +418,10 @@ serve(
 
     return json(200, {
       ok:             true,
+      mode:           auth.mode,
       total:          messages.length,
       processed:      processedCount,
+      skipped:        skippedCount,   // API échouée → repris au prochain run cron
       events_created: eventsCreated,
       errors:         [...apiErrors, ...writeErrors].slice(0, 20),
     });

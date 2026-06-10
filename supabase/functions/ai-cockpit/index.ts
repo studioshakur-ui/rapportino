@@ -5,6 +5,8 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { corsHeaders, withCors } from "../_shared/cors.ts";
+import { chatJSON, MODELS } from "../_shared/openai.ts";
+import { authenticateCaller } from "../_shared/auth.ts";
 
 interface CockpitAnswer {
   summary: string;
@@ -35,19 +37,13 @@ serve(
     if (!supabaseUrl || !serviceKey || !anonKey) return json(500, { error: "Missing Supabase env" });
     if (!openaiKey) return json(500, { error: "OPENAI_API_KEY not configured" });
 
-    const authHeader = req.headers.get("authorization") ?? "";
-    if (!authHeader) return json(401, { error: "Missing Authorization" });
+    // Auth : assistant déclenché manuellement (JWT user) ; service-role accepté aussi.
+    const auth = await authenticateCaller(req, supabaseUrl, anonKey, serviceKey);
+    if (!auth.ok) return json(auth.status, { error: auth.error });
 
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-      auth: { persistSession: false },
-    });
     const admin = createClient(supabaseUrl, serviceKey, {
       auth: { persistSession: false },
     });
-
-    const { data: u, error: uErr } = await userClient.auth.getUser();
-    if (uErr || !u?.user) return json(401, { error: "Invalid session" });
 
     const body = await req.json().catch(() => ({}));
     const question: string = (body.question ?? "").trim().slice(0, 500);
@@ -181,30 +177,22 @@ Regles:
 
     const userContent = `${contextText}\n\nQUESTION DU CHEF DE CHANTIER:\n${question}`;
 
-    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${openaiKey}`,
-        "Content-Type":  "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        response_format: { type: "json_object" },
-        max_tokens: 1200,
+    let rawText: string;
+    try {
+      // temperature légère : réponse fluide de contremaître, mais maîtrisée.
+      rawText = await chatJSON({
+        apiKey: openaiKey,
+        model: MODELS.cockpit,
+        maxTokens: 1200,
+        temperature: 0.2,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user",   content: userContent },
         ],
-      }),
-    });
-
-    if (!resp.ok) {
-      const errText = await resp.text().catch(() => "");
-      return json(502, { error: `OpenAI ${resp.status}: ${errText.slice(0, 100)}` });
+      });
+    } catch (e) {
+      return json(502, { error: String(e instanceof Error ? e.message : e) });
     }
-
-    const aiData = await resp.json();
-    const rawText: string = aiData.choices?.[0]?.message?.content ?? "{}";
 
     let answer: CockpitAnswer;
     try {

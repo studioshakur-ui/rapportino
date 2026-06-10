@@ -6,6 +6,7 @@ import RequireAuth from "./auth/RequireAuth";
 import Login from "./pages/Login";
 import CommandShell from "./shells/CommandShell";
 
+import AssistentePage     from "./features/core-command/assistente/AssistentePage";
 import CableDetailPage    from "./features/core-command/cable/CableDetailPage";
 import CampoPage          from "./features/core-command/campo/CampoPage";
 import GraficiPage        from "./features/core-command/grafici/GraficiPage";
@@ -51,6 +52,7 @@ export default function AppRoutes(): JSX.Element {
         <Route path="navemaster" element={<NavemasterPage />} />
         <Route path="campo" element={<CampoPage />} />
         <Route path="situazione" element={<SituazionePage />} />
+        <Route path="assistente" element={<AssistentePage />} />
         <Route path="grafici" element={<GraficiPage />} />
         <Route path="import" element={<DailyListsPage />} />
         <Route path="import/:importId" element={<DailyListDetailPage />} />
