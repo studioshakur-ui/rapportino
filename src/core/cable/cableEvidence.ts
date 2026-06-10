@@ -117,6 +117,47 @@ function stripAbsorbedConnectorSuffix(rawMatch: string): {
   return { raw, length: raw.length };
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Cherche le code cible EXACT dans le texte, en tolérant des espaces/points/tirets
+// entre chaque lettre et chiffre (ex: cible "ISE 002" trouvée dans "…I S E 002…").
+// Indispensable pour les messages-listes denses où la tokenisation générique
+// absorbe la lettre de tête d'un code comme suffixe du code précédent.
+function findTargetCableCodeInText(
+  targetCableCode: string,
+  text: string,
+): DetectedCableCode | null {
+  if (!text) return null;
+  const compact = cableKeyCompact(normalizeCableStrict(targetCableCode));
+  const parts = compact.match(/^([A-Z]+?)(\d{2,5})([A-Z]?)$/);
+  if (!parts) return null;
+
+  const sep = "[\\s.\\-]*";
+  const spaced = (chars: string) => chars.split("").map(escapeRegExp).join(sep);
+  let body = `${spaced(parts[1])}${sep}${spaced(parts[2])}`;
+  if (parts[3]) body += `${sep}${parts[3]}`;
+
+  // Bornes manuelles (pas de lookbehind, compat. Safari ancien) : la lettre de
+  // tête ne doit pas suivre un alphanumérique, et les chiffres ne doivent pas
+  // être suivis d'un autre alphanumérique.
+  const re = new RegExp(`(^|[^A-Za-z0-9])(${body})(?![A-Za-z0-9])`, "i");
+  const hit = re.exec(text);
+  if (!hit) return null;
+
+  const lead = hit[1] ?? "";
+  const raw = hit[2].trim();
+  const start = hit.index + lead.length;
+  return {
+    raw,
+    normalizedStrict: normalizeCableStrict(raw),
+    normalizedLoose: normalizeCableLoose(raw),
+    start,
+    end: start + raw.length,
+  };
+}
+
 export function classifyCableEvidence(
   input: ClassifyCableEvidenceInput,
 ): CableEvidenceMatch {
@@ -126,9 +167,12 @@ export function classifyCableEvidence(
   const targetLooseKey = cableKeyCompact(targetLoose);
   const text = String(input.sourceText ?? "");
   const detected = detectCableCodesInText(text);
-  const strictHit = detected.find(
-    (code) => cableKeyCompact(code.normalizedStrict) === targetStrictKey,
-  );
+  // 1) match strict via tokenisation générique ; 2) sinon recherche dirigée par
+  //    la cible (récupère les codes que la tokenisation dense a fragmentés).
+  const strictHit =
+    detected.find(
+      (code) => cableKeyCompact(code.normalizedStrict) === targetStrictKey,
+    ) ?? findTargetCableCodeInText(input.targetCableCode, text);
 
   if (strictHit) {
     const proofSourceType = String(input.proofSourceType ?? "").toLowerCase();

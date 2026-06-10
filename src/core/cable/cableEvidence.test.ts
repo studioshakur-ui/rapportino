@@ -74,6 +74,24 @@ describe("cableEvidence forensic matching", () => {
     expect(classify("ISE 003", "I SE C T generici").bucket).toBe("ambiguous");
   });
 
+  it("recovers a target code fragmented inside a dense multi-code stream", () => {
+    // Flux réel : la lettre de tête d'ISE 002 est collée au code précédent.
+    const text =
+      "CCS 515 C KV 017 I LK 014 I S E 002 GF 001 T CC 005 T VU 053";
+    const result = classify("I SE 002", text, {
+      sourceType: "telegram_text",
+    });
+    expect(result.bucket).toBe("linked");
+    expect(result.match_confidence).toBeGreaterThan(0);
+    expect(result.highlight_start).not.toBeNull();
+  });
+
+  it("still refuses a fragmented near-miss that is not the target", () => {
+    const text = "CCS 515 C KV 017 I LK 014 I S E 002 GF 001 T";
+    // ISE 003 n'est PAS dans le flux : ne doit pas être collé à l'historique.
+    expect(classify("I SE 003", text).bucket).not.toBe("linked");
+  });
+
   it("confirmed history is strict text proof or manual validation only", () => {
     expect(classify("ISE 003", "ISE 003 posato").bucket).toBe("linked");
     expect(classify("ISE 003", "ISE 004 posato").bucket).not.toBe("linked");
