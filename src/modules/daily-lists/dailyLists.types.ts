@@ -4,29 +4,64 @@
 
 // ── Business status ────────────────────────────────────────────────────────
 export type DailyItemStatus =
-  | "confirmed_field"  // 100% reported via WhatsApp (CABLE_POSATO)
-  | "likely_laid"      // cable_event CABLE_POSATO without explicit %, high confidence
-  | "to_verify"        // partial % reported (e.g. 70%, 95%)
-  | "no_evidence"      // no WhatsApp signal at all
-  | "missing"          // not found in INCA database
-  | "blocked"          // open finding of severity "block"
-  | "outside_inca";    // cable_code not present in inca_cavi
+  | "confirmed_field" // 100% reported via WhatsApp (CABLE_POSATO)
+  | "likely_laid" // cable_event CABLE_POSATO without explicit %, high confidence
+  | "to_verify" // partial % reported (e.g. 70%, 95%)
+  | "no_evidence" // no WhatsApp signal at all
+  | "missing" // not found in INCA database
+  | "blocked" // open finding of severity "block"
+  | "outside_inca"; // cable_code not present in inca_cavi
 
 export interface StatusMeta {
   label: string;
-  color: string;       // Tailwind bg color token
-  textColor: string;   // Tailwind text color token
+  color: string; // Tailwind bg color token
+  textColor: string; // Tailwind text color token
   icon: string;
 }
 
 export const STATUS_META: Record<DailyItemStatus, StatusMeta> = {
-  confirmed_field: { label: "Confermato terreno", color: "bg-emerald-100 dark:bg-emerald-900/30", textColor: "text-emerald-700 dark:text-emerald-400", icon: "✓" },
-  likely_laid:     { label: "Posato probabile",   color: "bg-blue-100 dark:bg-blue-900/30",      textColor: "text-blue-700 dark:text-blue-400",     icon: "~" },
-  to_verify:       { label: "Da verificare",      color: "bg-amber-100 dark:bg-amber-900/30",    textColor: "text-amber-700 dark:text-amber-400",   icon: "%" },
-  no_evidence:     { label: "Senza evidenza",     color: "bg-zinc-100 dark:bg-zinc-800",         textColor: "text-zinc-500 dark:text-zinc-400",     icon: "?" },
-  missing:         { label: "Mancante",           color: "bg-red-100 dark:bg-red-900/30",        textColor: "text-red-700 dark:text-red-400",       icon: "✗" },
-  blocked:         { label: "Bloccato",           color: "bg-red-200 dark:bg-red-900/40",        textColor: "text-red-800 dark:text-red-300",       icon: "⊘" },
-  outside_inca:    { label: "Fuori INCA",         color: "bg-purple-100 dark:bg-purple-900/30",  textColor: "text-purple-700 dark:text-purple-400", icon: "∅" },
+  confirmed_field: {
+    label: "Confermato terreno",
+    color: "bg-emerald-100 dark:bg-emerald-900/30",
+    textColor: "text-emerald-700 dark:text-emerald-400",
+    icon: "✓",
+  },
+  likely_laid: {
+    label: "Posato probabile",
+    color: "bg-blue-100 dark:bg-blue-900/30",
+    textColor: "text-blue-700 dark:text-blue-400",
+    icon: "~",
+  },
+  to_verify: {
+    label: "Da verificare",
+    color: "bg-amber-100 dark:bg-amber-900/30",
+    textColor: "text-amber-700 dark:text-amber-400",
+    icon: "%",
+  },
+  no_evidence: {
+    label: "Senza evidenza",
+    color: "bg-zinc-100 dark:bg-zinc-800",
+    textColor: "text-zinc-500 dark:text-zinc-400",
+    icon: "?",
+  },
+  missing: {
+    label: "Mancante",
+    color: "bg-red-100 dark:bg-red-900/30",
+    textColor: "text-red-700 dark:text-red-400",
+    icon: "✗",
+  },
+  blocked: {
+    label: "Bloccato",
+    color: "bg-red-200 dark:bg-red-900/40",
+    textColor: "text-red-800 dark:text-red-300",
+    icon: "⊘",
+  },
+  outside_inca: {
+    label: "Fuori INCA",
+    color: "bg-purple-100 dark:bg-purple-900/30",
+    textColor: "text-purple-700 dark:text-purple-400",
+    icon: "∅",
+  },
 };
 
 // ── DB row types ───────────────────────────────────────────────────────────
@@ -69,7 +104,14 @@ export interface DailyItemEvidence {
   whatsapp_message_id: string | null;
   source_type: "cable_event" | "core_event" | "whatsapp_message" | "manual";
   proof_source: string | null;
-  proof_source_type: "telegram_text" | "telegram_photo" | "ocr_photo" | "manual_validation" | "imported_note" | "system_inference" | null;
+  proof_source_type:
+    | "telegram_text"
+    | "telegram_photo"
+    | "ocr_photo"
+    | "manual_validation"
+    | "imported_note"
+    | "system_inference"
+    | null;
   event_kind: string;
   occurred_at: string;
   actor_label: string | null;
@@ -77,7 +119,7 @@ export interface DailyItemEvidence {
   last_message: string | null;
   confidence: number;
   confidence_reason?: string | null;
-  progress_percent: number | null;  // extracted from note "70%"
+  progress_percent: number | null; // extracted from note "70%"
   verification_status?: string | null;
   extracted_cable_codes?: string[];
   extracted_equipment_codes?: string[];
@@ -87,6 +129,13 @@ export interface DailyItemEvidence {
   requires_human_validation?: boolean;
   recommended_action?: string | null;
   incoherence_reason?: string | null;
+  target_cable_code?: string | null;
+  raw_detected_code?: string | null;
+  normalized_detected_code?: string | null;
+  match_type?: string | null;
+  match_confidence?: number | null;
+  match_reason?: string | null;
+  source_text_excerpt?: string | null;
 }
 
 export interface DailyListItemVM extends DailyListItem {
@@ -125,7 +174,7 @@ export interface DailyEvidenceSyncStats {
 export interface ParsedListRow {
   lista: string | null;
   risoluzione: string | null;
-  marca_pezzo: string;           // raw from file
+  marca_pezzo: string; // raw from file
   stato_collegamento: string | null;
   app_partenza: string | null;
   app_arrivo: string | null;

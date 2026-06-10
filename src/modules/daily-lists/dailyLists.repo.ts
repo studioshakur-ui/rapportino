@@ -13,7 +13,12 @@ import type {
 } from "./dailyLists.types";
 import { buildItemVM } from "./dailyLists.logic";
 import { normalizePdfCableCode } from "./dailyLists.parser";
-import { normalizeCableLoose, normalizeCableStrict, resolveCableMatch } from "../../core/cable/cableIdentity";
+import {
+  normalizeCableLoose,
+  normalizeCableStrict,
+  resolveCableMatch,
+} from "../../core/cable/cableIdentity";
+import { classifyCableEvidence } from "../../core/cable/cableEvidence";
 import type { ParsedListRow } from "./dailyLists.types";
 
 interface CableEventEvidenceRow {
@@ -49,7 +54,7 @@ interface WhatsAppEvidenceRow {
 
 interface DailyListItemEventRow {
   id: string;
-  daily_list_item_id: string | null;   // DB column (matches schema)
+  daily_list_item_id: string | null; // DB column (matches schema)
   cable_event_id: string | null;
   core_event_id: string | null;
   whatsapp_message_id: string | null;
@@ -66,7 +71,10 @@ function getString(value: unknown): string | null {
 
 function getStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
-  return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+  return value.filter(
+    (item): item is string =>
+      typeof item === "string" && item.trim().length > 0,
+  );
 }
 
 function getBoolean(value: unknown): boolean {
@@ -83,7 +91,11 @@ const EMPTY_SYNC_STATS: DailyEvidenceSyncStats = {
 // ── Read inca_cavi to build a non-destructive match index (READ-ONLY) ──────
 // Loads the ACTIVE INCA file once and exposes strict/loose keys so each daily
 // row can be matched with provenance + confidence (see core/cable/cableIdentity).
-interface IncaMatchCandidate { id: string; strict: string; loose: string }
+interface IncaMatchCandidate {
+  id: string;
+  strict: string;
+  loose: string;
+}
 
 async function loadIncaMatchIndex(): Promise<IncaMatchCandidate[]> {
   // Active baseline = latest uploaded XLSX INCA file (matches Navemaster truth).
@@ -95,45 +107,61 @@ async function loadIncaMatchIndex(): Promise<IncaMatchCandidate[]> {
     .limit(1)
     .maybeSingle();
 
-  let query = supabase.from("inca_cavi").select("id, marca_cavo, codice").limit(20000);
+  let query = supabase
+    .from("inca_cavi")
+    .select("id, marca_cavo, codice")
+    .limit(20000);
   if (file?.id) query = query.eq("inca_file_id", file.id);
 
   const { data, error } = await query;
   if (error) throw error;
 
-  return ((data ?? []) as Array<{ id: string; marca_cavo: string | null; codice: string | null }>).map((row) => {
+  return (
+    (data ?? []) as Array<{
+      id: string;
+      marca_cavo: string | null;
+      codice: string | null;
+    }>
+  ).map((row) => {
     const source = row.marca_cavo ?? row.codice ?? "";
-    return { id: row.id, strict: normalizeCableStrict(source), loose: normalizeCableLoose(source) };
+    return {
+      id: row.id,
+      strict: normalizeCableStrict(source),
+      loose: normalizeCableLoose(source),
+    };
   });
 }
 
 // ── Create import + items ──────────────────────────────────────────────────
 export interface ImportPayload {
-  file_name:     string;
-  list_date:     string | null;
-  source_kind:   "pdf" | "excel" | "manual";
-  imported_by:   string | null;
-  rows:          ParsedListRow[];
+  file_name: string;
+  list_date: string | null;
+  source_kind: "pdf" | "excel" | "manual";
+  imported_by: string | null;
+  rows: ParsedListRow[];
   raw_metadata?: Record<string, unknown>;
 }
 
-export async function createDailyListImport(payload: ImportPayload): Promise<string> {
+export async function createDailyListImport(
+  payload: ImportPayload,
+): Promise<string> {
   // 1. Create import record (draft)
   const { data: importRow, error: importErr } = await supabase
     .from("daily_list_imports")
     .insert({
-      file_name:    payload.file_name,
-      list_date:    payload.list_date,
-      source_kind:  payload.source_kind,
-      imported_by:  payload.imported_by,
-      rows_count:   payload.rows.length,
-      status:       "draft",
+      file_name: payload.file_name,
+      list_date: payload.list_date,
+      source_kind: payload.source_kind,
+      imported_by: payload.imported_by,
+      rows_count: payload.rows.length,
+      status: "draft",
       raw_metadata: payload.raw_metadata ?? {},
     })
     .select("id")
     .single();
 
-  if (importErr || !importRow) throw importErr ?? new Error("Import creation failed");
+  if (importErr || !importRow)
+    throw importErr ?? new Error("Import creation failed");
   const importId = importRow.id as string;
 
   // 2. Resolve INCA matches against the active baseline.
@@ -141,27 +169,29 @@ export async function createDailyListImport(payload: ImportPayload): Promise<str
   // never auto-assigned — provenance + confidence stored per item.
   const BATCH = 20;
   const incaIndex = await loadIncaMatchIndex();
-  const matches = payload.rows.map((r) => resolveCableMatch(r.marca_pezzo, incaIndex));
+  const matches = payload.rows.map((r) =>
+    resolveCableMatch(r.marca_pezzo, incaIndex),
+  );
 
   // 3. Build items — sanitize all fields before insert
   const items = payload.rows.map((row, idx) => ({
-    import_id:             importId,
-    list_number:           row.lista,
-    list_resolution_date:  safeDate(row.risoluzione),
-    cable_code_raw:        row.marca_pezzo,
+    import_id: importId,
+    list_number: row.lista,
+    list_resolution_date: safeDate(row.risoluzione),
+    cable_code_raw: row.marca_pezzo,
     cable_code_normalized: normalizePdfCableCode(row.marca_pezzo),
-    inca_cavo_id:          matches[idx].incaCavoId,
-    match_source:          matches[idx].source,
-    match_confidence:      matches[idx].confidence,
-    stato_collegamento:    safeText(row.stato_collegamento, 10),
-    app_partenza:          safeText(row.app_partenza, 50),
-    app_arrivo:            safeText(row.app_arrivo, 50),
-    perimetro:             safeText(row.perimetro, 80),
-    data_perimetro:        safeDate(row.data_perimetro),
-    situazione_inca:       safeText(row.situazione_inca, 10),
-    note:                  row.note ?? null,
-    priority_level:        null as string | null,
-    planned_status:        safeText(row.stato_collegamento, 10),
+    inca_cavo_id: matches[idx].incaCavoId,
+    match_source: matches[idx].source,
+    match_confidence: matches[idx].confidence,
+    stato_collegamento: safeText(row.stato_collegamento, 10),
+    app_partenza: safeText(row.app_partenza, 50),
+    app_arrivo: safeText(row.app_arrivo, 50),
+    perimetro: safeText(row.perimetro, 80),
+    data_perimetro: safeDate(row.data_perimetro),
+    situazione_inca: safeText(row.situazione_inca, 10),
+    note: row.note ?? null,
+    priority_level: null as string | null,
+    planned_status: safeText(row.stato_collegamento, 10),
   }));
 
   // 4. Insert items in batches — capture error details for diagnosis
@@ -202,7 +232,9 @@ export async function createDailyListImport(payload: ImportPayload): Promise<str
 }
 
 // ── List recent imports ────────────────────────────────────────────────────
-export async function listRecentImports(limit = 20): Promise<DailyListImport[]> {
+export async function listRecentImports(
+  limit = 20,
+): Promise<DailyListImport[]> {
   const { data, error } = await supabase
     .from("daily_list_imports")
     .select("*")
@@ -212,7 +244,9 @@ export async function listRecentImports(limit = 20): Promise<DailyListImport[]> 
   return (data ?? []) as DailyListImport[];
 }
 
-export async function getImport(importId: string): Promise<DailyListImport | null> {
+export async function getImport(
+  importId: string,
+): Promise<DailyListImport | null> {
   const { data, error } = await supabase
     .from("daily_list_imports")
     .select("*")
@@ -223,7 +257,9 @@ export async function getImport(importId: string): Promise<DailyListImport | nul
 }
 
 // ── Fetch items for an import ──────────────────────────────────────────────
-export async function listItemsByImport(importId: string): Promise<DailyListItem[]> {
+export async function listItemsByImport(
+  importId: string,
+): Promise<DailyListItem[]> {
   const { data, error } = await supabase
     .from("daily_list_items")
     .select("*")
@@ -237,7 +273,7 @@ export async function listItemsByImport(importId: string): Promise<DailyListItem
 // ── Fetch WhatsApp evidence for a list of cable codes ─────────────────────
 // READS cable_events (never writes)
 export async function fetchEvidenceForCodes(
-  codes: string[]
+  codes: string[],
 ): Promise<Map<string, DailyItemEvidence[]>> {
   if (codes.length === 0) return new Map();
 
@@ -245,7 +281,9 @@ export async function fetchEvidenceForCodes(
 
   const { data: cableRows, error: cableError } = await supabase
     .from("cable_events")
-    .select("id,cable_code,event_kind,occurred_at,confidence,note,source_message_id,core_event_id")
+    .select(
+      "id,cable_code,event_kind,occurred_at,confidence,note,source_message_id,core_event_id",
+    )
     .in("cable_code", codes)
     .order("occurred_at", { ascending: false })
     .limit(2000);
@@ -256,8 +294,8 @@ export async function fetchEvidenceForCodes(
     new Set(
       (cableRows ?? [])
         .map((e) => e.source_message_id as string | null)
-        .filter((id): id is string => Boolean(id))
-    )
+        .filter((id): id is string => Boolean(id)),
+    ),
   );
 
   const msgMap = new Map<string, WhatsAppEvidenceRow>();
@@ -276,20 +314,29 @@ export async function fetchEvidenceForCodes(
     const list = result.get(code) ?? [];
     const rawNote = row.note as string | null;
     const pct = extractPercentFromNote(rawNote);
-    const message = row.source_message_id ? msgMap.get(row.source_message_id) : null;
+    const message = row.source_message_id
+      ? msgMap.get(row.source_message_id)
+      : null;
+    const match = classifyCableEvidence({
+      targetCableCode: code,
+      sourceText: rawNote ?? message?.raw_message ?? null,
+      sourceType: "telegram",
+      isManualValidation: false,
+    });
+    if (match.bucket !== "linked") continue;
     list.push({
-      cable_event_id:   row.id as string,
-      core_event_id:    row.core_event_id,
+      cable_event_id: row.id as string,
+      core_event_id: row.core_event_id,
       whatsapp_message_id: row.source_message_id,
-      source_type:      "cable_event",
+      source_type: "cable_event",
       proof_source: "telegram",
       proof_source_type: null,
-      event_kind:       row.event_kind as string,
-      occurred_at:      row.occurred_at as string,
-      actor_label:      message?.author ?? null,
-      raw_note:         rawNote,
-      last_message:     message?.raw_message ?? rawNote,
-      confidence:       Number(row.confidence ?? 0),
+      event_kind: row.event_kind as string,
+      occurred_at: row.occurred_at as string,
+      actor_label: message?.author ?? null,
+      raw_note: rawNote,
+      last_message: message?.raw_message ?? rawNote,
+      confidence: Number(row.confidence ?? 0),
       confidence_reason: null,
       progress_percent: pct,
       verification_status: null,
@@ -301,6 +348,13 @@ export async function fetchEvidenceForCodes(
       requires_human_validation: false,
       recommended_action: null,
       incoherence_reason: null,
+      target_cable_code: match.target_cable_code,
+      raw_detected_code: match.raw_detected_code,
+      normalized_detected_code: match.normalized_detected_code,
+      match_type: match.match_type,
+      match_confidence: match.match_confidence,
+      match_reason: match.match_reason,
+      source_text_excerpt: match.source_text_excerpt,
     });
     result.set(code, list);
   }
@@ -317,11 +371,13 @@ export async function fetchEvidenceForCodes(
 
 async function appendCoreEventEvidence(
   result: Map<string, DailyItemEvidence[]>,
-  codes: string[]
+  codes: string[],
 ): Promise<void> {
   const { data, error } = await supabase
     .from("core_events")
-    .select("id,cable_code_normalized,cable_code_raw,event_type,validation_status,occurred_at,confidence,raw_text,source_message_id,payload")
+    .select(
+      "id,cable_code_normalized,cable_code_raw,event_type,validation_status,occurred_at,confidence,raw_text,source_message_id,payload",
+    )
     .in("cable_code_normalized", codes)
     .neq("validation_status", "rejected")
     .order("occurred_at", { ascending: false })
@@ -329,11 +385,13 @@ async function appendCoreEventEvidence(
 
   if (error) throw error;
 
-  const msgIds = Array.from(new Set(
-    ((data ?? []) as CoreEventEvidenceRow[])
-      .map((row) => row.source_message_id)
-      .filter((id): id is string => Boolean(id))
-  ));
+  const msgIds = Array.from(
+    new Set(
+      ((data ?? []) as CoreEventEvidenceRow[])
+        .map((row) => row.source_message_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
 
   const msgMap = new Map<string, WhatsAppEvidenceRow>();
   if (msgIds.length > 0) {
@@ -347,12 +405,30 @@ async function appendCoreEventEvidence(
   }
 
   for (const row of (data ?? []) as CoreEventEvidenceRow[]) {
-    const code = row.cable_code_normalized ?? normalizePdfCableCode(row.cable_code_raw ?? "");
+    const code =
+      row.cable_code_normalized ??
+      normalizePdfCableCode(row.cable_code_raw ?? "");
     if (!code || !codes.includes(code)) continue;
-    const message = row.source_message_id ? msgMap.get(row.source_message_id) : null;
+    const message = row.source_message_id
+      ? msgMap.get(row.source_message_id)
+      : null;
     const rawNote = row.raw_text ?? message?.raw_message ?? null;
     const payload = asObject(row.payload) ?? {};
     const proof = asObject(payload.proof) ?? payload;
+    const match = classifyCableEvidence({
+      targetCableCode: code,
+      sourceText: rawNote,
+      sourceType: getString(proof.source) ?? "core_event",
+      proofSourceType:
+        getString(proof.source_type) ?? getString(proof.proof_source_type),
+      validationStatus: row.validation_status,
+      isManualValidation:
+        row.event_type === "FIELD_VERIFIED" ||
+        String(
+          (row.payload ?? null)?.verification_source ?? "",
+        ).toLowerCase() === "manual",
+    });
+    if (match.bucket !== "linked") continue;
     const list = result.get(code) ?? [];
     list.push({
       cable_event_id: null,
@@ -360,11 +436,19 @@ async function appendCoreEventEvidence(
       whatsapp_message_id: row.source_message_id,
       source_type:
         row.event_type === "FIELD_VERIFIED" ||
-        String((row.payload ?? null)?.verification_source ?? "").toLowerCase() === "manual"
+        String(
+          (row.payload ?? null)?.verification_source ?? "",
+        ).toLowerCase() === "manual"
           ? "manual"
           : "core_event",
-      proof_source: getString(proof.source) ?? getString(row.source_message_id) ?? "telegram",
-      proof_source_type: (getString(proof.source_type) as DailyItemEvidence["proof_source_type"]) ?? null,
+      proof_source:
+        getString(proof.source) ??
+        getString(row.source_message_id) ??
+        "telegram",
+      proof_source_type:
+        (getString(
+          proof.source_type,
+        ) as DailyItemEvidence["proof_source_type"]) ?? null,
       event_kind: row.event_type,
       occurred_at: row.occurred_at,
       actor_label: getString(proof.author) ?? message?.author ?? null,
@@ -373,15 +457,30 @@ async function appendCoreEventEvidence(
       confidence: Number(row.confidence ?? 0),
       confidence_reason: getString(proof.confidence_reason),
       progress_percent: extractPercentFromNote(rawNote),
-      verification_status: typeof row.payload?.verification_status === "string" ? row.payload.verification_status : null,
+      verification_status:
+        typeof row.payload?.verification_status === "string"
+          ? row.payload.verification_status
+          : null,
       extracted_cable_codes: getStringArray(proof.extracted_cable_codes),
-      extracted_equipment_codes: getStringArray(proof.extracted_equipment_codes),
+      extracted_equipment_codes: getStringArray(
+        proof.extracted_equipment_codes,
+      ),
       extracted_eswbs: getStringArray(proof.extracted_eswbs),
-      detected_position: (getString(proof.detected_position) as DailyItemEvidence["detected_position"]) ?? null,
+      detected_position:
+        (getString(
+          proof.detected_position,
+        ) as DailyItemEvidence["detected_position"]) ?? null,
       detected_status: getString(proof.detected_status),
       requires_human_validation: getBoolean(proof.requires_human_validation),
       recommended_action: getString(proof.recommended_action),
       incoherence_reason: getString(proof.incoherence_reason),
+      target_cable_code: match.target_cable_code,
+      raw_detected_code: match.raw_detected_code,
+      normalized_detected_code: match.normalized_detected_code,
+      match_type: match.match_type,
+      match_confidence: match.match_confidence,
+      match_reason: match.match_reason,
+      source_text_excerpt: match.source_text_excerpt,
     });
     result.set(code, list);
   }
@@ -389,14 +488,16 @@ async function appendCoreEventEvidence(
 
 async function appendDirectWhatsAppEvidence(
   result: Map<string, DailyItemEvidence[]>,
-  codes: string[]
+  codes: string[],
 ): Promise<void> {
   const BATCH = 12;
   for (let i = 0; i < codes.length; i += BATCH) {
     const batch = codes.slice(i, i + BATCH);
     const orFilter = batch
       .flatMap((code) =>
-        evidenceSearchVariants(code).map((variant) => `raw_message.ilike.%${escapeIlikeValue(variant)}%`)
+        evidenceSearchVariants(code).map(
+          (variant) => `raw_message.ilike.%${escapeIlikeValue(variant)}%`,
+        ),
       )
       .join(",");
 
@@ -413,14 +514,19 @@ async function appendDirectWhatsAppEvidence(
 
     for (const msg of (data ?? []) as WhatsAppEvidenceRow[]) {
       const rawMessage = msg.raw_message ?? "";
-      const matchedCode = batch.find((code) =>
-        evidenceSearchVariants(code).some((variant) =>
-          rawMessage.toUpperCase().includes(variant.toUpperCase())
-        )
-      );
-      if (!matchedCode) continue;
+      const matched = batch
+        .map((code) => ({
+          code,
+          match: classifyCableEvidence({
+            targetCableCode: code,
+            sourceText: rawMessage,
+            sourceType: "whatsapp_message",
+          }),
+        }))
+        .find((entry) => entry.match.bucket === "linked");
+      if (!matched) continue;
 
-      const list = result.get(matchedCode) ?? [];
+      const list = result.get(matched.code) ?? [];
       list.push({
         cable_event_id: null,
         core_event_id: null,
@@ -445,8 +551,15 @@ async function appendDirectWhatsAppEvidence(
         requires_human_validation: false,
         recommended_action: null,
         incoherence_reason: null,
+        target_cable_code: matched.match.target_cable_code,
+        raw_detected_code: matched.match.raw_detected_code,
+        normalized_detected_code: matched.match.normalized_detected_code,
+        match_type: matched.match.match_type,
+        match_confidence: matched.match.match_confidence,
+        match_reason: matched.match.match_reason,
+        source_text_excerpt: matched.match.source_text_excerpt,
       });
-      result.set(matchedCode, list);
+      result.set(matched.code, list);
     }
   }
 }
@@ -464,12 +577,14 @@ function dedupeEvidence(evidence: DailyItemEvidence[]): DailyItemEvidence[] {
   const seen = new Set<string>();
   const deduped: DailyItemEvidence[] = [];
   for (const item of evidence.sort(
-    (a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime()
+    (a, b) =>
+      new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime(),
   )) {
-    const key = item.cable_event_id
-      ?? item.core_event_id
-      ?? item.whatsapp_message_id
-      ?? `${item.event_kind}:${item.occurred_at}:${item.raw_note ?? ""}`;
+    const key =
+      item.cable_event_id ??
+      item.core_event_id ??
+      item.whatsapp_message_id ??
+      `${item.event_kind}:${item.occurred_at}:${item.raw_note ?? ""}`;
     if (seen.has(key)) continue;
     seen.add(key);
     deduped.push(item);
@@ -478,13 +593,13 @@ function dedupeEvidence(evidence: DailyItemEvidence[]): DailyItemEvidence[] {
 }
 
 export async function syncDailyListEvidenceLinks(
-  importId: string
+  importId: string,
 ): Promise<DailyEvidenceSyncStats> {
   const items = await listItemsByImport(importId);
   if (items.length === 0) return { ...EMPTY_SYNC_STATS, attempted: true };
 
   const evidenceMap = await fetchEvidenceForCodes(
-    Array.from(new Set(items.map((item) => item.cable_code_normalized)))
+    Array.from(new Set(items.map((item) => item.cable_code_normalized))),
   );
 
   return persistDailyListItemEvents(items, evidenceMap);
@@ -492,28 +607,37 @@ export async function syncDailyListEvidenceLinks(
 
 async function persistDailyListItemEvents(
   items: DailyListItem[],
-  evidenceMap: Map<string, DailyItemEvidence[]>
+  evidenceMap: Map<string, DailyItemEvidence[]>,
 ): Promise<DailyEvidenceSyncStats> {
   const itemIds = items.map((item) => item.id);
 
   try {
     const { data: existingRows, error: existingError } = await supabase
       .from("daily_list_item_events")
-      .select("id,daily_list_item_id,cable_event_id,core_event_id,whatsapp_message_id")
+      .select(
+        "id,daily_list_item_id,cable_event_id,core_event_id,whatsapp_message_id",
+      )
       .in("daily_list_item_id", itemIds)
       .limit(5000);
 
     if (existingError) {
-      return { attempted: true, created: 0, skipped_existing: 0, error: existingError.message };
+      return {
+        attempted: true,
+        created: 0,
+        skipped_existing: 0,
+        error: existingError.message,
+      };
     }
 
     const existingKeys = new Set(
-      ((existingRows ?? []) as DailyListItemEventRow[]).map((row) => evidencePersistKey({
-        daily_list_item_id: row.daily_list_item_id,
-        cable_event_id:     row.cable_event_id,
-        core_event_id:      row.core_event_id,
-        whatsapp_message_id: row.whatsapp_message_id,
-      }))
+      ((existingRows ?? []) as DailyListItemEventRow[]).map((row) =>
+        evidencePersistKey({
+          daily_list_item_id: row.daily_list_item_id,
+          cable_event_id: row.cable_event_id,
+          core_event_id: row.core_event_id,
+          whatsapp_message_id: row.whatsapp_message_id,
+        }),
+      ),
     );
 
     const inserts: Record<string, unknown>[] = [];
@@ -525,21 +649,26 @@ async function persistDailyListItemEvents(
         // Columns aligned with the daily_list_item_events schema:
         //   daily_list_item_id, occurred_at, import_id, cable_code_normalized.
         const payload = {
-          import_id:             item.import_id,
-          daily_list_item_id:    item.id,
+          import_id: item.import_id,
+          daily_list_item_id: item.id,
           cable_code_normalized: item.cable_code_normalized,
-          cable_event_id:        row.cable_event_id,
-          core_event_id:         row.core_event_id,
-          whatsapp_message_id:   row.whatsapp_message_id,
-          source_type:           row.source_type,
-          event_kind:            row.event_kind,
-          occurred_at:           row.occurred_at,
-          actor_label:           row.actor_label,
-          raw_note:              row.raw_note,
-          confidence:            row.confidence,
-          progress_percent:      row.progress_percent,
+          cable_event_id: row.cable_event_id,
+          core_event_id: row.core_event_id,
+          whatsapp_message_id: row.whatsapp_message_id,
+          source_type: row.source_type,
+          event_kind: row.event_kind,
+          occurred_at: row.occurred_at,
+          actor_label: row.actor_label,
+          raw_note: row.raw_note,
+          confidence: row.confidence,
+          progress_percent: row.progress_percent,
         };
-        const key = evidencePersistKey({ daily_list_item_id: item.id, cable_event_id: payload.cable_event_id, core_event_id: payload.core_event_id, whatsapp_message_id: payload.whatsapp_message_id });
+        const key = evidencePersistKey({
+          daily_list_item_id: item.id,
+          cable_event_id: payload.cable_event_id,
+          core_event_id: payload.core_event_id,
+          whatsapp_message_id: payload.whatsapp_message_id,
+        });
         if (existingKeys.has(key)) {
           skippedExisting++;
           continue;
@@ -550,7 +679,12 @@ async function persistDailyListItemEvents(
     }
 
     if (inserts.length === 0) {
-      return { attempted: true, created: 0, skipped_existing: skippedExisting, error: null };
+      return {
+        attempted: true,
+        created: 0,
+        skipped_existing: skippedExisting,
+        error: null,
+      };
     }
 
     let created = 0;
@@ -561,18 +695,29 @@ async function persistDailyListItemEvents(
         .insert(inserts.slice(i, i + BATCH))
         .select("id");
       if (error) {
-        return { attempted: true, created, skipped_existing: skippedExisting, error: error.message };
+        return {
+          attempted: true,
+          created,
+          skipped_existing: skippedExisting,
+          error: error.message,
+        };
       }
       created += (data ?? []).length;
     }
 
-    return { attempted: true, created, skipped_existing: skippedExisting, error: null };
+    return {
+      attempted: true,
+      created,
+      skipped_existing: skippedExisting,
+      error: null,
+    };
   } catch (error) {
     return {
       attempted: true,
       created: 0,
       skipped_existing: 0,
-      error: error instanceof Error ? error.message : "Daily evidence sync failed",
+      error:
+        error instanceof Error ? error.message : "Daily evidence sync failed",
     };
   }
 }
@@ -600,7 +745,9 @@ function extractPercentFromNote(note: string | null): number | null {
 }
 
 // ── Fetch blocking findings for cables ────────────────────────────────────
-export async function fetchBlockingFindings(codes: string[]): Promise<Set<string>> {
+export async function fetchBlockingFindings(
+  codes: string[],
+): Promise<Set<string>> {
   if (codes.length === 0) return new Set();
   const { data } = await supabase
     .from("agent_findings")
@@ -613,12 +760,12 @@ export async function fetchBlockingFindings(codes: string[]): Promise<Set<string
 
 // ── Build enriched view models ─────────────────────────────────────────────
 export async function loadItemsWithEvidence(
-  importId: string
+  importId: string,
 ): Promise<DailyListItemVM[]> {
   const items = await listItemsByImport(importId);
   if (items.length === 0) return [];
 
-  const codes   = Array.from(new Set(items.map((i) => i.cable_code_normalized)));
+  const codes = Array.from(new Set(items.map((i) => i.cable_code_normalized)));
   const [evidenceMap, blockingCodes] = await Promise.all([
     fetchEvidenceForCodes(codes),
     fetchBlockingFindings(codes),
@@ -648,7 +795,10 @@ function safeDate(raw: string | null | undefined): string | null {
 }
 
 /** Truncate text field to maxLen chars, return null if empty or looks like it's a date/code mixup */
-function safeText(raw: string | null | undefined, maxLen: number): string | null {
+function safeText(
+  raw: string | null | undefined,
+  maxLen: number,
+): string | null {
   if (!raw) return null;
   const s = raw.trim();
   if (!s) return null;
