@@ -19,6 +19,9 @@ type ParsedCable = {
 
   stato_tec: string | null;
   stato_cantiere: string | null;
+  perimetro: string | null;
+  data_consegna_perimetro: string | null;
+  collegato: string | null;
 
   impianto: string | null;
 
@@ -460,6 +463,9 @@ function parseXlsxCables(arrayBuffer: ArrayBuffer) {
 
     const statoTec = normText(pickFirst(row, ["STATO_TEC"])) || null;
     const statoCantiereRaw = normText(pickFirst(row, ["STATO_CANTIERE"])) || null;
+    const perimetro = normText(pickFirst(row, ["PERIMETRO"])) || null;
+    const dataConsegnaPerimetro = parseExcelDateValue(pickFirst(row, ["DATA_CONSEGNA_PERIMETRO"]), "date").date;
+    const collegato = normText(pickFirst(row, ["COLLEGATO"])) || null;
 
     const rawSitCandidate = pickFirst(row, ["STATO_CANTIERE", "SITUAZIONE_CAVO", "SITUAZIONE", "STATO"]);
     const { progress: progressPercent, situazione, raw: situazioneRaw } = normalizeProgressFromStatoCantiere(rawSitCandidate);
@@ -506,6 +512,9 @@ function parseXlsxCables(arrayBuffer: ArrayBuffer) {
       livello_disturbo: livelloDisturbo || null,
       stato_tec: statoTec || null,
       stato_cantiere: statoCantiereRaw || null,
+      perimetro,
+      data_consegna_perimetro: dataConsegnaPerimetro,
+      collegato,
       impianto,
       zona_da: zonaDa,
       zona_a: zonaA,
@@ -651,6 +660,9 @@ function toDbComparable(c: ParsedCable) {
     livello_disturbo: c.livello_disturbo,
     stato_tec: c.stato_tec,
     stato_cantiere: c.stato_cantiere,
+    perimetro: c.perimetro,
+    data_consegna_perimetro: c.data_consegna_perimetro,
+    collegato: c.collegato,
     apparato_da: c.apparato_da,
     apparato_a: c.apparato_a,
     zona_da: c.zona_da,
@@ -729,6 +741,9 @@ function toIncaCaviRow(incaFileId: string, costr: string, commessa: string, c: P
     livello_disturbo: c.livello_disturbo,
     stato_tec: c.stato_tec,
     stato_cantiere: c.stato_cantiere,
+    perimetro: c.perimetro,
+    data_consegna_perimetro: c.data_consegna_perimetro,
+    collegato: c.collegato,
     impianto: c.impianto,
     zona_da: c.zona_da,
     zona_a: c.zona_a,
@@ -905,7 +920,7 @@ serve(
       const prevRowsRes = await admin
         .from("inca_cavi")
         .select(
-          "codice,codice_inca,marca_cavo,descrizione,tipo,sezione,livello_disturbo,stato_tec,stato_cantiere,impianto,zona_da,zona_a,apparato_da,apparato_a,descrizione_da,descrizione_a,metri_teo,metri_dis,wbs,pagina_pdf,situazione,progress_percent,inca_data_taglio,inca_data_posa,inca_data_collegamento,inca_data_richiesta_taglio,inca_dataela_ts,inca_data_instradamento_ts,inca_data_creazione_instradamento_ts",
+          "codice,codice_inca,marca_cavo,descrizione,tipo,sezione,livello_disturbo,stato_tec,stato_cantiere,perimetro,data_consegna_perimetro,collegato,impianto,zona_da,zona_a,apparato_da,apparato_a,descrizione_da,descrizione_a,metri_teo,metri_dis,wbs,pagina_pdf,situazione,progress_percent,inca_data_taglio,inca_data_posa,inca_data_collegamento,inca_data_richiesta_taglio,inca_dataela_ts,inca_data_instradamento_ts,inca_data_creazione_instradamento_ts",
         )
         .eq("inca_file_id", headId);
 
@@ -925,6 +940,9 @@ serve(
           livello_disturbo: r.livello_disturbo ?? null,
           stato_tec: r.stato_tec ?? null,
           stato_cantiere: r.stato_cantiere ?? null,
+          perimetro: r.perimetro ?? null,
+          data_consegna_perimetro: r.data_consegna_perimetro ?? null,
+          collegato: r.collegato ?? null,
           impianto: r.impianto ?? null,
           zona_da: r.zona_da ?? null,
           zona_a: r.zona_a ?? null,
