@@ -60,3 +60,14 @@ export interface PerimetroBoardView {
   shipId: string | null;
   rows: PerimetroBoardRow[];
 }
+
+// Drill-down : un câble qui retient encore un périmètre (RPC navemaster_perimetro_cavi).
+export interface PerimetroCavoRow {
+  codice: string;
+  marca_cavo: string | null;
+  situazione: string | null;
+  collegato: string | null;
+  posato: boolean;
+  is_collegato: boolean;
+  bloccato: boolean;
+}
