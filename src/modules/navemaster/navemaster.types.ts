@@ -40,3 +40,23 @@ export interface NavemasterView {
   alerts: NavemasterAlert[];
   shipId: string | null;
 }
+
+// Read-model périmètre (RPC navemaster_perimetro_board) : avancement live des
+// 2 axes vers la consegna, une ligne par périmètre.
+export interface PerimetroBoardRow {
+  perimetro: string;
+  data_consegna: string | null;
+  giorni_al_target: number | null; // négatif = en retard
+  tot_cavi: number;
+  posati: number;
+  collegati: number;
+  bloccati: number;
+  da_completare: number;
+  pct_posa: number | null;
+  pct_coll: number | null;
+}
+
+export interface PerimetroBoardView {
+  shipId: string | null;
+  rows: PerimetroBoardRow[];
+}

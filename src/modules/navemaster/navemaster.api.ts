@@ -3,7 +3,7 @@
 // nessuna scrittura su inca_cavi (il run è calcolato dall'RPC SECURITY DEFINER).
 
 import { supabase } from "../../lib/supabaseClient";
-import type { NavemasterAlert, NavemasterAlertStatus, NavemasterRun, NavemasterView } from "./navemaster.types";
+import type { NavemasterAlert, NavemasterAlertStatus, NavemasterRun, NavemasterView, PerimetroBoardRow, PerimetroBoardView } from "./navemaster.types";
 
 // I nuovi RPC non sono nei tipi generati: piccolo wrapper non tipizzato.
 type RpcFn = (fn: string, args?: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
@@ -44,6 +44,15 @@ export async function loadNavemasterView(): Promise<NavemasterView> {
   const run = await loadLatestRun(shipId);
   const alerts = run ? await loadAlerts(run.id) : [];
   return { run, alerts, shipId };
+}
+
+/** Read-model périmètre: avancement live des 2 axes vers la consegna, par périmètre. */
+export async function loadPerimetroBoard(): Promise<PerimetroBoardView> {
+  const shipId = await loadActiveShipId();
+  if (!shipId) return { shipId: null, rows: [] };
+  const { data, error } = await rpc("navemaster_perimetro_board", { p_ship_id: shipId });
+  if (error) throw new Error(error.message);
+  return { shipId, rows: (data as PerimetroBoardRow[] | null) ?? [] };
 }
 
 /** Calcola un nuovo run di riconciliazione sul fichier INCA attivo. */
