@@ -3,8 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppBar, Btn, EmptyState, Pill, ProgressBar, Screen, Section, StatCard } from "../../components/command-ui";
 import { formatCableDisplay } from "../../core/cable/cableDisplay";
-import { computeNavemasterRun, loadNavemasterView, loadPerimetroBoard, setNavemasterAlertStatus } from "./navemaster.api";
-import type { NavemasterAlert, NavemasterAlertType, PerimetroBoardRow } from "./navemaster.types";
+import { computeNavemasterRun, loadNavemasterView, loadPerimetroBoard, loadPerimetroCavi, setNavemasterAlertStatus } from "./navemaster.api";
+import type { NavemasterAlert, NavemasterAlertType, PerimetroBoardRow, PerimetroCavoRow } from "./navemaster.types";
 import { buildMorningSentence, isOverdue } from "./perimetroBoard.logic";
 
 function giorniLabel(g: number | null): string {
@@ -19,9 +19,50 @@ function formatConsegna(d: string | null): string {
   return new Date(d).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "2-digit" });
 }
 
-function PerimetroBoardRowCard({ row }: { row: PerimetroBoardRow }): JSX.Element {
+function cavoStato(c: PerimetroCavoRow): { label: string; tone: "red" | "amber" | "sky" } {
+  if (c.bloccato) return { label: "Bloccato", tone: "red" };
+  if (!c.posato) return { label: "Da posare", tone: "amber" };
+  return { label: "Da collegare", tone: "sky" };
+}
+
+function PerimetroCaviList({ shipId, perimetro }: { shipId: string; perimetro: string }): JSX.Element {
+  const navigate = useNavigate();
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["navemaster_perimetro_cavi", shipId, perimetro],
+    queryFn: () => loadPerimetroCavi(shipId, perimetro),
+    staleTime: 30_000,
+  });
+
+  if (isLoading) return <div className="px-1 py-2 text-xs text-stone-500">Carico cavi…</div>;
+  if (isError) return <div className="px-1 py-2 text-xs text-red-600">Errore nel caricamento dei cavi.</div>;
+  const cavi = data ?? [];
+  if (cavi.length === 0) return <div className="px-1 py-2 text-xs text-emerald-700">Nessun cavo da completare.</div>;
+
+  return (
+    <div className="mt-3 space-y-1 border-t border-stone-100 pt-3">
+      {cavi.map((c) => {
+        const stato = cavoStato(c);
+        return (
+          <button
+            key={c.codice}
+            onClick={() => navigate(`/cable/${encodeURIComponent(c.codice)}`)}
+            className="flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition hover:bg-stone-50"
+          >
+            <span className="font-mono text-sm font-semibold text-stone-950">{formatCableDisplay(c.codice)}</span>
+            <Pill tone={stato.tone}>{stato.label}</Pill>
+            <span className="ml-auto text-xs text-emerald-700">Verifica →</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function PerimetroBoardRowCard({ row, shipId }: { row: PerimetroBoardRow; shipId: string | null }): JSX.Element {
+  const [open, setOpen] = useState(false);
   const overdue = isOverdue(row);
   const done = row.da_completare === 0;
+  const canExpand = !done && shipId != null;
   return (
     <div className="rounded-2xl border border-stone-200 bg-white px-4 py-3 shadow-sm">
       <div className="flex flex-wrap items-center gap-2">
@@ -29,9 +70,16 @@ function PerimetroBoardRowCard({ row }: { row: PerimetroBoardRow }): JSX.Element
         <Pill tone={done ? "emerald" : overdue ? "red" : "neutral"}>{giorniLabel(row.giorni_al_target)}</Pill>
         <span className="text-xs text-stone-500">consegna {formatConsegna(row.data_consegna)}</span>
         {row.bloccati > 0 ? <Pill tone="amber">{row.bloccati} bloccati</Pill> : null}
-        <span className="ml-auto text-xs font-medium text-stone-600">
-          {done ? "completo" : `${row.da_completare} cavi rimasti`}
-        </span>
+        {canExpand ? (
+          <button
+            onClick={() => setOpen((v) => !v)}
+            className="ml-auto min-h-8 rounded-xl border border-stone-200 bg-white px-3 text-xs font-medium text-stone-600 transition hover:border-stone-300"
+          >
+            {open ? "Nascondi cavi" : `${row.da_completare} cavi rimasti`}
+          </button>
+        ) : (
+          <span className="ml-auto text-xs font-medium text-stone-600">{done ? "completo" : `${row.da_completare} cavi rimasti`}</span>
+        )}
       </div>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <div>
@@ -49,6 +97,7 @@ function PerimetroBoardRowCard({ row }: { row: PerimetroBoardRow }): JSX.Element
           <ProgressBar value={row.pct_coll ?? 0} max={100} tone={(row.pct_coll ?? 0) >= 100 ? "emerald" : "stone"} />
         </div>
       </div>
+      {open && shipId ? <PerimetroCaviList shipId={shipId} perimetro={row.perimetro} /> : null}
     </div>
   );
 }
@@ -170,7 +219,7 @@ export default function NavemasterPage(): JSX.Element {
           </div>
           <div className="space-y-2">
             {boardRows.map((row) => (
-              <PerimetroBoardRowCard key={row.perimetro} row={row} />
+              <PerimetroBoardRowCard key={row.perimetro} row={row} shipId={board?.shipId ?? null} />
             ))}
           </div>
         </Section>
