@@ -144,7 +144,7 @@ export default function NavemasterPage(): JSX.Element {
     staleTime: 30_000,
   });
 
-  const { data: board } = useQuery({
+  const { data: board, isError: boardError } = useQuery({
     queryKey: ["navemaster_perimetro_board"],
     queryFn: loadPerimetroBoard,
     staleTime: 30_000,
@@ -211,6 +211,12 @@ export default function NavemasterPage(): JSX.Element {
           </Btn>
         }
       />
+
+      {boardError ? (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          Errore nel caricamento dei perimetri — verifica i permessi o riprova.
+        </div>
+      ) : null}
 
       {boardRows.length > 0 ? (
         <Section title="Consegna perimetri" eyebrow="Dove appoggiare oggi" count={boardRows.length}>
