@@ -1,10 +1,57 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AppBar, Btn, EmptyState, Pill, Screen, Section, StatCard } from "../../components/command-ui";
+import { AppBar, Btn, EmptyState, Pill, ProgressBar, Screen, Section, StatCard } from "../../components/command-ui";
 import { formatCableDisplay } from "../../core/cable/cableDisplay";
-import { computeNavemasterRun, loadNavemasterView, setNavemasterAlertStatus } from "./navemaster.api";
-import type { NavemasterAlert, NavemasterAlertType } from "./navemaster.types";
+import { computeNavemasterRun, loadNavemasterView, loadPerimetroBoard, setNavemasterAlertStatus } from "./navemaster.api";
+import type { NavemasterAlert, NavemasterAlertType, PerimetroBoardRow } from "./navemaster.types";
+import { buildMorningSentence, isOverdue } from "./perimetroBoard.logic";
+
+function giorniLabel(g: number | null): string {
+  if (g == null) return "—";
+  if (g < 0) return `in ritardo ${Math.abs(g)} g`;
+  if (g === 0) return "consegna oggi";
+  return `tra ${g} g`;
+}
+
+function formatConsegna(d: string | null): string {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "2-digit" });
+}
+
+function PerimetroBoardRowCard({ row }: { row: PerimetroBoardRow }): JSX.Element {
+  const overdue = isOverdue(row);
+  const done = row.da_completare === 0;
+  return (
+    <div className="rounded-2xl border border-stone-200 bg-white px-4 py-3 shadow-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-semibold text-stone-950">{row.perimetro}</span>
+        <Pill tone={done ? "emerald" : overdue ? "red" : "neutral"}>{giorniLabel(row.giorni_al_target)}</Pill>
+        <span className="text-xs text-stone-500">consegna {formatConsegna(row.data_consegna)}</span>
+        {row.bloccati > 0 ? <Pill tone="amber">{row.bloccati} bloccati</Pill> : null}
+        <span className="ml-auto text-xs font-medium text-stone-600">
+          {done ? "completo" : `${row.da_completare} cavi rimasti`}
+        </span>
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <div>
+          <div className="mb-1 flex justify-between text-xs text-stone-500">
+            <span>Posa</span>
+            <span className="font-mono">{row.pct_posa ?? 0}% · {row.posati}/{row.tot_cavi}</span>
+          </div>
+          <ProgressBar value={row.pct_posa ?? 0} max={100} tone={(row.pct_posa ?? 0) >= 100 ? "emerald" : "amber"} />
+        </div>
+        <div>
+          <div className="mb-1 flex justify-between text-xs text-stone-500">
+            <span>Collegato</span>
+            <span className="font-mono">{row.pct_coll ?? 0}% · {row.collegati}/{row.tot_cavi}</span>
+          </div>
+          <ProgressBar value={row.pct_coll ?? 0} max={100} tone={(row.pct_coll ?? 0) >= 100 ? "emerald" : "stone"} />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const TYPE_LABEL: Record<NavemasterAlertType, string> = {
   BLOCKED_IMPACT: "Bloccati attivi",
@@ -47,6 +94,14 @@ export default function NavemasterPage(): JSX.Element {
     queryFn: loadNavemasterView,
     staleTime: 30_000,
   });
+
+  const { data: board } = useQuery({
+    queryKey: ["navemaster_perimetro_board"],
+    queryFn: loadPerimetroBoard,
+    staleTime: 30_000,
+  });
+  const boardRows = board?.rows ?? [];
+  const morningSentence = useMemo(() => buildMorningSentence(boardRows), [boardRows]);
 
   const run = data?.run ?? null;
   const shipId = data?.shipId ?? null;
@@ -107,6 +162,19 @@ export default function NavemasterPage(): JSX.Element {
           </Btn>
         }
       />
+
+      {boardRows.length > 0 ? (
+        <Section title="Consegna perimetri" eyebrow="Dove appoggiare oggi" count={boardRows.length}>
+          <div className="mb-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900">
+            {morningSentence}
+          </div>
+          <div className="space-y-2">
+            {boardRows.map((row) => (
+              <PerimetroBoardRowCard key={row.perimetro} row={row} />
+            ))}
+          </div>
+        </Section>
+      ) : null}
 
       {!isLoading && !run ? (
         <EmptyState
