@@ -121,8 +121,11 @@ export function extractCableRefs(text: string): ExtractedCableRef[] {
     const line = stripSectionPrefix(stripNoise(rawLine)).trim();
     if (!line) continue;
 
-    // Regex: 2-3 letters (possibly spaced/dotted) + 2-5 digits + optional suffix
-    const re = /\b([A-Za-z](?:[\s.]*[A-Za-z]){1,2})[\s.]*(\d{2,5})\s*([A-Za-z]?)\b/g;
+    // Regex: 2-3 letters (possibly spaced/dotted) + 2-5 digits + optional suffix.
+    // Le suffixe variante doit être COLLÉ aux chiffres ("038A") : une lettre
+    // séparée par un espace est un mot (conjonction italienne "e"=et, "o"=ou…),
+    // jamais un suffixe. Ex : "IRS 002 e TVU 074" → deux câbles, pas "IRS 002 E".
+    const re = /\b([A-Za-z](?:[\s.]*[A-Za-z]){1,2})[\s.]*(\d{2,5})([A-Za-z]?)\b/g;
     let m: RegExpExecArray | null;
 
     while ((m = re.exec(line)) !== null) {
