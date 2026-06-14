@@ -3,18 +3,19 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { useTheme } from "../hooks/useTheme";
 
-const MAIN_NAV = [
+const PRIMARY_NAV = [
   { to: "/oggi", label: "Oggi", hint: "Cosa chiudere adesso" },
-  { to: "/campo", label: "Campo", hint: "Verifiche sul campo" },
+  { to: "/navemaster", label: "Consegna", hint: "Perimetri e avanzamento" },
   { to: "/apparati", label: "Apparati", hint: "Chiusure apparato" },
-  { to: "/situazione", label: "Situazione", hint: "Messaggio 16:30" },
-  { to: "/assistente", label: "Assistente", hint: "Domande sul cantiere" },
 ] as const;
 
-const SECONDARY_NAV = [
+const TOOLS_NAV = [
+  { to: "/import", label: "Liste", hint: "Liste giornaliere" },
+  { to: "/import-inca", label: "Import INCA", hint: "Carica XLSX" },
+  { to: "/campo", label: "Campo", hint: "Prove dal campo" },
+  { to: "/situazione", label: "Situazione", hint: "Messaggio 16:30" },
+  { to: "/assistente", label: "Assistente", hint: "Domande sul cantiere" },
   { to: "/grafici", label: "Analisi", hint: "Grafici di supporto" },
-  { to: "/navemaster", label: "Navemaster", hint: "Riconciliazione INCA ↔ campo" },
-  { to: "/import-inca", label: "Import INCA", hint: "Upload XLSX + sync baseline" },
 ] as const;
 
 export default function CommandShell(): JSX.Element {
@@ -41,6 +42,7 @@ export default function CommandShell(): JSX.Element {
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.24em] theme-token-muted">Core Command</p>
                 <h1 className="mt-2 text-2xl font-semibold tracking-tight theme-token-text">Centro Comando</h1>
+                <p className="mt-2 text-sm leading-6 theme-token-muted">Consegna, apparati e strumenti di bordo in un solo cockpit.</p>
               </div>
               <button
                 type="button"
@@ -68,7 +70,7 @@ export default function CommandShell(): JSX.Element {
           </form>
 
           <nav className="mt-6 space-y-2">
-            {MAIN_NAV.map(({ to, label, hint }) => (
+            {PRIMARY_NAV.map(({ to, label, hint }) => (
               <NavLink
                 key={to}
                 to={to}
@@ -89,7 +91,7 @@ export default function CommandShell(): JSX.Element {
           <nav className="mt-6 border-t theme-token-border pt-4">
             <p className="px-4 text-[11px] font-semibold uppercase tracking-[0.2em] theme-token-faint">Strumenti</p>
             <div className="mt-2 space-y-2">
-              {SECONDARY_NAV.map(({ to, label, hint }) => (
+              {TOOLS_NAV.map(({ to, label, hint }) => (
                 <NavLink
                   key={to}
                   to={to}
@@ -121,6 +123,7 @@ export default function CommandShell(): JSX.Element {
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.24em] theme-token-muted">Core Command</p>
                   <p className="mt-1 text-base font-semibold theme-token-text">Centro Comando</p>
+                  <p className="mt-1 text-xs theme-token-muted">Consegna e strumenti essenziali.</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -151,7 +154,7 @@ export default function CommandShell(): JSX.Element {
               </form>
 
               <div className="mt-3 grid grid-cols-3 gap-2">
-                {MAIN_NAV.map(({ to, label }) => (
+                {PRIMARY_NAV.map(({ to, label }) => (
                   <NavLink
                     key={to}
                     to={to}
@@ -163,19 +166,25 @@ export default function CommandShell(): JSX.Element {
                   </NavLink>
                 ))}
               </div>
-              <div className="mt-2 flex justify-end gap-4">
-                {SECONDARY_NAV.map(({ to, label }) => (
-                  <NavLink
-                    key={to}
-                    to={to}
-                    className={({ isActive }) =>
-                      `shell-link text-xs font-medium underline-offset-4 transition ${isActive ? "shell-link-active underline" : "hover:underline"}`
-                    }
-                  >
-                    {label}
-                  </NavLink>
-                ))}
-              </div>
+              <details className="mt-2">
+                <summary className="shell-action flex min-h-10 cursor-pointer list-none items-center justify-center rounded-2xl px-4 text-xs font-semibold transition">
+                  Strumenti
+                </summary>
+                <div className="mt-2 space-y-2">
+                  {TOOLS_NAV.map(({ to, label, hint }) => (
+                    <NavLink
+                      key={to}
+                      to={to}
+                      className={({ isActive }) =>
+                        `shell-nav-item shell-secondary-item block rounded-[18px] px-4 py-3 transition ${isActive ? "shell-secondary-item-active" : ""}`
+                      }
+                    >
+                      <p className="text-sm font-semibold">{label}</p>
+                      <p className="mt-1 text-xs theme-token-muted">{hint}</p>
+                    </NavLink>
+                  ))}
+                </div>
+              </details>
             </div>
           </header>
 
