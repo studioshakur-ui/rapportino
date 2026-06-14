@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
+import { useTheme } from "../hooks/useTheme";
 
 const MAIN_NAV = [
   { to: "/oggi", label: "Oggi", hint: "Cosa chiudere adesso" },
@@ -19,7 +20,9 @@ const SECONDARY_NAV = [
 export default function CommandShell(): JSX.Element {
   const navigate = useNavigate();
   const { signOut } = useAuth() as { signOut: (a: { reason: string }) => Promise<void> };
+  const { effective, setTheme } = useTheme();
   const [query, setQuery] = useState("");
+  const isDark = effective === "dark";
 
   function search(event: FormEvent) {
     event.preventDefault();
@@ -30,15 +33,25 @@ export default function CommandShell(): JSX.Element {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(245,158,11,0.12),_transparent_24%),linear-gradient(180deg,#fcfbf8_0%,#f5f1e8_100%)] text-stone-900">
+    <div className="shell-frame">
       <div className="flex min-h-screen">
-        <aside className="hidden lg:flex lg:sticky lg:top-0 lg:h-screen lg:w-[304px] lg:flex-col lg:border-r lg:border-stone-200 lg:bg-white/82 lg:px-6 lg:py-6 lg:backdrop-blur">
-          <div className="rounded-[28px] border border-stone-200 bg-[linear-gradient(135deg,#ffffff_0%,#f6f0e3_100%)] p-5 shadow-[0_20px_50px_rgba(15,23,42,0.06)]">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-stone-500">Core Command</p>
-            <h1 className="mt-3 text-2xl font-semibold tracking-tight text-stone-950">Hamidou Control Room</h1>
-            <p className="mt-2 text-sm leading-6 text-stone-600">
-              Oggi, Campo, Apparati e Situazione. Il resto resta negli strumenti.
-            </p>
+        <aside className="shell-sidebar hidden lg:flex lg:sticky lg:top-0 lg:h-screen lg:w-[304px] lg:flex-col lg:border-r lg:px-6 lg:py-6">
+          <div className="shell-hero rounded-[28px] p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] theme-token-muted">Core Command</p>
+                <h1 className="mt-2 text-2xl font-semibold tracking-tight theme-token-text">Centro Comando</h1>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTheme(isDark ? "light" : "dark")}
+                className="shell-toggle inline-flex min-h-10 items-center gap-2 rounded-2xl px-3 text-sm font-semibold"
+                aria-label={isDark ? "Passa al tema chiaro" : "Passa al tema scuro"}
+              >
+                <span aria-hidden>{isDark ? "☀" : "☾"}</span>
+                <span>{isDark ? "White" : "Dark"}</span>
+              </button>
+            </div>
           </div>
 
           <form onSubmit={search} className="mt-6">
@@ -49,7 +62,7 @@ export default function CommandShell(): JSX.Element {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Cerca cavo"
-                className="min-h-12 w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-amber-400 focus:bg-white"
+                className="shell-search min-h-12 w-full rounded-2xl px-4 text-sm transition"
               />
             </label>
           </form>
@@ -60,40 +73,32 @@ export default function CommandShell(): JSX.Element {
                 key={to}
                 to={to}
                 className={({ isActive }) =>
-                  `block rounded-[22px] border px-4 py-3 transition ${
-                    isActive
-                      ? "border-stone-900 bg-stone-900 text-white shadow-[0_12px_30px_rgba(28,25,23,0.18)]"
-                      : "border-transparent bg-transparent text-stone-600 hover:border-stone-200 hover:bg-white hover:text-stone-950"
-                  }`
+                  `shell-nav-item block rounded-[22px] px-4 py-3 transition ${isActive ? "shell-nav-item-active" : ""}`
                 }
               >
                 {({ isActive }) => (
                   <>
-                    <p className={`text-sm font-semibold ${isActive ? "text-white" : "text-stone-900"}`}>{label}</p>
-                    <p className={`mt-1 text-xs ${isActive ? "text-stone-300" : "text-stone-500"}`}>{hint}</p>
+                    <p className={`text-sm font-semibold ${isActive ? "theme-token-text" : "theme-token-text"}`}>{label}</p>
+                    <p className={`mt-1 text-xs ${isActive ? "theme-token-muted" : "theme-token-muted"}`}>{hint}</p>
                   </>
                 )}
               </NavLink>
             ))}
           </nav>
 
-          <nav className="mt-6 border-t border-stone-200 pt-4">
-            <p className="px-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-stone-400">Strumenti</p>
+          <nav className="mt-6 border-t theme-token-border pt-4">
+            <p className="px-4 text-[11px] font-semibold uppercase tracking-[0.2em] theme-token-faint">Strumenti</p>
             <div className="mt-2 space-y-2">
               {SECONDARY_NAV.map(({ to, label, hint }) => (
                 <NavLink
                   key={to}
                   to={to}
                   className={({ isActive }) =>
-                    `block rounded-[18px] border px-4 py-3 transition ${
-                      isActive
-                        ? "border-stone-300 bg-white text-stone-950"
-                        : "border-transparent bg-transparent text-stone-500 hover:border-stone-200 hover:bg-white hover:text-stone-950"
-                    }`
+                    `shell-nav-item shell-secondary-item block rounded-[18px] px-4 py-3 transition ${isActive ? "shell-secondary-item-active" : ""}`
                   }
                 >
                   <p className="text-sm font-semibold">{label}</p>
-                  <p className="mt-1 text-xs text-stone-500">{hint}</p>
+                  <p className="mt-1 text-xs theme-token-muted">{hint}</p>
                 </NavLink>
               ))}
             </div>
@@ -102,7 +107,7 @@ export default function CommandShell(): JSX.Element {
           <div className="mt-auto pt-6">
             <button
               onClick={() => signOut({ reason: "manual" })}
-              className="min-h-11 w-full rounded-2xl border border-stone-200 bg-white px-4 text-sm font-medium text-stone-700 transition hover:border-rose-200 hover:text-rose-700"
+              className="shell-action min-h-11 w-full rounded-2xl px-4 text-sm font-medium transition"
             >
               Disconnetti
             </button>
@@ -110,19 +115,29 @@ export default function CommandShell(): JSX.Element {
         </aside>
 
         <div className="flex min-h-screen min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-30 border-b border-stone-200/80 bg-white/86 backdrop-blur lg:hidden">
+          <header className="shell-topbar sticky top-0 z-30 border-b lg:hidden">
             <div className="px-5 py-4">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-stone-500">Core Command</p>
-                  <p className="mt-1 text-base font-semibold text-stone-950">Centro Comando</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] theme-token-muted">Core Command</p>
+                  <p className="mt-1 text-base font-semibold theme-token-text">Centro Comando</p>
                 </div>
-                <button
-                  onClick={() => signOut({ reason: "manual" })}
-                  className="rounded-2xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-600"
-                >
-                  Esci
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTheme(isDark ? "light" : "dark")}
+                    className="shell-toggle inline-flex min-h-10 items-center gap-2 rounded-2xl px-3 text-sm font-semibold"
+                    aria-label={isDark ? "Passa al tema chiaro" : "Passa al tema scuro"}
+                  >
+                    <span aria-hidden>{isDark ? "☀" : "☾"}</span>
+                  </button>
+                  <button
+                    onClick={() => signOut({ reason: "manual" })}
+                    className="shell-action rounded-2xl px-3 py-2 text-sm"
+                  >
+                    Esci
+                  </button>
+                </div>
               </div>
 
               <form onSubmit={search} className="mt-3">
@@ -131,7 +146,7 @@ export default function CommandShell(): JSX.Element {
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Cerca cavo"
-                  className="min-h-11 w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 text-sm text-stone-900 outline-none placeholder:text-stone-400 focus:border-amber-400 focus:bg-white"
+                  className="shell-search min-h-11 w-full rounded-2xl px-4 text-sm"
                 />
               </form>
 
@@ -141,9 +156,7 @@ export default function CommandShell(): JSX.Element {
                     key={to}
                     to={to}
                     className={({ isActive }) =>
-                      `rounded-2xl border px-2 py-2 text-center text-xs font-medium transition ${
-                        isActive ? "border-stone-900 bg-stone-900 text-white" : "border-stone-200 bg-white text-stone-600"
-                      }`
+                      `shell-nav-item rounded-2xl px-2 py-2 text-center text-xs font-medium transition ${isActive ? "shell-nav-item-active" : ""}`
                     }
                   >
                     {label}
@@ -156,9 +169,7 @@ export default function CommandShell(): JSX.Element {
                     key={to}
                     to={to}
                     className={({ isActive }) =>
-                      `text-xs font-medium underline-offset-4 transition ${
-                        isActive ? "text-stone-950 underline" : "text-stone-500 hover:text-stone-900 hover:underline"
-                      }`
+                      `shell-link text-xs font-medium underline-offset-4 transition ${isActive ? "shell-link-active underline" : "hover:underline"}`
                     }
                   >
                     {label}

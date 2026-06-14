@@ -5,6 +5,7 @@ import type { AuthError } from "@supabase/supabase-js";
 
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
+import { useTheme } from "../hooks/useTheme";
 import { pageBg, headerPill, cardSurface, buttonPrimary } from "../ui/designSystem";
 
 function normalizeError(err: unknown): string | null {
@@ -27,9 +28,10 @@ function normalizeError(err: unknown): string | null {
 
 export default function Login(): JSX.Element {
   const navigate = useNavigate();
+  const { effective, setTheme } = useTheme();
 
   const { session, profile, authReady, error: authError, signOut, status } = useAuth();
-  const isDark = true;
+  const isDark = effective === "dark";
 
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
@@ -101,10 +103,21 @@ export default function Login(): JSX.Element {
   return (
     <div className={["min-h-screen flex items-center justify-center px-4", pageBg(isDark)].join(" ")}>
       <div className="w-full max-w-md">
-        <div className="text-left mb-4">
+        <div className="mb-4 flex items-start justify-between gap-3 text-left">
+          <div>
           <div className={`${headerPill(isDark)} mb-2`}>SISTEMA CENTRALE DI CANTIERE</div>
           <h1 className="text-3xl font-semibold mb-1">Entra in CORE</h1>
           <p className="text-[13px] text-slate-500 leading-relaxed">Accesso interno. Ogni operazione è tracciata.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setTheme(isDark ? "light" : "dark")}
+            className={cardSurface(isDark, "inline-flex items-center gap-2 px-3 py-2 text-xs font-semibold")}
+            aria-label={isDark ? "Passa al tema chiaro" : "Passa al tema scuro"}
+          >
+            <span aria-hidden>{isDark ? "☀" : "☾"}</span>
+            <span>{isDark ? "White" : "Dark"}</span>
+          </button>
         </div>
 
         <div className={cardSurface(isDark, "p-6")}>

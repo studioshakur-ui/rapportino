@@ -19,11 +19,11 @@ export function getSystemTheme(): ThemeEffective {
 export function readStoredTheme(): ThemeState {
   try {
     const raw = window.localStorage.getItem(THEME_STORAGE_KEY);
-    if (!raw) return { mode: "auto", theme: getSystemTheme() };
+    if (!raw) return { mode: "manual", theme: "dark" };
 
     // Legacy format: "dark" | "light" | "auto"
     if (raw === "dark" || raw === "light") return { mode: "manual", theme: raw };
-    if (raw === "auto") return { mode: "auto", theme: getSystemTheme() };
+    if (raw === "auto") return { mode: "manual", theme: "dark" };
 
     // JSON format: { mode, theme }
     const parsed = JSON.parse(raw);
@@ -34,7 +34,7 @@ export function readStoredTheme(): ThemeState {
   } catch {
     // ignore
   }
-  return { mode: "auto", theme: getSystemTheme() };
+  return { mode: "manual", theme: "dark" };
 }
 
 export function persistTheme(state: ThemeState): void {

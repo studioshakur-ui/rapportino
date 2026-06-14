@@ -14,6 +14,7 @@ import { dictionaries } from "./i18n/dictionaries";
 import { initThemeFromStorage } from "./hooks/useTheme";
 import { ThemeProvider } from "./theme/ThemeProvider";
 import "./styles/core-colors.css";
+import "./theme/tokens.css";
 import "./styles/core-ui.css";
 import "./index.css";
 

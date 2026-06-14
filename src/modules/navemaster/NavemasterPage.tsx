@@ -1,11 +1,14 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AppBar, Btn, EmptyState, Pill, ProgressBar, Screen, Section, StatCard } from "../../components/command-ui";
+import { AppBar, Btn, EmptyState, Pill, Screen, Section, StatCard } from "../../components/command-ui";
 import { formatCableDisplay } from "../../core/cable/cableDisplay";
 import { computeNavemasterRun, loadNavemasterView, loadPerimetroBoard, loadPerimetroCavi, setNavemasterAlertStatus } from "./navemaster.api";
-import type { NavemasterAlert, NavemasterAlertType, PerimetroBoardRow, PerimetroCavoRow } from "./navemaster.types";
+import type { NavemasterAlert, NavemasterAlertType, PerimetroBoardRow } from "./navemaster.types";
 import { buildMorningSentence, isOverdue } from "./perimetroBoard.logic";
+import { statoFromCavo } from "../../domain/statoConsegna";
+import { StatoPill } from "../../components/stato/StatoPill";
+import { FunnelBars } from "../../components/stato/FunnelBars";
 
 function giorniLabel(g: number | null): string {
   if (g == null) return "—";
@@ -35,14 +38,6 @@ function actionCount(row: PerimetroBoardRow): number {
   return buckets > 0 ? buckets : row.da_completare;
 }
 
-function cavoStato(c: PerimetroCavoRow): { label: string; tone: "red" | "amber" | "sky" } {
-  if (c.stage === "bloccato") return { label: "Bloccato", tone: "red" };
-  if (c.stage === "da_posare") return { label: "Da posare", tone: "amber" };
-  if (c.stage === "da_sistemare") return { label: "Da sistemare", tone: "amber" };
-  if (c.stage === "pronto_coll") return { label: "Pronto da collegare", tone: "sky" };
-  return { label: "Da finire", tone: "sky" };
-}
-
 function PerimetroCaviList({ shipId, perimetro }: { shipId: string; perimetro: string }): JSX.Element {
   const navigate = useNavigate();
   const { data, isLoading, isError } = useQuery({
@@ -59,7 +54,7 @@ function PerimetroCaviList({ shipId, perimetro }: { shipId: string; perimetro: s
   return (
     <div className="mt-3 space-y-1 border-t border-stone-100 pt-3">
       {cavi.map((c) => {
-        const stato = cavoStato(c);
+        const stato = statoFromCavo(c);
         return (
           <button
             key={c.codice}
@@ -68,7 +63,7 @@ function PerimetroCaviList({ shipId, perimetro }: { shipId: string; perimetro: s
           >
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono text-sm font-semibold text-stone-950">{formatCableDisplay(c.codice)}</span>
-              <Pill tone={stato.tone}>{stato.label}</Pill>
+              <StatoPill stato={stato} />
               <span className="text-xs font-medium text-stone-600">{c.manca}</span>
               <span className="ml-auto text-xs text-emerald-700">Verifica →</span>
             </div>
@@ -133,29 +128,12 @@ function PerimetroBoardRowCard({ row, shipId }: { row: PerimetroBoardRow; shipId
           <span className="ml-auto text-xs font-medium text-stone-600">{done ? "completo" : `${remainingActions} azioni rimaste`}</span>
         )}
       </div>
-      <div className="mt-3 grid gap-2 sm:grid-cols-3">
-        <div>
-          <div className="mb-1 flex justify-between text-xs text-stone-500">
-            <span>Posa</span>
-            <span className="font-mono">{row.pct_posa ?? 0}% · {row.posati}/{row.tot_cavi}</span>
-          </div>
-          <ProgressBar value={row.pct_posa ?? 0} max={100} tone={(row.pct_posa ?? 0) >= 100 ? "emerald" : "amber"} />
-        </div>
-        <div>
-          <div className="mb-1 flex justify-between text-xs text-stone-500">
-            <span>Sistemato</span>
-            <span className="font-mono">{row.pct_sist ?? 0}% · {row.sistemati}/{row.tot_cavi}</span>
-          </div>
-          <ProgressBar value={row.pct_sist ?? 0} max={100} tone={(row.pct_sist ?? 0) >= 100 ? "emerald" : "amber"} />
-        </div>
-        <div>
-          <div className="mb-1 flex justify-between text-xs text-stone-500">
-            <span>Collegamenti</span>
-            <span className="font-mono">{row.pct_coll_pin ?? 0}% · {fmtMetric(row.coll_fatti)}/{fmtMetric(row.coll_previsti)}</span>
-          </div>
-          <ProgressBar value={row.pct_coll_pin ?? 0} max={100} tone={(row.pct_coll_pin ?? 0) >= 100 ? "emerald" : "stone"} />
-        </div>
-      </div>
+      <FunnelBars
+        className="mt-3"
+        posa={{ label: "Posa", value: row.pct_posa ?? 0, detail: `${row.posati}/${row.tot_cavi}`, colorVar: "--stato-posa" }}
+        sistemato={{ label: "Sistemato", value: row.pct_sist ?? 0, detail: `${row.sistemati}/${row.tot_cavi}`, colorVar: "--stato-sistemato" }}
+        collegato={{ label: "Collegamenti", value: row.pct_coll_pin ?? 0, detail: `${fmtMetric(row.coll_fatti)}/${fmtMetric(row.coll_previsti)}`, colorVar: "--stato-collegato" }}
+      />
       {open && shipId ? <PerimetroCaviList shipId={shipId} perimetro={row.perimetro} /> : null}
     </div>
   );
