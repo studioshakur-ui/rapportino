@@ -216,3 +216,221 @@ body,
   background: var(--bar-color);
   transition: width 180ms ease;
 }
+
+.theme-appbar-kicker {
+  color: var(--text-faint);
+}
+
+.theme-count-badge {
+  background: color-mix(in srgb, var(--surface-2) 90%, transparent);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+.theme-card-surface {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+}
+
+.theme-card-surface-2 {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+}
+
+.theme-card-hover:hover {
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
+  box-shadow: var(--shadow-strong);
+}
+
+.theme-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--tone-color) 35%, var(--border));
+  background: color-mix(in srgb, var(--tone-color) 14%, var(--surface));
+  color: color-mix(in srgb, var(--tone-color) 82%, var(--text));
+}
+
+.theme-btn {
+  border: 1px solid var(--border);
+  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.theme-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.theme-btn-primary {
+  background: var(--accent);
+  color: #f8fafc;
+  border-color: color-mix(in srgb, var(--accent) 68%, var(--border));
+}
+
+.theme-btn-primary:hover {
+  background: color-mix(in srgb, var(--accent) 88%, white);
+}
+
+.theme-btn-secondary {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.theme-btn-secondary:hover {
+  background: var(--surface-2);
+}
+
+.theme-btn-danger {
+  background: var(--stato-bloccato);
+  color: #fff;
+  border-color: color-mix(in srgb, var(--stato-bloccato) 72%, var(--border));
+}
+
+.theme-btn-danger:hover {
+  background: color-mix(in srgb, var(--stato-bloccato) 88%, black);
+}
+
+.theme-btn-ghost {
+  background: transparent;
+  color: var(--text-muted);
+  border-color: transparent;
+}
+
+.theme-btn-ghost:hover {
+  background: color-mix(in srgb, var(--surface-2) 88%, transparent);
+  color: var(--text);
+}
+
+.theme-progress-track {
+  background: color-mix(in srgb, var(--surface-2) 88%, transparent);
+  border: 1px solid var(--border);
+}
+
+.theme-banner-success {
+  background: color-mix(in srgb, var(--stato-consegnato) 12%, var(--surface));
+  color: color-mix(in srgb, var(--stato-consegnato) 82%, var(--text));
+  border: 1px solid color-mix(in srgb, var(--stato-consegnato) 30%, var(--border));
+}
+
+.theme-banner-warning {
+  background: color-mix(in srgb, var(--stato-sistemato) 14%, var(--surface));
+  color: color-mix(in srgb, var(--stato-sistemato) 86%, var(--text));
+  border: 1px solid color-mix(in srgb, var(--stato-sistemato) 32%, var(--border));
+}
+
+.theme-banner-danger {
+  background: color-mix(in srgb, var(--stato-bloccato) 14%, var(--surface));
+  color: color-mix(in srgb, var(--stato-bloccato) 86%, var(--text));
+  border: 1px solid color-mix(in srgb, var(--stato-bloccato) 32%, var(--border));
+}
+
+.theme-link-accent {
+  color: color-mix(in srgb, var(--accent) 78%, var(--text));
+}
+
+:root[data-theme="dark"] .theme-scope .bg-white,
+:root[data-theme="dark"] .theme-scope .bg-white\/80,
+:root[data-theme="dark"] .theme-scope .bg-white\/82,
+:root[data-theme="dark"] .theme-scope .bg-white\/86 {
+  background-color: var(--surface) !important;
+}
+
+:root[data-theme="dark"] .theme-scope .bg-stone-50,
+:root[data-theme="dark"] .theme-scope .bg-stone-50\/60,
+:root[data-theme="dark"] .theme-scope .bg-stone-50\/70,
+:root[data-theme="dark"] .theme-scope .bg-stone-50\/75,
+:root[data-theme="dark"] .theme-scope .bg-stone-100 {
+  background-color: var(--surface-2) !important;
+}
+
+:root[data-theme="dark"] .theme-scope .border-stone-100,
+:root[data-theme="dark"] .theme-scope .border-stone-200 {
+  border-color: var(--border) !important;
+}
+
+:root[data-theme="dark"] .theme-scope .text-stone-950,
+:root[data-theme="dark"] .theme-scope .text-stone-900,
+:root[data-theme="dark"] .theme-scope .text-white {
+  color: var(--text) !important;
+}
+
+:root[data-theme="dark"] .theme-scope .text-stone-700,
+:root[data-theme="dark"] .theme-scope .text-stone-600,
+:root[data-theme="dark"] .theme-scope .text-stone-500,
+:root[data-theme="dark"] .theme-scope .text-stone-400 {
+  color: var(--text-muted) !important;
+}
+
+:root[data-theme="dark"] .theme-scope .bg-emerald-50,
+:root[data-theme="dark"] .theme-scope .bg-emerald-50\/70 {
+  background-color: color-mix(in srgb, var(--stato-consegnato) 12%, var(--surface)) !important;
+}
+
+:root[data-theme="dark"] .theme-scope .border-emerald-200,
+:root[data-theme="dark"] .theme-scope .border-emerald-600 {
+  border-color: color-mix(in srgb, var(--stato-consegnato) 32%, var(--border)) !important;
+}
+
+:root[data-theme="dark"] .theme-scope .text-emerald-900,
+:root[data-theme="dark"] .theme-scope .text-emerald-800,
+:root[data-theme="dark"] .theme-scope .text-emerald-700 {
+  color: color-mix(in srgb, var(--stato-consegnato) 84%, var(--text)) !important;
+}
+
+:root[data-theme="dark"] .theme-scope .bg-amber-50,
+:root[data-theme="dark"] .theme-scope .bg-amber-50\/60,
+:root[data-theme="dark"] .theme-scope .bg-amber-50\/75 {
+  background-color: color-mix(in srgb, var(--stato-sistemato) 14%, var(--surface)) !important;
+}
+
+:root[data-theme="dark"] .theme-scope .border-amber-200 {
+  border-color: color-mix(in srgb, var(--stato-sistemato) 32%, var(--border)) !important;
+}
+
+:root[data-theme="dark"] .theme-scope .text-amber-800,
+:root[data-theme="dark"] .theme-scope .text-amber-700 {
+  color: color-mix(in srgb, var(--stato-sistemato) 86%, var(--text)) !important;
+}
+
+:root[data-theme="dark"] .theme-scope .bg-rose-50,
+:root[data-theme="dark"] .theme-scope .bg-red-50 {
+  background-color: color-mix(in srgb, var(--stato-bloccato) 14%, var(--surface)) !important;
+}
+
+:root[data-theme="dark"] .theme-scope .border-rose-200,
+:root[data-theme="dark"] .theme-scope .border-red-200 {
+  border-color: color-mix(in srgb, var(--stato-bloccato) 32%, var(--border)) !important;
+}
+
+:root[data-theme="dark"] .theme-scope .text-rose-700,
+:root[data-theme="dark"] .theme-scope .text-red-700,
+:root[data-theme="dark"] .theme-scope .text-red-600 {
+  color: color-mix(in srgb, var(--stato-bloccato) 84%, var(--text)) !important;
+}
+
+:root[data-theme="dark"] .theme-scope .bg-sky-50,
+:root[data-theme="dark"] .theme-scope .bg-blue-50,
+:root[data-theme="dark"] .theme-scope .bg-sky-100 {
+  background-color: color-mix(in srgb, var(--stato-posa) 14%, var(--surface)) !important;
+}
+
+:root[data-theme="dark"] .theme-scope .border-sky-200,
+:root[data-theme="dark"] .theme-scope .border-blue-200 {
+  border-color: color-mix(in srgb, var(--stato-posa) 32%, var(--border)) !important;
+}
+
+:root[data-theme="dark"] .theme-scope .text-sky-700,
+:root[data-theme="dark"] .theme-scope .text-blue-700 {
+  color: color-mix(in srgb, var(--stato-posa) 84%, var(--text)) !important;
+}
+
+:root[data-theme="dark"] .theme-scope .shadow-sm,
+:root[data-theme="dark"] .theme-scope .shadow-lg,
+:root[data-theme="dark"] .theme-scope [class*="shadow-["] {
+  box-shadow: var(--shadow-soft) !important;
+}
