@@ -194,6 +194,15 @@ export default function CampoPage(): JSX.Element {
 
       <FieldSyncBar />
 
+      <section className="theme-card-surface rounded-[24px] p-5">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] theme-token-faint">Come funziona</p>
+        <h2 className="mt-2 text-base font-semibold theme-token-text">Raccoglie e prepara le prove dal campo</h2>
+        <p className="mt-2 max-w-3xl text-sm leading-6 theme-token-muted">
+          CORE classifica i messaggi e legge le foto delle liste automaticamente ogni 30 minuti. Usa le azioni qui sopra
+          solo quando serve forzare un aggiornamento immediato; le prove elaborate alimentano poi cavi, apparati e validazioni.
+        </p>
+      </section>
+
       {!isLoading && !field ? (
         <EmptyState
           title="Nessun dato disponibile"

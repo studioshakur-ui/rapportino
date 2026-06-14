@@ -97,7 +97,7 @@ export default function DailyListsPage(): JSX.Element {
           </button>
           <button
             type="button"
-            onClick={() => alert("Import INCA disponibile solo tramite procedura protetta. Il cockpit non scrive mai in inca_cavi.")}
+            onClick={() => navigate("/import-inca")}
             className="min-h-12 rounded-2xl border border-stone-200 bg-white px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-300"
           >
             Importa INCA
