@@ -13,6 +13,7 @@ const MAIN_NAV = [
 const SECONDARY_NAV = [
   { to: "/grafici", label: "Analisi", hint: "Grafici di supporto" },
   { to: "/navemaster", label: "Navemaster", hint: "Riconciliazione INCA ↔ campo" },
+  { to: "/import-inca", label: "Import INCA", hint: "Upload XLSX + sync baseline" },
 ] as const;
 
 export default function CommandShell(): JSX.Element {

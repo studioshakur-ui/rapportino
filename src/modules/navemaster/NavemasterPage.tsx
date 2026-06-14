@@ -19,10 +19,28 @@ function formatConsegna(d: string | null): string {
   return new Date(d).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "2-digit" });
 }
 
+function formatShortDate(d: string | null): string {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("it-IT", { day: "2-digit", month: "short" });
+}
+
+function fmtMetric(value: number | null | undefined): string {
+  const n = Number(value ?? 0);
+  if (!Number.isFinite(n)) return "0";
+  return n.toLocaleString("it-IT", { maximumFractionDigits: Number.isInteger(n) ? 0 : 1 });
+}
+
+function actionCount(row: PerimetroBoardRow): number {
+  const buckets = row.da_posare + row.da_sistemare + row.pronto_coll + row.coll_parziale;
+  return buckets > 0 ? buckets : row.da_completare;
+}
+
 function cavoStato(c: PerimetroCavoRow): { label: string; tone: "red" | "amber" | "sky" } {
-  if (c.bloccato) return { label: "Bloccato", tone: "red" };
-  if (!c.posato) return { label: "Da posare", tone: "amber" };
-  return { label: "Da collegare", tone: "sky" };
+  if (c.stage === "bloccato") return { label: "Bloccato", tone: "red" };
+  if (c.stage === "da_posare") return { label: "Da posare", tone: "amber" };
+  if (c.stage === "da_sistemare") return { label: "Da sistemare", tone: "amber" };
+  if (c.stage === "pronto_coll") return { label: "Pronto da collegare", tone: "sky" };
+  return { label: "Da finire", tone: "sky" };
 }
 
 function PerimetroCaviList({ shipId, perimetro }: { shipId: string; perimetro: string }): JSX.Element {
@@ -46,11 +64,44 @@ function PerimetroCaviList({ shipId, perimetro }: { shipId: string; perimetro: s
           <button
             key={c.codice}
             onClick={() => navigate(`/cable/${encodeURIComponent(c.codice)}`)}
-            className="flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition hover:bg-stone-50"
+            className="w-full rounded-2xl border border-stone-200 bg-stone-50/70 px-3 py-3 text-left transition hover:bg-stone-50"
           >
-            <span className="font-mono text-sm font-semibold text-stone-950">{formatCableDisplay(c.codice)}</span>
-            <Pill tone={stato.tone}>{stato.label}</Pill>
-            <span className="ml-auto text-xs text-emerald-700">Verifica →</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-sm font-semibold text-stone-950">{formatCableDisplay(c.codice)}</span>
+              <Pill tone={stato.tone}>{stato.label}</Pill>
+              <span className="text-xs font-medium text-stone-600">{c.manca}</span>
+              <span className="ml-auto text-xs text-emerald-700">Verifica →</span>
+            </div>
+            <div className="mt-2 grid gap-2 text-xs text-stone-600 sm:grid-cols-2">
+              <div className="rounded-xl bg-white px-2 py-2">
+                <div className="font-medium text-stone-500">Partenza → Arrivo</div>
+                <div className="mt-1 text-stone-900">{c.apparato_da ?? "—"} → {c.apparato_a ?? "—"}</div>
+                <div className="mt-1 text-stone-500">{c.descrizione_da ?? "—"} → {c.descrizione_a ?? "—"}</div>
+              </div>
+              <div className="rounded-xl bg-white px-2 py-2">
+                <div className="font-medium text-stone-500">Collegamenti</div>
+                <div className="mt-1 text-stone-900">{fmtMetric(c.numero_pin)} pin · {fmtMetric(c.tot_collegamenti)} previsti</div>
+                <div className="mt-1 text-stone-500">fattibile {c.coll_fattibile ?? "—"} · partenza {c.coll_partenza ? "OK" : "—"} · arrivo {c.coll_arrivo ? "OK" : "—"}</div>
+              </div>
+              <div className="rounded-xl bg-white px-2 py-2">
+                <div className="font-medium text-stone-500">Date</div>
+                <div className="mt-1 text-stone-500">
+                  posa {formatShortDate(c.inca_data_posa)} · sist P {formatShortDate(c.data_sist_partenza)} · sist A {formatShortDate(c.data_sist_arrivo)} · coll {formatShortDate(c.inca_data_collegamento)}
+                </div>
+              </div>
+              <div className="rounded-xl bg-white px-2 py-2">
+                <div className="font-medium text-stone-500">Stato sistemazione</div>
+                <div className="mt-1 text-stone-500">partenza {c.sist_partenza ?? "—"} · arrivo {c.sist_arrivo ?? "—"} · collegato {c.collegato ?? "—"}</div>
+              </div>
+            </div>
+            {c.note_sistemazione || c.problematiche_posa || c.problematiche_coll || c.op_lista_sist ? (
+              <div className="mt-2 space-y-1 text-xs text-stone-600">
+                {c.note_sistemazione ? <div><span className="font-medium text-stone-700">Note:</span> {c.note_sistemazione}</div> : null}
+                {c.problematiche_posa ? <div><span className="font-medium text-stone-700">Posa:</span> {c.problematiche_posa}</div> : null}
+                {c.problematiche_coll ? <div><span className="font-medium text-stone-700">Collegamenti:</span> {c.problematiche_coll}</div> : null}
+                {c.op_lista_sist ? <div><span className="font-medium text-stone-700">OP lista:</span> {c.op_lista_sist}</div> : null}
+              </div>
+            ) : null}
           </button>
         );
       })}
@@ -61,8 +112,9 @@ function PerimetroCaviList({ shipId, perimetro }: { shipId: string; perimetro: s
 function PerimetroBoardRowCard({ row, shipId }: { row: PerimetroBoardRow; shipId: string | null }): JSX.Element {
   const [open, setOpen] = useState(false);
   const overdue = isOverdue(row);
-  const done = row.da_completare === 0;
-  const canExpand = !done && shipId != null;
+  const remainingActions = actionCount(row);
+  const done = remainingActions === 0;
+  const canExpand = row.da_completare > 0 && shipId != null;
   return (
     <div className="rounded-2xl border border-stone-200 bg-white px-4 py-3 shadow-sm">
       <div className="flex flex-wrap items-center gap-2">
@@ -78,10 +130,10 @@ function PerimetroBoardRowCard({ row, shipId }: { row: PerimetroBoardRow; shipId
             {open ? "Nascondi cavi" : `${row.da_completare} cavi rimasti`}
           </button>
         ) : (
-          <span className="ml-auto text-xs font-medium text-stone-600">{done ? "completo" : `${row.da_completare} cavi rimasti`}</span>
+          <span className="ml-auto text-xs font-medium text-stone-600">{done ? "completo" : `${remainingActions} azioni rimaste`}</span>
         )}
       </div>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
         <div>
           <div className="mb-1 flex justify-between text-xs text-stone-500">
             <span>Posa</span>
@@ -91,10 +143,17 @@ function PerimetroBoardRowCard({ row, shipId }: { row: PerimetroBoardRow; shipId
         </div>
         <div>
           <div className="mb-1 flex justify-between text-xs text-stone-500">
-            <span>Collegato</span>
-            <span className="font-mono">{row.pct_coll ?? 0}% · {row.collegati}/{row.tot_cavi}</span>
+            <span>Sistemato</span>
+            <span className="font-mono">{row.pct_sist ?? 0}% · {row.sistemati}/{row.tot_cavi}</span>
           </div>
-          <ProgressBar value={row.pct_coll ?? 0} max={100} tone={(row.pct_coll ?? 0) >= 100 ? "emerald" : "stone"} />
+          <ProgressBar value={row.pct_sist ?? 0} max={100} tone={(row.pct_sist ?? 0) >= 100 ? "emerald" : "amber"} />
+        </div>
+        <div>
+          <div className="mb-1 flex justify-between text-xs text-stone-500">
+            <span>Collegamenti</span>
+            <span className="font-mono">{row.pct_coll_pin ?? 0}% · {fmtMetric(row.coll_fatti)}/{fmtMetric(row.coll_previsti)}</span>
+          </div>
+          <ProgressBar value={row.pct_coll_pin ?? 0} max={100} tone={(row.pct_coll_pin ?? 0) >= 100 ? "emerald" : "stone"} />
         </div>
       </div>
       {open && shipId ? <PerimetroCaviList shipId={shipId} perimetro={row.perimetro} /> : null}
@@ -183,6 +242,7 @@ export default function NavemasterPage(): JSX.Element {
     try {
       await computeNavemasterRun(shipId);
       await queryClient.invalidateQueries({ queryKey: ["navemaster_view"] });
+      await queryClient.invalidateQueries({ queryKey: ["navemaster_perimetro_board"] });
       setFeedback("Run ricalcolato");
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "Errore nel calcolo");
@@ -195,6 +255,7 @@ export default function NavemasterPage(): JSX.Element {
     try {
       await setNavemasterAlertStatus(alert.id, status);
       await queryClient.invalidateQueries({ queryKey: ["navemaster_view"] });
+      await queryClient.invalidateQueries({ queryKey: ["navemaster_perimetro_board"] });
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "Errore nel triage");
     }

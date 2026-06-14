@@ -22,6 +22,17 @@ type ParsedCable = {
   perimetro: string | null;
   data_consegna_perimetro: string | null;
   collegato: string | null;
+  sist_partenza: string | null;
+  sist_arrivo: string | null;
+  data_sist_partenza: string | null;
+  data_sist_arrivo: string | null;
+  coll_fattibile: string | null;
+  numero_pin: number | null;
+  tot_collegamenti: number | null;
+  note_sistemazione: string | null;
+  problematiche_coll: string | null;
+  problematiche_posa: string | null;
+  op_lista_sist: string | null;
 
   impianto: string | null;
 
@@ -378,8 +389,8 @@ function parseXlsxCables(arrayBuffer: ArrayBuffer) {
   const sheetNames = wb.SheetNames || [];
   if (sheetNames.length === 0) throw new Error("XLSX: nessun foglio trovato.");
 
-  const datiName = sheetNames.find((n) => String(n).trim().toUpperCase() === "DATI") ?? null;
-  const chosenName = datiName || sheetNames[0];
+  const preferred = sheetNames.find((n) => ["DATI", "INCA"].includes(String(n).trim().toUpperCase()));
+  const chosenName = preferred || sheetNames[0];
   const sheet = wb.Sheets[chosenName];
   if (!sheet) throw new Error("XLSX: foglio non disponibile.");
 
@@ -466,6 +477,18 @@ function parseXlsxCables(arrayBuffer: ArrayBuffer) {
     const perimetro = normText(pickFirst(row, ["PERIMETRO"])) || null;
     const dataConsegnaPerimetro = parseExcelDateValue(pickFirst(row, ["DATA_CONSEGNA_PERIMETRO"]), "date").date;
     const collegato = normText(pickFirst(row, ["COLLEGATO"])) || null;
+    const sistPartenza = normText(pickFirst(row, ["SISTEMAZIONE_CAVI_IN_PARTENZA"])) || null;
+    const sistArrivo = normText(pickFirst(row, ["SISTEMAZIONE_CAVI_IN_ARRIVO"])) || null;
+    const dataSistPartenza = parseExcelDateValue(pickFirst(row, ["DATA_SIST_CAVI_IN_PARTENZA"]), "date").date;
+    const dataSistArrivo = parseExcelDateValue(pickFirst(row, ["DATA_SIST_CAVI_IN_ARRIVO"]), "date").date;
+    const collFattibile = normText(pickFirst(row, ["COLL_FATTIBILE_F_NF"])) || null;
+    const numeroPinRaw = safeNumber(pickFirst(row, ["NUMERO_PIN"]));
+    const numeroPin = numeroPinRaw == null ? null : Math.trunc(numeroPinRaw);
+    const totCollegamenti = safeNumber(pickFirst(row, ["TOT_COLLEGAMENTI"]));
+    const noteSistemazione = normText(pickFirst(row, ["NOTE_SISTEMAZIONE_CAVI"])) || null;
+    const problematicheColl = normText(pickFirst(row, ["PROBLEMATICHE_COLLEGAMENTI_PER_CONSEGNA_PERIMETRI"])) || null;
+    const problematichePosa = normText(pickFirst(row, ["PROBLEMATICHE_CAVI_PER_CONSEGNA_PERIMETRI"])) || null;
+    const opListaSist = normText(pickFirst(row, ["OP_LISTA_X_SIST_CAVI"])) || null;
 
     const rawSitCandidate = pickFirst(row, ["STATO_CANTIERE", "SITUAZIONE_CAVO", "SITUAZIONE", "STATO"]);
     const { progress: progressPercent, situazione, raw: situazioneRaw } = normalizeProgressFromStatoCantiere(rawSitCandidate);
@@ -515,6 +538,17 @@ function parseXlsxCables(arrayBuffer: ArrayBuffer) {
       perimetro,
       data_consegna_perimetro: dataConsegnaPerimetro,
       collegato,
+      sist_partenza: sistPartenza,
+      sist_arrivo: sistArrivo,
+      data_sist_partenza: dataSistPartenza,
+      data_sist_arrivo: dataSistArrivo,
+      coll_fattibile: collFattibile,
+      numero_pin: numeroPin,
+      tot_collegamenti: totCollegamenti,
+      note_sistemazione: noteSistemazione,
+      problematiche_coll: problematicheColl,
+      problematiche_posa: problematichePosa,
+      op_lista_sist: opListaSist,
       impianto,
       zona_da: zonaDa,
       zona_a: zonaA,
@@ -590,6 +624,18 @@ function dedupeByCodice(cables: ParsedCable[]) {
     bump(c.livello_disturbo);
     bump(c.stato_tec);
     bump(c.stato_cantiere);
+    bump(c.perimetro);
+    bump(c.sist_partenza);
+    bump(c.sist_arrivo);
+    bump(c.data_sist_partenza);
+    bump(c.data_sist_arrivo);
+    bump(c.coll_fattibile);
+    bump(c.numero_pin);
+    bump(c.tot_collegamenti);
+    bump(c.note_sistemazione);
+    bump(c.problematiche_coll);
+    bump(c.problematiche_posa);
+    bump(c.op_lista_sist);
     bump(c.impianto);
     bump(c.zona_da);
     bump(c.zona_a);
@@ -663,6 +709,17 @@ function toDbComparable(c: ParsedCable) {
     perimetro: c.perimetro,
     data_consegna_perimetro: c.data_consegna_perimetro,
     collegato: c.collegato,
+    sist_partenza: c.sist_partenza,
+    sist_arrivo: c.sist_arrivo,
+    data_sist_partenza: c.data_sist_partenza,
+    data_sist_arrivo: c.data_sist_arrivo,
+    coll_fattibile: c.coll_fattibile,
+    numero_pin: c.numero_pin,
+    tot_collegamenti: c.tot_collegamenti,
+    note_sistemazione: c.note_sistemazione,
+    problematiche_coll: c.problematiche_coll,
+    problematiche_posa: c.problematiche_posa,
+    op_lista_sist: c.op_lista_sist,
     apparato_da: c.apparato_da,
     apparato_a: c.apparato_a,
     zona_da: c.zona_da,
@@ -744,6 +801,17 @@ function toIncaCaviRow(incaFileId: string, costr: string, commessa: string, c: P
     perimetro: c.perimetro,
     data_consegna_perimetro: c.data_consegna_perimetro,
     collegato: c.collegato,
+    sist_partenza: c.sist_partenza,
+    sist_arrivo: c.sist_arrivo,
+    data_sist_partenza: c.data_sist_partenza,
+    data_sist_arrivo: c.data_sist_arrivo,
+    coll_fattibile: c.coll_fattibile,
+    numero_pin: c.numero_pin,
+    tot_collegamenti: c.tot_collegamenti,
+    note_sistemazione: c.note_sistemazione,
+    problematiche_coll: c.problematiche_coll,
+    problematiche_posa: c.problematiche_posa,
+    op_lista_sist: c.op_lista_sist,
     impianto: c.impianto,
     zona_da: c.zona_da,
     zona_a: c.zona_a,
@@ -920,7 +988,7 @@ serve(
       const prevRowsRes = await admin
         .from("inca_cavi")
         .select(
-          "codice,codice_inca,marca_cavo,descrizione,tipo,sezione,livello_disturbo,stato_tec,stato_cantiere,perimetro,data_consegna_perimetro,collegato,impianto,zona_da,zona_a,apparato_da,apparato_a,descrizione_da,descrizione_a,metri_teo,metri_dis,wbs,pagina_pdf,situazione,progress_percent,inca_data_taglio,inca_data_posa,inca_data_collegamento,inca_data_richiesta_taglio,inca_dataela_ts,inca_data_instradamento_ts,inca_data_creazione_instradamento_ts",
+          "codice,codice_inca,marca_cavo,descrizione,tipo,sezione,livello_disturbo,stato_tec,stato_cantiere,perimetro,data_consegna_perimetro,collegato,sist_partenza,sist_arrivo,data_sist_partenza,data_sist_arrivo,coll_fattibile,numero_pin,tot_collegamenti,note_sistemazione,problematiche_coll,problematiche_posa,op_lista_sist,impianto,zona_da,zona_a,apparato_da,apparato_a,descrizione_da,descrizione_a,metri_teo,metri_dis,wbs,pagina_pdf,situazione,progress_percent,inca_data_taglio,inca_data_posa,inca_data_collegamento,inca_data_richiesta_taglio,inca_dataela_ts,inca_data_instradamento_ts,inca_data_creazione_instradamento_ts",
         )
         .eq("inca_file_id", headId);
 
@@ -943,6 +1011,17 @@ serve(
           perimetro: r.perimetro ?? null,
           data_consegna_perimetro: r.data_consegna_perimetro ?? null,
           collegato: r.collegato ?? null,
+          sist_partenza: r.sist_partenza ?? null,
+          sist_arrivo: r.sist_arrivo ?? null,
+          data_sist_partenza: r.data_sist_partenza ?? null,
+          data_sist_arrivo: r.data_sist_arrivo ?? null,
+          coll_fattibile: r.coll_fattibile ?? null,
+          numero_pin: r.numero_pin == null ? null : Number(r.numero_pin),
+          tot_collegamenti: r.tot_collegamenti == null ? null : Number(r.tot_collegamenti),
+          note_sistemazione: r.note_sistemazione ?? null,
+          problematiche_coll: r.problematiche_coll ?? null,
+          problematiche_posa: r.problematiche_posa ?? null,
+          op_lista_sist: r.op_lista_sist ?? null,
           impianto: r.impianto ?? null,
           zona_da: r.zona_da ?? null,
           zona_a: r.zona_a ?? null,

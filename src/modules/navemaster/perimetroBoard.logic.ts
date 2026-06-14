@@ -6,12 +6,27 @@ import type { PerimetroBoardRow } from "./navemaster.types";
 
 /** Un périmètre est "actionnable" tant qu'il reste des câbles à compléter. */
 export function isActionable(row: PerimetroBoardRow): boolean {
-  return row.da_completare > 0;
+  return leverCount(row) > 0;
 }
 
 /** En retard = échéance dépassée (jours au target strictement négatif). */
 export function isOverdue(row: PerimetroBoardRow): boolean {
   return row.giorni_al_target != null && row.giorni_al_target < 0;
+}
+
+export function cableLevers(row: PerimetroBoardRow): { daPosare: number; daCollegare: number } {
+  const daPosare = Math.max(0, row.tot_cavi - row.posati);
+  const daCollegare = Math.max(0, row.posati - row.collegati);
+  return { daPosare, daCollegare };
+}
+
+function leverCount(row: PerimetroBoardRow): number {
+  const buckets =
+    (row.da_posare ?? 0)
+    + (row.da_sistemare ?? 0)
+    + (row.pronto_coll ?? 0)
+    + (row.coll_parziale ?? 0);
+  return buckets > 0 ? buckets : row.da_completare;
 }
 
 /**
@@ -28,7 +43,9 @@ export function rankForMorning(rows: PerimetroBoardRow[]): PerimetroBoardRow[] {
       const ao = isOverdue(a) ? 0 : 1;
       const bo = isOverdue(b) ? 0 : 1;
       if (ao !== bo) return ao - bo;
-      if (a.da_completare !== b.da_completare) return a.da_completare - b.da_completare;
+      const ar = leverCount(a);
+      const br = leverCount(b);
+      if (ar !== br) return ar - br;
       return (b.pct_posa ?? 0) - (a.pct_posa ?? 0);
     });
 }
@@ -46,12 +63,19 @@ function deadlineFragment(row: PerimetroBoardRow): string {
   return "";
 }
 
-/** Une puce lisible par câble : "INAV 2 (50% posa, 3 cavi) · in ritardo di 78 g". */
+function leverFragments(row: PerimetroBoardRow): string[] {
+  if ((row.da_posare ?? 0) > 0) return [`${row.da_posare} da posare`];
+  if ((row.da_sistemare ?? 0) > 0) return [`${row.da_sistemare} da sistemare`];
+  if ((row.pronto_coll ?? 0) > 0) return [row.pronto_coll === 1 ? "1 pronto da collegare" : `${row.pronto_coll} pronti da collegare`];
+  if ((row.coll_parziale ?? 0) > 0) return [row.coll_parziale === 1 ? "1 da finire" : `${row.coll_parziale} da finire`];
+  return [];
+}
+
+/** Une puce lisible par levier dominant : "INAV 2 — 2 pronti da collegare · in ritardo di 78 g". */
 export function describeHighlight(row: PerimetroBoardRow): string {
-  const pct = row.pct_posa == null ? "—" : `${row.pct_posa}%`;
-  const cavi = row.da_completare === 1 ? "1 cavo" : `${row.da_completare} cavi`;
+  const leverFragment = leverFragments(row)[0] || `${row.da_completare} cavi rimasti`;
   const bloc = row.bloccati > 0 ? ` · ${row.bloccati} bloccati` : "";
-  return `${row.perimetro} (${pct} posa, ${cavi})${deadlineFragment(row)}${bloc}`;
+  return `${row.perimetro} — ${leverFragment}${deadlineFragment(row)}${bloc}`;
 }
 
 /** La "phrase du matin" : où appuyer aujourd'hui pour décrocher des consegne. */

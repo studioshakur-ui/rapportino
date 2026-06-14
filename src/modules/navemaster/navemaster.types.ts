@@ -54,6 +54,15 @@ export interface PerimetroBoardRow {
   da_completare: number;
   pct_posa: number | null;
   pct_coll: number | null;
+  sistemati: number;
+  da_posare: number;
+  da_sistemare: number;
+  pronto_coll: number;
+  coll_parziale: number;
+  pct_sist: number | null;
+  coll_previsti: number | null;
+  coll_fatti: number | null;
+  pct_coll_pin: number | null;
 }
 
 export interface PerimetroBoardView {
@@ -66,8 +75,28 @@ export interface PerimetroCavoRow {
   codice: string;
   marca_cavo: string | null;
   situazione: string | null;
-  collegato: string | null;
-  posato: boolean;
-  is_collegato: boolean;
   bloccato: boolean;
+  posato: boolean;
+  sist_partenza: string | null;
+  sist_arrivo: string | null;
+  data_sist_partenza: string | null;
+  data_sist_arrivo: string | null;
+  collegato: string | null;
+  coll_partenza: boolean;
+  coll_arrivo: boolean;
+  numero_pin: number | null;
+  tot_collegamenti: number | null;
+  coll_fattibile: string | null;
+  apparato_da: string | null;
+  apparato_a: string | null;
+  descrizione_da: string | null;
+  descrizione_a: string | null;
+  note_sistemazione: string | null;
+  problematiche_coll: string | null;
+  problematiche_posa: string | null;
+  op_lista_sist: string | null;
+  inca_data_posa: string | null;
+  inca_data_collegamento: string | null;
+  stage: "bloccato" | "da_posare" | "da_sistemare" | "pronto_coll" | "coll_parziale";
+  manca: string;
 }

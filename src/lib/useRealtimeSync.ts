@@ -8,6 +8,9 @@ const WATCHED_TABLES = [
   "cable_events",
   "daily_list_item_events",
   "incoming_messages",
+  "inca_cavi",
+  "navemaster_runs",
+  "navemaster_alerts",
 ] as const;
 
 const INVALIDATE_KEYS: readonly (readonly unknown[])[] = [
@@ -21,6 +24,10 @@ const INVALIDATE_KEYS: readonly (readonly unknown[])[] = [
   ["cable_priorities"],
   ["agent_findings"],
   ["telegram_live_feed"],
+  ["core_engine_snapshot"],
+  ["navemaster_view"],
+  ["navemaster_perimetro_board"],
+  ["navemaster_perimetro_cavi"],
   ["navemaster_active_import"],
   ["navemaster_archives"],
   ["navemaster_rows"],

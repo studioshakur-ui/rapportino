@@ -14,6 +14,10 @@ const SUPABASE_URL =
 const SUPABASE_ANON_KEY =
   (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) || DEFAULT_SUPABASE_ANON_KEY;
 
+if (import.meta.env.DEV && !import.meta.env.VITE_SUPABASE_URL) {
+  console.warn(`[supabase] VITE_SUPABASE_URL non défini en dev → cible la PROD par défaut (${SUPABASE_URL})`);
+}
+
 // Toujours configuré : on dispose au minimum des défauts publics ci-dessus.
 export const supabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 

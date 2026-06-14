@@ -7,7 +7,7 @@ import type { NavemasterAlert, NavemasterAlertStatus, NavemasterRun, NavemasterV
 
 // I nuovi RPC non sono nei tipi generati: piccolo wrapper non tipizzato.
 type RpcFn = (fn: string, args?: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
-const rpc = (supabase.rpc as unknown as RpcFn);
+const rpc = ((fn: string, args?: Record<string, unknown>) => supabase.rpc(fn as never, args as never)) as unknown as RpcFn;
 
 async function loadActiveShipId(): Promise<string | null> {
   const { data } = await supabase.from("ships").select("id").eq("is_active", true).limit(1).maybeSingle();

@@ -38,15 +38,6 @@ export default function Login(): JSX.Element {
   const [localError, setLocalError] = useState<string | null>(null);
   const [bootstrapStuck, setBootstrapStuck] = useState<boolean>(false);
 
-  const roleHome = useMemo(() => {
-    const r = String(profile?.app_role || "").toUpperCase();
-    if (r === "ADMIN") return "/admin";
-    if (r === "UFFICIO") return "/ufficio";
-    if (r === "DIREZIONE") return "/direzione";
-    if (r === "MANAGER") return "/manager";
-    return "/oggi";
-  }, [profile]);
-
   useEffect(() => {
     // Safety: if bootstrap takes too long, allow user to proceed and/or reset.
     if (authReady) return;
@@ -61,8 +52,8 @@ export default function Login(): JSX.Element {
     if (!session) return;
     if (!profile) return;
 
-    navigate(roleHome, { replace: true });
-  }, [authReady, session, profile, roleHome, navigate]);
+    navigate("/oggi", { replace: true });
+  }, [authReady, session, profile, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
