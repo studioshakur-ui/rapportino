@@ -25,6 +25,7 @@ const INVALIDATE_KEYS: readonly (readonly unknown[])[] = [
   ["agent_findings"],
   ["telegram_live_feed"],
   ["core_engine_snapshot"],
+  ["giro_oggi"],
   ["navemaster_view"],
   ["navemaster_perimetro_board"],
   ["navemaster_perimetro_cavi"],

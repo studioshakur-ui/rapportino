@@ -100,7 +100,7 @@ export default function OggiPage(): JSX.Element {
                 <Btn onClick={() => window.print()} variant="secondary" className="w-full sm:w-auto">
                   Stampa lista
                 </Btn>
-                <Btn onClick={() => navigate("/campo")} className="w-full sm:w-auto">
+                <Btn onClick={() => navigate("/lista")} className="w-full sm:w-auto">
                   Apri giro campo
                 </Btn>
                 <Btn onClick={() => setShareOpen(true)} variant="secondary" className="w-full sm:w-auto">

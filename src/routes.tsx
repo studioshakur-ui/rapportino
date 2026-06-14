@@ -9,6 +9,7 @@ import AssistentePage     from "./features/core-command/assistente/AssistentePag
 import CableDetailPage    from "./features/core-command/cable/CableDetailPage";
 import CampoPage          from "./features/core-command/campo/CampoPage";
 import GraficiPage        from "./features/core-command/grafici/GraficiPage";
+import GiroOggiPage       from "./features/core-command/giro/GiroOggiPage";
 import OggiPage           from "./features/core-command/oggi/OggiPage";
 import SituazionePage     from "./features/core-command/situazione/SituazionePage";
 import DailyListsPage     from "./modules/daily-lists/DailyListsPage";
@@ -38,6 +39,7 @@ export default function AppRoutes(): JSX.Element {
       >
         <Route index element={<Navigate to="/oggi" replace />} />
         <Route path="oggi" element={<OggiPage />} />
+        <Route path="lista" element={<GiroOggiPage />} />
         <Route path="apparati" element={<ApparatiPage />} />
         <Route path="navemaster" element={<NavemasterPage />} />
         <Route path="import-inca" element={<ImportIncaPage />} />
