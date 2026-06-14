@@ -4,6 +4,9 @@ import { useNavigate } from "react-router-dom";
 import { AppBar, Btn, EmptyState, Pill, Screen, Section, StatCard } from "../../../components/command-ui";
 import { formatCableDisplay } from "../../../core/cable/cableDisplay";
 import { loadCoreEngineSnapshot } from "../../../domain/core-engine";
+import { loadPerimetroBoard } from "../../../modules/navemaster/navemaster.api";
+import { buildMorningSentence } from "../../../modules/navemaster/perimetroBoard.logic";
+import { SituazioneShare } from "../situazione/SituazioneShare";
 
 function formatDate(value: string | null): string {
   if (!value) return "data sconosciuta";
@@ -34,6 +37,7 @@ export default function OggiPage(): JSX.Element {
   const navigate = useNavigate();
   const [showAllClosures, setShowAllClosures] = useState(false);
   const [showAllTelegram, setShowAllTelegram] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["core_engine_snapshot"],
@@ -41,8 +45,19 @@ export default function OggiPage(): JSX.Element {
     staleTime: 30_000,
   });
 
+  const { data: perimetroBoard, isError: perimetroBoardError } = useQuery({
+    queryKey: ["navemaster_perimetro_board"],
+    queryFn: loadPerimetroBoard,
+    staleTime: 30_000,
+  });
+
   const today = data?.today ?? null;
   const summary = today?.summary ?? null;
+  const morningSentence = perimetroBoardError
+    ? "Consegna non disponibile. Apri il board per riprovare."
+    : perimetroBoard
+      ? buildMorningSentence(perimetroBoard.rows)
+      : "Caricamento consegna in corso...";
 
   return (
     <Screen className="max-w-6xl space-y-6">
@@ -51,6 +66,16 @@ export default function OggiPage(): JSX.Element {
         subtitle="Cosa devo chiudere oggi, cosa blocca la chiusura e quali impatti Telegram hanno cambiato lo stato."
         action={today?.latest_import ? <Pill tone="emerald">{today.latest_import.file_name}</Pill> : null}
       />
+
+      <section className="theme-banner-success rounded-[24px] px-4 py-4 sm:flex sm:items-center sm:justify-between sm:gap-4">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em]">Dove appoggiare oggi</p>
+          <p className="mt-2 text-sm font-medium leading-6">{morningSentence}</p>
+        </div>
+        <Btn onClick={() => navigate("/navemaster")} variant="secondary" className="mt-3 shrink-0 sm:mt-0">
+          Apri Consegna →
+        </Btn>
+      </section>
 
       {!isLoading && !today ? (
         <EmptyState
@@ -62,12 +87,12 @@ export default function OggiPage(): JSX.Element {
 
       {today ? (
         <>
-          <section className="rounded-[28px] border border-stone-200 bg-white p-4 shadow-sm">
+          <section className="theme-card-surface rounded-[28px] p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-stone-500">Azione adesso</p>
-                <h2 className="text-lg font-semibold text-stone-950">Preparare il giro di oggi</h2>
-                <p className="mt-1 text-sm text-stone-600">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] theme-token-faint">Azione adesso</p>
+                <h2 className="text-lg font-semibold theme-token-text">Preparare il giro di oggi</h2>
+                <p className="mt-1 text-sm theme-token-muted">
                   Lista {today.latest_import?.file_name ?? "non disponibile"} · {today.metrics.remaining_cables} cavi da chiudere.
                 </p>
               </div>
@@ -77,6 +102,9 @@ export default function OggiPage(): JSX.Element {
                 </Btn>
                 <Btn onClick={() => navigate("/campo")} className="w-full sm:w-auto">
                   Apri giro campo
+                </Btn>
+                <Btn onClick={() => setShareOpen(true)} variant="secondary" className="w-full sm:w-auto">
+                  Condividi 16:30
                 </Btn>
               </div>
             </div>
@@ -105,17 +133,20 @@ export default function OggiPage(): JSX.Element {
                       <button
                         key={item.key}
                         onClick={() => navigate(item.route)}
-                        className="w-full rounded-[24px] border border-stone-200 bg-white p-4 text-left shadow-sm transition hover:border-amber-300"
+                        className="theme-card-surface theme-card-hover w-full rounded-[24px] p-4 text-left transition"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">
+                            <p className="text-xs font-semibold uppercase tracking-[0.2em] theme-token-faint">
                               {item.kind === "system" ? "Sistema" : "Apparato"}
                             </p>
-                            <p className="mt-1 text-base font-semibold text-stone-950">{item.name}</p>
-                            <p className="mt-1 text-sm text-stone-600">{item.summary}</p>
+                            <p className="mt-1 text-base font-semibold theme-token-text">{item.name}</p>
+                            <p className="mt-1 text-sm theme-token-muted">{item.summary}</p>
                             {item.blocker ? (
-                              <p className={`mt-2 text-xs ${isFieldVerificationBlocker(item.blocker) ? "text-amber-700" : "text-red-700"}`}>
+                              <p
+                                className="mt-2 text-xs"
+                                style={{ color: isFieldVerificationBlocker(item.blocker) ? "var(--stato-sistemato)" : "var(--stato-bloccato)" }}
+                              >
                                 {isFieldVerificationBlocker(item.blocker) ? "Da verificare sul campo" : "Blocco reale"}: {item.blocker}
                               </p>
                             ) : null}
@@ -130,7 +161,7 @@ export default function OggiPage(): JSX.Element {
                   {!showAllClosures && today.critical_closures.length > CLOSURES_PAGE_SIZE && (
                     <button
                       onClick={() => setShowAllClosures(true)}
-                      className="mt-2 w-full rounded-2xl border border-stone-200 bg-white py-3 text-sm font-medium text-stone-600 transition hover:border-stone-300 hover:text-stone-950"
+                      className="theme-btn theme-btn-secondary mt-2 w-full rounded-2xl py-3 text-sm font-medium transition"
                     >
                       Mostra tutti ({today.critical_closures.length})
                     </button>
@@ -150,15 +181,15 @@ export default function OggiPage(): JSX.Element {
                 <>
                   <div className="space-y-3">
                     {(showAllTelegram ? today.telegram_impacts : today.telegram_impacts.slice(0, TELEGRAM_PAGE_SIZE)).map((impact) => (
-                      <article key={impact.message_id} className="rounded-[24px] border border-stone-200 bg-white p-4 shadow-sm">
+                      <article key={impact.message_id} className="theme-card-surface rounded-[24px] p-4">
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <p className="text-sm font-semibold text-stone-950">{formatDate(impact.message_ts)}</p>
-                            <p className="mt-1 text-xs text-stone-500">{impact.before_label} → {impact.after_label}</p>
+                            <p className="text-sm font-semibold theme-token-text">{formatDate(impact.message_ts)}</p>
+                            <p className="mt-1 text-xs theme-token-faint">{impact.before_label} → {impact.after_label}</p>
                           </div>
                           <Pill tone={impact.system_closed ? "emerald" : "amber"}>{impact.system_closed ? "Sistema chiuso" : "Impatto"}</Pill>
                         </div>
-                        <p className="mt-3 line-clamp-3 whitespace-pre-line text-sm leading-6 text-stone-700">
+                        <p className="mt-3 line-clamp-3 whitespace-pre-line text-sm leading-6 theme-token-muted">
                           {impact.text || "Messaggio senza testo"}
                         </p>
                         <div className="mt-3 flex flex-wrap gap-2">
@@ -166,7 +197,7 @@ export default function OggiPage(): JSX.Element {
                             <button
                               key={code}
                               onClick={() => navigate(`/cable/${encodeURIComponent(code)}`)}
-                              className="rounded-xl border border-stone-200 bg-stone-50 px-2.5 py-1 text-xs font-mono font-semibold text-stone-700 transition hover:border-amber-300"
+                              className="theme-card-surface-2 theme-card-hover rounded-xl px-2.5 py-1 text-xs font-mono font-semibold theme-token-text transition"
                             >
                               {formatCableDisplay(code)}
                             </button>
@@ -178,7 +209,7 @@ export default function OggiPage(): JSX.Element {
                   {!showAllTelegram && today.telegram_impacts.length > TELEGRAM_PAGE_SIZE && (
                     <button
                       onClick={() => setShowAllTelegram(true)}
-                      className="mt-2 w-full rounded-2xl border border-stone-200 bg-white py-3 text-sm font-medium text-stone-600 transition hover:border-stone-300 hover:text-stone-950"
+                      className="theme-btn theme-btn-secondary mt-2 w-full rounded-2xl py-3 text-sm font-medium transition"
                     >
                       Mostra tutti ({today.telegram_impacts.length})
                     </button>
@@ -190,7 +221,7 @@ export default function OggiPage(): JSX.Element {
 
           {summary ? (
             <Section title="Riepilogo lista" eyebrow="Lista attiva">
-              <div className="rounded-[28px] border border-stone-200 bg-white p-5 shadow-sm">
+              <div className="theme-card-surface rounded-[28px] p-5">
                 <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
                   <StatCard label="Confermati" value={summary.confirmed + summary.likely_laid} tone="emerald" />
                   <StatCard label="Da verificare" value={summary.to_verify} tone="amber" />
@@ -203,6 +234,36 @@ export default function OggiPage(): JSX.Element {
             </Section>
           ) : null}
         </>
+      ) : null}
+
+      {shareOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end lg:items-stretch lg:justify-end"
+          role="presentation"
+          style={{ background: "color-mix(in srgb, var(--bg) 72%, transparent)" }}
+          onClick={() => setShareOpen(false)}
+        >
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="situazione-share-title"
+            className="theme-token-surface w-full max-h-[90vh] overflow-y-auto rounded-t-[28px] border-t theme-token-border p-5 shadow-2xl lg:h-full lg:max-h-none lg:max-w-xl lg:rounded-none lg:border-l lg:border-t-0 lg:p-6"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <p className="theme-appbar-kicker text-[11px] font-semibold uppercase tracking-[0.2em]">Condividi</p>
+                <h2 id="situazione-share-title" className="mt-1 text-xl font-semibold theme-token-text">Messaggio 16:30</h2>
+                <p className="mt-1 text-sm theme-token-muted">Testo pronto per il punto operativo di fine giornata.</p>
+              </div>
+              <Btn onClick={() => setShareOpen(false)} variant="ghost">Chiudi</Btn>
+            </div>
+            <SituazioneShare situation={data?.situation ?? null} />
+            <Btn onClick={() => navigate("/situazione")} variant="ghost" className="mt-3 w-full">
+              Apri vista completa
+            </Btn>
+          </aside>
+        </div>
       ) : null}
     </Screen>
   );

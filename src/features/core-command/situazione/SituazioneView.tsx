@@ -1,27 +1,8 @@
-import { useState } from "react";
-import { AppBar, EmptyState, Pill, Screen, Section, StatCard, Btn } from "../../../components/command-ui";
+import { AppBar, EmptyState, Pill, Screen, Section, StatCard } from "../../../components/command-ui";
 import type { DailySituationView } from "../../../domain/core-engine/dailySituation";
+import { SituazioneShare } from "./SituazioneShare";
 
 export function SituazioneView({ situation }: { situation: DailySituationView | null }): JSX.Element {
-  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
-
-  async function copyText(): Promise<void> {
-    if (!situation) return;
-    try {
-      await navigator.clipboard.writeText(situation.messageToSend);
-      setCopyFeedback("Testo copiato");
-    } catch {
-      setCopyFeedback("Copia non riuscita");
-    }
-  }
-
-  function openShare(target: "telegram" | "whatsapp"): void {
-    if (!situation) return;
-    const encoded = encodeURIComponent(situation.messageToSend);
-    const url = target === "telegram" ? `https://t.me/share/url?text=${encoded}` : `https://wa.me/?text=${encoded}`;
-    window.open(url, "_blank", "noopener,noreferrer");
-  }
-
   if (!situation) {
     return (
       <Screen className="max-w-5xl space-y-6">
@@ -44,22 +25,7 @@ export function SituazioneView({ situation }: { situation: DailySituationView | 
       />
 
       <Section title="Testo pronto da inviare" eyebrow="Azione" className="space-y-3">
-        <div className="rounded-[28px] border border-stone-200 bg-white p-5 shadow-sm">
-          <pre className="whitespace-pre-wrap break-words text-sm leading-6 text-stone-800">{situation.messageToSend}</pre>
-
-          <div className="mt-4 grid gap-2 sm:grid-cols-3">
-            <Btn onClick={() => void copyText()} className="w-full">
-              Copia
-            </Btn>
-            <Btn onClick={() => openShare("telegram")} variant="secondary" className="w-full">
-              Telegram
-            </Btn>
-            <Btn onClick={() => openShare("whatsapp")} variant="secondary" className="w-full">
-              WhatsApp
-            </Btn>
-          </div>
-          {copyFeedback ? <p className="mt-3 text-sm font-medium text-emerald-700">{copyFeedback}</p> : null}
-        </div>
+        <SituazioneShare situation={situation} />
       </Section>
 
       <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">

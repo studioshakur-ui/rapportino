@@ -13,7 +13,6 @@ const TOOLS_NAV = [
   { to: "/import", label: "Liste", hint: "Liste giornaliere" },
   { to: "/import-inca", label: "Import INCA", hint: "Carica XLSX" },
   { to: "/campo", label: "Campo", hint: "Prove dal campo" },
-  { to: "/situazione", label: "Situazione", hint: "Messaggio 16:30" },
   { to: "/assistente", label: "Assistente", hint: "Domande sul cantiere" },
   { to: "/grafici", label: "Analisi", hint: "Grafici di supporto" },
 ] as const;
