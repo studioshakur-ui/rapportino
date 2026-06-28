@@ -1,0 +1,59 @@
+{
+  "id": "/oggi",
+  "name": "CORE COMMAND",
+  "short_name": "CORE",
+  "description": "Cockpit chantier mobile-first pour piloter consegna, perimetri, liste giornaliere et apparati.",
+  "start_url": "/oggi?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "portrait-primary",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "lang": "it",
+  "dir": "ltr",
+  "categories": ["productivity", "business", "utilities"],
+  "icons": [
+    {
+      "src": "/icons/core-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/core-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/core-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Oggi",
+      "short_name": "Oggi",
+      "description": "Apri il cockpit del giorno",
+      "url": "/oggi?source=pwa-shortcut",
+      "icons": [{ "src": "/icons/core-icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Consegna",
+      "short_name": "Consegna",
+      "description": "Apri perimetri e avanzamento",
+      "url": "/navemaster?source=pwa-shortcut",
+      "icons": [{ "src": "/icons/core-icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Lista oggi",
+      "short_name": "Lista",
+      "description": "Apri il giro del giorno",
+      "url": "/lista?source=pwa-shortcut",
+      "icons": [{ "src": "/icons/core-icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}

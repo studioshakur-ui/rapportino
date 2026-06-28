@@ -13,6 +13,7 @@ import { I18nProvider } from "./i18n/I18nProvider";
 import { dictionaries } from "./i18n/dictionaries";
 import { initThemeFromStorage } from "./hooks/useTheme";
 import { ThemeProvider } from "./theme/ThemeProvider";
+import { registerServiceWorker } from "./lib/registerServiceWorker";
 import "./styles/core-colors.css";
 import "./theme/tokens.css";
 import "./styles/core-ui.css";
@@ -112,6 +113,7 @@ if (!rootEl) {
 
 initThemeFromStorage();
 installChunkLoadRecovery();
+registerServiceWorker();
 
 ReactDOM.createRoot(rootEl).render(
   <React.StrictMode>
