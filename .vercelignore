@@ -1,0 +1,10 @@
+.env*
+.codex/
+.agents/
+.netlify/
+backups/
+services/
+scripts/
+docs/
+*.sql
+*.log

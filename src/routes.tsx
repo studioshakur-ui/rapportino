@@ -1,4 +1,5 @@
 // src/routes.tsx — CORE COMMAND
+import { lazy, Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 
 import RequireAuth from "./auth/RequireAuth";
@@ -18,6 +19,7 @@ import ImportIncaPage      from "./modules/inca/ImportIncaPage";
 import ApparatiPage        from "./modules/apparati/ApparatiPage";
 import EquipmentStoryPage  from "./modules/equipment/EquipmentStoryPage";
 import NavemasterPage      from "./modules/navemaster/NavemasterPage";
+const TarghettiPage = lazy(() => import("./modules/targhetti/TarghettiPage"));
 
 function RouteRedirect({ to }: { to: string }): JSX.Element {
   return <Navigate to={to} replace />;
@@ -41,6 +43,8 @@ export default function AppRoutes(): JSX.Element {
         <Route path="oggi" element={<OggiPage />} />
         <Route path="lista" element={<GiroOggiPage />} />
         <Route path="apparati" element={<ApparatiPage />} />
+        <Route path="targhetti" element={<Suspense fallback={<p className="p-6">Caricamento…</p>}><TarghettiPage /></Suspense>} />
+        <Route path="command/targhetti" element={<Navigate to="/targhetti" replace />} />
         <Route path="navemaster" element={<NavemasterPage />} />
         <Route path="import-inca" element={<ImportIncaPage />} />
         <Route path="campo" element={<CampoPage />} />

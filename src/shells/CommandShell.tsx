@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { useTheme } from "../hooks/useTheme";
 
@@ -7,6 +7,7 @@ const PRIMARY_NAV = [
   { to: "/oggi", label: "Oggi", hint: "Cosa chiudere adesso" },
   { to: "/navemaster", label: "Consegna", hint: "Perimetri e avanzamento" },
   { to: "/apparati", label: "Apparati", hint: "Chiusure apparato" },
+  { to: "/targhetti", label: "TARGHETTI", hint: "Marcatura e stampa" },
 ] as const;
 
 const TOOLS_NAV = [
@@ -19,6 +20,8 @@ const TOOLS_NAV = [
 
 export default function CommandShell(): JSX.Element {
   const navigate = useNavigate();
+  const compact = useLocation().pathname === "/targhetti";
+  const SidebarTools = compact ? "details" : "nav";
   const { signOut } = useAuth() as { signOut: (a: { reason: string }) => Promise<void> };
   const { effective, setTheme } = useTheme();
   const [query, setQuery] = useState("");
@@ -35,13 +38,13 @@ export default function CommandShell(): JSX.Element {
   return (
     <div className="shell-frame">
       <div className="flex min-h-screen">
-        <aside className="shell-sidebar hidden lg:flex lg:sticky lg:top-0 lg:h-screen lg:w-[304px] lg:flex-col lg:border-r lg:px-6 lg:py-6">
-          <div className="shell-hero rounded-[28px] p-5">
+        <aside className={`shell-sidebar hidden lg:flex lg:sticky lg:top-0 lg:h-screen ${compact ? "lg:w-[220px] lg:px-4" : "lg:w-[304px] lg:px-6"} lg:flex-col lg:border-r lg:py-6`}>
+          <div className={compact ? "px-4 py-3" : "shell-hero rounded-[28px] p-5"}>
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.24em] theme-token-muted">Core Command</p>
-                <h1 className="mt-2 text-2xl font-semibold tracking-tight theme-token-text">Centro Comando</h1>
-                <p className="mt-2 text-sm leading-6 theme-token-muted">Consegna, apparati e strumenti di bordo in un solo cockpit.</p>
+                {!compact && <><h1 className="mt-2 text-2xl font-semibold tracking-tight theme-token-text">Centro Comando</h1>
+                <p className="mt-2 text-sm leading-6 theme-token-muted">Consegna, apparati e strumenti di bordo in un solo cockpit.</p></>}
               </div>
               <button
                 type="button"
@@ -50,12 +53,12 @@ export default function CommandShell(): JSX.Element {
                 aria-label={isDark ? "Passa al tema chiaro" : "Passa al tema scuro"}
               >
                 <span aria-hidden>{isDark ? "☀" : "☾"}</span>
-                <span>{isDark ? "White" : "Dark"}</span>
+                {!compact && <span>{isDark ? "White" : "Dark"}</span>}
               </button>
             </div>
           </div>
 
-          <form onSubmit={search} className="mt-6">
+          {!compact && <form onSubmit={search} className="mt-6">
             <label className="block">
               <span className="sr-only">Cerca cavo</span>
               <input
@@ -66,7 +69,7 @@ export default function CommandShell(): JSX.Element {
                 className="shell-search min-h-12 w-full rounded-2xl px-4 text-sm transition"
               />
             </label>
-          </form>
+          </form>}
 
           <nav className="mt-6 space-y-2">
             {PRIMARY_NAV.map(({ to, label, hint }) => (
@@ -74,21 +77,21 @@ export default function CommandShell(): JSX.Element {
                 key={to}
                 to={to}
                 className={({ isActive }) =>
-                  `shell-nav-item block rounded-[22px] px-4 py-3 transition ${isActive ? "shell-nav-item-active" : ""}`
+                  `shell-nav-item block rounded-[22px] px-4 ${compact ? "py-2" : "py-3"} transition ${isActive ? "shell-nav-item-active" : ""}`
                 }
               >
                 {({ isActive }) => (
                   <>
                     <p className={`text-sm font-semibold ${isActive ? "theme-token-text" : "theme-token-text"}`}>{label}</p>
-                    <p className={`mt-1 text-xs ${isActive ? "theme-token-muted" : "theme-token-muted"}`}>{hint}</p>
+                    {!compact && <p className="mt-1 text-xs theme-token-muted">{hint}</p>}
                   </>
                 )}
               </NavLink>
             ))}
           </nav>
 
-          <nav className="mt-6 border-t theme-token-border pt-4">
-            <p className="px-4 text-[11px] font-semibold uppercase tracking-[0.2em] theme-token-faint">Strumenti</p>
+          <SidebarTools className="mt-6 border-t theme-token-border pt-4">
+            {compact ? <summary className="cursor-pointer px-4 text-xs theme-token-muted">Menu</summary> : <p className="px-4 text-[11px] font-semibold uppercase tracking-[0.2em] theme-token-faint">Strumenti</p>}
             <div className="mt-2 space-y-2">
               {TOOLS_NAV.map(({ to, label, hint }) => (
                 <NavLink
@@ -99,11 +102,11 @@ export default function CommandShell(): JSX.Element {
                   }
                 >
                   <p className="text-sm font-semibold">{label}</p>
-                  <p className="mt-1 text-xs theme-token-muted">{hint}</p>
+                  {!compact && <p className="mt-1 text-xs theme-token-muted">{hint}</p>}
                 </NavLink>
               ))}
             </div>
-          </nav>
+          </SidebarTools>
 
           <div className="mt-auto pt-6">
             <button
@@ -117,12 +120,12 @@ export default function CommandShell(): JSX.Element {
 
         <div className="flex min-h-screen min-w-0 flex-1 flex-col">
           <header className="shell-topbar sticky top-0 z-30 border-b lg:hidden">
-            <div className="px-5 py-4">
+            <div className={compact ? "px-5 py-3" : "px-5 py-4"}>
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.24em] theme-token-muted">Core Command</p>
-                  <p className="mt-1 text-base font-semibold theme-token-text">Centro Comando</p>
-                  <p className="mt-1 text-xs theme-token-muted">Consegna e strumenti essenziali.</p>
+                  {!compact && <><p className="mt-1 text-base font-semibold theme-token-text">Centro Comando</p>
+                  <p className="mt-1 text-xs theme-token-muted">Consegna e strumenti essenziali.</p></>}
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -142,7 +145,7 @@ export default function CommandShell(): JSX.Element {
                 </div>
               </div>
 
-              <form onSubmit={search} className="mt-3">
+              {!compact && <form onSubmit={search} className="mt-3">
                 <input
                   type="text"
                   value={query}
@@ -150,9 +153,9 @@ export default function CommandShell(): JSX.Element {
                   placeholder="Cerca cavo"
                   className="shell-search min-h-11 w-full rounded-2xl px-4 text-sm"
                 />
-              </form>
+              </form>}
 
-              <div className="mt-3 grid grid-cols-3 gap-2">
+              {!compact && <div className="mt-3 grid grid-cols-4 gap-2">
                 {PRIMARY_NAV.map(({ to, label }) => (
                   <NavLink
                     key={to}
@@ -164,12 +167,13 @@ export default function CommandShell(): JSX.Element {
                     {label}
                   </NavLink>
                 ))}
-              </div>
+              </div>}
               <details className="mt-2">
                 <summary className="shell-action flex min-h-10 cursor-pointer list-none items-center justify-center rounded-2xl px-4 text-xs font-semibold transition">
-                  Strumenti
+                  {compact ? "Menu" : "Strumenti"}
                 </summary>
                 <div className="mt-2 space-y-2">
+                  {compact && PRIMARY_NAV.map(({to,label})=><NavLink key={to} to={to} className="shell-nav-item block rounded-2xl px-3 py-2 text-sm">{label}</NavLink>)}
                   {TOOLS_NAV.map(({ to, label, hint }) => (
                     <NavLink
                       key={to}
@@ -179,7 +183,7 @@ export default function CommandShell(): JSX.Element {
                       }
                     >
                       <p className="text-sm font-semibold">{label}</p>
-                      <p className="mt-1 text-xs theme-token-muted">{hint}</p>
+                      {!compact && <p className="mt-1 text-xs theme-token-muted">{hint}</p>}
                     </NavLink>
                   ))}
                 </div>
